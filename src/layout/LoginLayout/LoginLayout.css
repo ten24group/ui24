@@ -1,0 +1,10 @@
+.login-layout {
+  min-height: 100vh; /* Ensure it takes up the full viewport height */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+  
+.login-row {
+  margin: 0 auto;
+}
