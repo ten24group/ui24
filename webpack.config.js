@@ -32,7 +32,7 @@ module.exports = {
   },
   externals: {
     react: 'react',
-    'react-dom': 'reactDOM'
+    'react-dom': 'react-dom'
   },
   devServer: {
     static: {
