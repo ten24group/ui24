@@ -2,7 +2,7 @@ import React, { ReactNode } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 //import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from "../index";
-import { LoginPage, Dashboard, ForgotPassword, ResetPassword } from '../pages';
+import { LoginPage, PostAuthPage, ForgotPassword, ResetPassword } from '../pages';
 
 interface IRoute{
     path: string;
@@ -19,7 +19,7 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
       { path: "/login", element: <LoginPage /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
-      { path: "/dashboard", element: <Dashboard /> },
+      { path: "/dashboard", element: <PostAuthPage metaDataUrl='/create-account' /> },
       // Add other default routes
     ];
   
