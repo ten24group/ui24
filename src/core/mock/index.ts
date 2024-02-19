@@ -8,12 +8,12 @@ export const apiResponse = ( alias : string ) => {
                     {
                         column: "emailAddress",
                         label : "Email Address",
-                        placeholder: "",
+                        placeholder: "Email Address",
                         validations: ["required", "email"]
                     }, {
                         column: "password",
                         label : "Password",
-                        placeholder: "",
+                        placeholder: "Password",
                         validations: ["required"]
                     }
                 ]
@@ -26,7 +26,7 @@ export const apiResponse = ( alias : string ) => {
                     {
                         column: "emailAddress",
                         label : "Email Address",
-                        placeholder: "",
+                        placeholder: "Email Address",
                         validations: ["required", "email"]
                     }
                 ]
@@ -74,8 +74,39 @@ export const apiResponse = ( alias : string ) => {
                     }
                 ]
             }
+        },
+        //TODO: List
+        "/list-account" : {
+            'data' : {
+                "pageType": "list",
+                "propertiesConfig" : [
+                    {
+                        column: "firstName",
+                        label : "First Name",
+                        validations: ["required"]
+                    }, {
+                        column: "lastName",
+                        label : "Last Name",
+                        validations: ["required"]
+                    }, {
+                        column: "emailAddress",
+                        label : "Email Address",
+                        validations: ["required", "email"]
+                    },  {
+                        column: "address",
+                        label : "Address",
+                        fieldType: "textarea",
+                        validations: ["required"]
+                    }
+                ]
+            }
         }
+
+
     }
 
-    return mockResponse[ alias ].data.propertiesConfig
+    return {
+        pageType : mockResponse[ alias ].data.pageType,
+        propertiesConfig: mockResponse[ alias ].data.propertiesConfig
+    }
 }
