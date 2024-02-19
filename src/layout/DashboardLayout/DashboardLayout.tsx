@@ -2,7 +2,7 @@
 //import { lazyLoadComponent } from '../utils/lazyLoadComponent';
 import React, { ReactNode, lazy, Suspense } from 'react';
 import { Breadcrumb, Layout, theme } from 'antd';
-import { Menu } from '../pages';
+import { Menu } from '../../pages';
 
 const { Header, Content, Footer, Sider } = Layout;
 
@@ -19,8 +19,7 @@ export const DashboardLayout: React.FC<IChildren> = ({ children }) => {
 
   return (
     <Layout style={{ minHeight: "100vh"}}>
-      <Menu />
-        {/* <Header style={{ display: 'flex', alignItems: 'center' }}></Header> */}
+        <Menu />
         <Layout style={{ padding: '0 24px 24px' }}>
           <Content style={{ padding: '0 48px' }}>
             {children}
