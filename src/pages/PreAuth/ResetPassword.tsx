@@ -1,8 +1,8 @@
 import React from 'react';
 import { usePageConfig } from "../../core";
-import { IFormConfig } from "../../forms/Form";
+import { IFormConfig } from '../../core/forms/formConfig';
 import { LoginLayout } from "../../layout";
-import { CustomForm } from "../../forms/Form";
+import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
 
 export const ResetPassword = () => {
     const onFinish = (values: any) => {
@@ -14,12 +14,17 @@ export const ResetPassword = () => {
         className: "login-form"
     }
 
-    const [ propertiesConfig ] = usePageConfig("/reset-password");
+    const { propertiesConfig } = usePageConfig("/reset-password");
 
-    return <>{ propertiesConfig && <LoginLayout><CustomForm formConfig = { formConfig } 
-        propertiesConfig={ propertiesConfig } 
-        onSubmit={ onFinish } 
-        formButtons={ ["submit"] } />
+    return <>{ propertiesConfig && <LoginLayout> <PreAuthForm
+        layoutConfig= {{
+          title: "Admin Login",
+          description: "Restricted area."
+        }}
+        onSubmit={onFinish}
+        propertiesConfig={ propertiesConfig }
+        formConfig={ formConfig }
+        formButtons={ ["forgotPassword" ]} />
     </LoginLayout>}</>;
 
 }

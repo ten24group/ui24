@@ -1,5 +1,6 @@
 import React from 'react';
 import { Button, Checkbox, Form, Input, Space } from 'antd';
+
 type IButtonType = "primary" | "secondary"
 type IHtmlType = "submit" | "reset"
 interface IFormButton {
@@ -7,16 +8,28 @@ interface IFormButton {
     htmlType?: IHtmlType;
     className?: string;
     text: string;
+    style?: any;
+    size?: any;
 }
 
-type IPreDefinedButtons = "submit" | "cancel" | "login";
+type IPreDefinedButtons = "submit" | "cancel" | "login" | "forgotPassword";
 
 const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
     "login" : {
         text: "Log In",
         className: "login-form-button",
         buttonType: "primary",
-        htmlType: "submit"
+        htmlType: "submit",
+        style: { width: "100%"},
+        size: "large"
+    }, 
+    "forgotPassword" : {
+        text: "Submit",
+        className: "login-form-button",
+        buttonType: "primary",
+        htmlType: "submit",
+        style: { width: "100%"},
+        size: "large"
     }, 
     "submit" : {
         text: "Submit",
@@ -36,21 +49,22 @@ interface ICreateButtons {
 
 export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
     const renderButton = (buttonConfig: IFormButton ) => {
-        return <Form.Item>
-                <Button type={ buttonConfig?.buttonType || "" } htmlType={ buttonConfig?.htmlType || "" } className={ buttonConfig?.className || ""}>{ buttonConfig.text }</Button>
-              </Form.Item>
+        return <>
+                <Form.Item>
+                    <Button size={ buttonConfig.size ?? "large" } style={ buttonConfig.style } type={ buttonConfig?.buttonType || "" } htmlType={ buttonConfig?.htmlType || "" } className={ buttonConfig?.className || ""}>{ buttonConfig.text }</Button>
+                </Form.Item>
+            </>
     }
 
     return <React.Fragment>
-        <Space>
         { formButtons.map( (buttonConfig, index ) => {
             if( typeof buttonConfig === "string" ) {
                 return renderButton( PreDefinedButtons[ buttonConfig ] )
+                
             } else {
                 return renderButton( buttonConfig )
             }
         })}
-        </Space>
     </React.Fragment>
 }
 

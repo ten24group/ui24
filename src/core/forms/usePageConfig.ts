@@ -7,6 +7,8 @@ interface IUseForm {
     metaDataUrl: string;
 }
 
+type PreDefinedPageTypes = "list" | "form";
+
 interface IPageConfigResponse {
     status : boolean;
     data: any;
@@ -14,6 +16,7 @@ interface IPageConfigResponse {
 }
 export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => {
     const [ propertiesConfig, setPropertiesConfig ] = useState([])
+    const [ pageType, setPageType ] = useState<PreDefinedPageTypes | string>("")
 
     useEffect( () => {
         const callConfigAPI = async () => {
@@ -21,8 +24,9 @@ export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => 
             if( response ) {
                 //set properties config
             } else {
-                const mockResponse = apiResponse( metaDataUrl );
-                setPropertiesConfig( convertColumnsConfigForFormField(mockResponse) )
+                const { propertiesConfig: dynamicPropertiesConfig, pageType : dynamicPageType }  = apiResponse( metaDataUrl );
+                setPageType( dynamicPageType )
+                setPropertiesConfig( convertColumnsConfigForFormField(dynamicPropertiesConfig) )
             }
         }
 
@@ -30,9 +34,10 @@ export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => 
         
     }, [] )
 
-    return [
-        propertiesConfig
-    ]
+    return {
+        propertiesConfig,
+        pageType
+    }
 }
 
 //Total possible API calls.

@@ -1,5 +1,5 @@
 import React, { Component, ReactNode } from 'react';
-type IFormFieldType = "text" | "password" | "email" | "textarea"
+type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox"
 
 interface IFormField {
     name: string; //unique identifier, should be without spaces
