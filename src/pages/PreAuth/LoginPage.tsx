@@ -1,26 +1,34 @@
 import React from 'react';
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { CustomForm, IFormField, IFormConfig } from '../../forms/Form';
-import { convertColumnsConfigForFormField } from '../../core/forms';
+import { Link } from '../../forms/PostAuthForm';
+import { Checkbox  } from 'antd';
+import { preAuthMethods } from '../../core/pages';
+import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
 import { LoginLayout } from '../../layout';
-import { apiResponse } from '../../core/mock';
-import { usePageConfig } from '../../core';
+import type { CheckboxProps } from 'antd';
 
-export function LoginPage() {
-    const onFinish = (values: any) => {
-      console.log('Received values of form: ', values);
-    };
-    
-    const [ propertiesConfig ] = usePageConfig("/login");
+export const LoginPage = () => {
 
-    const formConfig : IFormConfig = {
-      name: "loginForm",
-      className: "login-form"
-    }
-    
-    return <>{ propertiesConfig && <LoginLayout><CustomForm formConfig = { formConfig } 
-        propertiesConfig={ propertiesConfig } 
-        onSubmit={ onFinish } 
-        formButtons={ ["login"] } />
-    </LoginLayout>}</>;
-}
+  const { onFinish , propertiesConfig, formConfig } = preAuthMethods();
+  const onChange: CheckboxProps['onChange'] = (e) => {
+      //TOOD: Remember Me    
+  };
+
+  return (
+    <LoginLayout>
+        <PreAuthForm
+        layoutConfig= {{
+          title: "Admin Login",
+          description: "Restricted area."
+        }}
+        onSubmit={onFinish}
+        propertiesConfig={ propertiesConfig }
+        formConfig={ formConfig }
+        formButtons={ ["login" ]}>
+                <div className="PreAuthLoginActions">
+                    <Checkbox onChange={onChange}>Remember Me</Checkbox>
+                    <Link title="Forgot Password ?" url='/forgot-password' />
+                </div>
+        </PreAuthForm>
+    </LoginLayout>
+  );
+};
