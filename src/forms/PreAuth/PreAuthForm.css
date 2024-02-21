@@ -1,4 +1,3 @@
-
 .loginFormFields {
     width: 328px;
     min-width: 280px;
@@ -13,5 +12,5 @@
 }
 
 .PreAuthLoginActions > .forgotPassowrd {
-        float: right;
+    float: right;
 }
