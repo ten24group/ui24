@@ -6,15 +6,10 @@ import { CreateButtons } from "../../core";
 import "./PreAuthForm.css";
 
 interface PreAuthForm extends ICustomForm {
-    layoutConfig : {
-        title: string;
-        description: string;
-    }
     children?: any;
 }
 
 export const PreAuthForm = ({
-    layoutConfig,
     formConfig = { name: "customForm" },
     propertiesConfig,
     onSubmit,
@@ -22,13 +17,7 @@ export const PreAuthForm = ({
     children
 } : PreAuthForm) => {
 
-    return <div className="preAuthLoginContainer">
-        <div className="containerTop">
-            <div className="title">{ layoutConfig.title } </div>
-            <div className="description">{ layoutConfig.description }</div>
-        </div>
-
-        <div className="loginFormFields">
+    return <div className="loginFormFields">
             <Form
             name={ formConfig.name }
             className={ formConfig?.className || "" }
@@ -42,5 +31,4 @@ export const PreAuthForm = ({
                 <CreateButtons formButtons={ formButtons } />
             </Form>
         </div>
-  </div>
 }

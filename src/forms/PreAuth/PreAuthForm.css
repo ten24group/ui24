@@ -1,37 +1,3 @@
-.preAuthLoginContainer {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    height: 100%;
-    padding-inline: 32px;
-    padding-block: 24px;
-    justify-content: center;
-    overflow: auto;
-    background: inherit;
-}
-
-.containerTop {
-    text-align: center;
-}
-
-.containerTop > .title {
-    height: 44px;
-    position: relative;
-    inset-block-start: 2px;
-    font-weight: 600;
-    font-size: 33px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 44px;
-}
-
-.containerTop > .description {
-    margin-block-start: 12px;
-    margin-block-end: 40px;
-    color: rgba(0, 0, 0, 0.65);
-    font-size: 14px;
-}
 
 .loginFormFields {
     width: 328px;
@@ -43,9 +9,7 @@
 }
 
 .PreAuthLoginActions {
-    margin-bottom: 24px;
-
-    
+    margin-bottom: 24px;    
 }
 
 .PreAuthLoginActions > .forgotPassowrd {
