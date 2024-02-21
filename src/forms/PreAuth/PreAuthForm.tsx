@@ -1,7 +1,7 @@
 import React, { Component, ReactNode } from 'react';
 import { ICustomForm } from "../../core/forms/formConfig"
 import { Button, Checkbox, Form, Input } from 'antd';
-import { CustomFormFields, Link } from "../PostAuthForm";
+import { FormFields } from '../../core';
 import { CreateButtons } from "../../core";
 import "./PreAuthForm.css";
 
@@ -24,7 +24,7 @@ export const PreAuthForm = ({
             initialValues={ formConfig?.initialValues || {} }
             layout="vertical"
             onFinish={onSubmit} >
-                <CustomFormFields propertiesConfig = { propertiesConfig } />
+                <FormFields propertiesConfig = { propertiesConfig } />
                 
                 { children }
 
