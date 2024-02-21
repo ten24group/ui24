@@ -4,20 +4,23 @@ import { ICreateButtons, CreateButtons } from '../core/forms';
 import { IFormConfig } from '../core/forms/formConfig';
 import { IFormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
-import "./PostAuthForm.css";
 import { useNavigate } from 'react-router-dom';
 
 const { TextArea } = Input;
 
-export function Link ({title, url}: { title: string, url: string}) {
+type ILinkProps = { url: string; title: string; children?: ReactNode } | { url: string; children: ReactNode; title?: string };
+
+export function Link ({title, url, children }: ILinkProps ) {
   const navigate = useNavigate();
-  return <a onClick={ () => navigate(url) } className="forgotPassowrd">{ title }</a>
+  return <a onClick={ () => navigate(url) } className="forgotPassowrd">
+      { title !== "" ? title : "" } { children !== undefined ? children : "" }
+    </a>
 }
 
 export function CustomFormFields( {propertiesConfig} : { propertiesConfig : Array<IFormField> } ) {
 
   return <>{ propertiesConfig.map( (item: IFormField, index: number) => {
-      return <div className="PreAuthFormField" key={"CustomFormFields"+ index }>
+      return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"+ index }>
         { item.fieldType !== "checkbox" && <Form.Item name={ item.name } rules={ item.validationRules } label={ item.label } >
           { item.fieldType === "text" && <Input type={ item?.fieldType || "text" } prefix={ item.prefixIcon } placeholder={ item.placeholder } /> }
           { item.fieldType === "textarea" && <TextArea placeholder={ item.placeholder } />}
@@ -42,7 +45,7 @@ export function PostAuthForm({
   >
     <CustomFormFields propertiesConfig = { propertiesConfig } />
     
-    <div className="FormButtons"><CreateButtons formButtons={ formButtons } /></div>
+    <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div>
     
   </Form>
 }
