@@ -3,7 +3,7 @@ import { Link } from '../../forms/PostAuthForm';
 import { Checkbox  } from 'antd';
 import { preAuthMethods } from '../../core/pages';
 import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
-import { LoginLayout } from '../../layout';
+import { PreAuthLayout } from '../../layout';
 import type { CheckboxProps } from 'antd';
 
 export const LoginPage = () => {
@@ -14,12 +14,8 @@ export const LoginPage = () => {
   };
 
   return (
-    <LoginLayout>
+    <PreAuthLayout>
         <PreAuthForm
-        layoutConfig= {{
-          title: "Admin Login",
-          description: "Restricted area."
-        }}
         onSubmit={onFinish}
         propertiesConfig={ propertiesConfig }
         formConfig={ formConfig }
@@ -29,6 +25,6 @@ export const LoginPage = () => {
                     <Link title="Forgot Password ?" url='/forgot-password' />
                 </div>
         </PreAuthForm>
-    </LoginLayout>
+    </PreAuthLayout>
   );
 };
