@@ -1,0 +1,36 @@
+.appHeader {
+    position: relative;
+    background: transparent;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    height: 56px;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.appLogo {
+    display: flex;
+    justify-content: flex-start;
+
+    height: 40px;
+    width: auto;
+    margin-inline: 16px;
+}
+
+.appMenu {
+    flex-grow: 2;
+    display: flex;
+    justify-content: center;
+}
+
+.appActions {
+    flex-grow: 1;
+    display: flex;
+    justify-content: flex-end;
+
+    a {
+        color: black;
+    }
+}
