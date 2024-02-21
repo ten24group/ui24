@@ -1,7 +1,7 @@
 import React from 'react';
 import { usePageConfig } from "../../core";
 import { IFormConfig } from '../../core/forms/formConfig';
-import { LoginLayout } from "../../layout";
+import { PreAuthLayout } from "../../layout";
 import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
 
 export const ForgotPassword = () => {
@@ -16,15 +16,11 @@ export const ForgotPassword = () => {
         className: "login-form"
     }
 
-    return <>{ propertiesConfig && <LoginLayout><PreAuthForm
-        layoutConfig= {{
-          title: "Admin Login",
-          description: "Restricted area."
-        }}
+    return <>{ propertiesConfig && <PreAuthLayout><PreAuthForm
         onSubmit={onFinish}
         propertiesConfig={ propertiesConfig }
         formConfig={ formConfig }
         formButtons={ ["forgotPassword" ]} />
-    </LoginLayout>}</>;
+    </PreAuthLayout>}</>;
 
 }

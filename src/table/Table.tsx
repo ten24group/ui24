@@ -1,7 +1,9 @@
 import React from "react";
 
 import { Space, Table as AntTable, Tag } from 'antd';
-import type { TableProps } from 'antd';
+import type { TableProps, Breakpoint } from 'antd';
+import { Icon } from "../core/common";
+import { Link } from "../core/common";
 
 interface DataType {
   key: string;
@@ -55,13 +57,15 @@ export const Table = ({ propertiesConfig } : { propertiesConfig : ITableProperti
           ),
         },
         {
-          title: 'Action',
+          title: <div style={{ display: "flex", justifyContent: "end" }}>Action</div>,
           key: 'action',
           render: (_, record) => (
-            <Space size="middle">
-              <a>Invite {record.name}</a>
-              <a>Delete</a>
-            </Space>
+            <div style={{ display: "flex", justifyContent: "end" }}>
+              <Space size="middle" align="end">
+                <Link url="/edit"><Icon iconName="edit" /></Link>
+                <Link url="/delete"><Icon iconName="delete" /></Link>
+              </Space>
+            </div>
           ),
         },
       ];
@@ -91,5 +95,5 @@ export const Table = ({ propertiesConfig } : { propertiesConfig : ITableProperti
       ];
 
       
-    return <AntTable columns={columns} dataSource={data} />
+    return <AntTable scroll={{ x: true}} columns={columns} dataSource={data} />
 }

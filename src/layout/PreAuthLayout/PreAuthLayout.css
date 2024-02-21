@@ -1,0 +1,69 @@
+.login-layout {
+  min-height: 100vh; /* Ensure it takes up the full viewport height */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: auto;
+  background-image: url("https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/V-_oS6r-i7wAAAAAAAAAAAAAFl94AQBr");
+  background-size: 100% 100%;
+}
+
+.preAuthLoginContainer {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  height: 100%;
+  padding-inline: 32px;
+  padding-block: 24px;
+  justify-content: center;
+  overflow: auto;
+  background: inherit;
+}
+  
+.login-row {
+  margin: 0 auto;
+}
+
+.containerTop {
+  text-align: center;
+  
+}
+
+.containerTop > .header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo > img {
+  width: 35vw; /* Adjusts size based on the viewport width */
+  height: auto; /* Maintains the image's aspect ratio */
+  margin-inline-end: 8px;
+  max-width: 120px; /* Ensures the logo doesn't get too large on wider screens */
+  min-width: 50px; /* Ensures the logo remains visible on smaller screens */
+}
+@media (min-width: 768px) {
+  .logo > img {
+    width: 10vw; /* Reduce the width on larger screens */
+  }
+}
+
+.title {
+  height: 44px;
+  position: relative;
+  inset-block-start: 2px;
+  font-weight: 600;
+  font-size: 33px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 44px;
+}
+
+.containerTop > .description {
+  margin-block-start: 12px;
+  margin-block-end: 40px;
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 14px;
+}

@@ -5,7 +5,7 @@ import { IFormField } from '../../core';
 import { Table } from '../../table/Table';
 import { DynamicForm } from '../../forms/PostAuthForm';
 import { usePageConfig } from '../../core';
-import { Link } from '../../forms/PostAuthForm';
+import { Link } from '../../core/common';
 import { PageHeader } from '@ant-design/pro-layout';
 import { Breadcrumb, Card } from "antd";
 import "./PostAuthPage.css";

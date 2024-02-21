@@ -2,7 +2,7 @@ export { FW24 } from './FW24'
 
 //Post Login pages
 export { PostAuthPage } from "./PostAuth/PostAuthPage"
-export { Menu } from './PostAuth/Menu/Menu'
+export { Header } from './PostAuth/Header/Header'
 
 //Pre Login Pages
 export { LoginPage } from "./PreAuth/LoginPage"

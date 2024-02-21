@@ -3,28 +3,8 @@ import React, { Component, ReactNode } from 'react';
 import { ICreateButtons, CreateButtons } from '../core/forms';
 import { IFormConfig } from '../core/forms/formConfig';
 import { IFormField } from '../core/forms';
+import { FormFields } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
-import "./PostAuthForm.css";
-import { useNavigate } from 'react-router-dom';
-
-const { TextArea } = Input;
-
-export function Link ({title, url}: { title: string, url: string}) {
-  const navigate = useNavigate();
-  return <a onClick={ () => navigate(url) } className="forgotPassowrd">{ title }</a>
-}
-
-export function CustomFormFields( {propertiesConfig} : { propertiesConfig : Array<IFormField> } ) {
-
-  return <>{ propertiesConfig.map( (item: IFormField, index: number) => {
-      return <div className="PreAuthFormField" key={"CustomFormFields"+ index }>
-        { item.fieldType !== "checkbox" && <Form.Item name={ item.name } rules={ item.validationRules } label={ item.label } >
-          { item.fieldType === "text" && <Input type={ item?.fieldType || "text" } prefix={ item.prefixIcon } placeholder={ item.placeholder } /> }
-          { item.fieldType === "textarea" && <TextArea placeholder={ item.placeholder } />}
-        </Form.Item> }
-      </div>
-  })}</>
-}
 
 export function PostAuthForm({
     formConfig = { name: "customForm" },
@@ -40,9 +20,9 @@ export function PostAuthForm({
     layout="vertical"
     onFinish={onSubmit}
   >
-    <CustomFormFields propertiesConfig = { propertiesConfig } />
+    <FormFields propertiesConfig = { propertiesConfig } />
     
-    <div className="FormButtons"><CreateButtons formButtons={ formButtons } /></div>
+    <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div>
     
   </Form>
 }
