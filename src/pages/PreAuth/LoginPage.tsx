@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from '../../forms/PostAuthForm';
+import { Link } from '../../core/common';
 import { Checkbox  } from 'antd';
 import { preAuthMethods } from '../../core/pages';
 import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';

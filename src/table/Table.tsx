@@ -2,8 +2,8 @@ import React from "react";
 
 import { Space, Table as AntTable, Tag } from 'antd';
 import type { TableProps, Breakpoint } from 'antd';
-import { Icon } from "../icons/icon";
-import { Link } from "../forms/PostAuthForm";
+import { Icon } from "../core/common";
+import { Link } from "../core/common";
 
 interface DataType {
   key: string;

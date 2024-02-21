@@ -1,9 +1,9 @@
 import React from 'react';
-import { Icon } from '../../../icons/icon';
+import { Icon } from '../../../core/common';
 import type { MenuProps } from 'antd';
 import { Menu as AntMenu } from 'antd';
 import { Breadcrumb, Layout, theme } from 'antd';
-import { Link } from '../../../forms/PostAuthForm';
+import { Link } from '../../../core/common';
 import "./Header.css";
 import { FW24Config } from '../../../core';
 import { HeaderActions } from './HeaderActions';
@@ -47,21 +47,14 @@ getItem('Submenu', 'sub4', <Icon iconName="settings" />, [
 ];
 
 export const Header = () => {
-    
-    const onClick: MenuProps['onClick'] = (e) => {
-        console.log('click ', e);
-    };
 
-    console.log(items, " items ")
-
-    return <><AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
+    return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
           { FW24Config?.appLogo !== "" && <div className="logo"><img src={FW24Config.appLogo} alt="App Logo" title="Logo" /></div> }
         </div>
         <div className="appMenu">
             <AntMenu
-              onClick={onClick}
               style={{ width: "100%" }}
               theme="light"
               mode="horizontal"
@@ -72,8 +65,5 @@ export const Header = () => {
           <HeaderActions />
         </div>
       </div>
-      
   </AntHeader>
-  
-  </>
 }

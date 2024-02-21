@@ -2,8 +2,8 @@ import React from "react";
 import { DownOutlined } from '@ant-design/icons';
 import { Dropdown, Space } from 'antd';
 import type { MenuProps } from 'antd';
-import { Icon } from "../../../icons/icon";
-import { Link } from "../../../forms/PostAuthForm";
+import { Icon } from "../../../core/common";
+import { Link } from "../../../core/common";
 
 const dropdownItems: MenuProps['items'] = [
     {
