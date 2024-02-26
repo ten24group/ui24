@@ -1,0 +1,6 @@
+.PostAuthContainer > .PageHeader {
+    padding-block-start: 8px;
+    padding-block-end: 16px;
+    padding-inline-start: 40px;
+    padding-inline-end: 40px;
+}
