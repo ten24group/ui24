@@ -15,7 +15,7 @@ interface IChildren{
     children: ReactNode;
 }
 
-export const DashboardLayout: React.FC<IChildren> = ({ children }) => {
+export const PostAuthLayout: React.FC<IChildren> = ({ children }) => {
 
   return (
     <Layout style={{ minHeight: "100vh"}}>

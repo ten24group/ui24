@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import { getMethod, postMethod } from "../api/apiMethods"
 import { apiResponse } from "../mock";
-import { convertColumnsConfigForFormField } from "./formfields/formField";
+import { convertColumnsConfigForFormField } from "./FormField/FormField";
 
 interface IUseForm {
     metaDataUrl: string;
