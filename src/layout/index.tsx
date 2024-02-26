@@ -1,2 +1,2 @@
 export { PreAuthLayout } from './PreAuthLayout/PreAuthLayout';
-export { DashboardLayout } from './DashboardLayout/DashboardLayout';
+export { PostAuthLayout } from './PostAuthLayout/PostAuthLayout';
