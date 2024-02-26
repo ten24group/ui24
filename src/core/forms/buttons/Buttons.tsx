@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Checkbox, Form, Input, Space } from 'antd';
 
 type IButtonType = "primary" | "secondary"
-type IHtmlType = "submit" | "reset"
+type IHtmlType = "submit" | "reset" | "button"
 interface IFormButton {
     buttonType?: IButtonType;
     htmlType?: IHtmlType;
@@ -10,6 +10,8 @@ interface IFormButton {
     text: string;
     style?: any;
     size?: any;
+    href?: string;
+    onClick?: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 type IPreDefinedButtons = "submit" | "cancel" | "login" | "forgotPassword";
@@ -51,7 +53,7 @@ export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
     const renderButton = (buttonConfig: IFormButton ) => {
         return <>
                 <Form.Item>
-                    <Button size={ buttonConfig.size ?? "large" } style={ buttonConfig.style } type={ buttonConfig?.buttonType || "" } htmlType={ buttonConfig?.htmlType || "" } className={ buttonConfig?.className || ""}>{ buttonConfig.text }</Button>
+                    <Button onClick={ buttonConfig?.onClick } href={ buttonConfig.href } size={ buttonConfig.size ?? "large" } style={ buttonConfig.style } type={ buttonConfig?.buttonType || "" } htmlType={ buttonConfig?.htmlType || "" } className={ buttonConfig?.className || ""}>{ buttonConfig.text }</Button>
                 </Form.Item>
             </>
     }
