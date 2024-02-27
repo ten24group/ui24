@@ -73,7 +73,7 @@ export const convertColumnsConfigForFormField  =( columnsConfig : Array<IFormFie
           label: columnConfig.label,
           placeholder: columnConfig.placeholder ?? columnConfig.label,
           fieldType: columnConfig.fieldType ?? "text",
-      }
+      } as IFormField
   })
 }
 
