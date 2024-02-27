@@ -100,13 +100,35 @@ export const apiResponse = ( alias : string ) => {
                     }
                 ]
             }
+        },
+        "/menu" : {
+            'data' : [
+                {
+                    label: "Account",
+                    key: "1",
+                    icon: "appStore",
+                    children: [
+                        { label: "Account List", key: "11", url: "/list-account" },
+                        { label: "Add New Account", key: "12", url: "/create-account" }
+                    ]
+                }, {
+                    label: "Books",
+                    key: "2",
+                    icon: "appStore",
+                    children: [
+                        { label: "Book List", key: "21", url: "/list-book" },
+                        { label: "Add New Book", key: "22", url: "/create-book" }
+                    ]
+                }
+            ]
         }
 
 
     }
 
     return {
-        pageType : mockResponse[ alias ].data.pageType,
-        propertiesConfig: mockResponse[ alias ].data.propertiesConfig
+        pageType : mockResponse[ alias ]?.data?.pageType,
+        propertiesConfig: mockResponse[ alias ]?.data?.propertiesConfig,
+        data: mockResponse[ alias ]?.data
     }
 }
