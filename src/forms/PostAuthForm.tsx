@@ -1,5 +1,5 @@
-import { Button, Checkbox, Form, Input } from 'antd';
-import React, { Component, ReactNode } from 'react';
+import { Button, Checkbox, Form, Input, notification } from 'antd';
+import React, { Component, ReactNode, Fragment } from 'react';
 import { ICreateButtons, CreateButtons } from '../core/forms';
 import { IFormConfig } from '../core/forms/formConfig';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +18,7 @@ export function PostAuthForm({
     submitSuccessRedirect = ""
 } : ICustomForm ) {
   const navigate = useNavigate();
+  const [ api, contextHolder ] = notification.useNotification();
 
   const customOnSubmit = async (values: any) => {
     
@@ -35,13 +36,17 @@ export function PostAuthForm({
         //3. field level error
         //handle failure
       }
-    } else {
-      //call when defined
-      onSubmit && onSubmit(values)
+
+      api.success({ message: "Saved Successfully", duration: 2 })
     }
+
+    //call when defined
+    onSubmit && onSubmit(values)
   }
 
-    return <Form
+    return <Fragment>
+      { contextHolder }
+      <Form
     name={ formConfig.name || "" }
     className={ formConfig?.className || "" }
     initialValues={ formConfig?.initialValues || {} }
@@ -57,4 +62,5 @@ export function PostAuthForm({
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
     
   </Form>
+  </Fragment>
 }
