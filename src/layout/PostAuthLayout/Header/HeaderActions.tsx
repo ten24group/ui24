@@ -25,10 +25,7 @@ const dropdownItems: MenuProps['items'] = [
 ];
 
 export const HeaderActions = () => {
-    return <Space >
-      <Button type="primary" icon={ <Icon iconName="plus" /> } />
-      <Dropdown menu={{ items: dropdownItems }} trigger={['click']}> 
+    return <Dropdown menu={{ items: dropdownItems }} trigger={['click']}> 
         <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
       </Dropdown>
-    </Space>
 }
