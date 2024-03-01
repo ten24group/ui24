@@ -1,7 +1,7 @@
 import React from "react";
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
 import "./PageHeader.css";
-import { Breadcrumb } from "antd";
+import { Breadcrumb, Button } from "antd";
 import { Link } from "../../../core/common";
 
 interface IBreadcrumbs {
@@ -9,19 +9,34 @@ interface IBreadcrumbs {
     url?: string;
 }
 
+type IPreDefinedPageActions = "create" | "back";
+
+//type IPageActions = Array<Record<IPreDefinedPageActions, string>> | React.ReactNode;
+type IPageAction = {
+    url: string;
+    label: string;
+    htmlType: string;
+}
+type IPageActions = Array<IPageAction> | React.ReactNode;
+
 export interface IPageHeader {
     breadcrumbs?: Array<IBreadcrumbs>;
     pageTitle: string;
+    pageHeaderActions?: IPageActions;
 }
 
 
-export const PageHeader = ({ breadcrumbs = [], pageTitle } : IPageHeader ) => {
+export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : IPageHeader ) => {
 
     const LocalBreadcrumbs =() => breadcrumbs.length ? <Breadcrumb items={ breadcrumbs.map( ( item ) => {
         return item.url ? <Breadcrumb.Item><Link title={ item.title } url={ item.url } /></Breadcrumb.Item> : <Breadcrumb.Item>{ item.title }</Breadcrumb.Item>
     })} /> : <React.Fragment></React.Fragment>
 
+    const PageActions = Array.isArray(pageHeaderActions) ? <React.Fragment>{ pageHeaderActions.map( (item, index) => {
+        return <Button type="primary" key={"actionButton" + index }> <Link title={ item.label } url={ item.url } /></Button>
+    }) }</React.Fragment>: pageHeaderActions;
+
     return <div className="PageHeader">
-        <AntPageHeader className="site-page-header" title={ pageTitle } breadcrumb={ LocalBreadcrumbs() } />
+        <AntPageHeader className="site-page-header" title={ pageTitle } breadcrumb={ LocalBreadcrumbs() } extra = { PageActions } />
     </div>
 }

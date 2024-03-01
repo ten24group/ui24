@@ -1,26 +1,44 @@
-import React, { ReactNode } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import React, { ReactNode, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, redirect } from 'react-router-dom';
 
 //import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from "../index";
-import { LoginPage, PostAuthPage, ForgotPassword, ResetPassword } from '../pages';
+import { LoginPage, PostAuthPage, ForgotPassword, ResetPassword, DynamicPage } from '../pages';
 
 interface IRoute{
     path: string;
-    element: ReactNode
+    element?: ReactNode;
+    handle?: string;
 }
 
 type IRoutes = Array<IRoute>
 
 export type IAppRouter = { customRoutes?: IRoutes }
 
+/**
+ * AppNavigator component to redirect to another route.
+ * 
+ * @param path - The path to navigate to.
+ * @returns The empty component.
+ */
+const AppNavigator = ({ path } : { path: string }) => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate(path);
+  }, [] )
+  return <></>
+}
+
 export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
+    
     // Default routes
     const defaultRoutes: IRoutes = [
       { path: "/login", element: <LoginPage /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
-      { path: "/dashboard", element: <PostAuthPage metaDataUrl='/create-account' /> },
-      // Add other default routes
+      { path: "/dashboard", element: <AppNavigator path="/create-account" /> },
+      { path: "/", element: <AppNavigator path="/login" /> },
+      { path: "/:dynamicPage", element : <DynamicPage /> },
+      { path: "/:dynamicPage/:dynamicID", element : <DynamicPage /> },
     ];
   
     // Merge custom routes with default routes, giving precedence to custom ones

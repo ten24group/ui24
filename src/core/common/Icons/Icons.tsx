@@ -1,4 +1,4 @@
-import { AppstoreOutlined, MailOutlined, SettingOutlined, PoweroffOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, MailOutlined, SettingOutlined, PoweroffOutlined, PlusCircleOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import React from 'react';
 
 
@@ -9,7 +9,8 @@ const IconConfig = {
     "logout" : <PoweroffOutlined />,
     "edit" : <EditOutlined />,
     "view" : <EyeOutlined />,
-    "delete": <DeleteOutlined />
+    "delete": <DeleteOutlined />,
+    "plus": <PlusCircleOutlined />
 }
 
 export const Icon = ( {iconName } : { iconName: string } ) : React.ReactNode => {

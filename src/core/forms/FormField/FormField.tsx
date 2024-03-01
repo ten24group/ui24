@@ -20,7 +20,7 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
 
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
       <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue = { initialValue } >
-        { fieldType === "text" && <Input type={ fieldType || "text" } prefix={ prefixIcon } placeholder={ placeholder } /> }
+        { fieldType === "text" && <Input type={ fieldType || "text" } value={ initialValue } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "textarea" && <TextArea placeholder={ placeholder } />}
         { fieldType === "password" && <Input.Password type={ fieldType || "password" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "email" && <Input type={ fieldType || "email" } prefix={ prefixIcon } placeholder={ placeholder } /> }
@@ -73,7 +73,7 @@ export const convertColumnsConfigForFormField  =( columnsConfig : Array<IFormFie
           label: columnConfig.label,
           placeholder: columnConfig.placeholder ?? columnConfig.label,
           fieldType: columnConfig.fieldType ?? "text",
-      }
+      } as IFormField
   })
 }
 

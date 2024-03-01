@@ -1,9 +1,12 @@
 {
-  "name": "adminuipackage",
-  "version": "1.0.0",
+  "name": "@ten24group/ui24-core",
+  "version": "1.0.1",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "webpack --mode production",
     "start": "webpack serve --mode development --open",

@@ -49,64 +49,12 @@ export const apiResponse = ( alias : string ) => {
                     }
                 ]
             }
-        },
-        "/create-account" : {
-            'data' : {
-                "pageType": "form",
-                "propertiesConfig" : [
-                    {
-                        column: "firstName",
-                        label : "First Name",
-                        validations: ["required"]
-                    }, {
-                        column: "lastName",
-                        label : "Last Name",
-                        validations: ["required"]
-                    }, {
-                        column: "emailAddress",
-                        label : "Email Address",
-                        validations: ["required", "email"]
-                    },  {
-                        column: "address",
-                        label : "Address",
-                        fieldType: "textarea",
-                        validations: ["required"]
-                    }
-                ]
-            }
-        },
-        //TODO: List
-        "/list-account" : {
-            'data' : {
-                "pageType": "list",
-                "propertiesConfig" : [
-                    {
-                        column: "firstName",
-                        label : "First Name",
-                        validations: ["required"]
-                    }, {
-                        column: "lastName",
-                        label : "Last Name",
-                        validations: ["required"]
-                    }, {
-                        column: "emailAddress",
-                        label : "Email Address",
-                        validations: ["required", "email"]
-                    },  {
-                        column: "address",
-                        label : "Address",
-                        fieldType: "textarea",
-                        validations: ["required"]
-                    }
-                ]
-            }
         }
-
-
     }
 
     return {
-        pageType : mockResponse[ alias ].data.pageType,
-        propertiesConfig: mockResponse[ alias ].data.propertiesConfig
+        pageType : mockResponse[ alias ]?.data?.pageType,
+        propertiesConfig: mockResponse[ alias ]?.data?.propertiesConfig,
+        data: mockResponse[ alias ]?.data
     }
 }

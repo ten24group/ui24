@@ -1,25 +1,57 @@
-import { Button, Checkbox, Form, Input } from 'antd';
-import React, { Component, ReactNode } from 'react';
+import { Button, Checkbox, Form, Input, notification } from 'antd';
+import React, { Component, ReactNode, Fragment } from 'react';
 import { ICreateButtons, CreateButtons } from '../core/forms';
 import { IFormConfig } from '../core/forms/formConfig';
+import { useNavigate } from 'react-router-dom';
 import { IFormField } from '../core/forms';
 import { FormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
+import { postMethod } from '../core';
 
 export function PostAuthForm({
     formConfig = { name: "customForm" },
     propertiesConfig = [],
     onSubmit,
     formButtons = [],
-    children
+    children,
+    submitApiUrl = "",
+    submitSuccessRedirect = ""
 } : ICustomForm ) {
+  const navigate = useNavigate();
+  const [ api, contextHolder ] = notification.useNotification();
 
-    return <Form
+  const customOnSubmit = async (values: any) => {
+    
+    if( submitApiUrl !== "") {
+      const response = await postMethod(submitApiUrl, values);
+      if( response ){
+        //handle success
+        if( submitSuccessRedirect !== "") {
+          //redirect to the page
+          navigate( submitSuccessRedirect)
+        }
+      } else {
+        //1. general error
+        //2. form level error
+        //3. field level error
+        //handle failure
+      }
+
+      api.success({ message: "Saved Successfully", duration: 2 })
+    }
+
+    //call when defined
+    onSubmit && onSubmit(values)
+  }
+
+    return <Fragment>
+      { contextHolder }
+      <Form
     name={ formConfig.name || "" }
     className={ formConfig?.className || "" }
     initialValues={ formConfig?.initialValues || {} }
     layout="vertical"
-    onFinish={onSubmit}
+    onFinish={customOnSubmit}
   >
     
     { propertiesConfig.map( (item: IFormField, index: number) => {
@@ -30,4 +62,5 @@ export function PostAuthForm({
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
     
   </Form>
+  </Fragment>
 }

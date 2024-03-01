@@ -4,6 +4,7 @@ import { Dropdown, Space } from 'antd';
 import type { MenuProps } from 'antd';
 import { Icon } from "../../../core/common";
 import { Link } from "../../../core/common";
+import { Button } from 'antd';
 
 const dropdownItems: MenuProps['items'] = [
     {
@@ -24,12 +25,7 @@ const dropdownItems: MenuProps['items'] = [
 ];
 
 export const HeaderActions = () => {
-    return <Dropdown menu={{ items: dropdownItems }} trigger={['click']}>
-    <a onClick={(e) => e.preventDefault()}>
-      <Space>
-        Admin
-        <DownOutlined />
-      </Space>
-    </a>
-</Dropdown>
+    return <Dropdown menu={{ items: dropdownItems }} trigger={['click']}> 
+        <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
+      </Dropdown>
 }

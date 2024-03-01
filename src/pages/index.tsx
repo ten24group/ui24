@@ -2,7 +2,8 @@ export { FW24 } from './FW24'
 
 //Post Login pages
 export { PostAuthPage } from "./PostAuth/PostAuthPage"
-export { Header } from './PostAuth/Header/Header'
+export { Header } from '../layout/PostAuthLayout/Header/Header'
+export { DynamicPage } from "./DynamicPage/DynamicPage"
 
 //Pre Login Pages
 export { LoginPage } from "./PreAuth/LoginPage"

@@ -1,5 +1,5 @@
 import React from "react";
-import { ICreateButtons } from "./buttons/Buttons";
+import { ICreateButtons } from "./Buttons/Buttons";
 import { IFormField } from "./FormField/FormField";
 
 interface IFormConfig {
@@ -14,6 +14,8 @@ interface ICustomForm extends ICreateButtons {
     onSubmit: (values: any) => void;
     children?: React.ReactNode;
     style?: React.CSSProperties;
+    submitApiUrl?: string;
+    submitSuccessRedirect?: string;
 }
 
 

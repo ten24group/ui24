@@ -1,8 +1,9 @@
 //'use client';
 //import { lazyLoadComponent } from '../utils/lazyLoadComponent';
-import React, { ReactNode, lazy, Suspense } from 'react';
-import { Breadcrumb, Layout, theme } from 'antd';
+import React, { ReactNode } from 'react';
+import { Layout } from 'antd';
 import { Header } from '../../pages';
+
 
 const { Content, Footer, Sider } = Layout;
 
@@ -16,7 +17,7 @@ interface IChildren{
 }
 
 export const PostAuthLayout: React.FC<IChildren> = ({ children }) => {
-
+  
   return (
     <Layout style={{ minHeight: "100vh"}}>
       <Header />
