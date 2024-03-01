@@ -1,14 +1,17 @@
 import { createAxiosInstance } from "../api/config"
+import { IPostAuthPage } from "../../pages/PostAuth/PostAuthPage";
 
 interface IFW24Config {
     baseURL: string;
     appLogo: string;
     menuItems?: Array<any>;
     menuApiUrl?: string;
+    pageConfig: Record<string, IPostAuthPage>
 }
 
 const FW24Config = {
-    menuApiUrl : ""
+    menuApiUrl : "",
+    pageConfig : {}
 } as IFW24Config;
 
 const initFW24Config = ( config : IFW24Config ) => {
@@ -22,6 +25,9 @@ const initFW24Config = ( config : IFW24Config ) => {
     }
     if( config.menuApiUrl ){
         FW24Config.menuApiUrl = config.menuApiUrl;
+    }
+    if( config.pageConfig ){
+        FW24Config.pageConfig = config.pageConfig;
     }
 }
 
