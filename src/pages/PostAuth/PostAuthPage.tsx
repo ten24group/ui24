@@ -3,18 +3,22 @@ import { PostAuthLayout } from "../../layout"
 import { PageHeader, IPageHeader } from './PageHeader/PageHeader';
 import { ICustomForm } from '../../core/forms/formConfig';
 import "./PostAuthPage.css";
-import { Card } from 'antd';
+import { Card, Alert } from 'antd';
 import { PostAuthForm } from '../../forms/PostAuthForm';
+import { Table, ITableConfig } from '../../table/Table';
+import { Details, IDetailsConfig } from '../../detail/Details';
 
-type IPageType = "list" | "form" | "accordion"
+type IPageType = "list" | "form" | "accordion" | "details"
 
 interface IRenderFromPageType {
     pageType?: IPageType;
     cardStyle?: React.CSSProperties;
     formPageConfig?: ICustomForm;
+    listPageConfig?: ITableConfig;
+    detailsPageConfig?: IDetailsConfig;
 }
 
-interface IPostAuthPage extends IPageHeader, IRenderFromPageType {
+export interface IPostAuthPage extends IPageHeader, IRenderFromPageType {
     metaDataUrl: string;
     CustomPageHeader?: React.ReactNode;
     children?: React.ReactNode;
@@ -35,11 +39,12 @@ export const PostAuthPage = ({ metaDataUrl, CustomPageHeader, children, ...props
     </PostAuthLayout>;
 }
 
-const RenderFromPageType = ( {pageType, cardStyle, formPageConfig}: IRenderFromPageType ) => {
+export const RenderFromPageType = ( {pageType, cardStyle, formPageConfig, listPageConfig, detailsPageConfig}: IRenderFromPageType ) => {
     
     switch( pageType ) {
-        case "list": return <Card style={ cardStyle } > List Page </Card>;
+        case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} /> </Card>;
         case "form": return <Card style={ cardStyle } > <PostAuthForm {...formPageConfig} /> </Card>;
+        case "details": return <Card style={ cardStyle } > <Details {...detailsPageConfig} /> </Card>;
         case "accordion": return <div> Accordion Page </div>;
         default: return <>Invalid Page Type</>;
     }
