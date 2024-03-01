@@ -1,76 +1,91 @@
-import React from "react";
+import React, { Fragment } from "react";
 
 import { Space, Table as AntTable, Tag } from 'antd';
 import type { TableProps, Breakpoint } from 'antd';
 import { Icon } from "../core/common";
 import { Link } from "../core/common";
+import { Modal, IModalConfig } from "../modal/Modal";
 
-interface DataType {
-  key: string;
-  name: string;
-  age: number;
-  address: string;
-  tags: string[];
+type ITableActions = "view" | "edit" | "delete";
+type IPageAction = {
+  url: string;
+  label: string;
+  icon: string;
+  htmlType: string;
+  openInModel?: boolean;
+  modelConfig?: IModalConfig;
+}
+
+export interface ITableConfig {
+  propertiesConfig: Array<ITablePropertiesConfig>;
+  records?: Array<any>;
 }
 
 interface ITablePropertiesConfig {
-
+  name: string;
+  dataIndex: string;
+  actions?: Array<IPageAction>;
 }
 
-export const Table = ({ propertiesConfig } : { propertiesConfig : ITablePropertiesConfig }) => {
+interface IActionIndexValue {
+  [key: string]: Array<IPageAction>;
+}
 
-    const columns: TableProps<DataType>['columns'] = [
-        {
-          title: 'Name',
-          dataIndex: 'name',
-          key: 'name',
-          render: (text) => <a>{text}</a>,
-        },
-        {
-          title: 'Age',
-          dataIndex: 'age',
-          key: 'age',
-        },
-        {
-          title: 'Address',
-          dataIndex: 'address',
-          key: 'address',
-        },
-        {
-          title: 'Tags',
-          key: 'tags',
-          dataIndex: 'tags',
-          render: (_, { tags }) => (
-            <>
-              {tags.map((tag) => {
-                let color = tag.length > 5 ? 'geekblue' : 'green';
-                if (tag === 'loser') {
-                  color = 'volcano';
+interface IRecord {
+  [key: string]: string;
+}
+export const Table = ({ propertiesConfig, records } : ITableConfig ) => {
+
+    //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
+    //if the actions array is empty, then do not include the key in the object
+    const actionIndexValue: IActionIndexValue = propertiesConfig.map( ( item, index ) => {
+        return {
+            [item.dataIndex]: item.actions
+        }
+    }).filter( item => Object.values( item )[0]?.length > 0 )?.reduce( ( acc: IActionIndexValue , item ) => {
+        return { ...acc, ...item }
+    })
+
+    const columns: TableProps<any>['columns'] = propertiesConfig.map( ( item, index ) => {
+        return {
+            title: item.name,
+            dataIndex: item.dataIndex,
+            key: item.dataIndex,
+        }
+    })
+
+    //check if actionIndexValue has any keys, if yes, then add a column for actions
+    if( Object.keys( actionIndexValue ).length > 0 ) {
+      columns.push({
+            title: <div style={{ display: "flex", justifyContent: "end" }}>Action</div>,
+            key: 'action',
+            render: (_, record:IRecord ) => {
+              //create a list of values from the record object based on the keys in actionIndexValue for every action added
+              let primaryIndexValue: Array<string> | string = []
+              let recordActions: Array<IPageAction> = [];
+              for( let key in record ) {
+                if( key in actionIndexValue ) {
+                  primaryIndexValue.push( record[key] )
+                  recordActions = actionIndexValue[key]
                 }
-                return (
-                  <Tag color={color} key={tag}>
-                    {tag.toUpperCase()}
-                  </Tag>
-                );
-              })}
-            </>
-          ),
-        },
-        {
-          title: <div style={{ display: "flex", justifyContent: "end" }}>Action</div>,
-          key: 'action',
-          render: (_, record) => (
-            <div style={{ display: "flex", justifyContent: "end" }}>
-              <Space size="middle" align="end">
-                <Link url="/edit"><Icon iconName="edit" /></Link>
-                <Link url="/delete"><Icon iconName="delete" /></Link>
-              </Space>
-            </div>
-          ),
-        },
-      ];
+              }
+              primaryIndexValue = primaryIndexValue.join("|")
 
-    const data: DataType[] = [
+              
+              return <div style={{ display: "flex", justifyContent: "end" }}>
+                <Space size="middle" align="end">
+                  {
+                    recordActions.map( ( item: IPageAction, index ) => {
+                      return <Fragment key={ index }>{ item.openInModel ? <Modal {...item.modelConfig} />  : <Link url={ item.url + "/" + primaryIndexValue}><Icon iconName={ item.icon } /></Link> } </Fragment> 
+                    })
+                  }
+                </Space>
+              </div>
+            },
+      })
+    }
+
+    const data: any[] = [
         {
           key: '1',
           name: 'John Brown',
