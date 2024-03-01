@@ -1,5 +1,5 @@
 import React from "react";
-import { ICreateButtons } from "./buttons/Buttons";
+import { ICreateButtons } from "./Buttons/Buttons";
 import { IFormField } from "./FormField/FormField";
 
 interface IFormConfig {
