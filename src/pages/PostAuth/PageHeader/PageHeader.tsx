@@ -11,7 +11,13 @@ interface IBreadcrumbs {
 
 type IPreDefinedPageActions = "create" | "back";
 
-type IPageActions = Array<Record<IPreDefinedPageActions, string>> | React.ReactNode;
+//type IPageActions = Array<Record<IPreDefinedPageActions, string>> | React.ReactNode;
+type IPageAction = {
+    url: string;
+    label: string;
+    htmlType: string;
+}
+type IPageActions = Array<IPageAction> | React.ReactNode;
 
 export interface IPageHeader {
     breadcrumbs?: Array<IBreadcrumbs>;
@@ -27,7 +33,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : 
     })} /> : <React.Fragment></React.Fragment>
 
     const PageActions = Array.isArray(pageHeaderActions) ? <React.Fragment>{ pageHeaderActions.map( (item, index) => {
-        return <Button type="primary" > <Link title={ Object.keys(item)[0] } url={ Object.values(item)[0] } /></Button>
+        return <Button type="primary" key={"actionButton" + index }> <Link title={ item.label } url={ item.url } /></Button>
     }) }</React.Fragment>: pageHeaderActions;
 
     return <div className="PageHeader">
