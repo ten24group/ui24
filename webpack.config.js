@@ -6,7 +6,8 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
     filename: 'index.js',
     libraryTarget: 'umd',
-    globalObject: 'this'
+    globalObject: 'this',
+    publicPath: '/',
   },
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx']
@@ -35,6 +36,7 @@ module.exports = {
     'react-dom': 'react-dom'
   },
   devServer: {
+    historyApiFallback: true,
     static: {
       directory: path.join(__dirname, 'dist'),
     },
