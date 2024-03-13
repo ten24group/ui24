@@ -1,6 +1,8 @@
 import React from "react";
 import { ICreateButtons } from "./Buttons/Buttons";
-import { IFormField } from "./FormField/FormField";
+import { IFormFieldResponse } from "./FormField/FormField";
+import { IApiConfig } from "../api/apiMethods";
+import { IDetailApiConfig } from "../../detail/Details";
 
 interface IFormConfig {
     name?: string;
@@ -8,13 +10,13 @@ interface IFormConfig {
     initialValues?: any;
 }
 
-interface ICustomForm extends ICreateButtons {
+interface ICustomForm extends ICreateButtons, IDetailApiConfig {
     formConfig?: IFormConfig;
-    propertiesConfig: Array<IFormField>;
+    propertiesConfig: Array<IFormFieldResponse>;
     onSubmit: (values: any) => void;
     children?: React.ReactNode;
     style?: React.CSSProperties;
-    submitApiUrl?: string;
+    apiConfig: IApiConfig;
     submitSuccessRedirect?: string;
 }
 
