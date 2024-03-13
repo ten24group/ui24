@@ -1,12 +1,12 @@
-import { Button, Checkbox, Form, Input, notification } from 'antd';
-import React, { Component, ReactNode, Fragment } from 'react';
-import { ICreateButtons, CreateButtons } from '../core/forms';
-import { IFormConfig } from '../core/forms/formConfig';
+import { Form, notification } from 'antd';
+import React, { Fragment, useState, useEffect } from 'react';
+import {  CreateButtons } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
-import { IFormField } from '../core/forms';
-import { FormField } from '../core/forms';
+import { FormField, IFormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
-import { postMethod } from '../core';
+import { callApiMethod } from '../core';
+import { convertColumnsConfigForFormField } from '../core/forms';
+import { useParams } from "react-router-dom"
 
 export function PostAuthForm({
     formConfig = { name: "customForm" },
@@ -14,49 +14,72 @@ export function PostAuthForm({
     onSubmit,
     formButtons = [],
     children,
-    submitApiUrl = "",
+    apiConfig,
+    detailApiConfig,
     submitSuccessRedirect = ""
 } : ICustomForm ) {
   const navigate = useNavigate();
   const [ api, contextHolder ] = notification.useNotification();
 
+  const { dynamicID = "" } = useParams()
+  const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>( convertColumnsConfigForFormField(propertiesConfig) )
+  const [ dataLoadedFromView, setDataLoadedFromView ] = useState( dynamicID !== "" ? false : true )
+
+  useEffect( () => {
+      const fetchRecordInfo = async () => {
+          const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+          if( response.status === 200 ) {
+              const detailResponse = response.data.__entity__
+              setFormPropertiesConfig( formPropertiesConfig.map( ( item: IFormField ) => {
+                  return {
+                      ...item,
+                      initialValue: detailResponse[item.name]
+                  }
+              }) )
+              setDataLoadedFromView( true )
+          }
+      }
+
+      if( detailApiConfig && dynamicID !== "") 
+          fetchRecordInfo();
+  }, [] )
+
   const customOnSubmit = async (values: any) => {
-    
-    if( submitApiUrl !== "") {
-      const response = await postMethod(submitApiUrl, values);
-      if( response ){
-        //handle success
+    if( apiConfig ) {
+
+      const formattedApiUrl = dynamicID !== "" ? apiConfig.apiUrl + `/${dynamicID}` : apiConfig.apiUrl
+      const response: any = await callApiMethod({
+        ...apiConfig,
+        apiUrl: formattedApiUrl,
+        payload: values
+      });
+      
+      if( response.status === 200 ) {
+        api.success({ message: "Saved Successfully", duration: 2 })
         if( submitSuccessRedirect !== "") {
           //redirect to the page
           navigate( submitSuccessRedirect)
         }
-      } else {
-        //1. general error
-        //2. form level error
-        //3. field level error
-        //handle failure
+      } else if( response.status === 400 || response.status === 500 ) {
+        api.error({ message: response?.error, duration: 2 })
       }
-
-      api.success({ message: "Saved Successfully", duration: 2 })
     }
 
     //call when defined
     onSubmit && onSubmit(values)
   }
 
-    return <Fragment>
-      { contextHolder }
-      <Form
-    name={ formConfig.name || "" }
-    className={ formConfig?.className || "" }
-    initialValues={ formConfig?.initialValues || {} }
-    layout="vertical"
-    onFinish={customOnSubmit}
-  >
+  return <Fragment>
+    { contextHolder }
+    <Form
+      name={ formConfig.name || "" }
+      className={ formConfig?.className || "" }
+      initialValues={ formConfig?.initialValues || {} }
+      layout="vertical"
+      onFinish={customOnSubmit}
+    >
     
-    { propertiesConfig.map( (item: IFormField, index: number) => {
-      return <React.Fragment key={ "internalForm" + index }><FormField {...item} /></React.Fragment>
-      } ) }
+    { dataLoadedFromView && formPropertiesConfig.map( (item: IFormField, index: number ) => { return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> } ) }
     { children }
     
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
