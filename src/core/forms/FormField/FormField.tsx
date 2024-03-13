@@ -65,7 +65,7 @@ const convertValidationRules = ( validationRules : Array<IPreDefinedValidations>
   })
 }
 
-export const convertColumnsConfigForFormField  =( columnsConfig : Array<IFormFieldResponse> ):  Array<IFormField> => {
+export const convertColumnsConfigForFormField  = ( columnsConfig : Array<IFormFieldResponse> ):  Array<IFormField> => {
   return columnsConfig.map( columnConfig => {
       return {
           name: columnConfig.column,

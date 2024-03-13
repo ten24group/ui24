@@ -3,24 +3,15 @@ import { getMethod, postMethod } from "../api/apiMethods"
 import { apiResponse } from "../mock";
 import { convertColumnsConfigForFormField } from "./FormField/FormField";
 
-interface IUseForm {
-    metaDataUrl: string;
-}
-
 type PreDefinedPageTypes = "list" | "form";
 
-interface IPageConfigResponse {
-    status : boolean;
-    data: any;
-    errors: any;
-}
 export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => {
     const [ propertiesConfig, setPropertiesConfig ] = useState([])
     const [ pageType, setPageType ] = useState<PreDefinedPageTypes | string>("")
 
     useEffect( () => {
         const callConfigAPI = async () => {
-            const response = await getMethod<IPageConfigResponse>( metaDataUrl )
+            const response = await getMethod( metaDataUrl )
             if( response ) {
                 //set properties config
             } else {

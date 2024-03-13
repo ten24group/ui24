@@ -42,8 +42,8 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
     ];
   
     // Merge custom routes with default routes, giving precedence to custom ones
-    const mergedRoutes = [...defaultRoutes, ...customRoutes].reduce((acc: any, route: IRoute) => {
-      acc[route.path] = <Route path={route.path} element={route.element} />;
+    const mergedRoutes = [...defaultRoutes, ...customRoutes].reduce((acc: any, route: IRoute, index:number ) => {
+      acc[route.path] = <React.Fragment key={"route"+index}><Route path={route.path} element={route.element} /></React.Fragment>;
       return acc;
     }, {});
   
