@@ -51,20 +51,17 @@ interface ICreateButtons {
 
 export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
     const renderButton = (buttonConfig: IFormButton ) => {
-        return <>
-                <Form.Item>
+        return <Form.Item>
                     <Button onClick={ buttonConfig?.onClick } href={ buttonConfig.href } size={ buttonConfig.size ?? "large" } style={ buttonConfig.style } type={ buttonConfig?.buttonType || "" } htmlType={ buttonConfig?.htmlType || "" } className={ buttonConfig?.className || ""}>{ buttonConfig.text }</Button>
                 </Form.Item>
-            </>
     }
 
     return <React.Fragment>
-        { formButtons.map( (buttonConfig, index ) => {
+        { formButtons.map( (buttonConfig, index: number ) => {
             if( typeof buttonConfig === "string" ) {
-                return renderButton( PreDefinedButtons[ buttonConfig ] )
-                
+                return  <React.Fragment key={"bt" + index}>{ renderButton( PreDefinedButtons[ buttonConfig ] ) }</React.Fragment>
             } else {
-                return renderButton( buttonConfig )
+                return <React.Fragment key={"bt" + index}>{ renderButton( buttonConfig ) }</React.Fragment>
             }
         })}
     </React.Fragment>
