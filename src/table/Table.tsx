@@ -1,10 +1,12 @@
-import React, { Fragment } from "react";
+import React, { Fragment, useEffect } from "react";
 
-import { Space, Table as AntTable, Tag } from 'antd';
+import { Space, Table as AntTable, Tag, notification } from 'antd';
 import type { TableProps, Breakpoint } from 'antd';
 import { Icon } from "../core/common";
 import { Link } from "../core/common";
 import { Modal, IModalConfig } from "../modal/Modal";
+import { callApiMethod, IApiConfig } from "../core";
+
 
 type ITableActions = "view" | "edit" | "delete";
 type IPageAction = {
@@ -18,6 +20,7 @@ type IPageAction = {
 
 export interface ITableConfig {
   propertiesConfig: Array<ITablePropertiesConfig>;
+  apiConfig: IApiConfig;
   records?: Array<any>;
 }
 
@@ -25,6 +28,7 @@ interface ITablePropertiesConfig {
   name: string;
   dataIndex: string;
   actions?: Array<IPageAction>;
+  hidden?: boolean;
 }
 
 interface IActionIndexValue {
@@ -34,8 +38,8 @@ interface IActionIndexValue {
 interface IRecord {
   [key: string]: string;
 }
-export const Table = ({ propertiesConfig, records } : ITableConfig ) => {
-
+export const Table = ({ propertiesConfig, records = [], apiConfig } : ITableConfig ) => {
+    const [ api, contextHolder ] = notification.useNotification();
     //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
     //if the actions array is empty, then do not include the key in the object
     const actionIndexValue: IActionIndexValue = propertiesConfig.map( ( item, index ) => {
@@ -46,13 +50,23 @@ export const Table = ({ propertiesConfig, records } : ITableConfig ) => {
         return { ...acc, ...item }
     })
 
-    const columns: TableProps<any>['columns'] = propertiesConfig.map( ( item, index ) => {
+    const columns: TableProps<any>['columns'] = propertiesConfig.filter( ( item: ITablePropertiesConfig ) => !item?.hidden ).map( ( item, index ) => {
         return {
             title: item.name,
             dataIndex: item.dataIndex,
             key: item.dataIndex,
         }
     })
+
+    //call API get records
+    const getRecords = async () => {
+      const response: any = await callApiMethod(apiConfig);
+      if( response?.status === 200 ) {
+        setListRecords( response.data.data )
+      }  else if( response?.status === 400 || response?.status === 500 ) {
+        api.error({ message: response?.error, duration: 2 })
+      }
+    };
 
     //check if actionIndexValue has any keys, if yes, then add a column for actions
     if( Object.keys( actionIndexValue ).length > 0 ) {
@@ -76,7 +90,7 @@ export const Table = ({ propertiesConfig, records } : ITableConfig ) => {
                 <Space size="middle" align="end">
                   {
                     recordActions.map( ( item: IPageAction, index ) => {
-                      return <Fragment key={ index }>{ item.openInModel ? <Modal {...item.modelConfig} />  : <Link url={ item.url + "/" + primaryIndexValue}><Icon iconName={ item.icon } /></Link> } </Fragment> 
+                      return <Fragment key={ index }>{ item.openInModel ? <Modal onSuccessCallback={ getRecords } primaryIndex={ primaryIndexValue } {...item.modelConfig} />  : <Link url={ item.url + "/" + primaryIndexValue}><Icon iconName={ item.icon } /></Link> } </Fragment> 
                     })
                   }
                 </Space>
@@ -85,30 +99,19 @@ export const Table = ({ propertiesConfig, records } : ITableConfig ) => {
       })
     }
 
-    const data: any[] = [
-        {
-          key: '1',
-          name: 'John Brown',
-          age: 32,
-          address: 'New York No. 1 Lake Park',
-          tags: ['nice', 'developer'],
-        },
-        {
-          key: '2',
-          name: 'Jim Green',
-          age: 42,
-          address: 'London No. 1 Lake Park',
-          tags: ['loser'],
-        },
-        {
-          key: '3',
-          name: 'Joe Black',
-          age: 32,
-          address: 'Sydney No. 1 Lake Park',
-          tags: ['cool', 'teacher'],
-        },
-      ];
+    const [ listRecords, setListRecords ] = React.useState( records )
 
+    
+    
+    useEffect(() => {
+      //if records is empty and apiConfig is not empty, then call the api
+      if (records.length === 0 && apiConfig?.apiUrl !== "") {
+        getRecords();
+      }
+    }, []);
       
-    return <AntTable scroll={{ x: true}} columns={columns} dataSource={data} />
+    return <React.Fragment>
+      { contextHolder }
+      <AntTable scroll={{ x: true}} columns={columns} dataSource={listRecords} />
+      </React.Fragment>
 }
