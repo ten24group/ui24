@@ -5,7 +5,10 @@ import { ITableConfig } from '../table/Table';
 import { Icon } from '../core/common';
 import { Link } from '../core/common';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
-import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { IApiConfig } from '../core';
+import { callApiMethod } from '../core';
+import { useNavigate } from 'react-router-dom';
+
 interface IConfirmModal {
   title: string;
   content: string;
@@ -17,16 +20,42 @@ export interface IModalConfig {
     modalPageConfig?: IModalPageConfig;
     children?: React.ReactNode;
     button?: React.ReactNode;
+    apiConfig?: IApiConfig;
+    primaryIndex: string;
+    onSuccessCallback?: () => void;
 }
 
 export const Modal = ({
     modalType,
     children,
     modalPageConfig,
+    apiConfig,
+    primaryIndex = "",
+    onSuccessCallback,
     button
 } : IModalConfig ) => {
     const [open, setOpen] = React.useState(false)
     const [ api, contextHolder ] = notification.useNotification();
+    const navigate = useNavigate();
+
+    const deleteApiAction = async () => {
+      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
+      const response: any = await callApiMethod({
+        ...apiConfig,
+        apiUrl: formattedApiUrl
+      });
+      
+      if( response.status === 200 ) {
+        api.success({ message: "Deleted Successfully", duration: 2 })
+
+        onSuccessCallback && onSuccessCallback()
+
+      } else if( response.status === 400 || response.status === 500 ) {
+        api.error({ message: response?.error, duration: 2 })
+      }
+      
+      setOpen(false)
+    }
 
     return <>
     { contextHolder }
@@ -37,11 +66,7 @@ export const Modal = ({
     <AntModal
         title={ modalPageConfig?.title }
         open={open}
-        onOk={()=> {
-          api.success({ message: "Deleted Successfully", duration: 2 })
-          console.log( "Deleted Successfully" )
-          setOpen(false)
-        }}
+        onOk={ deleteApiAction }
         onCancel={()=> setOpen(false)}
         okText="Confirm"
         cancelText="Cancel"
