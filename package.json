@@ -1,6 +1,6 @@
 {
   "name": "@ten24group/ui24-core",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "",
   "main": "src/index.tsx",
   "types": "dist/index.d.ts",
@@ -10,7 +10,8 @@
   "scripts": {
     "build": "webpack --mode production",
     "start": "webpack serve --mode development --open",
-    "watch": "webpack --watch"
+    "watch": "webpack --watch",
+    "release": "npm run build && standard-version && git push --follow-tags && npm publish"
   },
   "keywords": [],
   "author": "",
@@ -34,7 +35,8 @@
     "typescript": "^5.3.3",
     "webpack": "^5.90.1",
     "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^4.15.1"
+    "webpack-dev-server": "^4.15.1",
+    "standard-version": "^9.5.0"
   },
   "dependencies": {
     "@ant-design/pro-components": "^2.6.49",
