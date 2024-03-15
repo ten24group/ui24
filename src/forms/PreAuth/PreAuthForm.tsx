@@ -14,7 +14,7 @@ export const PreAuthForm = ({
     propertiesConfig,
     onSubmit,
     formButtons,
-    children
+    children,
 } : PreAuthForm) => {
 
     return <div className="loginFormFields">

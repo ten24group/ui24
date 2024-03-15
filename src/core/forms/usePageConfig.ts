@@ -21,7 +21,7 @@ export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => 
             }
         }
 
-        callConfigAPI()
+        // callConfigAPI()
         
     }, [] )
 
