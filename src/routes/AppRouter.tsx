@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useNavigate, redirect } from 'react-route
 
 //import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from "../index";
 import { LoginPage, PostAuthPage, ForgotPassword, ResetPassword, DynamicPage } from '../pages';
+import { useAuth } from '../core/api/apiMethods';
 
 interface IRoute{
     path: string;
@@ -29,14 +30,18 @@ const AppNavigator = ({ path } : { path: string }) => {
 }
 
 export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
-    
+
+
+    const { getToken } = useAuth();
+    const authToken = getToken();
+
     // Default routes
     const defaultRoutes: IRoutes = [
       { path: "/login", element: <LoginPage /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
       { path: "/dashboard", element: <AppNavigator path="/create-account" /> },
-      { path: "/", element: <AppNavigator path="/login" /> },
+      { path: "/", element: <AppNavigator path= { !authToken ? "/login" : '/list-account' } /> }, // TODO: change with proper dashboard url
       { path: "/:dynamicPage", element : <DynamicPage /> },
       { path: "/:dynamicPage/:dynamicID", element : <DynamicPage /> },
     ];

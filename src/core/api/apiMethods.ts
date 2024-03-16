@@ -1,5 +1,16 @@
 import { axiosInstance } from './config';
 
+export const useAuth = () => {
+    return {
+      setToken: (token: string) => {
+        sessionStorage.setItem("authToken", token);
+      },
+      getToken: () => {
+        return sessionStorage.getItem("authToken");
+      }
+    }
+  }
+
 export const getMethod = async (url: string, params = {}) => {
     return await axiosInstance.get(url, { params });
 }

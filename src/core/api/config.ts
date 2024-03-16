@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuth } from './apiMethods';
 
 const axiosInstance = axios.create();
 
@@ -8,25 +9,36 @@ const createAxiosInstance = (baseURL: string) => {
 
 axiosInstance.interceptors.request.use(
     config => {
-      const token = ""; //TODO: replace with Auth logic
+      
+      const { getToken } = useAuth();
+      
+      const token = getToken(); 
       if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
+
       return config;
+
     },
+    // TODO: handle 401 and redirect to the login page
     error => Promise.reject(error)
 );
 
 axiosInstance.interceptors.response.use(
     response => {
-      if (response.data && response.data.token) {
-        //TODO: add set token logic
-        //const { setToken } = useAuth();
-        //setToken(response.data.token);
-      }
+
+        if (response.data?.IdToken) {
+
+          const { setToken } = useAuth();
+
+          setToken(response.data.IdToken);
+
+        }
+
       return response;
     },
     error => Promise.reject(error)
 );
 
 export { axiosInstance, createAxiosInstance };
+
