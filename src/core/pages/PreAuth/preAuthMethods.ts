@@ -7,7 +7,7 @@ import { IFormConfig } from "../../forms/formConfig";
 export const preAuthMethods = () => {
     const onFinish = async (values: any) => {
         console.log('Received values of form: ', values);
-        const response = await postMethod('/user/signin', {
+        const response = await postMethod('/auth/signin', {
             "email": values.email,
             "password": values.password,
         });
