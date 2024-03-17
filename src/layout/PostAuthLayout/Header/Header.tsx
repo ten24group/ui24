@@ -8,7 +8,7 @@ import "./Header.css";
 import { FW24Config } from '../../../core';
 import { HeaderActions } from './HeaderActions';
 import { getMethod } from '../../../core';
-import { apiResponse } from '../../../core';
+import { mockApiResponse } from '../../../core';
 
 const { Header : AntHeader } = Layout;
 
@@ -59,7 +59,7 @@ export const Header = () => {
     const getMenuFromApi = async () => {
       const response = await getMethod( FW24Config.menuApiUrl )
       if( !response ){
-        const { data } = apiResponse( FW24Config.menuApiUrl )
+        const { data } = mockApiResponse( FW24Config.menuApiUrl )
         setMenuItems( convertMenuItemsFromApi( data ) )
       }
     }
