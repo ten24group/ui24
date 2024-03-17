@@ -1,5 +1,5 @@
-import React, { createContext } from 'react';
-import { Button, Modal as AntModal, Space, notification } from 'antd';
+import React from 'react';
+import { Modal as AntModal } from 'antd';
 import { ICustomForm } from '../core/forms/formConfig';
 import { ITableConfig } from '../table/Table';
 import { Icon } from '../core/common';
@@ -8,6 +8,7 @@ import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { IApiConfig } from '../core';
 import { callApiMethod } from '../core';
 import { useNavigate } from 'react-router-dom';
+import { useAppContext } from '../core/context/AppContext';
 
 interface IConfirmModal {
   title: string;
@@ -35,7 +36,7 @@ export const Modal = ({
     button
 } : IModalConfig ) => {
     const [open, setOpen] = React.useState(false)
-    const [ api, contextHolder ] = notification.useNotification();
+    const { notifyError, notifySuccess } = useAppContext()
     const navigate = useNavigate();
 
     const deleteApiAction = async () => {
@@ -46,19 +47,18 @@ export const Modal = ({
       });
       
       if( response.status === 200 ) {
-        api.success({ message: "Deleted Successfully", duration: 2 })
+        notifySuccess("Deleted Successfully")
 
         onSuccessCallback && onSuccessCallback()
 
       } else if( response.status === 400 || response.status === 500 ) {
-        api.error({ message: response?.error, duration: 2 })
+        notifyError(response?.error)
       }
       
       setOpen(false)
     }
 
     return <>
-    { contextHolder }
     <Link onClick={(url) => {
       setOpen(true)}
       } ><Icon iconName={"delete"} /></Link>
