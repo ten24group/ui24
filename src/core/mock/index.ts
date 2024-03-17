@@ -1,7 +1,11 @@
-export const apiResponse = ( alias : string ) => {
+export const mockApiResponse = ( alias : string ) => {
 
     const mockResponse = {
         '/login' : {
+            "apiConfig" : {
+                "apiUrl" : "/login",
+                "apiMethod" : "POST"
+            },
             'data' : {
                 "pageType": "form",
                 "propertiesConfig" : [
@@ -13,6 +17,7 @@ export const apiResponse = ( alias : string ) => {
                     }, {
                         column: "password",
                         label : "Password",
+                        fieldType: "password",
                         placeholder: "Password",
                         validations: ["required"]
                     }
@@ -20,6 +25,10 @@ export const apiResponse = ( alias : string ) => {
             }
         },
         '/forgot-password' : {
+            "apiConfig" : {
+                "apiUrl" : "/forgot-password",
+                "apiMethod" : "POST"
+            },
             'data' : {
                 "pageType": "form",
                 "propertiesConfig" : [
@@ -48,12 +57,17 @@ export const apiResponse = ( alias : string ) => {
                         validations: ["required", "match:password"]
                     }
                 ]
-            }
+            },
+            "apiConfig" : {
+                "apiUrl" : "/reset-password",
+                "apiMethod" : "POST"
+            },
         }
     }
 
     return {
         pageType : mockResponse[ alias ]?.data?.pageType,
+        apiConfig: mockResponse[ alias ]?.apiConfig,
         propertiesConfig: mockResponse[ alias ]?.data?.propertiesConfig,
         data: mockResponse[ alias ]?.data
     }
