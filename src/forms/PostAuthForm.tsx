@@ -1,4 +1,4 @@
-import { Form, notification } from 'antd';
+import { Form } from 'antd';
 import React, { Fragment, useState, useEffect } from 'react';
 import {  CreateButtons } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { ICustomForm } from '../core/forms/formConfig';
 import { callApiMethod } from '../core';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
+import { useAppContext } from '../core/context/AppContext';
 
 export function PostAuthForm({
     formConfig = { name: "customForm" },
@@ -19,7 +20,7 @@ export function PostAuthForm({
     submitSuccessRedirect = ""
 } : ICustomForm ) {
   const navigate = useNavigate();
-  const [ api, contextHolder ] = notification.useNotification();
+  const { notifyError, notifySuccess } = useAppContext()
 
   const { dynamicID = "" } = useParams()
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>( convertColumnsConfigForFormField(propertiesConfig) )
@@ -55,13 +56,13 @@ export function PostAuthForm({
       });
       
       if( response.status === 200 ) {
-        api.success({ message: "Saved Successfully", duration: 2 })
+        notifySuccess("Saved Successfully")
         if( submitSuccessRedirect !== "") {
           //redirect to the page
           navigate( submitSuccessRedirect)
         }
       } else if( response.status === 400 || response.status === 500 ) {
-        api.error({ message: response?.error, duration: 2 })
+        notifyError(response?.error)
       }
     }
 
@@ -69,9 +70,7 @@ export function PostAuthForm({
     onSubmit && onSubmit(values)
   }
 
-  return <Fragment>
-    { contextHolder }
-    <Form
+  return <Form
       name={ formConfig.name || "" }
       className={ formConfig?.className || "" }
       initialValues={ formConfig?.initialValues || {} }
@@ -85,5 +84,4 @@ export function PostAuthForm({
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
     
   </Form>
-  </Fragment>
 }
