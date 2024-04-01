@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuth } from './apiMethods';
+import { useNavigate } from 'react-router-dom';
 
 const axiosInstance = axios.create();
 
@@ -32,6 +33,9 @@ axiosInstance.interceptors.response.use(
           const { setToken } = useAuth();
 
           setToken(response.data.IdToken);
+
+          // @ts-ignore
+          window.location = "/dashboard";
 
         }
 

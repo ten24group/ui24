@@ -40,8 +40,8 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
       { path: "/login", element: <LoginPage /> },
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
-      { path: "/dashboard", element: <AppNavigator path="/create-account" /> },
-      { path: "/", element: <AppNavigator path= { !authToken ? "/login" : '/list-account' } /> }, // TODO: change with proper dashboard url
+      { path: "/dashboard", element: <PostAuthPage  metaDataUrl='Dashboard' pageTitle="Dashboard" /> },
+      { path: "/", element: <AppNavigator path= { !authToken ? "/login" : '/dashboard' } /> }, // TODO: change with proper dashboard url
       { path: "/:dynamicPage", element : <DynamicPage /> },
       { path: "/:dynamicPage/:dynamicID", element : <DynamicPage /> },
     ];
