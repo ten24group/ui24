@@ -12,7 +12,7 @@ interface IPropertiesConfig {
 }
 
 export interface IDetailApiConfig {
-    detailApiConfig: IApiConfig;
+    detailApiConfig?: IApiConfig;
 }
 
 export interface IDetailsConfig extends IDetailApiConfig {

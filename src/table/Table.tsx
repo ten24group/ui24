@@ -1,12 +1,11 @@
 import React, { Fragment, useEffect } from "react";
-
-import { Space, Table as AntTable, Tag, notification } from 'antd';
+import { Space, Table as AntTable } from 'antd';
 import type { TableProps, Breakpoint } from 'antd';
 import { Icon } from "../core/common";
 import { Link } from "../core/common";
 import { Modal, IModalConfig } from "../modal/Modal";
 import { callApiMethod, IApiConfig } from "../core";
-
+import { useAppContext } from "../core/context/AppContext";
 
 type ITableActions = "view" | "edit" | "delete";
 type IPageAction = {
@@ -39,7 +38,7 @@ interface IRecord {
   [key: string]: string;
 }
 export const Table = ({ propertiesConfig, records = [], apiConfig } : ITableConfig ) => {
-    const [ api, contextHolder ] = notification.useNotification();
+    const { notifyError } = useAppContext()
     //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
     //if the actions array is empty, then do not include the key in the object
     const actionIndexValue: IActionIndexValue = propertiesConfig.map( ( item, index ) => {
@@ -64,7 +63,7 @@ export const Table = ({ propertiesConfig, records = [], apiConfig } : ITableConf
       if( response?.status === 200 ) {
         setListRecords( response.data.data )
       }  else if( response?.status === 400 || response?.status === 500 ) {
-        api.error({ message: response?.error, duration: 2 })
+        notifyError( response?.error )
       }
     };
 
@@ -111,7 +110,6 @@ export const Table = ({ propertiesConfig, records = [], apiConfig } : ITableConf
     }, []);
       
     return <React.Fragment>
-      { contextHolder }
-      <AntTable scroll={{ x: true}} columns={columns} dataSource={listRecords} />
+        <AntTable scroll={{ x: true}} columns={columns} dataSource={listRecords} />
       </React.Fragment>
 }

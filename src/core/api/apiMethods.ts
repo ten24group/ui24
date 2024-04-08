@@ -26,13 +26,12 @@ export interface IApiConfig {
 }
 export const callApiMethod = async (apiConfig: IApiConfig) => {
     try{
-        if( apiConfig.apiMethod === "GET" ) {
+        if( apiConfig.apiMethod.toUpperCase() === "GET" ) {
             return await getMethod( apiConfig.apiUrl, apiConfig.payload );
-        } else if( apiConfig.apiMethod === "POST" ) {
+        } else if( apiConfig.apiMethod.toUpperCase() === "POST" ) {
             return await postMethod( apiConfig.apiUrl, apiConfig.payload );
         }
     } catch (error) {
-        console.error("API failed for : " + apiConfig )
         return {
             status: error.response?.status || 500,
             error: error.response?.data?.error || "Error in API call",

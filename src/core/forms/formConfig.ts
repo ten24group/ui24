@@ -16,7 +16,7 @@ interface ICustomForm extends ICreateButtons, IDetailApiConfig {
     onSubmit: (values: any) => void;
     children?: React.ReactNode;
     style?: React.CSSProperties;
-    apiConfig: IApiConfig;
+    apiConfig?: IApiConfig;
     submitSuccessRedirect?: string;
 }
 

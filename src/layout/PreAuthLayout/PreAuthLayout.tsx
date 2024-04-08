@@ -1,9 +1,8 @@
 import React, { ReactNode } from 'react';
-import { Layout, Row, Col } from 'antd';
+import { Row, Col } from 'antd';
 import "./PreAuthLayout.css";
 import { FW24Config } from '../../core';
-
-const { Content } = Layout;
+import { CoreLayout } from '../CoreLayout';
 
 interface IPreAuthLayout {
     layoutConfig? : {
@@ -18,7 +17,7 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
     description: "Restricted area."
 }, children } ) => {
 
-    return <Layout style={{ minHeight: '100vh' }}>
+    return <CoreLayout>
       <div className="login-layout">
         <div className="preAuthLoginContainer">
             <div className="containerTop">
@@ -32,5 +31,5 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
             {children}
         </div>
       </div>
-  </Layout>
+  </CoreLayout>
 }
