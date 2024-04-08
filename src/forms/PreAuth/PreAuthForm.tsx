@@ -1,7 +1,8 @@
 import React, { Component, ReactNode } from 'react';
 import { ICustomForm } from "../../core/forms/formConfig"
 import { Button, Checkbox, Form, Input } from 'antd';
-import { FormField, IFormField } from '../../core';
+import { FormField, IFormFieldResponse, IFormField } from '../../core';
+import { convertColumnsConfigForFormField } from '../../core';
 import { CreateButtons } from "../../core";
 import "./PreAuthForm.css";
 
@@ -17,6 +18,8 @@ export const PreAuthForm = ({
     children
 } : PreAuthForm) => {
 
+    const formPropertiesConfig: IFormField[] = convertColumnsConfigForFormField(propertiesConfig);
+
     return <div className="loginFormFields">
             <Form
             name={ formConfig.name }
@@ -24,7 +27,7 @@ export const PreAuthForm = ({
             initialValues={ formConfig?.initialValues || {} }
             layout="vertical"
             onFinish={onSubmit} >
-                { propertiesConfig.map( (item: IFormField, index: number) => {
+                { formPropertiesConfig.map( (item: IFormField, index: number) => {
                     return <React.Fragment key={ "internalForm" + index }><FormField {...item} /></React.Fragment>
                 } ) }
                 
