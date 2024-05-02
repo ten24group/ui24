@@ -39,7 +39,7 @@ export const Modal = ({
     const navigate = useNavigate();
 
     const deleteApiAction = async () => {
-      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
+      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `${primaryIndex}` : apiConfig.apiUrl
       const response: any = await callApiMethod({
         ...apiConfig,
         apiUrl: formattedApiUrl
