@@ -8,7 +8,7 @@ import { PostAuthForm } from '../../forms/PostAuthForm';
 import { Table, ITableConfig } from '../../table/Table';
 import { Details, IDetailsConfig } from '../../detail/Details';
 
-type IPageType = "list" | "form" | "accordion" | "details"
+type IPageType = "list" | "form" | "accordion" | "details | dashboard"
 
 interface IRenderFromPageType {
     pageType?: IPageType;
@@ -46,6 +46,7 @@ export const RenderFromPageType = ( {pageType, cardStyle, formPageConfig, listPa
         case "form": return <Card style={ cardStyle } > <PostAuthForm {...formPageConfig} /> </Card>;
         case "details": return <Card style={ cardStyle } > <Details {...detailsPageConfig} /> </Card>;
         case "accordion": return <div> Accordion Page </div>;
+        case "dashboard": return <Card style={ cardStyle } >  </Card>;
         default: return <>Invalid Page Type</>;
     }
 }

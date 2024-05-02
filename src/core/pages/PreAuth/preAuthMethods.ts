@@ -1,10 +1,12 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { postMethod } from "../../api/apiMethods";
 import { usePageConfig } from "../../forms";
 import { IFormConfig } from "../../forms/formConfig";
 
 
-export const preAuthMethods = () => {
+  export const preAuthMethods = () => {
+    const navigate = useNavigate();
     const onFinish = async (values: any) => {
         console.log('Received values of form: ', values);
         const response = await postMethod('/auth/signin', {
@@ -13,7 +15,8 @@ export const preAuthMethods = () => {
         });
 
         console.log(" login response", response);
-
+        navigate('/dashboard');
+          
     };
 
     // TODO: const { propertiesConfig } = usePageConfig("/user/login");
