@@ -27,17 +27,13 @@ axiosInstance.interceptors.request.use(
 
 axiosInstance.interceptors.response.use(
     response => {
-
-        if (response.data?.IdToken) {
-
-          const { setToken } = useAuth();
-
-          setToken(response.data.IdToken);
-
-          // @ts-ignore
-          window.location = "/dashboard";
-
-        }
+      
+      if (response.data?.IdToken) {
+        
+        const { setToken } = useAuth();
+        
+        setToken(response.data.IdToken);
+      }
 
       return response;
     },
