@@ -41,8 +41,6 @@ interface IFormFieldResponse {
     fieldType?: IFormFieldType;
 }
 
-
-
 const convertValidationRules = ( validationRules : Array<IPreDefinedValidations> ) => {
   return validationRules.map( validationRule => {
       let antValidationRule = {}

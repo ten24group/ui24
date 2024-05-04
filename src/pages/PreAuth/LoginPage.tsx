@@ -10,6 +10,14 @@ import type { CheckboxProps } from 'antd';
 import { useAppContext } from '../../core/context/AppContext';
 
 export const LoginPage = () => {
+  return (
+    <PreAuthLayout>
+        <LoginForm />
+    </PreAuthLayout>
+  );
+};
+
+const LoginForm = () => {
   const { notifySuccess, notifyError } = useAppContext()
   const { propertiesConfig, apiConfig } = usePageConfig("/login");
 
@@ -34,17 +42,13 @@ export const LoginPage = () => {
       //TOOD: Remember Me    
   };
 
-  return (
-    <PreAuthLayout>
-        <PreAuthForm
-        onSubmit={onFinish}
-        propertiesConfig={ propertiesConfig }
-        formButtons={ ["login" ]}>
-          <div className="PreAuthLoginActions">
-              <Checkbox onChange={onChange}>Remember Me</Checkbox>
-              <Link title="Forgot Password ?" url='/forgot-password' />
-          </div>
-        </PreAuthForm>
-    </PreAuthLayout>
-  );
-};
+  return <PreAuthForm
+  onSubmit={onFinish}
+  propertiesConfig={ propertiesConfig }
+  formButtons={ ["login" ]}>
+    <div className="PreAuthLoginActions">
+        <Checkbox onChange={onChange}>Remember Me</Checkbox>
+        <Link title="Forgot Password ?" url='/forgot-password' />
+    </div>
+  </PreAuthForm>
+}

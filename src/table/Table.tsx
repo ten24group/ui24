@@ -8,6 +8,9 @@ import { callApiMethod, IApiConfig } from "../core";
 import { useAppContext } from "../core/context/AppContext";
 
 type ITableActions = "view" | "edit" | "delete";
+
+type ITablePagiatnation = "default" 
+
 type IPageAction = {
   url: string;
   label: string;
@@ -21,6 +24,7 @@ export interface ITableConfig {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: IApiConfig;
   records?: Array<any>;
+  paginationType?: ITablePagiatnation;
 }
 
 interface ITablePropertiesConfig {
@@ -37,7 +41,7 @@ interface IActionIndexValue {
 interface IRecord {
   [key: string]: string;
 }
-export const Table = ({ propertiesConfig, records = [], apiConfig } : ITableConfig ) => {
+export const Table = ({ propertiesConfig, records = [], apiConfig, paginationType = "default" } : ITableConfig ) => {
     const { notifyError } = useAppContext()
     //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
     //if the actions array is empty, then do not include the key in the object

@@ -14,8 +14,10 @@ interface IConfirmModal {
   title: string;
   content: string;
 }
-type IModalPageConfig = IConfirmModal | ICustomForm | ITableConfig;
 type IModalType = "confirm" | "list" | "form"
+
+type IModalPageConfig = IConfirmModal | ICustomForm | ITableConfig
+
 export interface IModalConfig {
     modalType: IModalType;
     modalPageConfig?: IModalPageConfig;
@@ -37,7 +39,6 @@ export const Modal = ({
 } : IModalConfig ) => {
     const [open, setOpen] = React.useState(false)
     const { notifyError, notifySuccess } = useAppContext()
-    const navigate = useNavigate();
 
     const deleteApiAction = async () => {
       const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
@@ -76,33 +77,14 @@ export const Modal = ({
         
       </AntModal>
       }
-      { open && ( modalType === "list" || modalType === "form" ) && modalPageConfig &&
-      <AntModal
-      footer={ null }
-      open={open}
-      onCancel={()=> setOpen(false)}
-    >
-        <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalPageConfig } formPageConfig={ modalPageConfig } />
-        </AntModal>
-      }
+          { open && ( modalType === "list" || modalType === "form" ) && modalPageConfig &&
+          <AntModal
+          footer={ null }
+          open={open}
+          onCancel={()=> setOpen(false)}
+        >
+            <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } formPageConfig={ modalType === "form" ? modalPageConfig as ICustomForm: undefined } />
+            </AntModal>
+          }
       </>
 }
-
-
-{/* Let's document an idea I'm thinking about to have a commong config for buttons which can be use accross the admin panel */}
-type ITitleOrIconOnly = { title: string; iconOnly?: boolean; } | { title?: string; iconOnly: boolean; }
-
-type IButtonAction = "redirect" | "model" | "api"
-type IButtonConfig = ITitleOrIconOnly & {
-  icon: string;
-  children: React.ReactNode;
-  url: string;
-  action: IButtonAction
-}
-
-type IHeaderButtonsConfig = Array<IButtonConfig>
-type IPageHaderButtonsConfig = Array<IButtonConfig>
-
-type ITableRecordButtonsConfig = Array<{
-  addDataIndexToUrl?: boolean;
-}>

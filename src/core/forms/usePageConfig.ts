@@ -17,13 +17,13 @@ export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => 
             //use mock response
             const { propertiesConfig: dynamicPropertiesConfig, pageType : dynamicPageType, apiConfig: pageApiConfig }  = mockApiResponse( metaDataUrl );
             setPageType( dynamicPageType )
-            setPropertiesConfig( convertColumnsConfigForFormField(dynamicPropertiesConfig) )
+            setPropertiesConfig( dynamicPropertiesConfig ) //convertColumnsConfigForFormField(dynamicPropertiesConfig) )
             if( pageApiConfig ) {
                 setApiConfig( pageApiConfig )
             }
         }
 
-        // callConfigAPI()
+        callConfigAPI()
         
     }, [] )
 
