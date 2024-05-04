@@ -62,7 +62,7 @@ export const Table = ({ propertiesConfig, records = [], apiConfig } : ITableConf
     const getRecords = async () => {
       const response: any = await callApiMethod(apiConfig);
       if( response?.status === 200 ) {
-        setListRecords( response.data.data )
+        setListRecords( response.data[apiConfig.responseKey] )
       }  else if( response?.status === 400 || response?.status === 500 ) {
         api.error({ message: response?.error, duration: 2 })
       }

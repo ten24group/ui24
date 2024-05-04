@@ -27,9 +27,9 @@ export function PostAuthForm({
 
   useEffect( () => {
       const fetchRecordInfo = async () => {
-          const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+          const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `${dynamicID}` } );
           if( response.status === 200 ) {
-              const detailResponse = response.data.__entity__
+              const detailResponse = response.data[detailApiConfig.responseKey]
               setFormPropertiesConfig( formPropertiesConfig.map( ( item: IFormField ) => {
                   return {
                       ...item,
@@ -47,7 +47,8 @@ export function PostAuthForm({
   const customOnSubmit = async (values: any) => {
     if( apiConfig ) {
 
-      const formattedApiUrl = dynamicID !== "" ? apiConfig.apiUrl + `/${dynamicID}` : apiConfig.apiUrl
+      const formattedApiUrl = dynamicID !== "" ? apiConfig.apiUrl + `${dynamicID}` : apiConfig.apiUrl
+      
       const response: any = await callApiMethod({
         ...apiConfig,
         apiUrl: formattedApiUrl,
@@ -79,7 +80,11 @@ export function PostAuthForm({
       onFinish={customOnSubmit}
     >
     
-    { dataLoadedFromView && formPropertiesConfig.map( (item: IFormField, index: number ) => { return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> } ) }
+    { dataLoadedFromView && formPropertiesConfig.map( 
+      (item: IFormField, index: number ) => { 
+        return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> 
+      }) 
+    }
     { children }
     
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
