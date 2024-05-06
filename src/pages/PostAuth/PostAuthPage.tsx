@@ -8,7 +8,7 @@ import { PostAuthForm } from '../../forms/PostAuthForm';
 import { Table, ITableConfig } from '../../table/Table';
 import { Details, IDetailsConfig } from '../../detail/Details';
 
-type IPageType = "list" | "form" | "accordion" | "details" | "dashboard"
+type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
 interface IRenderFromPageType {
     pageType?: IPageType;

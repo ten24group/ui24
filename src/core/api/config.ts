@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuth } from './apiMethods';
+import { useNavigate } from 'react-router-dom';
 
 const axiosInstance = axios.create();
 
@@ -26,14 +27,13 @@ axiosInstance.interceptors.request.use(
 
 axiosInstance.interceptors.response.use(
     response => {
-
-        if (response.data?.IdToken) {
-
-          const { setToken } = useAuth();
-
-          setToken(response.data.IdToken);
-
-        }
+      
+      if (response.data?.IdToken) {
+        
+        const { setToken } = useAuth();
+        
+        setToken(response.data.IdToken);
+      }
 
       return response;
     },
