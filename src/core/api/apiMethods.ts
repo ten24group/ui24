@@ -40,11 +40,10 @@ export const headMethod = async (url: string, data: any) => {
 };
 
 export interface IApiConfig {
-    apiMethod?: string;
-    responseKey: string;
     apiUrl: string;
     payload?: any;
-    responseKey?: string
+    apiMethod?: string;
+    responseKey?: string;
 }
 export const callApiMethod = async (apiConfig: IApiConfig) => {
     try{

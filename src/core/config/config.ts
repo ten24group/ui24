@@ -31,7 +31,7 @@ type ConfigResolver<T extends unknown> = T // the config itself
 | string  // config url/endpoint
 | ( () => Promise<T> ) // a function that resolves the config
 
-interface IFW24Config {
+interface IUI24Config {
     baseURL: string;
     appLogo: string;
 
@@ -54,11 +54,11 @@ const loadConfigsFromUrls = async <T extends any[]>(...urls: string[]): Promise<
     return configs as T;
 }
 
-const FW24Config = {
+const UI24Config = {
     uiConfig: {}
-} as IFW24Config;
+} as IUI24Config;
 
-const initFW24Config = async ( config : IFW24Config ) => {
+const initUI24Config = async ( config : IUI24Config ) => {
 
     if(!config.baseURL){
         throw new Error("No baseURL provided in config");
@@ -70,7 +70,7 @@ const initFW24Config = async ( config : IFW24Config ) => {
 
     createAxiosInstance(config.baseURL);
 
-    FW24Config.appLogo = config.appLogo;
+    UI24Config.appLogo = config.appLogo;
 
     if(config.uiConfig?.menu){
 
@@ -80,12 +80,12 @@ const initFW24Config = async ( config : IFW24Config ) => {
                 getConfigUrl(config.baseURL, config.uiConfig.menu) 
             );
 
-            FW24Config.uiConfig.menu = menuConfig;
+            UI24Config.uiConfig.menu = menuConfig;
 
         } if(typeof config.uiConfig.menu === "function"){
 
             const menuConfig = await config.uiConfig.menu();
-            FW24Config.uiConfig.menu = menuConfig;
+            UI24Config.uiConfig.menu = menuConfig;
         }
 
     } else {
@@ -101,11 +101,11 @@ const initFW24Config = async ( config : IFW24Config ) => {
                 getConfigUrl(config.baseURL, config.uiConfig.auth) 
             );
 
-            FW24Config.uiConfig.auth = authConfig;
+            UI24Config.uiConfig.auth = authConfig;
 
         } if(typeof config.uiConfig.auth === "function"){
             const authConfig = await config.uiConfig.auth();
-            FW24Config.uiConfig.auth = authConfig;
+            UI24Config.uiConfig.auth = authConfig;
         }
 
     } else {
@@ -121,12 +121,12 @@ const initFW24Config = async ( config : IFW24Config ) => {
                 getConfigUrl(config.baseURL, config.uiConfig.pages)
             );
 
-            FW24Config.uiConfig.pages = pagesConfig;
+            UI24Config.uiConfig.pages = pagesConfig;
 
         } if(typeof config.uiConfig.pages === "function"){
 
             const pagesConfig = await config.uiConfig.pages();
-            FW24Config.uiConfig.pages = pagesConfig;
+            UI24Config.uiConfig.pages = pagesConfig;
         }
 
     } else {
@@ -134,4 +134,4 @@ const initFW24Config = async ( config : IFW24Config ) => {
     }
 }
 
-export { FW24Config, initFW24Config }
+export { UI24Config, initUI24Config }

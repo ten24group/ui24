@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
 import { Row, Col } from 'antd';
 import "./PreAuthLayout.css";
-import { FW24Config } from '../../core';
+import { UI24Config } from '../../core';
 import { CoreLayout } from '../CoreLayout';
 
 interface IPreAuthLayout {
@@ -22,7 +22,7 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
         <div className="preAuthLoginContainer">
             <div className="containerTop">
                 <div className="header">
-                    { FW24Config?.appLogo !== "" && <div className="logo"><img src={FW24Config.appLogo} alt="App Logo" title="Logo" /></div> }
+                    { UI24Config?.appLogo !== "" && <div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div> }
                 </div>
                 <div className="title">{ layoutConfig.title } </div>
                 

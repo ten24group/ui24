@@ -18,7 +18,7 @@ export const PreAuthForm = ({
     children,
 } : PreAuthForm) => {
 
-    const formPropertiesConfig: IFormField[] = propertiesConfig.length > 0 ? convertColumnsConfigForFormField(propertiesConfig) : [];
+    const formPropertiesConfig: IFormField[] = propertiesConfig?.length > 0 ? convertColumnsConfigForFormField(propertiesConfig) : [];
 
     return <div className="loginFormFields">
             <Form

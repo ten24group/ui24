@@ -1,4 +1,4 @@
-export { FW24 } from './FW24'
+export { UI24 } from './ui24'
 
 //Post Login pages
 export { PostAuthPage } from "./PostAuth/PostAuthPage"
