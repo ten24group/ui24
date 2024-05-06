@@ -1,5 +1,5 @@
 import React from "react";
-import { ICreateButtons } from "./Buttons/Buttons";
+import { ICreateButtons } from "./buttons/Buttons";
 import { IFormFieldResponse } from "./FormField/FormField";
 import { IApiConfig } from "../api/apiMethods";
 import { IDetailApiConfig } from "../../detail/Details";
@@ -16,7 +16,7 @@ interface ICustomForm extends ICreateButtons, IDetailApiConfig {
     onSubmit: (values: any) => void;
     children?: React.ReactNode;
     style?: React.CSSProperties;
-    apiConfig: IApiConfig;
+    apiConfig?: IApiConfig;
     submitSuccessRedirect?: string;
 }
 

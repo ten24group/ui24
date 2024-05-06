@@ -1,0 +1,30 @@
+.pagination {
+    list-style: none;
+    display: flex;
+    justify-content: right;
+}
+
+.paginationClick {
+    cursor: pointer;
+}
+
+.paginationItem {
+    min-width: 32px;
+    margin-inline-end: 8px;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    box-sizing: border-box;
+    line-height: 30px;
+}
+
+.paginationItemDisabled {
+    cursor: not-allowed;
+    color: #b3b3b3;
+}
+
+.paginationActive {
+    border: 1px solid #1677ff;
+    background-color: #ffffff;
+}

@@ -44,12 +44,13 @@ export interface IApiConfig {
     responseKey: string;
     apiUrl: string;
     payload?: any;
+    responseKey?: string
 }
 export const callApiMethod = async (apiConfig: IApiConfig) => {
     try{
-        if( apiConfig.apiMethod === "GET" ) {
+        if( apiConfig.apiMethod.toUpperCase() === "GET" ) {
             return await getMethod( apiConfig.apiUrl, apiConfig.payload );
-        } else if( apiConfig.apiMethod === "POST" ) {
+        } else if( apiConfig.apiMethod.toUpperCase() === "POST" ) {
             return await postMethod( apiConfig.apiUrl, apiConfig.payload );
         } else if( apiConfig.apiMethod === "PUT" ) {
             return await putMethod( apiConfig.apiUrl, apiConfig.payload );
@@ -63,7 +64,6 @@ export const callApiMethod = async (apiConfig: IApiConfig) => {
             return await headMethod( apiConfig.apiUrl, apiConfig.payload );
         }
     } catch (error) {
-        console.error("API failed for : " + apiConfig )
         return {
             status: error.response?.status || 500,
             error: error.response?.data?.error || "Error in API call",

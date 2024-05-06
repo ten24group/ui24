@@ -3,7 +3,7 @@ import { PostAuthLayout } from "../../layout"
 import { PageHeader, IPageHeader } from './PageHeader/PageHeader';
 import { ICustomForm } from '../../core/forms/formConfig';
 import "./PostAuthPage.css";
-import { Card, Alert } from 'antd';
+import { Card } from 'antd';
 import { PostAuthForm } from '../../forms/PostAuthForm';
 import { Table, ITableConfig } from '../../table/Table';
 import { Details, IDetailsConfig } from '../../detail/Details';

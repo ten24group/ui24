@@ -1,36 +1,35 @@
 import { useEffect, useState } from "react"
-import { getMethod, postMethod } from "../api/apiMethods"
-import { apiResponse } from "../mock";
+import { IApiConfig } from "../api/apiMethods";
+import { mockApiResponse } from "../mock";
 import { convertColumnsConfigForFormField } from "./FormField/FormField";
 
 type PreDefinedPageTypes = "list" | "form";
 
+//currently being used only for pre auth pages - login, forgot-password, reset-password
 export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => {
     const [ propertiesConfig, setPropertiesConfig ] = useState([])
+    const [ apiConfig, setApiConfig ] = useState<IApiConfig>({})
     const [ pageType, setPageType ] = useState<PreDefinedPageTypes | string>("")
 
     useEffect( () => {
         const callConfigAPI = async () => {
-            const response = await getMethod( metaDataUrl )
-            if( response ) {
-                //set properties config
-            } else {
-                const { propertiesConfig: dynamicPropertiesConfig, pageType : dynamicPageType }  = apiResponse( metaDataUrl );
-                setPageType( dynamicPageType )
-                setPropertiesConfig( convertColumnsConfigForFormField(dynamicPropertiesConfig) )
+            //TODO: fetch from core config or API and fallback to mock response
+            //use mock response
+            const { propertiesConfig: dynamicPropertiesConfig, pageType : dynamicPageType, apiConfig: pageApiConfig }  = mockApiResponse( metaDataUrl );
+            setPageType( dynamicPageType )
+            setPropertiesConfig( dynamicPropertiesConfig ) //convertColumnsConfigForFormField(dynamicPropertiesConfig) )
+            if( pageApiConfig ) {
+                setApiConfig( pageApiConfig )
             }
         }
 
-        // callConfigAPI()
+        callConfigAPI()
         
     }, [] )
 
     return {
         propertiesConfig,
-        pageType
+        pageType,
+        apiConfig
     }
 }
-
-//Total possible API calls.
-//1. get page config
-//2.

@@ -2,6 +2,7 @@
 //import { lazyLoadComponent } from '../utils/lazyLoadComponent';
 import React, { ReactNode } from 'react';
 import { Layout } from 'antd';
+import { CoreLayout } from '../CoreLayout';
 import { Header } from '../../pages';
 
 
@@ -19,7 +20,7 @@ interface IChildren{
 export const PostAuthLayout: React.FC<IChildren> = ({ children }) => {
   
   return (
-    <Layout style={{ minHeight: "100vh"}}>
+    <CoreLayout >
       <Header />
       <Layout >
         <Content >
@@ -29,6 +30,6 @@ export const PostAuthLayout: React.FC<IChildren> = ({ children }) => {
       <Footer style={{ textAlign: 'center' }}>
         Ten24 ©{new Date().getFullYear()}
       </Footer>
-    </Layout>
+    </CoreLayout>
   );
 };
