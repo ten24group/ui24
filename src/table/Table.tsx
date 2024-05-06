@@ -1,5 +1,5 @@
 import React, { Fragment, useEffect } from "react";
-import { Space, Table as AntTable } from "antd";
+import { Space, Table as AntTable, Spin } from "antd";
 import type { TableProps, Breakpoint } from "antd";
 import { CustomPagination } from "./Pagination/Pagination";
 import type { PaginationProps } from "antd";
@@ -49,6 +49,7 @@ export const Table = ({
   apiConfig,
   paginationType = "default",
 }: ITableConfig) => {
+
   const { notifyError } = useAppContext();
   const recordPerPage = 10;
   //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
@@ -80,10 +81,14 @@ export const Table = ({
       cursor: currentPageCursor,
       limit: recordPerPage
     }
+    setIsLoading(true);
     const response: any = await callApiMethod({
       ...apiConfig,
       payload : payload
     });
+
+    setIsLoading(false);
+
     if (response?.status === 200) {
       setListRecords(response.data[apiConfig.responseKey]);
       setCurrentPage( pageNumber === 1 ? 1 : pageNumber )
@@ -141,6 +146,7 @@ export const Table = ({
   }
 
   const [listRecords, setListRecords] = React.useState(records);
+  const [isLoading, setIsLoading] = React.useState(false);
 
   useEffect(() => {
     //if records is empty and apiConfig is not empty, then call the api
@@ -167,6 +173,7 @@ export const Table = ({
         columns={columns}
         dataSource={listRecords}
         pagination={ false }
+        loading={{ indicator: <div><Spin /></div>, spinning: isLoading}}
       />
       { currentPage > 0 && <CustomPagination currentPage={ currentPage }  onPageChange={ onPageChange } isLastPage={ isLastPage } /> }
     </React.Fragment>
