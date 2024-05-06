@@ -88,9 +88,7 @@ export const Table = ({
       setListRecords(response.data[apiConfig.responseKey]);
       setCurrentPage( pageNumber === 1 ? 1 : pageNumber )
       setPageCursor( { ...pageCursor, [pageNumber + 1]: response.data?.cursor })
-      if( response.data?.cursor === null ) {
-        setIsLastPage(true);
-      }
+      setIsLastPage( response.data?.cursor === null )
     } else if (response?.status === 400 || response?.status === 500) {
       notifyError(response?.error);
     }
