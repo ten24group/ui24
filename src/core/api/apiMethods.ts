@@ -23,6 +23,7 @@ export interface IApiConfig {
     apiMethod?: string;
     apiUrl: string;
     payload?: any;
+    responseKey?: string
 }
 export const callApiMethod = async (apiConfig: IApiConfig) => {
     try{
