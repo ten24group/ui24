@@ -2,13 +2,13 @@ import React from 'react';
 import { PostAuthPage } from '../PostAuth/PostAuthPage';
 import { useParams } from "react-router-dom"
 
-import { FW24Config } from '../../core';
+import { UI24Config } from '../../core';
 
 export const DynamicPage = () => {
     //get routes from URL
     const { dynamicPage = "", dynamicID = ""} = useParams()
 
-    let pageConfig = FW24Config.uiConfig.pages[dynamicPage]
+    let pageConfig = UI24Config.uiConfig.pages[dynamicPage]
     //check if page config exists for the route
     if( !pageConfig ){
         //Fallback : make API call to get page config

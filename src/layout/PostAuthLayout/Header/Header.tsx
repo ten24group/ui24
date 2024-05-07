@@ -5,7 +5,7 @@ import { Menu as AntMenu } from 'antd';
 import { Breadcrumb, Layout, theme } from 'antd';
 import { Link } from '../../../core/common';
 import "./Header.css";
-import { FW24Config } from '../../../core';
+import { UI24Config } from '../../../core';
 import { HeaderActions } from './HeaderActions';
 import { getMethod } from '../../../core';
 import { mockApiResponse } from '../../../core';
@@ -52,19 +52,19 @@ const formatMenuItems = (menuItems: any) => {
 
 export const Header = () => {
 
-    const [ menuItems, setMenuItems ] = React.useState<MenuItem[]>( formatMenuItems( FW24Config.uiConfig.menu ?? [] ) );
+    const [ menuItems, setMenuItems ] = React.useState<MenuItem[]>( formatMenuItems( UI24Config.uiConfig.menu ?? [] ) );
 
     return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
-          { FW24Config?.appLogo !== "" && <div className="logo"><img src={FW24Config.appLogo} alt="App Logo" title="Logo" /></div> }
+          { UI24Config?.appLogo !== "" && <div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div> }
         </div>
         <div className="appMenu">
             <AntMenu
               style={{ width: "100%" }}
               theme="light"
               mode="horizontal"
-              items={ menuItems.length > 0 ? menuItems : ( FW24Config.uiConfig.menu === "" ? sampleItems : []) }
+              items={ menuItems.length > 0 ? menuItems : ( UI24Config.uiConfig.menu === "" ? sampleItems : []) }
           />
         </div>
         <div className="appActions">
