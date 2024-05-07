@@ -1,50 +1,85 @@
 import { axiosInstance } from './config';
+import { useSigner } from './signer';
 
-export const useAuth = () => {
-    return {
-      setToken: (token: string) => {
-        sessionStorage.setItem("authToken", token);
-      },
-      getToken: () => {
-        return sessionStorage.getItem("authToken");
-      }
-    }
-  }
+const signer = useSigner({});
 
 export const getMethod = async (url: string, params = {}) => {
-    return await axiosInstance.get(url, { params });
+    const signedHeaders = await signer.sign({
+        data: params,
+        url: url, 
+        method: 'GET', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.get(url, { params, headers: signedHeaders });
 }
 
 export const postMethod = async (url: string, data: any) => {
-    return await axiosInstance.post(url, data);
+    const signedHeaders = await signer.sign({
+        data,
+        url: url, 
+        method: 'POST', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.post(url, data, { headers: signedHeaders });
 };
 
 export const putMethod = async (url: string, data: any) => {
-    return await axiosInstance.put(url, data);
+    const signedHeaders = await signer.sign({
+        data,
+        url: url, 
+        method: 'PUT', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.put(url, data, { headers: signedHeaders });
 };
 
 export const patchMethod = async (url: string, data: any) => {
-    return await axiosInstance.patch(url, data);
+    const signedHeaders = await signer.sign({
+        data,
+        url: url, 
+        method: 'PATCH', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.patch(url, data, { headers: signedHeaders });
 };
 
-export const deleteMethod = async (url: string, data: any) => {
-    return await axiosInstance.delete(url, data);
+export const deleteMethod = async (url: string, params: any = {}) => {
+    const signedHeaders = await signer.sign({
+        data: params,
+        url: url, 
+        method: 'DELETE', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.delete(url, { params: params, headers: signedHeaders });
 }; 
 
-export const optionsMethod = async (url: string, data: any) => {
-    return await axiosInstance.options(url, data);
+export const optionsMethod = async (url: string, params: any = {}) => {
+    const signedHeaders = await signer.sign({
+        data: params,
+        url: url, 
+        method: 'OPTIONS', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.options(url, { params: params, headers: signedHeaders });
 };
 
-export const headMethod = async (url: string, data: any) => {
-    return await axiosInstance.head(url, data);
+export const headMethod = async (url: string, params: any = {}) => {
+    const signedHeaders = await signer.sign({
+        data: params,
+        url: url, 
+        method: 'HEAD', 
+        baseUrl: axiosInstance.defaults.baseURL
+    });
+    return await axiosInstance.head(url, { params: params, headers: signedHeaders });
 };
 
 export interface IApiConfig {
     apiUrl: string;
+    apiMethod: string;
     payload?: any;
-    apiMethod?: string;
     responseKey?: string;
 }
+
 export const callApiMethod = async (apiConfig: IApiConfig) => {
     try{
         if( apiConfig.apiMethod.toUpperCase() === "GET" ) {

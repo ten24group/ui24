@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 
 //import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from "../index";
 import { LoginPage, ForgotPassword, ResetPassword, DynamicPage, PostAuthPage } from '../pages';
-import { useAuth } from '../core/api/apiMethods';
+import { useAuth } from '../core/api/config';
 
 interface IRoute{
     path: string;
