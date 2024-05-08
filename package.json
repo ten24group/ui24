@@ -13,9 +13,15 @@
     "watch": "webpack --watch",
     "release": "npm run build && standard-version && git push --follow-tags && npm publish"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "ui24",
+    "fw24",
+    "framework24",
+    "serverless",
+    "framework"
+  ],
+  "author": "Ten24 Group, LLC",
+  "license": "MIT",
   "peerDependencies": {
     "antd": "^5.14.0",
     "axios": "^1.6.7",
