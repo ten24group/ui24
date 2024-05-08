@@ -1,50 +1,41 @@
 import { axiosInstance } from './config';
 
-export const useAuth = () => {
-    return {
-      setToken: (token: string) => {
-        sessionStorage.setItem("authToken", token);
-      },
-      getToken: () => {
-        return sessionStorage.getItem("authToken");
-      }
-    }
-  }
-
-export const getMethod = async (url: string, params = {}) => {
-    return await axiosInstance.get(url, { params });
+export const getMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    return await axiosInstance.get(url, { params, headers });
 }
 
-export const postMethod = async (url: string, data: any) => {
-    return await axiosInstance.post(url, data);
+export const postMethod = async (url: string, data: any, headers: any ={}) => {
+    return await axiosInstance.post(url, data, { headers });
 };
 
-export const putMethod = async (url: string, data: any) => {
-    return await axiosInstance.put(url, data);
+export const putMethod = async (url: string, data: any, headers: any ={} ) => {
+
+    return await axiosInstance.put(url, data, { headers });
 };
 
-export const patchMethod = async (url: string, data: any) => {
-    return await axiosInstance.patch(url, data);
+export const patchMethod = async (url: string, data: any, headers: any ={}) => {
+    return await axiosInstance.patch(url, data, { headers });
 };
 
-export const deleteMethod = async (url: string, data: any) => {
-    return await axiosInstance.delete(url, data);
+export const deleteMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    return await axiosInstance.delete(url, { params, headers });
 }; 
 
-export const optionsMethod = async (url: string, data: any) => {
-    return await axiosInstance.options(url, data);
+export const optionsMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    return await axiosInstance.options(url, { params, headers });
 };
 
-export const headMethod = async (url: string, data: any) => {
-    return await axiosInstance.head(url, data);
+export const headMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    return await axiosInstance.head(url, { params, headers });
 };
 
 export interface IApiConfig {
     apiUrl: string;
+    apiMethod: string;
     payload?: any;
-    apiMethod?: string;
     responseKey?: string;
 }
+
 export const callApiMethod = async (apiConfig: IApiConfig) => {
     try{
         if( apiConfig.apiMethod.toUpperCase() === "GET" ) {
@@ -63,6 +54,7 @@ export const callApiMethod = async (apiConfig: IApiConfig) => {
             return await headMethod( apiConfig.apiUrl, apiConfig.payload );
         }
     } catch (error) {
+        console.error("Error in API call", error);
         return {
             status: error.response?.status || 500,
             error: error.response?.data?.error || "Error in API call",
