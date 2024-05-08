@@ -165,6 +165,6 @@ export class Authenticator {
             });
         }
 
-        console.log("config with auth ", {config});
+        // console.log("config with auth ", {config});
     };
 }
