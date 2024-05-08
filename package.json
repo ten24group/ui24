@@ -2,7 +2,7 @@
   "name": "@ten24group/ui24",
   "version": "0.0.8",
   "description": "",
-  "main": "src/index.tsx",
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
