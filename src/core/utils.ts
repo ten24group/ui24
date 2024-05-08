@@ -21,8 +21,8 @@ export function makeProperUrl(baseURL: string, endpoint: string) {
         baseURL = `${baseURL}/`
     }
 
-    // make sure endpoint starts and ends with a slash `/`
-    endpoint = replaceAll(`./${endpoint}/`, '//', '/');
+    // make sure endpoint starts with a slash `/`
+    endpoint = replaceAll(`./${endpoint}`, '//', '/');
 
     const newUrl = new URL(endpoint, baseURL);
 
