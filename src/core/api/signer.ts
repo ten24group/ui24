@@ -2,27 +2,26 @@ import { Sha256 } from "@aws-crypto/sha256-js";
 import { SignatureV4 } from "@aws-sdk/signature-v4";
 import { HttpRequest } from "@aws-sdk/protocol-http";
 
-import type { HeaderBag, QueryParameterBag } from "@smithy/types";
+import type { HeaderBag, QueryParameterBag, AwsCredentialIdentity } from "@smithy/types";
 
-import { useAuth } from "./config";
 import { isValidURL, makeProperUrl } from "../utils";
 
-const auth = useAuth();
-
 type UseSignerOptions = {service ?: string, region ?: string};
-type SignRequestOptions = {
+
+export type SignRequestOptions = {
+    credentials: AwsCredentialIdentity,
     url: string, 
     method: string, 
     data: any,
     baseUrl?: string,
 }
 
-export const useSigner = (options: UseSignerOptions) => {
+export const useRequestSigner = (options: UseSignerOptions) => {
     const { service = "execute-api", region = "us-east-1" } = options;
 
-    const signRequest = async (options: SignRequestOptions): Promise<HeaderBag> => {
+    const signRequest = async (options: SignRequestOptions): Promise<HttpRequest> => {
 
-        let { url: apiUrlOrEndpoint, method } = options;
+        let { url: apiUrlOrEndpoint, method, credentials } = options;
         const { data, baseUrl } = options;
 
         if(!isValidURL(apiUrlOrEndpoint)){
@@ -81,38 +80,35 @@ export const useSigner = (options: UseSignerOptions) => {
         }
 
         const req = new HttpRequest(payload);
+        const signer = new SignatureV4({
+            credentials,
+            region,
+            service,
+            sha256: Sha256,
+        });
 
-        console.log("signing request payload", payload);
-        
-        if(auth.isLoggedIn()){
-            const credentials = await auth.getCredentials();
-            const signer = new SignatureV4({
-                credentials: credentials,
-                sha256: Sha256,
-                region,
-                service,
-            });
-            const signed = await signer.sign(req);
-            return signed.headers;
-        }
-        
-        return req.headers;
+        const signed = await signer.sign(req);
+
+        return signed as HttpRequest;
+
     }
 
     return {
-        sign: async (options: SignRequestOptions) => {
-            const headers = await signRequest(options);
+        signRequest,
+        signedHeaders: async (options: SignRequestOptions) => {
+            const signedReq = await signRequest(options);
 
-            console.log("signed headers", headers);
-
-            const filtered = Object.entries(headers).filter(([k,v]) => {
-                return k.toLowerCase()!== "host";
+            const filteredHeaders = Object.entries(signedReq.headers).filter(([k,v]) => {
+                // browsers prevent from setting `host` header
+                return k.toLowerCase() !== "host";
             }).reduce((acc, [k,v]) => {
                 acc[k] = v;
                 return acc;
             }, {} as HeaderBag);
 
-            return filtered;
+            return filteredHeaders;
         },
     }
 }
+
+export type RequestSigner = ReturnType<typeof useRequestSigner>;

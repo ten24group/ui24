@@ -31,9 +31,7 @@ const AppNavigator = ({ path } : { path: string }) => {
 
 export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
 
-
-    const { getToken } = useAuth();
-    const authToken = getToken();
+    const auth = useAuth();
 
     // Default routes
     const defaultRoutes: IRoutes = [
@@ -41,7 +39,7 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
       { path: "/forgot-password", element: <ForgotPassword /> },
       { path: "/reset-password", element: <ResetPassword /> },
       { path: "/dashboard", element: <PostAuthPage  metaDataUrl='Dashboard' pageTitle="Dashboard" pageType='dashboard'/> },
-      { path: "/", element: <AppNavigator path= { !authToken ? "/login" : '/dashboard' } /> },
+      { path: "/", element: <AppNavigator path= { !auth.isLoggedIn() ? "/login" : '/dashboard' } /> },
       { path: "/:dynamicPage", element : <DynamicPage /> },
       { path: "/:dynamicPage/:dynamicID", element : <DynamicPage /> },
     ];
