@@ -1,6 +1,6 @@
 import { Sha256 } from "@aws-crypto/sha256-js";
-import { SignatureV4 } from "@aws-sdk/signature-v4";
-import { HttpRequest } from "@aws-sdk/protocol-http";
+import { SignatureV4 } from "@smithy/signature-v4";
+import { HttpRequest } from "@smithy/protocol-http";
 
 import type { HeaderBag, QueryParameterBag, AwsCredentialIdentity } from "@smithy/types";
 
@@ -70,13 +70,13 @@ export const useRequestSigner = (options: UseSignerOptions) => {
             query: queryParams,
             headers: {
                 host: endpoint,
-                'Content-Type': ''
+                'content-type': ''
             }
         }
         
         if(['POST', 'PATCH', 'PUT'].includes( method )) {
             payload.body = JSON.stringify(data);
-            payload.headers['Content-Type'] = 'application/json';
+            payload.headers['content-type'] = 'application/json';
         }
 
         const req = new HttpRequest(payload);

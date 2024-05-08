@@ -8,12 +8,23 @@ export function isValidURL(str) {
   return !!pattern.test(str);
 }
 
+export function replaceAll(target: string, search: string, replacement: string){
+  return target.split(search).join(replacement);
+}
+
 export function makeProperUrl(baseURL: string, endpoint: string) {
     if(!isValidURL(baseURL) ){
         throw new Error(`Invalid base URL: ${baseURL}`);
     }
 
-    const newUrl = new URL( `./${endpoint}`.replace('//', '/'), baseURL);
+    if( !baseURL.endsWith('/') ){
+        baseURL = `${baseURL}/`
+    }
+
+    // make sure endpoint starts and ends with a slash `/`
+    endpoint = replaceAll(`./${endpoint}/`, '//', '/');
+
+    const newUrl = new URL(endpoint, baseURL);
 
     return newUrl.toString();
 }

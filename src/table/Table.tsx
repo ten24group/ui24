@@ -63,7 +63,7 @@ export const Table = ({
     .filter((item) => Object.values(item)[0]?.length > 0)
     ?.reduce((acc: IActionIndexValue, item) => {
       return { ...acc, ...item };
-    });
+    }, {});
 
   const columns: TableProps<any>["columns"] = propertiesConfig
     .filter((item: ITablePropertiesConfig) => !item?.hidden)
