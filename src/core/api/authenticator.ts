@@ -16,11 +16,11 @@ export const useAuthenticator = (
 
     const { 
         requestSigner = useRequestSigner({}), 
-        axiosInstance = axios.create({baseURL: process.env.REACT_APP_API_BASE_URL}), 
+        axiosInstance = axios.create({ baseURL: process.env.REACT_APP_API_URL }),
         apiAuthMode = process.env.API_AUTH_MODE?.toUpperCase?.() as API_AUTH_MODE || 'JWT',
         awsTempCredentialsApiEndPoint = process.env.AWS_TEMP_CREDENTIALS_API_ENDPOINT,
     } = options;
-
+    
     const authenticator = new Authenticator(
         requestSigner, 
         axiosInstance,
@@ -92,7 +92,7 @@ export class Authenticator {
     };
 
     public async getNewTempAwsCredentials(){
-        const response = await this.axiosInstance.post(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT, {
+        const response = await this.axiosInstance.post(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT+'/', {
             idToken: this.getToken()
         });
 
