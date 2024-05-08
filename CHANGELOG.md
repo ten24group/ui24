@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.11](https://github.com/ten24group/ui24/compare/v0.0.10...v0.0.11) (2024-05-08)
+
+
+### Bug Fixes
+
+* aws signature issue due to extra slash ([24027cc](https://github.com/ten24group/ui24/commit/24027cc1298f3caa94d02bb64ff66e063fdf15cb))
+
 ### [0.0.10](https://github.com/ten24group/ui24/compare/v0.0.9...v0.0.10) (2024-05-08)
 
 
