@@ -1,7 +1,7 @@
 import { RequestSigner, SignRequestOptions, useRequestSigner } from "./signer";
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { AwsCredentialIdentity } from "@smithy/types";
-import { makeProperUrl } from "../utils";
+import { addPathToUrl } from "../utils";
 
 type API_AUTH_MODE = 'JWT' | 'AWS_IAM';
 

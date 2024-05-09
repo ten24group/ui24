@@ -12,7 +12,7 @@ export function replaceAll(target: string, search: string, replacement: string){
   return target.split(search).join(replacement);
 }
 
-export function makeProperUrl(baseURL: string, endpoint: string) {
+export function addPathToUrl(baseURL: string, endpoint: string) {
     if(!isValidURL(baseURL) ){
         throw new Error(`Invalid base URL: ${baseURL}`);
     }
@@ -21,8 +21,8 @@ export function makeProperUrl(baseURL: string, endpoint: string) {
         baseURL = `${baseURL}/`
     }
 
-    // make sure endpoint starts with a slash `/`
-    endpoint = replaceAll(`./${endpoint}`, '//', '/');
+    // make sure endpoint always starts and ends with a slash `/`
+    endpoint = replaceAll(`./${endpoint}/`, '//', '/');
 
     const newUrl = new URL(endpoint, baseURL);
 

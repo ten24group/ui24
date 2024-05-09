@@ -4,7 +4,7 @@ import { HttpRequest } from "@smithy/protocol-http";
 
 import type { HeaderBag, QueryParameterBag, AwsCredentialIdentity } from "@smithy/types";
 
-import { isValidURL, makeProperUrl } from "../utils";
+import { isValidURL, addPathToUrl } from "../utils";
 
 type UseSignerOptions = {service ?: string, region ?: string};
 
@@ -28,7 +28,7 @@ export const useRequestSigner = (options: UseSignerOptions) => {
             if(!baseUrl){
                 throw new Error("No baseUrl provided in options");
             }
-            apiUrlOrEndpoint = makeProperUrl(baseUrl, apiUrlOrEndpoint);
+            apiUrlOrEndpoint = addPathToUrl(baseUrl, apiUrlOrEndpoint);
         }
         method = method.toUpperCase();
 
