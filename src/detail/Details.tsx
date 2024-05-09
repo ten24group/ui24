@@ -27,7 +27,7 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
-            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `${dynamicID}` } );
+            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `${dynamicID}/` } );
             if( response.status === 200 ) {
                 const detailResponse = response.data[detailApiConfig.responseKey]
                 setRecordInfo( recordInfo.map( ( item: IPropertiesConfig ) => {

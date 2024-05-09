@@ -1,9 +1,9 @@
 import { createAxiosInstance } from "../api/config"
 import { IPostAuthPage } from "../../pages/PostAuth/PostAuthPage";
-import { isValidURL, makeProperUrl } from "../utils";
+import { isValidURL, addPathToUrl } from "../utils";
 
 const getConfigUrl = (baseURL: string, endpoint: string): string => {
-    return isValidURL(endpoint) ? endpoint : makeProperUrl(baseURL, endpoint);
+    return isValidURL(endpoint) ? endpoint : addPathToUrl(baseURL, endpoint);
 }
 
 type ConfigResolver<T extends unknown> = T // the config itself
