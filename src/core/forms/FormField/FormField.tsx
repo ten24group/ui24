@@ -2,13 +2,18 @@ import React, { Component, ReactNode } from 'react';
 import { Checkbox, Form, Input, Radio, Select } from 'antd';
 type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select"
 
+interface IOptions {
+    label: string;
+    value: string
+}
+
 interface IFormField {
     name: string; //unique identifier, should be without spaces
-    validationRules: Array<any>; //rules matchin ant design convention
+    validationRules?: Array<any>; //rules matchin ant design convention
     placeholder: string; //placeholder text
     prefixIcon?: ReactNode; //prefix icon as a react component
     fieldType?: IFormFieldType; //field type
-    options: Array<any>; //options for select, radio, checkbox
+    options?: Array<IOptions>; //options for select, radio, checkbox
     label: string;
     style?: React.CSSProperties;
     initialValue?: string;
@@ -16,8 +21,8 @@ interface IFormField {
 
 const { TextArea } = Input;
 
-export function FormField( {fieldType = "text", name, validationRules, label = "", prefixIcon, placeholder = "", options, style, initialValue } : IFormField ) {
-
+export function FormField( {fieldType = "text", name, validationRules, label = "", prefixIcon, placeholder = "", options = [], style, initialValue } : IFormField ) {
+    
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
       <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue = { initialValue } >
         { fieldType === "text" && <Input type={ fieldType || "text" } value={ initialValue } prefix={ prefixIcon } placeholder={ placeholder } /> }
