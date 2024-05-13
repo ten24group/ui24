@@ -53,9 +53,6 @@ export const filterOperators: Array<IFilterOperator> = [{
   label: "Starts With",
     value: "startsWith",
 }, {
-  label: "Ends With",
-    value: "endsWith",
-}, {
   label: "Like",
     value: "like",
 }, {
