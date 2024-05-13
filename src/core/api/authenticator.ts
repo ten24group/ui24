@@ -59,6 +59,11 @@ export class Authenticator {
         return !!this.getToken();
     };
 
+    public logOut(){
+        this.removeCredentials();
+        this.removeToken();
+    };
+
     public removeToken(){
         return sessionStorage.removeItem(this.AUTH_TOKEN_CACHE_KEY);
     };
