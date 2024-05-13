@@ -1,12 +1,10 @@
-import React from "react";
+import React from 'react';
 import { DownOutlined } from '@ant-design/icons';
-import { Dropdown, Space } from 'antd';
 import type { MenuProps } from 'antd';
-import { Icon } from "../../../core/common";
-import { Link } from "../../../core/common";
-import { Button } from 'antd';
-import { useAuth } from "../../../core";
+import { Dropdown } from 'antd';
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../../core";
+import { Icon, Link } from "../../../core/common";
 
 
 export const LogoutButton = () => {
