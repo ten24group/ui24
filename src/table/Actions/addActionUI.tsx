@@ -33,7 +33,7 @@ export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, ge
       .filter((item) => Object.values(item)?.length > 0)
       ?.reduce((acc: IActionIndexValue, item) => {
         return { ...acc, ...item };
-      });
+      }, {});
   
     //check if actionIndexValue has any keys, if yes, then add a column for actions
     if (Object.keys(actionIndexValue).length > 0) {

@@ -1,30 +1,9 @@
 import { createAxiosInstance } from "../api/config"
 import { IPostAuthPage } from "../../pages/PostAuth/PostAuthPage";
-
-
-
-function isValidURL(str) {
-  var pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
-    '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
-    '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
-    '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
-    '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
-    '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
-  return !!pattern.test(str);
-}
-
-function makeUrl(baseURL: string, endpoint: string) {
-    if(!isValidURL(baseURL) ){
-        throw new Error(`Invalid base URL: ${baseURL}`);
-    }
-
-    const newUrl = new URL( `./${endpoint}`.replace('//', '/'), baseURL);
-
-    return newUrl.toString();
-}
+import { isValidURL, addPathToUrl } from "../utils";
 
 const getConfigUrl = (baseURL: string, endpoint: string): string => {
-    return isValidURL(endpoint) ? endpoint : makeUrl(baseURL, endpoint);
+    return isValidURL(endpoint) ? endpoint : addPathToUrl(baseURL, endpoint);
 }
 
 type ConfigResolver<T extends unknown> = T // the config itself

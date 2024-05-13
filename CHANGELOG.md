@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.12](https://github.com/ten24group/ui24/compare/v0.0.11...v0.0.12) (2024-05-09)
+
+### [0.0.11](https://github.com/ten24group/ui24/compare/v0.0.10...v0.0.11) (2024-05-08)
+
+
+### Bug Fixes
+
+* aws signature issue due to extra slash ([24027cc](https://github.com/ten24group/ui24/commit/24027cc1298f3caa94d02bb64ff66e063fdf15cb))
+
+### [0.0.10](https://github.com/ten24group/ui24/compare/v0.0.9...v0.0.10) (2024-05-08)
+
+
+### Bug Fixes
+
+* type in axios base-url env var ([69ae7a4](https://github.com/ten24group/ui24/commit/69ae7a480b843aa1dd1c3d703526476622ebe5c7))
+
 ### [0.0.9](https://github.com/ten24group/ui24/compare/v0.0.8...v0.0.9) (2024-05-08)
 
 ### [0.0.8](https://github.com/ten24group/ui24/compare/v0.0.7...v0.0.8) (2024-05-07)

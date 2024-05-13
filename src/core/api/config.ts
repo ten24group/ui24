@@ -1,44 +1,40 @@
 import axios from 'axios';
-import { useAuth } from './apiMethods';
-import { useNavigate } from 'react-router-dom';
+import { useAuthenticator } from './authenticator';
 
-const axiosInstance = axios.create();
+const defaultAxiosInstance = axios.create();
 
 const createAxiosInstance = (baseURL: string) => {
-    axiosInstance.defaults.baseURL = baseURL;
+    defaultAxiosInstance.defaults.baseURL = baseURL;
 };
 
-axiosInstance.interceptors.request.use(
-    config => {
+const defaultAuthenticator = useAuthenticator({});
+
+const useAuth = () => {
+    return defaultAuthenticator;
+};
+
+defaultAxiosInstance.interceptors.request.use( async(config) => {
       
-      const { getToken } = useAuth();
-      
-      const token = getToken(); 
-      if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      return config;
-
-    },
-    // TODO: handle 401 and redirect to the login page
-    error => Promise.reject(error)
-);
-
-axiosInstance.interceptors.response.use(
-    response => {
-      
-      if (response.data?.IdToken) {
-        
-        const { setToken } = useAuth();
-        
-        setToken(response.data.IdToken);
-      }
-
-      return response;
+        // ** DO NOT override the authorization header set by the signer
+        if( !config.headers['authorization'] ){
+           await defaultAuthenticator.setAuth(config);
+        }
+        return config;
     },
     error => Promise.reject(error)
 );
 
-export { axiosInstance, createAxiosInstance };
+defaultAxiosInstance.interceptors.response.use( response => {
+      
+        if (response.data?.IdToken) {        
+            defaultAuthenticator.setToken(response.data.IdToken);
+        }
 
+        // TODO: handle 401 and redirect to the login page
+
+        return response;
+    },
+    error => Promise.reject(error)
+);
+
+export { defaultAxiosInstance as axiosInstance, createAxiosInstance , useAuth};
