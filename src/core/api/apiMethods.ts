@@ -54,11 +54,15 @@ export const callApiMethod = async (apiConfig: IApiConfig) => {
             return await headMethod( apiConfig.apiUrl, apiConfig.payload );
         }
     } catch (error) {
-        console.error("Error in API call", error);
+        const status = error.response?.status || 500;
+        const parsedErrorMessage = error.response?.data?.message || error.response?.data?.error  || `(${error.name}) ${error.message ?? 'Error in API call'}: (${status})`;
+        console.error(parsedErrorMessage, error);
+
         return {
-            status: error.response?.status || 500,
-            error: error.response?.data?.error || "Error in API call",
-            message: error.response?.data?.message || "Error in API call",
+            ...error.response?.data,
+            status,
+            error: error.response?.data?.error || parsedErrorMessage,
+            message: error.response?.data?.message || parsedErrorMessage,
         }
     }
     

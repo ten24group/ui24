@@ -1,8 +1,9 @@
 import React, { ReactNode, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { App as AntdApp } from "antd";
 
 //import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from "../index";
-import { LoginPage, ForgotPassword, ResetPassword, DynamicPage, PostAuthPage } from '../pages';
+import { LoginPage, ForgotPasswordPage, ResetPasswordPage, DynamicPage, PostAuthPage, RegistrationPage, VerifyRegistrationPage } from '../pages';
 import { useAuth } from '../core/api/config';
 
 interface IRoute{
@@ -36,8 +37,10 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
     // Default routes
     const defaultRoutes: IRoutes = [
       { path: "/login", element: <LoginPage /> },
-      { path: "/forgot-password", element: <ForgotPassword /> },
-      { path: "/reset-password", element: <ResetPassword /> },
+      { path: "/registration", element: <RegistrationPage /> },
+      { path: "/verification", element: <VerifyRegistrationPage /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/dashboard", element: <PostAuthPage  metaDataUrl='Dashboard' pageTitle="Dashboard" pageType='dashboard'/> },
       { path: "/", element: <AppNavigator path= { !auth.isLoggedIn() ? "/login" : '/dashboard' } /> },
       { path: "/:dynamicPage", element : <DynamicPage /> },
@@ -51,10 +54,12 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
     }, {});
   
     return (
-      <BrowserRouter>
-        <Routes>
-          {Object.values(mergedRoutes)}
-        </Routes>
-      </BrowserRouter>
+      <AntdApp>
+        <BrowserRouter>
+          <Routes>
+            {Object.values(mergedRoutes)}
+          </Routes>
+        </BrowserRouter>
+      </AntdApp>
     );
   };

@@ -64,7 +64,8 @@ export function PostAuthForm({
           //redirect to the page
           navigate( submitSuccessRedirect)
         }
-      } else if( response.status === 400 || response.status === 500 ) {
+      } else if( response.status >= 400 || response.status <= 500 ) {
+        const errorMessage =  response.message || response.error.message || response.error;
         notifyError(response?.error)
       }
     }

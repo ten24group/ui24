@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button, Checkbox, Form, Input, Space } from 'antd';
+import { ButtonType } from 'antd/lib/button';
 
-type IButtonType = "primary" | "secondary"
+type IButtonType = ButtonType
 type IHtmlType = "submit" | "reset" | "button"
 interface IFormButton {
     buttonType?: IButtonType;
@@ -52,7 +53,17 @@ interface ICreateButtons {
 export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
     const renderButton = (buttonConfig: IFormButton ) => {
         return <Form.Item>
-                    <Button onClick={ buttonConfig?.onClick } href={ buttonConfig.href } size={ buttonConfig.size ?? "large" } style={ buttonConfig.style } type={ buttonConfig?.buttonType || "" } htmlType={ buttonConfig?.htmlType || "" } className={ buttonConfig?.className || ""}>{ buttonConfig.text }</Button>
+                    <Button 
+                        type = { buttonConfig?.buttonType || "primary" } 
+                        size = { buttonConfig.size ?? "large" } 
+                        href = { buttonConfig.href } 
+                        style = { buttonConfig.style } 
+                        onClick = { buttonConfig?.onClick } 
+                        htmlType = { buttonConfig?.htmlType || "button" } 
+                        className = { buttonConfig?.className || ""
+                    }> 
+                        { buttonConfig.text } 
+                    </Button>
                 </Form.Item>
     }
 
