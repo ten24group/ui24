@@ -41,7 +41,7 @@ export const Modal = ({
     const { notifyError, notifySuccess } = useAppContext()
 
     const deleteApiAction = async () => {
-      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `${primaryIndex}` : apiConfig.apiUrl
+      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `${primaryIndex}/` : apiConfig.apiUrl
       const response: any = await callApiMethod({
         ...apiConfig,
         apiUrl: formattedApiUrl
