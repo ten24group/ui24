@@ -1,6 +1,6 @@
 import React from 'react';
 import type { CheckboxProps } from 'antd';
-import { Checkbox } from 'antd';
+import { Button, Checkbox } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { callApiMethod, usePageConfig } from '../../core';
 import { Link } from '../../core/common';
@@ -37,14 +37,60 @@ const LoginForm = () => {
       //TODO: Remember Me    
   };
 
+  const handleRegister = (e) => {
+      navigate('/registration');
+  };
+  const handleVerification = (e) => {
+      navigate('/verification');
+  };
+
   return <PreAuthForm
     onSubmit={onFinish}
     propertiesConfig={ propertiesConfig }
-    formButtons={ ["login" ]}
+    formButtons={[
+      "login", 
+      // {
+      //   text: "Registration",
+      //   className: "login-form-button",
+      //   buttonType: "dashed",
+      //   style: { width: "50%"},
+      //   size: "medium",
+      //   onClick: handleRegister
+      // },
+      // {
+      //   text: "Verification",
+      //   className: "login-form-button",
+      //   buttonType: "link",
+      //   style: { width: "50%"},
+      //   size: "medium",
+      //   onClick: handleVerification
+      // }
+    ]}
   >
       <div className="PreAuthLoginActions">
           <Checkbox onChange={onChange}>Remember Me</Checkbox>
+          {/* <Link title="Register?" url='/register' /> */}
           <Link title="Forgot Password ?" url='/forgot-password' />
+      </div>
+
+      <div className="PreAuthLoginActions">
+        <Button 
+              type = "default"
+              size = "middle"
+              style = {{ width: "48%", margin:"1%" }}
+              onClick = {handleRegister}
+          > 
+            Create Account 
+          </Button>
+
+          <Button 
+              type = "dashed"
+              size = "middle"
+              style = {{ width: "48%", margin:"1%" }}
+              onClick = {handleVerification}
+          > 
+            Verify Account 
+          </Button>
       </div>
   </PreAuthForm>
 }

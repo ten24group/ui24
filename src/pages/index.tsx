@@ -9,3 +9,5 @@ export { DynamicPage } from "./DynamicPage/DynamicPage"
 export { LoginPage } from "./PreAuth/LoginPage"
 export { ForgotPasswordPage } from './PreAuth/ForgotPassword'
 export { ResetPasswordPage } from './PreAuth/ResetPassword'
+export { RegistrationPage } from './PreAuth/RegistrationPage'
+export { VerifyRegistrationPage } from './PreAuth/VerifyRegistrationPage';
