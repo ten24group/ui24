@@ -1,14 +1,13 @@
 import React, { Fragment, useEffect } from "react";
-import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from "./type";
+import { ITablePropertiesConfig } from "./type";
 import { IApiConfig } from "../core";
-import type { TableProps } from "antd";
 import { callApiMethod } from "../core";
-import { Modal } from "../modal/Modal";
-import { Icon } from "../core/common";
-import { Link } from "../core/common";
+
+import { addActionUI } from "./Actions/addActionUI";
 import { useAppContext } from "../core/context/AppContext";
-import { Space } from 'antd';
-import { getColumnFilterProps } from "./filters";
+import { addFilterUI } from "./Filters/addFilterUI";
+import { usePagination } from "./Pagination/usePagination";
+import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -16,6 +15,30 @@ interface IuseTable {
 }
 
 const recordPerPage = 10;
+
+const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
+  if( apiMethod === "GET" ) {
+    //convention for every filter would be column_operator=value
+    //example: name.eq=John
+    let transformedFilters: Record<string, any> = {};
+    for( let key in filters ) {
+      for( let operator in filters[key] ) {
+        //if value is array, convert it into a list of values separated by comma
+        if( Array.isArray(filters[key][operator]) ) {
+          transformedFilters[`${key}.${operator}`] = filters[key][operator].join(",");
+        } else {
+          transformedFilters[`${key}.${operator}`] = filters[key][operator];
+        }
+      }
+    }
+    return transformedFilters;
+
+  }
+
+  return {
+    filters: filters
+  };
+}
 
 export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
   
@@ -26,6 +49,7 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
     {}
   );
   const [isLastPage, setIsLastPage] = React.useState(false);
+  const [ appliedFilters, setAppliedFilters] = React.useState<Record<string, any>>({});
 
   const { notifyError } = useAppContext();
 
@@ -37,6 +61,8 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
     const payload = {
       cursor: currentPageCursor,
       limit: recordPerPage,
+      debug: true,
+      ...getFilterPayload({...appliedFilters}, apiConfig.apiMethod),
     };
     setIsLoading(true);
     const response: any = await callApiMethod({
@@ -56,93 +82,33 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
     }
   };
 
+  
+
   useEffect(() => {
     getRecords();
-  }, []);
+  }, [ appliedFilters ]);
 
-  const columns = transformColumns(propertiesConfig, getRecords);
-
-  return { columns, getRecords, listRecords, isLoading, currentPage, isLastPage, pageCursor};
-};
-
-const transformColumns = ( propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void ) => {
-  const columns: TableProps<any>["columns"] = propertiesConfig
-    .filter((item: ITablePropertiesConfig) => !item?.hidden)
-    .map((item, index) => {
-      const column = {
-        title: item.name,
-        dataIndex: item.dataIndex,
-        key: item.dataIndex,
-      }
-      //add filters on column
-      if( item?.isFilterable === true || item?.isFilterable === undefined ) {
-        return {
-          ...column,
-          ...getColumnFilterProps( column.dataIndex, column.title )
-        }
-      }
-      return column;
-    });
-  
-  //Add action column in Table
-  //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
-  //if the actions array is empty, then do not include the key in the object
-  const actionIndexValue: IActionIndexValue = propertiesConfig
-    .map((item, index) => {
-      return {
-        [item.dataIndex]: item.actions,
-      };
-    })
-    .filter((item) => Object.values(item)?.length > 0)
-    ?.reduce((acc: IActionIndexValue, item) => {
-      return { ...acc, ...item };
-    });
-
-  //check if actionIndexValue has any keys, if yes, then add a column for actions
-  if (Object.keys(actionIndexValue).length > 0) {
-    columns.push({
-      title: (
-        <div style={{ display: "flex", justifyContent: "end" }}>Action</div>
-      ),
-      key: "action",
-      render: (_, record: IRecord) => {
-        //create a list of values from the record object based on the keys in actionIndexValue for every action added
-        let primaryIndexValue: Array<string> | string = [];
-        let recordActions: Array<IPageAction> = [];
-        for (let key in record) {
-          if (key in actionIndexValue && actionIndexValue[key]) {
-            primaryIndexValue.push(record[key]);
-            recordActions = actionIndexValue[key];
-          }
-        }
-        primaryIndexValue = primaryIndexValue.join("|");
-
-        return (
-          <div style={{ display: "flex", justifyContent: "end" }}>
-            <Space size="middle" align="end">
-              {recordActions?.map((item: IPageAction, index) => {
-                return (
-                  <Fragment key={index}>
-                    {item.openInModel ? (
-                      <Modal
-                        onSuccessCallback={getRecordsCallback}
-                        primaryIndex={primaryIndexValue}
-                        {...item.modelConfig}
-                      />
-                    ) : (
-                      <Link url={item.url + "/" + primaryIndexValue}>
-                        <Icon iconName={item.icon} />
-                      </Link>
-                    )}{" "}
-                  </Fragment>
-                );
-              })}
-            </Space>
-          </div>
-        );
-      },
-    });
+  const getColumnNameByKey = ( dataIndex: string ) => {
+    return columns.find((column) => column.dataIndex === dataIndex)?.title;
   }
 
-  return columns
-}
+  //Filters
+  const { applyFilters, DisplayAppliedFilters } = useAppliedFilters({
+    appliedFilters,
+    setAppliedFilters,
+    getColumnNameByKey
+  });
+
+  //Pagination
+  const { Pagination } = usePagination({
+    pageCursor,
+    getRecords,
+    currentPage,
+    isLastPage
+  });
+
+  //add action UI and filter UI
+  const columns = addFilterUI( addActionUI(propertiesConfig, getRecords ), applyFilters );
+
+  return { columns, listRecords, isLoading, Pagination, DisplayAppliedFilters };
+};
