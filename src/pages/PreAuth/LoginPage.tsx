@@ -47,25 +47,7 @@ const LoginForm = () => {
   return <PreAuthForm
     onSubmit={onFinish}
     propertiesConfig={ propertiesConfig }
-    formButtons={[
-      "login", 
-      // {
-      //   text: "Registration",
-      //   className: "login-form-button",
-      //   buttonType: "dashed",
-      //   style: { width: "50%"},
-      //   size: "medium",
-      //   onClick: handleRegister
-      // },
-      // {
-      //   text: "Verification",
-      //   className: "login-form-button",
-      //   buttonType: "link",
-      //   style: { width: "50%"},
-      //   size: "medium",
-      //   onClick: handleVerification
-      // }
-    ]}
+    formButtons={["login"]}
   >
       <div className="PreAuthLoginActions">
           <Checkbox onChange={onChange}>Remember Me</Checkbox>
