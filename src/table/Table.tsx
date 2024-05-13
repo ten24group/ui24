@@ -1,7 +1,5 @@
-import React, { Fragment, useEffect } from "react";
-import { Space, Table as AntTable, Spin } from "antd";
-import { CustomPagination } from "./Pagination/Pagination";
-
+import React from "react";
+import { Table as AntTable, Spin } from "antd";
 
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
@@ -13,19 +11,14 @@ export const Table = ({
   paginationType = "default",
 }: ITableConfig) => {
   
-  const { columns, getRecords, listRecords, pageCursor, isLoading, currentPage, isLastPage } = useTable({
+  const { columns, listRecords, isLoading, Pagination, DisplayAppliedFilters } = useTable({
     propertiesConfig,
     apiConfig
   });
-  
-
-  const onPageChange = (pageNumber: number) => {
-    const nextPageCursor = pageCursor[pageNumber] ?? "";
-    getRecords(pageNumber, nextPageCursor);
-  };
 
   return (
     <React.Fragment>
+      <DisplayAppliedFilters />
       <AntTable
         scroll={{ x: true }}
         columns={columns}
@@ -40,13 +33,9 @@ export const Table = ({
           spinning: isLoading,
         }}
       />
-      {currentPage > 0 && (
-        <CustomPagination
-          currentPage={currentPage}
-          onPageChange={onPageChange}
-          isLastPage={isLastPage}
-        />
-      )}
+      { Pagination }
     </React.Fragment>
   );
 };
+
+
