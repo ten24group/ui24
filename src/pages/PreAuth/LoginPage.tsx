@@ -1,14 +1,12 @@
 import React from 'react';
-import { Link } from '../../core/common';
-import { Checkbox } from 'antd';
-import { IFormConfig } from '../../core/forms/formConfig';
-import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
-import { usePageConfig } from '../../core';
-import { PreAuthLayout } from '../../layout';
-import { callApiMethod } from '../../core';
 import type { CheckboxProps } from 'antd';
-import { useAppContext } from '../../core/context/AppContext';
+import { Checkbox } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { callApiMethod, usePageConfig } from '../../core';
+import { Link } from '../../core/common';
+import { useAppContext } from '../../core/context/AppContext';
+import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
+import { PreAuthLayout } from '../../layout';
 
 export const LoginPage = () => {
   return (
@@ -24,11 +22,8 @@ const LoginForm = () => {
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/login");
 
-  const onFinish = async (values: any) => {
-    const response: any = await callApiMethod({
-      ...apiConfig,
-      payload: values
-    });
+  const onFinish = async (payload: any) => {
+    const response: any = await callApiMethod({...apiConfig, payload });
 
     if( response.status === 200 ) {
       notifySuccess("Login Successful!");
@@ -38,10 +33,6 @@ const LoginForm = () => {
     }
   }
 
-  const formConfig : IFormConfig = {
-      name: "loginForm",
-      className: "login-form"
-  }
   const onChange: CheckboxProps['onChange'] = (e) => {
       //TODO: Remember Me    
   };

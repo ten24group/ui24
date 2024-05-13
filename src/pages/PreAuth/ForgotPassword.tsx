@@ -1,26 +1,39 @@
 import React from 'react';
-import { usePageConfig } from "../../core";
-import { IFormConfig } from '../../core/forms/formConfig';
-import { PreAuthLayout } from "../../layout";
+import { callApiMethod, usePageConfig } from "../../core";
+import { Link } from '../../core/common';
+import { useAppContext } from '../../core/context/AppContext';
 import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
+import { PreAuthLayout } from "../../layout";
 
-export const ForgotPassword = () => {
-    const onFinish = (values: any) => {
-        console.log('Received values of form: ', values);
-    };
+export const ForgotPasswordPage = () => {
+  return (
+    <PreAuthLayout>
+        <ForgotPasswordForm />
+    </PreAuthLayout>
+  );
+};
 
-    const { propertiesConfig } = usePageConfig("/forgot-password");
+export const ForgotPasswordForm = () => {
+    const { notifySuccess, notifyError } = useAppContext();
+    const { propertiesConfig, apiConfig } = usePageConfig("/forgot-password");
 
-    const formConfig : IFormConfig = {
-        name: "forgotPasswordForm",
-        className: "login-form"
+    const onFinish = async (payload: any) => {
+        const response: any = await callApiMethod({...apiConfig, payload});
+        if( response.status === 200 ) {
+            notifySuccess(response?.message || response?.data?.message);
+        } else {
+            notifyError(response?.message || response?.error)
+        }
     }
 
-    return <>{ propertiesConfig && <PreAuthLayout><PreAuthForm
-        onSubmit={onFinish}
-        propertiesConfig={ propertiesConfig }
-        formConfig={ formConfig }
-        formButtons={ ["forgotPassword" ]} />
-    </PreAuthLayout>}</>;
-
+    return <>{ propertiesConfig && <PreAuthForm
+            onSubmit={onFinish}
+            propertiesConfig={ propertiesConfig }
+            formButtons={ ["forgotPassword" ]} 
+        >
+            <div className="PreAuthLoginActions" style={{display: 'flex' }}>
+                <Link title="Back to login?" url='/login' />
+            </div>
+        </PreAuthForm>
+    }</>
 }

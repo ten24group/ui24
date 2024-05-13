@@ -1,26 +1,36 @@
 import React from 'react';
-import { usePageConfig } from "../../core";
-import { IFormConfig } from '../../core/forms/formConfig';
+import { callApiMethod, usePageConfig } from "../../core";
 import { PreAuthLayout } from "../../layout";
 import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
+import { useAppContext } from '../../core/context/AppContext';
 
-export const ResetPassword = () => {
-    const onFinish = (values: any) => {
-        console.log('Received values of form: ', values);
-    };
+export const ResetPasswordPage = () => {
+  return (
+    <PreAuthLayout>
+        <ResetPasswordForm />
+    </PreAuthLayout>
+  );
+};
 
-    const formConfig : IFormConfig = {
-        name: "forgotPasswordForm",
-        className: "login-form"
+export const ResetPasswordForm = () => {
+    const { notifySuccess, notifyError } = useAppContext();
+    const { propertiesConfig, apiConfig } = usePageConfig("/reset-password");
+
+    const onFinish = async (payload: any) => {
+        const response: any = await callApiMethod({...apiConfig, payload});
+
+        if( response.status === 200 ) {
+            notifySuccess(response?.message || response?.data?.message);
+        } else {
+            notifyError(response?.message || response?.error)
+        }
     }
 
-    const { propertiesConfig } = usePageConfig("/reset-password");
-
-    return <>{ propertiesConfig && <PreAuthLayout> <PreAuthForm
-        onSubmit={onFinish}
-        propertiesConfig={ propertiesConfig }
-        formConfig={ formConfig }
-        formButtons={ ["forgotPassword" ]} />
-    </PreAuthLayout>}</>;
+    return <>{ propertiesConfig && <PreAuthForm
+            onSubmit={onFinish}
+            propertiesConfig={ propertiesConfig }
+            formButtons={ ["forgotPassword" ]} 
+        />
+    }</>
 
 }
