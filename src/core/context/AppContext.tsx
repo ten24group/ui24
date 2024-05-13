@@ -1,7 +1,11 @@
 import React, { ReactNode, createContext, useContext, useState } from 'react';
 import { Layout, notification} from 'antd';
 
-const AppContext = createContext();
+interface AppContext{
+    notifyError: (message: string) => void;
+    notifySuccess: (message: string) => void;
+};
+const AppContext = createContext<AppContext>(null);
 
 export function AppContextProvider({ children } : { children?: ReactNode }) {
     const [ api, contextHolder ] = notification.useNotification();
