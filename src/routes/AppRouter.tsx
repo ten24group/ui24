@@ -78,17 +78,19 @@ export const AppRouter = ({
 
   // Merge custom routes with default routes, giving precedence to custom ones
 
-  const mergedRoutes = [
-    ...(auth.isLoggedIn() ? corePrivateRoutes : corePublicRoutes),
-    ...(auth.isLoggedIn() ? privateRoutes : publicRoutes),
-  ].reduce((acc: any, route: IRoute, index: number) => {
-    acc[route.path] = (
-      <React.Fragment key={"route" + index}>
-        <Route path={route.path} element={route.element} />
-      </React.Fragment>
-    );
-    return acc;
-  }, {});
+  const mergedRoutes = (auth.isLoggedIn()
+    ? [...privateRoutes, ...corePrivateRoutes]
+    : [...publicRoutes, ...corePublicRoutes]).reduce(
+        (acc: any, route: IRoute, index: number) => {
+          acc[route.path] = (
+            <React.Fragment key={"route" + index}>
+              <Route path={route.path} element={route.element} />
+            </React.Fragment>
+          );
+          return acc;
+        },
+        {}
+      );
 
   return (
     <AntdApp>
