@@ -17,12 +17,17 @@ export function addPathToUrl(baseURL: string, endpoint: string) {
         throw new Error(`Invalid base URL: ${baseURL}`);
     }
 
+    // make sure base url ends with a slash and endpoint always starts with a slash `/` 
     if( !baseURL.endsWith('/') ){
         baseURL = `${baseURL}/`
     }
 
-    // make sure endpoint always starts and ends with a slash `/`
-    endpoint = replaceAll(`./${endpoint}/`, '//', '/');
+    // Make sure path does-not end with a trailing-slash `/` 
+    // [AWS signature needs the exact path (with or without slash)]
+    // And API gateway strips teh training slash from the API-endpoint
+    // * we need to make sure that API, Auth-policy, and Frontend-code all follow the same convention
+    endpoint = replaceAll(`./${endpoint}`, '//', '/');
+    endpoint = endpoint.endsWith('/') ? endpoint.slice(0,-1) : endpoint;
 
     const newUrl = new URL(endpoint, baseURL);
 

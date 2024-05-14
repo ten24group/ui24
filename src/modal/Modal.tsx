@@ -1,7 +1,7 @@
 import React from 'react';
 import { Modal as AntModal } from 'antd';
 import { ICustomForm } from '../core/forms/formConfig';
-import { ITableConfig } from '../table/Table';
+import { ITableConfig } from '../table/type';
 import { Icon } from '../core/common';
 import { Link } from '../core/common';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
@@ -41,7 +41,7 @@ export const Modal = ({
     const { notifyError, notifySuccess } = useAppContext()
 
     const deleteApiAction = async () => {
-      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `${primaryIndex}/` : apiConfig.apiUrl
+      const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
       const response: any = await callApiMethod({
         ...apiConfig,
         apiUrl: formattedApiUrl
