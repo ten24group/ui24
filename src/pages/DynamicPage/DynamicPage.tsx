@@ -8,7 +8,7 @@ export const DynamicPage = () => {
     //get routes from URL
     const { dynamicPage = "", dynamicID = ""} = useParams()
 
-    let pageConfig = UI24Config?.uiConfig?.pages?.[dynamicPage] || null;
+    let pageConfig = UI24Config.uiConfig.pages[dynamicPage]
     //check if page config exists for the route
     if( !pageConfig ){
         //Fallback : make API call to get page config
