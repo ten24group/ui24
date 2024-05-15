@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.13](https://github.com/ten24group/ui24/compare/v0.0.12...v0.0.13) (2024-05-15)
+
+
+### Bug Fixes
+
+* app-context type errors ([c945566](https://github.com/ten24group/ui24/commit/c9455669968df2c19f07b39f6d2adc36772a6303))
+* login, forgot-password and reset-password pages ([92e7947](https://github.com/ten24group/ui24/commit/92e794798efb93f532d176d8767d028042cde9d8))
+* notofications not working on navigate ([9eb91ff](https://github.com/ten24group/ui24/commit/9eb91ffdc5fd21bd254cd477572d118a547d33a8))
+* static error message on API errors ([eebf191](https://github.com/ten24group/ui24/commit/eebf1915eb4967ae776d6e3f473a5316d25bed6b))
+* type-errors in Button.tsx and add leftover file for logout implementation ([001c631](https://github.com/ten24group/ui24/commit/001c6318348fd1b2bcbb75ce690b073e88c40033))
+
 ### [0.0.12](https://github.com/ten24group/ui24/compare/v0.0.11...v0.0.12) (2024-05-09)
 
 ### [0.0.11](https://github.com/ten24group/ui24/compare/v0.0.10...v0.0.11) (2024-05-08)
