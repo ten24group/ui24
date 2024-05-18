@@ -1,5 +1,5 @@
 import "./global.css";
-export { UI24 } from "./ui24";
+export { UI24 } from "./UI24";
 export * from "./pages";
 export * from "./layout";
 export { AppRouter } from './routes/AppRouter'
