@@ -1,8 +1,9 @@
 import React, { ReactNode } from 'react';
-import { Row, Col } from 'antd';
 import "./PreAuthLayout.css";
 import { UI24Config } from '../../core';
 import { CoreLayout } from '../CoreLayout';
+import { useAuth } from '../../core';
+import { AppNavigator } from '../../routes/AppRouter';
 
 interface IPreAuthLayout {
     layoutConfig? : {
@@ -16,6 +17,13 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
     title: "Admin Login",
     description: "Restricted area."
 }, children } ) => {
+    const { isLoggedIn } = useAuth();
+
+    
+    if( isLoggedIn ) {
+        return <AppNavigator />
+    }
+    
 
     return <CoreLayout>
       <div className="login-layout">
