@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { useAuthenticator } from './authenticator';
+import { useState } from 'react';
 
 const defaultAxiosInstance = axios.create();
 
@@ -10,7 +11,18 @@ const createAxiosInstance = (baseURL: string) => {
 const defaultAuthenticator = useAuthenticator({});
 
 const useAuth = () => {
-    return defaultAuthenticator;
+    const [ isLoggedIn, setIsLoggedIn ] = useState(defaultAuthenticator.isLoggedIn());
+
+    const logOut = () => {
+        defaultAuthenticator.logOut();
+        setIsLoggedIn(false);
+    }
+
+    return {
+        isLoggedIn,
+        setIsLoggedIn,
+        logOut
+    };
 };
 
 defaultAxiosInstance.interceptors.request.use( async(config) => {
