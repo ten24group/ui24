@@ -19,13 +19,12 @@ interface IRenderFromPageType {
 }
 
 export interface IPostAuthPage extends IPageHeader, IRenderFromPageType {
-    metaDataUrl: string;
     CustomPageHeader?: React.ReactNode;
     children?: React.ReactNode;
 }
 
 
-export const PostAuthPage = ({ metaDataUrl, CustomPageHeader, children, ...props } : IPostAuthPage ) => {
+export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAuthPage ) => {
     return <PostAuthLayout>
         <div style={{ paddingTop: "1%"}}>
             <div className = "PostAuthContainer" >
