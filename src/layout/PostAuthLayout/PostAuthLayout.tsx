@@ -4,20 +4,21 @@ import React, { ReactNode } from 'react';
 import { Layout } from 'antd';
 import { CoreLayout } from '../CoreLayout';
 import { Header } from '../../pages';
-
+import { useAuth } from '../../core';
+import { AppNavigator } from '../../routes/AppRouter';
 
 const { Content, Footer, Sider } = Layout;
-
-const items = new Array(8).fill(null).map((_, index) => ({
-  key: index + 1,
-  label: `nav ${index + 1}`,
-}));
 
 interface IChildren{
     children: ReactNode;
 }
 
 export const PostAuthLayout: React.FC<IChildren> = ({ children }) => {
+  const { isLoggedIn } = useAuth();
+
+  if( !isLoggedIn ) {
+    return <AppNavigator />
+}
   
   return (
     <CoreLayout >

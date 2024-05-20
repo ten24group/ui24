@@ -9,11 +9,11 @@ import { Icon, Link } from "../../../core/common";
 
 export const LogoutButton = () => {
 
-  const auth = useAuth();
+  const { logOut } = useAuth();
   const navigate = useNavigate();
   
   const handleLogout = async () => {
-    auth.logOut();
+    logOut()
     navigate('/login');
   }
 
