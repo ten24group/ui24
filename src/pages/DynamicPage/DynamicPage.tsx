@@ -13,7 +13,8 @@ export const DynamicPage = () => {
     
     const { isLoggedIn } = useAuth();
 
-    let pageConfig = UI24Config.uiConfig.pages[dynamicPage]
+    let pageConfig = dynamicPage === 'dashboard' ? UI24Config.uiConfig.dashboard : UI24Config.uiConfig.pages[dynamicPage]
+
     //check if page config exists for the route
     if( !pageConfig ){
         //TODO: Fallback : make API call to get page config

@@ -18,6 +18,7 @@ interface IUI24Config {
         auth: ConfigResolver<any>,
         menu: ConfigResolver<any>,
         pages: ConfigResolver<any>;
+        dashboard: ConfigResolver<any>;
     }
 }
 
@@ -90,6 +91,26 @@ const initUI24Config = async ( config : IUI24Config ) => {
     } else {
 
         console.warn("No auth-config provided..");
+    }
+
+    if(config.uiConfig?.dashboard){
+
+        if(typeof config.uiConfig.dashboard === "string"){
+
+            const [ authConfig ] = await loadConfigsFromUrls(
+                getConfigUrl(config.baseURL, config.uiConfig.dashboard) 
+            );
+
+            UI24Config.uiConfig.dashboard = authConfig;
+
+        } if(typeof config.uiConfig.dashboard === "function"){
+            const authConfig = await config.uiConfig.dashboard();
+            UI24Config.uiConfig.dashboard = authConfig;
+        }
+
+    } else {
+
+        console.warn("No dashboard-config provided..");
     }
 
     if(config.uiConfig?.pages){
