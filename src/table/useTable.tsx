@@ -77,7 +77,7 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
       setCurrentPage(pageNumber === 1 ? 1 : pageNumber);
       setPageCursor({ ...pageCursor, [pageNumber + 1]: response.data?.cursor });
       setIsLastPage(response.data?.cursor === null);
-    } else if (response?.status === 400 || response?.status === 500) {
+    } else {
       notifyError(response?.error);
     }
   };

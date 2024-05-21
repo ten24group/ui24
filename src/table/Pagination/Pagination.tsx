@@ -19,7 +19,10 @@ export const CustomPagination = ({
       <ul className={styles.pagination}>
         <li
           className={ cx( styles.paginationItem, currentPage === 1 ? styles.paginationItemDisabled : "", styles.paginationClick) }
-          onClick={ () => currentPage > 1  ? onPageChange(currentPage - 1): null }
+          onClick={ (e) => {
+            e.preventDefault()
+            currentPage > 1  ? onPageChange(currentPage - 1): null
+          } }
         >
           <PrevArrawIcon />
         </li>
@@ -27,7 +30,10 @@ export const CustomPagination = ({
           { currentPage }
         </li>
         <li className={ cx(styles.paginationItem, isLastPage ? styles.paginationItemDisabled : "", styles.paginationClick)}
-        onClick={ () => !isLastPage ? onPageChange(currentPage + 1) : null }
+        onClick={ (e) => {
+          e.preventDefault()
+          !isLastPage ? onPageChange(currentPage + 1) : null
+         } }
         >
           <NextArrowIcon />
         </li>

@@ -53,6 +53,7 @@
     "@smithy/protocol-http": "^3.3.0",
     "@smithy/signature-v4": "^2.3.0",
     "antd-style": "^3.6.1",
-    "classnames": "^2.5.1"
+    "classnames": "^2.5.1",
+    "uuid": "^9.0.1"
   }
 }
