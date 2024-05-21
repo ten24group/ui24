@@ -21,7 +21,7 @@ export function AppContextProvider({ children } : { children?: ReactNode }) {
 
     const notifyError = ( message: string ) => {
         // api.error({ message: message, duration: 2 });
-        messageHandler.success(message)
+        messageHandler.error(message)
     }
     
     return <AppContext.Provider value={{notifySuccess, notifyError }}>
