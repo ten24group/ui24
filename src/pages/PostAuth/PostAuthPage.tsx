@@ -5,8 +5,10 @@ import { ICustomForm } from '../../core/forms/formConfig';
 import "./PostAuthPage.css";
 import { Card } from 'antd';
 import { PostAuthForm } from '../../forms/PostAuthForm';
-import { Table, ITableConfig } from '../../table/Table';
+import { Table } from '../../table/Table';
+import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
+import { v4 as uuidv4 } from 'uuid';
 
 type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
@@ -41,7 +43,7 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAut
 export const RenderFromPageType = ( {pageType, cardStyle, formPageConfig, listPageConfig, detailsPageConfig}: IRenderFromPageType ) => {
     
     switch( pageType ) {
-        case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} /> </Card>;
+        case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} key={`list-${uuidv4()}`} /> </Card>;
         case "form": return <Card style={ cardStyle } > <PostAuthForm {...formPageConfig} /> </Card>;
         case "details": return <Card style={ cardStyle } > <Details {...detailsPageConfig} /> </Card>;
         case "accordion": return <div> Accordion Page </div>;
