@@ -1,44 +1,52 @@
 import axios from 'axios';
-import { useAuth } from './apiMethods';
+import { useAuthenticator } from './authenticator';
+import { useState } from 'react';
 
-const axiosInstance = axios.create();
+const defaultAxiosInstance = axios.create();
 
 const createAxiosInstance = (baseURL: string) => {
-    axiosInstance.defaults.baseURL = baseURL;
+    defaultAxiosInstance.defaults.baseURL = baseURL;
 };
 
-axiosInstance.interceptors.request.use(
-    config => {
-      
-      const { getToken } = useAuth();
-      
-      const token = getToken(); 
-      if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`;
-      }
+const defaultAuthenticator = useAuthenticator({});
 
-      return config;
+const useAuth = () => {
+    const [ isLoggedIn, setIsLoggedIn ] = useState(defaultAuthenticator.isLoggedIn());
 
+    const logOut = () => {
+        defaultAuthenticator.logOut();
+        setIsLoggedIn(false);
+    }
+
+    return {
+        isLoggedIn,
+        setIsLoggedIn,
+        logOut
+    };
+};
+
+defaultAxiosInstance.interceptors.request.use( async(config) => {
+      
+        // ** DO NOT override the authorization header set by the signer
+        if( !config.headers['authorization'] ){
+           await defaultAuthenticator.setAuth(config);
+        }
+        return config;
     },
-    // TODO: handle 401 and redirect to the login page
     error => Promise.reject(error)
 );
 
-axiosInstance.interceptors.response.use(
-    response => {
-
-        if (response.data?.IdToken) {
-
-          const { setToken } = useAuth();
-
-          setToken(response.data.IdToken);
-
+defaultAxiosInstance.interceptors.response.use( response => {
+      
+        if (response.data?.IdToken) {        
+            defaultAuthenticator.setToken(response.data.IdToken);
         }
 
-      return response;
+        // TODO: handle 401 and redirect to the login page
+
+        return response;
     },
     error => Promise.reject(error)
 );
 
-export { axiosInstance, createAxiosInstance };
-
+export { defaultAxiosInstance as axiosInstance, createAxiosInstance , useAuth};

@@ -12,7 +12,7 @@ interface IPropertiesConfig {
 }
 
 export interface IDetailApiConfig {
-    detailApiConfig: IApiConfig;
+    detailApiConfig?: IApiConfig;
 }
 
 export interface IDetailsConfig extends IDetailApiConfig {
@@ -22,14 +22,14 @@ export interface IDetailsConfig extends IDetailApiConfig {
 }
 
 const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : IDetailsConfig ) => {
-    const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig>( propertiesConfig )
+    const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
     const { dynamicID } = useParams()
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
             const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
             if( response.status === 200 ) {
-                const detailResponse = response.data.__entity__
+                const detailResponse = response.data[detailApiConfig.responseKey]
                 setRecordInfo( recordInfo.map( ( item: IPropertiesConfig ) => {
                     return {
                         ...item,

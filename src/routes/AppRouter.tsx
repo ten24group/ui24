@@ -1,9 +1,10 @@
 import React, { ReactNode, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate, redirect } from 'react-router-dom';
-
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { App as AntdApp } from "antd";
+import { useAuth } from '../core/api/config';
+import { PostAuthLayout } from '../layout';
 //import { LoginPage, ForgotPasswordPage, ResetPasswordPage } from "../index";
-import { LoginPage, PostAuthPage, ForgotPassword, ResetPassword, DynamicPage } from '../pages';
-import { useAuth } from '../core/api/apiMethods';
+import { LoginPage, ForgotPasswordPage, ResetPasswordPage, DynamicPage, PostAuthPage, RegistrationPage, VerifyRegistrationPage } from '../pages';
 
 interface IRoute{
     path: string;
@@ -16,46 +17,50 @@ type IRoutes = Array<IRoute>
 export type IAppRouter = { customRoutes?: IRoutes }
 
 /**
- * AppNavigator component to redirect to another route.
+ * AppNavigator component to redirect the base / route based on auth status.
  * 
  * @param path - The path to navigate to.
  * @returns The empty component.
  */
-const AppNavigator = ({ path } : { path: string }) => {
+export const AppNavigator = () => {
+  const { isLoggedIn } = useAuth();
+
   const navigate = useNavigate();
   useEffect(() => {
-    navigate(path);
-  }, [] )
+    navigate( isLoggedIn ? '/dashboard' : '/login');
+  }, [ isLoggedIn ] )
   return <></>
 }
 
 export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
 
-
-    const { getToken } = useAuth();
-    const authToken = getToken();
-
     // Default routes
     const defaultRoutes: IRoutes = [
       { path: "/login", element: <LoginPage /> },
-      { path: "/forgot-password", element: <ForgotPassword /> },
-      { path: "/reset-password", element: <ResetPassword /> },
-      { path: "/", element: <AppNavigator path= { !authToken ? "/login" : '/dashboard' } /> }, // TODO: change with proper dashboard url
+      { path: "/registration", element: <RegistrationPage /> },
+      { path: "/verification", element: <VerifyRegistrationPage /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage />},
+      { path: "/reset-password", element: <ResetPasswordPage /> },
+      { path: "/", element: <AppNavigator /> },
       { path: "/:dynamicPage", element : <DynamicPage /> },
       { path: "/:dynamicPage/:dynamicID", element : <DynamicPage /> },
     ];
   
     // Merge custom routes with default routes, giving precedence to custom ones
-    const mergedRoutes = [...defaultRoutes, ...customRoutes].reduce((acc: any, route: IRoute, index:number ) => {
-      acc[route.path] = <React.Fragment key={"route"+index}><Route path={route.path} element={route.element} /></React.Fragment>;
+    const mergedRoutes = [...customRoutes, ...defaultRoutes ].reduce((acc: any, route: IRoute, index:number ) => {
+      acc[route.path] = <React.Fragment key={"route"+index}>{}
+        <Route path={route.path} element={route.element} />
+      </React.Fragment>;
       return acc;
     }, {});
   
     return (
-      <BrowserRouter>
-        <Routes>
-          {Object.values(mergedRoutes)}
-        </Routes>
-      </BrowserRouter>
+      <AntdApp>
+        <BrowserRouter>
+          <Routes>
+            {Object.values(mergedRoutes)}
+          </Routes>
+        </BrowserRouter>
+      </AntdApp>
     );
   };

@@ -1,4 +1,4 @@
-import { Form, notification } from 'antd';
+import { Form } from 'antd';
 import React, { Fragment, useState, useEffect } from 'react';
 import {  CreateButtons } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { ICustomForm } from '../core/forms/formConfig';
 import { callApiMethod } from '../core';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
+import { useAppContext } from '../core/context/AppContext';
 
 export function PostAuthForm({
     formConfig = { name: "customForm" },
@@ -19,7 +20,7 @@ export function PostAuthForm({
     submitSuccessRedirect = ""
 } : ICustomForm ) {
   const navigate = useNavigate();
-  const [ api, contextHolder ] = notification.useNotification();
+  const { notifyError, notifySuccess } = useAppContext()
 
   const { dynamicID = "" } = useParams()
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>( convertColumnsConfigForFormField(propertiesConfig) )
@@ -29,7 +30,7 @@ export function PostAuthForm({
       const fetchRecordInfo = async () => {
           const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
           if( response.status === 200 ) {
-              const detailResponse = response.data.__entity__
+              const detailResponse = response.data[detailApiConfig.responseKey]
               setFormPropertiesConfig( formPropertiesConfig.map( ( item: IFormField ) => {
                   return {
                       ...item,
@@ -44,10 +45,13 @@ export function PostAuthForm({
           fetchRecordInfo();
   }, [] )
 
+  
+
   const customOnSubmit = async (values: any) => {
     if( apiConfig ) {
 
       const formattedApiUrl = dynamicID !== "" ? apiConfig.apiUrl + `/${dynamicID}` : apiConfig.apiUrl
+      
       const response: any = await callApiMethod({
         ...apiConfig,
         apiUrl: formattedApiUrl,
@@ -55,13 +59,14 @@ export function PostAuthForm({
       });
       
       if( response.status === 200 ) {
-        api.success({ message: "Saved Successfully", duration: 2 })
+        notifySuccess("Saved Successfully")
         if( submitSuccessRedirect !== "") {
           //redirect to the page
           navigate( submitSuccessRedirect)
         }
-      } else if( response.status === 400 || response.status === 500 ) {
-        api.error({ message: response?.error, duration: 2 })
+      } else if( response.status >= 400 || response.status <= 500 ) {
+        const errorMessage =  response.message || response.error.message || response.error;
+        notifyError(response?.error)
       }
     }
 
@@ -69,9 +74,7 @@ export function PostAuthForm({
     onSubmit && onSubmit(values)
   }
 
-  return <Fragment>
-    { contextHolder }
-    <Form
+  return <Form
       name={ formConfig.name || "" }
       className={ formConfig?.className || "" }
       initialValues={ formConfig?.initialValues || {} }
@@ -79,11 +82,14 @@ export function PostAuthForm({
       onFinish={customOnSubmit}
     >
     
-    { dataLoadedFromView && formPropertiesConfig.map( (item: IFormField, index: number ) => { return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> } ) }
+    { dataLoadedFromView && formPropertiesConfig.map( 
+      (item: IFormField, index: number ) => { 
+        return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> 
+      }) 
+    }
     { children }
     
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
     
   </Form>
-  </Fragment>
 }

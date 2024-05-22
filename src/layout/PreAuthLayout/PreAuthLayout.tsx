@@ -1,9 +1,9 @@
 import React, { ReactNode } from 'react';
-import { Layout, Row, Col } from 'antd';
 import "./PreAuthLayout.css";
-import { FW24Config } from '../../core';
-
-const { Content } = Layout;
+import { UI24Config } from '../../core';
+import { CoreLayout } from '../CoreLayout';
+import { useAuth } from '../../core';
+import { AppNavigator } from '../../routes/AppRouter';
 
 interface IPreAuthLayout {
     layoutConfig? : {
@@ -17,13 +17,20 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
     title: "Admin Login",
     description: "Restricted area."
 }, children } ) => {
+    const { isLoggedIn } = useAuth();
 
-    return <Layout style={{ minHeight: '100vh' }}>
+    
+    if( isLoggedIn ) {
+        return <AppNavigator />
+    }
+    
+
+    return <CoreLayout>
       <div className="login-layout">
         <div className="preAuthLoginContainer">
             <div className="containerTop">
                 <div className="header">
-                    { FW24Config?.appLogo !== "" && <div className="logo"><img src={FW24Config.appLogo} alt="App Logo" title="Logo" /></div> }
+                    { UI24Config?.appLogo !== "" && <div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div> }
                 </div>
                 <div className="title">{ layoutConfig.title } </div>
                 
@@ -32,5 +39,5 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
             {children}
         </div>
       </div>
-  </Layout>
+  </CoreLayout>
 }

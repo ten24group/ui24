@@ -1,18 +1,23 @@
-export const apiResponse = ( alias : string ) => {
+export const mockApiResponse = ( alias : string ) => {
 
     const mockResponse = {
         '/login' : {
+            "apiConfig" : {
+                "apiUrl" : "/mauth/signin/",
+                "apiMethod" : "POST"
+            },
             'data' : {
                 "pageType": "form",
                 "propertiesConfig" : [
                     {
-                        column: "emailAddress",
+                        column: "email",
                         label : "Email Address",
                         placeholder: "Email Address",
                         validations: ["required", "email"]
                     }, {
                         column: "password",
                         label : "Password",
+                        fieldType: "password",
                         placeholder: "Password",
                         validations: ["required"]
                     }
@@ -20,11 +25,15 @@ export const apiResponse = ( alias : string ) => {
             }
         },
         '/forgot-password' : {
+            "apiConfig" : {
+                "apiUrl" : "/mauth/forgot-password",
+                "apiMethod" : "POST"
+            },
             'data' : {
                 "pageType": "form",
                 "propertiesConfig" : [
                     {
-                        column: "emailAddress",
+                        column: "email",
                         label : "Email Address",
                         placeholder: "Email Address",
                         validations: ["required", "email"]
@@ -48,12 +57,17 @@ export const apiResponse = ( alias : string ) => {
                         validations: ["required", "match:password"]
                     }
                 ]
-            }
+            },
+            "apiConfig" : {
+                "apiUrl" : "/mauth/reset-password",
+                "apiMethod" : "POST"
+            },
         }
     }
 
     return {
         pageType : mockResponse[ alias ]?.data?.pageType,
+        apiConfig: mockResponse[ alias ]?.apiConfig,
         propertiesConfig: mockResponse[ alias ]?.data?.propertiesConfig,
         data: mockResponse[ alias ]?.data
     }

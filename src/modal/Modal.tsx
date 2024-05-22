@@ -1,20 +1,23 @@
-import React, { createContext } from 'react';
-import { Button, Modal as AntModal, Space, notification } from 'antd';
+import React from 'react';
+import { Modal as AntModal } from 'antd';
 import { ICustomForm } from '../core/forms/formConfig';
-import { ITableConfig } from '../table/Table';
+import { ITableConfig } from '../table/type';
 import { Icon } from '../core/common';
 import { Link } from '../core/common';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { IApiConfig } from '../core';
 import { callApiMethod } from '../core';
 import { useNavigate } from 'react-router-dom';
+import { useAppContext } from '../core/context/AppContext';
 
 interface IConfirmModal {
   title: string;
   content: string;
 }
-type IModalPageConfig = IConfirmModal | ICustomForm | ITableConfig;
 type IModalType = "confirm" | "list" | "form"
+
+type IModalPageConfig = IConfirmModal | ICustomForm | ITableConfig
+
 export interface IModalConfig {
     modalType: IModalType;
     modalPageConfig?: IModalPageConfig;
@@ -35,8 +38,7 @@ export const Modal = ({
     button
 } : IModalConfig ) => {
     const [open, setOpen] = React.useState(false)
-    const [ api, contextHolder ] = notification.useNotification();
-    const navigate = useNavigate();
+    const { notifyError, notifySuccess } = useAppContext()
 
     const deleteApiAction = async () => {
       const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
@@ -46,19 +48,18 @@ export const Modal = ({
       });
       
       if( response.status === 200 ) {
-        api.success({ message: "Deleted Successfully", duration: 2 })
+        notifySuccess("Deleted Successfully")
 
         onSuccessCallback && onSuccessCallback()
 
       } else if( response.status === 400 || response.status === 500 ) {
-        api.error({ message: response?.error, duration: 2 })
+        notifyError(response?.error)
       }
       
       setOpen(false)
     }
 
     return <>
-    { contextHolder }
     <Link onClick={(url) => {
       setOpen(true)}
       } ><Icon iconName={"delete"} /></Link>
@@ -76,33 +77,14 @@ export const Modal = ({
         
       </AntModal>
       }
-      { open && ( modalType === "list" || modalType === "form" ) && modalPageConfig &&
-      <AntModal
-      footer={ null }
-      open={open}
-      onCancel={()=> setOpen(false)}
-    >
-        <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalPageConfig } formPageConfig={ modalPageConfig } />
-        </AntModal>
-      }
+          { open && ( modalType === "list" || modalType === "form" ) && modalPageConfig &&
+          <AntModal
+          footer={ null }
+          open={open}
+          onCancel={()=> setOpen(false)}
+        >
+            <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } formPageConfig={ modalType === "form" ? modalPageConfig as ICustomForm: undefined } />
+            </AntModal>
+          }
       </>
 }
-
-
-{/* Let's document an idea I'm thinking about to have a commong config for buttons which can be use accross the admin panel */}
-type ITitleOrIconOnly = { title: string; iconOnly?: boolean; } | { title?: string; iconOnly: boolean; }
-
-type IButtonAction = "redirect" | "model" | "api"
-type IButtonConfig = ITitleOrIconOnly & {
-  icon: string;
-  children: React.ReactNode;
-  url: string;
-  action: IButtonAction
-}
-
-type IHeaderButtonsConfig = Array<IButtonConfig>
-type IPageHaderButtonsConfig = Array<IButtonConfig>
-
-type ITableRecordButtonsConfig = Array<{
-  addDataIndexToUrl?: boolean;
-}>
