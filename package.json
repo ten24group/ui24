@@ -1,17 +1,14 @@
 {
   "name": "@ten24group/ui24",
-  "version": "0.0.15",
-  "description": "",
+  "version": "0.1.1-alpha.3",
+  "description": "Admin UI package for fw24 projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "scripts": {
     "build": "webpack --mode production",
     "start": "webpack serve --mode development --open",
     "watch": "webpack --watch",
-    "release": "npm run build && standard-version && git push --follow-tags && npm publish"
+    "release": "npm run build && standard-version --prerelease alpha && git push --follow-tags && npm publish"
   },
   "keywords": [
     "ui24",
@@ -22,6 +19,12 @@
   ],
   "author": "Ten24 Group, LLC",
   "license": "MIT",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "webpack.config.js",
+    "dist"
+  ],
   "peerDependencies": {
     "antd": "^5.14.0",
     "axios": "^1.6.7",
