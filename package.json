@@ -22,6 +22,7 @@
   "files": [
     "LICENSE",
     "README.md",
+    "webpack.config.js",
     "dist"
   ],
   "peerDependencies": {
