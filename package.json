@@ -1,6 +1,6 @@
 {
   "name": "@ten24group/ui24",
-  "version": "0.1.1-alpha.1",
+  "version": "0.1.1-alpha.2",
   "description": "Admin UI package for fw24 projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,6 +19,11 @@
   ],
   "author": "Ten24 Group, LLC",
   "license": "MIT",
+  "files": [
+    "LICENSE",
+    "README.md",
+    "dist"
+  ],
   "peerDependencies": {
     "antd": "^5.14.0",
     "axios": "^1.6.7",
