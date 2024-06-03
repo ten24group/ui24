@@ -2,6 +2,35 @@ import React, { Component, ReactNode } from 'react';
 import { Checkbox, Form, Input, Radio, Select } from 'antd';
 type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select"
 
+
+/**
+ * Represents the template for attributes.
+ * like
+ * ```ts
+ * {
+ *      composite: ['att1', 'att2'],
+ *      template: '{att1}-AND-${att2}' // any arbitrary string with placeholders
+ * }
+ * ```
+*/
+export type AttributesTemplate = {
+    composite: Array<string>,
+    template: string,
+}
+
+
+export type FieldOptionsAPIConfig = {
+    method: 'GET' | 'POST',
+    endpoint: string,
+    responseKey: string,
+    query?: any,
+    optionMapping?: {
+        label: string | AttributesTemplate, // 
+        value: string | AttributesTemplate, // 
+    },
+}
+export type FieldOptions = Array<IOptions> | FieldOptionsAPIConfig;
+
 interface IOptions {
     label: string;
     value: string
@@ -9,7 +38,7 @@ interface IOptions {
 
 interface IFormField {
     name: string; //unique identifier, should be without spaces
-    validationRules?: Array<any>; //rules matchin ant design convention
+    validationRules?: Array<any>; //rules matching ant design convention
     placeholder: string; //placeholder text
     prefixIcon?: ReactNode; //prefix icon as a react component
     fieldType?: IFormFieldType; //field type
