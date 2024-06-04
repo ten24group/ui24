@@ -1,6 +1,6 @@
 import { Form } from 'antd';
 import React, { Fragment, useState, useEffect } from 'react';
-import {  CreateButtons } from '../core/forms';
+import {  CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
@@ -27,6 +27,32 @@ export function PostAuthForm({
   const [ dataLoadedFromView, setDataLoadedFromView ] = useState( dynamicID !== "" ? false : true )
 
   useEffect( () => {
+
+      const loadFieldOptions = async () => {
+
+        const updatedFields = await Promise.all( 
+          
+          formPropertiesConfig.map( async (item: IFormField) => {
+              if(!['select', 'multi-select', 'checkbox', 'radio'].includes(item.fieldType?.toLocaleLowerCase())){
+                return item;
+              }
+
+              let options = item.options;
+
+              if(isFieldOptionsAPIConfig(options)){
+                options = await fetchFieldOptions(options as FieldOptionsAPIConfig);
+              }
+              
+              return {
+                ...item,
+                options
+              }
+          })
+        );
+
+        setFormPropertiesConfig( updatedFields );
+      }
+
       const fetchRecordInfo = async () => {
           const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
           if( response.status === 200 ) {
@@ -36,16 +62,18 @@ export function PostAuthForm({
                       ...item,
                       initialValue: detailResponse[item.name]
                   }
-              }) )
+              }))
               setDataLoadedFromView( true )
           }
       }
 
-      if( detailApiConfig && dynamicID !== "") 
-          fetchRecordInfo();
-  }, [] )
+      loadFieldOptions();
 
-  
+      if( detailApiConfig && dynamicID !== "") {
+        fetchRecordInfo();
+      }
+
+  },[])
 
   const customOnSubmit = async (values: any) => {
     if( apiConfig ) {
@@ -81,10 +109,16 @@ export function PostAuthForm({
       layout="vertical"
       onFinish={customOnSubmit}
     >
+
+      {/* <pre>
+        { JSON.stringify(formPropertiesConfig, null, 2) }
+      </pre> */}
     
     { dataLoadedFromView && formPropertiesConfig.map( 
       (item: IFormField, index: number ) => { 
-        return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> 
+        return <React.Fragment key={"fe"+index}>
+            <FormField {...item} />
+          </React.Fragment> 
       }) 
     }
     { children }

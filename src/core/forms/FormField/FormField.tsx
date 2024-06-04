@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
-import { Checkbox, Form, Input, Radio, Select } from 'antd';
-type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select"
+import { Checkbox, Form, Input, Radio, Select, Switch } from 'antd';
+import { callApiMethod } from '../../api/apiMethods';
+type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch";
 
 
 /**
@@ -18,10 +19,9 @@ export type AttributesTemplate = {
     template: string,
 }
 
-
 export type FieldOptionsAPIConfig = {
-    method: 'GET' | 'POST',
-    endpoint: string,
+    apiMethod: 'GET' | 'POST',
+    apiUrl: string,
     responseKey: string,
     query?: any,
     optionMapping?: {
@@ -29,6 +29,56 @@ export type FieldOptionsAPIConfig = {
         value: string | AttributesTemplate, // 
     },
 }
+
+export function isFieldOptionsAPIConfig(obj: any): obj is FieldOptionsAPIConfig {
+    return (
+        obj &&
+        obj.apiMethod &&
+        (obj.apiMethod === 'GET' || obj.apiMethod === 'POST') &&
+        typeof obj.apiUrl === 'string' &&
+        typeof obj.responseKey === 'string'
+    );
+}
+
+export async function fetchFieldOptions(config: FieldOptionsAPIConfig): Promise<Array<IOptions>> {
+    // TODO: add support for query, pagination, fetching template-attributes etc
+    const response = await callApiMethod( { ...config } );
+
+    if( response.status === 200 ) {
+
+        const options = response.data[config.responseKey];
+
+        if( !config.optionMapping ) {
+            return options;
+        }
+
+        return options.map( (option: any) => {
+            return {
+                label: typeof config.optionMapping.label === 'string' 
+                    ? option[config.optionMapping.label] 
+                    : interpolateTemplate(config.optionMapping.label, option),
+                value: typeof config.optionMapping.value === 'string' 
+                    ? option[config.optionMapping.value] 
+                    : interpolateTemplate(config.optionMapping.value, option),
+            }
+        })
+    }
+    
+    // TODO: handle error
+
+    return [];
+}
+
+function interpolateTemplate(label: AttributesTemplate, option: any) {
+    const { composite, template } = label;
+    let interpolatedLabel = template;
+    composite.forEach((attribute) => {
+        const regex = new RegExp(`{${attribute}}`, "g");
+        interpolatedLabel = interpolatedLabel.replace(regex, option[attribute]);
+    });
+    return interpolatedLabel;
+}
+
 export type FieldOptions = Array<IOptions> | FieldOptionsAPIConfig;
 
 interface IOptions {
@@ -45,7 +95,7 @@ interface IFormField {
     options?: Array<IOptions>; //options for select, radio, checkbox
     label: string;
     style?: React.CSSProperties;
-    initialValue?: string;
+    initialValue?: any;
 }
 
 const { TextArea } = Input;
@@ -61,6 +111,9 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
         { fieldType === "checkbox" && <Checkbox.Group options={ options }>{ label }</Checkbox.Group> }
         { fieldType === "radio" && <Radio.Group options={ options } />}
         { fieldType === "select" && <Select options={ options } />}
+        { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
+        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch checked={ initialValue } />}
+        { fieldType === "color" && <Input type={ fieldType || "color" } value={ initialValue } />}
         
       </Form.Item>
     </div>
@@ -73,6 +126,7 @@ interface IFormFieldResponse {
     placeholder: string;
     validations: Array<IPreDefinedValidations>;
     fieldType?: IFormFieldType;
+    options?: Array<IOptions>;
 }
 
 const convertValidationRules = ( validationRules : Array<IPreDefinedValidations> ) => {
@@ -105,10 +159,10 @@ export const convertColumnsConfigForFormField  = ( columnsConfig : Array<IFormFi
           label: columnConfig.label,
           placeholder: columnConfig.placeholder ?? columnConfig.label,
           fieldType: columnConfig.fieldType ?? "text",
+          options: columnConfig.options ?? [],
       } as IFormField
   })
 }
 
 export type { IFormField, IFormFieldResponse }
-
 
