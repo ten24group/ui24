@@ -1,3 +1,6 @@
+import { format } from 'date-fns';
+import { UI24Config } from './config/config';
+
 export function isValidURL(str) {
   var pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
     '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
@@ -43,3 +46,29 @@ export function convertUTCDateToLocalDate(date: string | Date) {
     newDate.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return newDate;
 }
+
+/**
+ * Formats a date using a specified format string.
+ * @param {Date} date - The date to format.
+ * @param {string} type - The format-type to use.
+ * @returns {string} The formatted date.
+ */
+export function formatDate(date: Date, type: 'date' | 'time' | 'datetime' ): string {
+  const formatString = UI24Config.formateConfig?.[type];
+  return date ? format(date, formatString) : '';
+}
+
+/**
+ *  Formats a boolean value to a string.
+ * @param value - The boolean value to format.
+ * @returns The formatted boolean value.
+ * 
+ * @example
+ * ```ts
+ * formatBoolean(true); // returns "YES"
+ * ```
+ */
+export function formatBoolean(value: boolean): string {
+  return value ? UI24Config.formateConfig?.boolean?.true || 'True' : UI24Config.formateConfig?.boolean?.false || 'False';
+}
+

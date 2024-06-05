@@ -11,7 +11,7 @@ export const Table = ({
   paginationType = "default",
 }: ITableConfig) => {
   
-  const { columns, listRecords, isLoading, Pagination, DisplayAppliedFilters } = useTable({
+  const { recordIdentifierKey, columns, listRecords, isLoading, Pagination, DisplayAppliedFilters } = useTable({
     propertiesConfig,
     apiConfig
   });
@@ -22,6 +22,7 @@ export const Table = ({
       <AntTable
         scroll={{ x: true }}
         columns={columns}
+        rowKey={recordIdentifierKey}
         dataSource={listRecords}
         pagination={false}
         loading={{

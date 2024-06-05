@@ -15,6 +15,7 @@ export interface ITablePropertiesConfig {
   actions?: Array<IPageAction>;
   hidden?: boolean;
   isFilterable?: boolean;
+  isIdentifier?: boolean;
   fieldType?: string;
 }
 export type IPageAction = {

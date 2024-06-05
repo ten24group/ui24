@@ -57,6 +57,7 @@
     "@smithy/signature-v4": "^2.3.0",
     "antd-style": "^3.6.1",
     "classnames": "^2.5.1",
+    "date-fns": "^3.6.0",
     "uuid": "^9.0.1"
   }
 }

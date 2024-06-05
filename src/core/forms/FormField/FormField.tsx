@@ -113,7 +113,7 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
         { fieldType === "select" && <Select options={ options } />}
         { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
         { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch checked={ initialValue } />}
-        { fieldType === "color" && <Input type={ fieldType || "color" } value={ initialValue } />}
+        { fieldType === "color" && <Input type={ fieldType || "color" } value={ initialValue } style={{width: "150px"}} />}
         
       </Form.Item>
     </div>
