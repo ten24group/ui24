@@ -1,7 +1,7 @@
 import React, { Component, ReactNode } from 'react';
-import { Checkbox, Form, Input, Radio, Select, Switch } from 'antd';
+import { Checkbox, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
 import { callApiMethod } from '../../api/apiMethods';
-type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch";
+type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime";
 
 
 /**
@@ -114,6 +114,11 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
         { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
         { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch checked={ initialValue } />}
         { fieldType === "color" && <Input type={ fieldType || "color" } value={ initialValue } style={{width: "150px"}} />}
+
+        { fieldType === "date" && <DatePicker value={ initialValue } />}
+        { fieldType === "datetime" && <DatePicker value={ initialValue } showTime />}
+        { fieldType === "time" && <TimePicker value={ initialValue } />}
+
         
       </Form.Item>
     </div>

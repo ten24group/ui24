@@ -35,9 +35,9 @@ interface IUI24Config {
 }
 
 const defaultFormatConfigs: FormatConfig = {
-    date: "yyyy-mmm-dd",
+    date: "mm-dd-yyyy",
     time: "hh:mm a",
-    datetime: "yyyy-mmm-dd hh:mm a",
+    datetime: "mm-dd-yyyy hh:mm a",
     boolean: {
         true: "YES",
         false: "NO"
