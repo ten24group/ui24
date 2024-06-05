@@ -116,7 +116,7 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
         { fieldType === "color" && <Input type={ fieldType || "color" } value={ initialValue } style={{width: "150px"}} />}
 
         { fieldType === "date" && <DatePicker value={ initialValue } />}
-        { fieldType === "datetime" && <DatePicker value={ initialValue } showTime />}
+        { fieldType === "datetime" && <DatePicker value={ initialValue } showTime={{showSecond:false, showHour:true, showMinute:true, showNow:true, use12Hours:true}} />}
         { fieldType === "time" && <TimePicker value={ initialValue } />}
 
         
