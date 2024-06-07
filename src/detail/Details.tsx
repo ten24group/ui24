@@ -9,6 +9,7 @@ import { formatBoolean, formatDate } from '../core/utils';
 interface IPropertiesConfig {
     label: string;
     column: string;
+    hidden?: boolean;
     initialValue: string;
     fieldType?: string;
 }
@@ -55,7 +56,10 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
             fetchRecordInfo();
     }, [] )
 
-    return <Descriptions title={ pageTitle } items={recordInfo.map( ( item: IPropertiesConfig, index : number ) => {
+    return <Descriptions title={ pageTitle } items={
+        recordInfo
+        .filter( item => !item.hidden )
+        .map( ( item: IPropertiesConfig, index : number ) => {
         return {
             key: index,
             label: item.label,

@@ -1,5 +1,5 @@
-import { format } from 'date-fns';
 import { UI24Config } from './config/config';
+import { dayjsCustom } from './dayjs';
 
 export function isValidURL(str) {
   var pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
@@ -53,9 +53,9 @@ export function convertUTCDateToLocalDate(date: string | Date) {
  * @param {string} type - The format-type to use.
  * @returns {string} The formatted date.
  */
-export function formatDate(date: Date, type: 'date' | 'time' | 'datetime' ): string {
+export function formatDate(date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' ): string {
   const formatString = UI24Config.formateConfig?.[type];
-  return date ? format(date, formatString) : '';
+  return date ? dayjsCustom(date).format(formatString) : '';
 }
 
 /**

@@ -1,10 +1,12 @@
 import { Form } from 'antd';
 import React, { Fragment, useState, useEffect } from 'react';
+import { dayjsCustom } from '../core/dayjs';
+
 import {  CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
-import { callApiMethod } from '../core';
+import { UI24Config, callApiMethod } from '../core';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
@@ -24,14 +26,14 @@ export function PostAuthForm({
 
   const { dynamicID = "" } = useParams()
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>( convertColumnsConfigForFormField(propertiesConfig) )
-  const [ dataLoadedFromView, setDataLoadedFromView ] = useState( dynamicID !== "" ? false : true )
+  const [ dataLoadedFromView, setDataLoadedFromView ] = useState( false )
 
   useEffect( () => {
 
-      const loadFieldOptions = async () => {
+      const loadFormDataAndFieldOptions = async () => {
 
+        // if form-form-fields has dynamic options, fetch the options and update the form-fields
         const updatedFields = await Promise.all( 
-          
           formPropertiesConfig.map( async (item: IFormField) => {
               if(!['select', 'multi-select', 'checkbox', 'radio'].includes(item.fieldType?.toLocaleLowerCase())){
                 return item;
@@ -42,37 +44,54 @@ export function PostAuthForm({
               if(isFieldOptionsAPIConfig(options)){
                 options = await fetchFieldOptions(options as FieldOptionsAPIConfig);
               }
-              
-              return {
-                ...item,
-                options
-              }
+            
+              return { ...item, options }
           })
         );
 
         setFormPropertiesConfig( updatedFields );
+
+        // if the page has api-config and record identifier etch the record and update the form-fields with initial values.
+        if( detailApiConfig && dynamicID !== "") {
+            const recordData =  await fetchRecordInfo();
+
+            if(recordData){
+                const updatedFieldsWithInitialValues = updatedFields.map( ( item: IFormField ) => {
+      
+                    const { name, fieldType } = item;
+                    
+                    let initialValue = recordData[name];
+                    
+                    if(fieldType === "datetime") {
+                        initialValue = dayjsCustom(initialValue);
+                    } else if(fieldType === "date") {
+                        initialValue = dayjsCustom(initialValue);
+                    } else if(fieldType === "time") {
+                        initialValue = dayjsCustom(initialValue);
+                    }
+    
+                    return { ...item, initialValue: initialValue || item.initialValue }
+                });
+                
+                setFormPropertiesConfig(updatedFieldsWithInitialValues);
+            }
+        }
+
+        setDataLoadedFromView( true );
       }
 
       const fetchRecordInfo = async () => {
           const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+          
           if( response.status === 200 ) {
-              const detailResponse = response.data[detailApiConfig.responseKey]
-              setFormPropertiesConfig( formPropertiesConfig.map( ( item: IFormField ) => {
-                  return {
-                      ...item,
-                      initialValue: detailResponse[item.name]
-                  }
-              }))
-              setDataLoadedFromView( true )
+              const detailResponse = response.data[detailApiConfig.responseKey];
+              return detailResponse;
+          } else {
+              notifyError(response?.error)
           }
       }
 
-      loadFieldOptions();
-
-      if( detailApiConfig && dynamicID !== "") {
-        fetchRecordInfo();
-      }
-
+      loadFormDataAndFieldOptions();
   },[])
 
   const customOnSubmit = async (values: any) => {
@@ -105,14 +124,9 @@ export function PostAuthForm({
   return <Form
       name={ formConfig.name || "" }
       className={ formConfig?.className || "" }
-      initialValues={ formConfig?.initialValues || {} }
       layout="vertical"
       onFinish={customOnSubmit}
     >
-
-      {/* <pre>
-        { JSON.stringify(formPropertiesConfig, null, 2) }
-      </pre> */}
     
     { dataLoadedFromView && formPropertiesConfig.map( 
       (item: IFormField, index: number ) => { 
@@ -123,7 +137,11 @@ export function PostAuthForm({
     }
     { children }
     
-    { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } /></div> }
+    { formButtons.length > 0 && 
+      <div style={{ display: "flex", float: "right"}}>
+        <CreateButtons formButtons={ formButtons } />
+      </div> 
+    }
     
   </Form>
 }

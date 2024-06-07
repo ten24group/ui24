@@ -1,6 +1,7 @@
 import React, { Component, ReactNode } from 'react';
-import { Checkbox, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
+import { Checkbox, ColorPicker, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
 import { callApiMethod } from '../../api/apiMethods';
+import { UI24Config } from '../../config/config';
 type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime";
 
 
@@ -101,10 +102,9 @@ interface IFormField {
 const { TextArea } = Input;
 
 export function FormField( {fieldType = "text", name, validationRules, label = "", prefixIcon, placeholder = "", options = [], style, initialValue } : IFormField ) {
-    
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
-      <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue = { initialValue } >
-        { fieldType === "text" && <Input type={ fieldType || "text" } value={ initialValue } prefix={ prefixIcon } placeholder={ placeholder } /> }
+      <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue={initialValue} >
+        { fieldType === "text" && <Input type={ fieldType || "text" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "textarea" && <TextArea placeholder={ placeholder } />}
         { fieldType === "password" && <Input.Password type={ fieldType || "password" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "email" && <Input type={ fieldType || "email" } prefix={ prefixIcon } placeholder={ placeholder } /> }
@@ -112,14 +112,19 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
         { fieldType === "radio" && <Radio.Group options={ options } />}
         { fieldType === "select" && <Select options={ options } />}
         { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
-        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch checked={ initialValue } />}
-        { fieldType === "color" && <Input type={ fieldType || "color" } value={ initialValue } style={{width: "150px"}} />}
+        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch />}
+        { fieldType === "color" && <Input style={{width: "150px"}} />}
 
-        { fieldType === "date" && <DatePicker value={ initialValue } />}
-        { fieldType === "datetime" && <DatePicker value={ initialValue } showTime={{showSecond:false, showHour:true, showMinute:true, showNow:true, use12Hours:true}} />}
-        { fieldType === "time" && <TimePicker value={ initialValue } />}
+        {/* 
+         gotta figure-out how to serialize the color-picker value into hex color code
+        { fieldType === 'color' && 
+            <ColorPicker />
+        } */}
 
-        
+        { fieldType === "date" && <DatePicker format={UI24Config.formateConfig.date} />}
+        { fieldType === "datetime" && <DatePicker format={UI24Config.formateConfig.datetime} showTime />}
+        { fieldType === "time" && <TimePicker format={UI24Config.formateConfig.time} />}
+
       </Form.Item>
     </div>
 }
