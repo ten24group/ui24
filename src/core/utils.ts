@@ -55,7 +55,7 @@ export function convertUTCDateToLocalDate(date: string | Date) {
  * @returns {string} The formatted date.
  */
 export function formatDate(date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' ): string {
-  const formatString = UI24Config.formateConfig?.[type];
+  const formatString = UI24Config.formatConfig?.[type];
   return date ? dayjsCustom(date).format(formatString) : '';
 }
 
@@ -70,6 +70,6 @@ export function formatDate(date: string | Date | Dayjs | number, type: 'date' | 
  * ```
  */
 export function formatBoolean(value: boolean): string {
-  return value ? UI24Config.formateConfig?.boolean?.true || 'True' : UI24Config.formateConfig?.boolean?.false || 'False';
+  return value ? UI24Config.formatConfig?.boolean?.true || 'True' : UI24Config.formatConfig?.boolean?.false || 'False';
 }
 

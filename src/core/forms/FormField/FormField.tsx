@@ -119,9 +119,9 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
 
         { fieldType === 'color' && <CustomColorPicker /> }
 
-        { fieldType === "date" && <DatePicker format={UI24Config.formateConfig.date} />}
-        { fieldType === "datetime" && <DatePicker format={UI24Config.formateConfig.datetime} showTime />}
-        { fieldType === "time" && <TimePicker format={UI24Config.formateConfig.time} />}
+        { fieldType === "date" && <DatePicker format={UI24Config.formatConfig.date} />}
+        { fieldType === "datetime" && <DatePicker format={UI24Config.formatConfig.datetime} showTime />}
+        { fieldType === "time" && <TimePicker format={UI24Config.formatConfig.time} />}
 
         { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> }
 
