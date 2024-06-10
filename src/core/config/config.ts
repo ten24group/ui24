@@ -35,7 +35,7 @@ interface IUI24Config {
 }
 
 
-const defaultFormatConfigs: FormatConfig = {
+const defaultFormateConfig: FormatConfig = {
     date: "YYYY-MM-DD",
     time: "HH:mm A",
     datetime: "YYYY-MM-DD HH:mm A",
@@ -59,7 +59,7 @@ const loadConfigsFromUrls = async <T extends any[]>(...urls: string[]): Promise<
 
 const UI24Config = {
     uiConfig: {},
-    formateConfig: defaultFormatConfigs,
+    formateConfig: defaultFormateConfig,
 } as IUI24Config;
 
 const initUI24Config = async ( config : IUI24Config ) => {
@@ -73,8 +73,8 @@ const initUI24Config = async ( config : IUI24Config ) => {
     }
 
     // merge the format configs
-    UI24Config.formateConfig = { ...defaultFormatConfigs, ...config.formateConfig };
-
+    UI24Config.formateConfig = { ...defaultFormateConfig, ...config.formateConfig };
+    
     createAxiosInstance(config.baseURL);
 
     UI24Config.appLogo = config.appLogo;

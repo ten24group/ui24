@@ -52,30 +52,29 @@ export function PostAuthForm({
         setFormPropertiesConfig( updatedFields );
 
         // if the page has api-config and record identifier etch the record and update the form-fields with initial values.
-        if( detailApiConfig && dynamicID !== "") {
-            const recordData =  await fetchRecordInfo();
+        const recordData =  (detailApiConfig && dynamicID !== "") ? await fetchRecordInfo() : {};
 
-            if(recordData){
-                const updatedFieldsWithInitialValues = updatedFields.map( ( item: IFormField ) => {
-      
-                    const { name, fieldType } = item;
-                    
-                    let initialValue = recordData[name];
-                    
-                    if(fieldType === "datetime") {
-                        initialValue = dayjsCustom(initialValue);
-                    } else if(fieldType === "date") {
-                        initialValue = dayjsCustom(initialValue);
-                    } else if(fieldType === "time") {
-                        initialValue = dayjsCustom(initialValue);
-                    }
-    
-                    return { ...item, initialValue: initialValue || item.initialValue }
-                });
-                
-                setFormPropertiesConfig(updatedFieldsWithInitialValues);
+        const updatedFieldsWithInitialValues = updatedFields.map( ( item: IFormField ) => {
+            const { name, fieldType } = item;
+            
+            let initialValue = recordData[name];
+            
+            if(fieldType === "datetime") {
+                initialValue = dayjsCustom(initialValue);
+            } else if(fieldType === "date") {
+                initialValue = dayjsCustom(initialValue);
+            } else if(fieldType === "time") {
+                initialValue = dayjsCustom(initialValue);
+            } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
+                initialValue = initialValue ?? true;
+            } else if (fieldType === "color"){
+                initialValue = initialValue ?? "#FFA500";
             }
-        }
+
+            return { ...item, initialValue: initialValue || item.initialValue }
+        });
+        
+        setFormPropertiesConfig(updatedFieldsWithInitialValues);
 
         setDataLoadedFromView( true );
       }
@@ -133,10 +132,11 @@ export function PostAuthForm({
         return <React.Fragment key={"fe"+index}>
             <FormField {...item} />
           </React.Fragment> 
-      }) 
+      })
     }
+
     { children }
-    
+
     { formButtons.length > 0 && 
       <div style={{ display: "flex", float: "right"}}>
         <CreateButtons formButtons={ formButtons } />

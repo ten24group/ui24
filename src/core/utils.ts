@@ -1,3 +1,4 @@
+import { Dayjs } from 'dayjs';
 import { UI24Config } from './config/config';
 import { dayjsCustom } from './dayjs';
 

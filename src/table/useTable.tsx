@@ -140,7 +140,27 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
   });
 
   //add action UI and filter UI
-  const columns = addFilterUI( addActionUI(propertiesConfig, getRecords ), applyFilters );
+  const columns = addFilterUI( addActionUI(propertiesConfig, getRecords ), applyFilters )
+  .map( column => { 
+
+    let renderer = column.render;
+
+    if(column.fieldType === 'color'){
+      renderer = (text: string, record: any) => {
+        return {
+          children: <>
+            <svg width="12" height="12">
+              <rect width="12" height="12" fill={text} strokeWidth={1} stroke="rgb(0,0,0)" />
+            </svg>
+            <span> {text}</span>
+          </>
+        }
+      }
+    }
+
+    return {  ...column, render: renderer}
+    
+   });
 
   return { recordIdentifierKey, columns, listRecords, isLoading, Pagination, DisplayAppliedFilters };
 };

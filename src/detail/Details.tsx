@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Descriptions } from 'antd';
-import type { DescriptionsProps } from 'antd';
-import { IApiConfig, UI24Config } from '../core';
+import { IApiConfig } from '../core';
 import { callApiMethod } from '../core';
 import { useParams } from "react-router-dom"
 import { formatBoolean, formatDate } from '../core/utils';
+import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
 
 interface IPropertiesConfig {
     label: string;
@@ -27,6 +27,7 @@ export interface IDetailsConfig extends IDetailApiConfig {
 const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : IDetailsConfig ) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
     const { dynamicID } = useParams()
+    const [dataLoaded, setDataLoaded] = useState(false);
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
@@ -50,16 +51,26 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
                     }
                 }) )
             }
+            setDataLoaded(true);
         }
 
         if( detailApiConfig ) 
             fetchRecordInfo();
     }, [] )
 
-    return <Descriptions title={ pageTitle } items={
+    return dataLoaded && <Descriptions title={ pageTitle } layout='vertical' items={
         recordInfo
         .filter( item => !item.hidden )
         .map( ( item: IPropertiesConfig, index : number ) => {
+
+        if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
+            return {
+                key: index,
+                label: item.label,
+                children:  <CustomEditorJs value={item.initialValue as any} readOnly tools={EDITOR_JS_TOOLS} minHeight={50} />
+            }
+        }
+
         return {
             key: index,
             label: item.label,

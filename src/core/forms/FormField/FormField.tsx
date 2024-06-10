@@ -2,7 +2,9 @@ import React, { Component, ReactNode } from 'react';
 import { Checkbox, ColorPicker, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
 import { callApiMethod } from '../../api/apiMethods';
 import { UI24Config } from '../../config/config';
-type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime";
+import { CustomEditorJs, EDITOR_JS_TOOLS } from '../../common/Editorjs';
+import { CustomColorPicker } from '../../common/CustomColorPicker';
+type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg";
 
 
 /**
@@ -112,18 +114,16 @@ export function FormField( {fieldType = "text", name, validationRules, label = "
         { fieldType === "radio" && <Radio.Group options={ options } />}
         { fieldType === "select" && <Select options={ options } />}
         { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
-        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch />}
-        { fieldType === "color" && <Input style={{width: "150px"}} />}
 
-        {/* 
-         gotta figure-out how to serialize the color-picker value into hex color code
-        { fieldType === 'color' && 
-            <ColorPicker />
-        } */}
+        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch/>}
+
+        { fieldType === 'color' && <CustomColorPicker /> }
 
         { fieldType === "date" && <DatePicker format={UI24Config.formateConfig.date} />}
         { fieldType === "datetime" && <DatePicker format={UI24Config.formateConfig.datetime} showTime />}
         { fieldType === "time" && <TimePicker format={UI24Config.formateConfig.time} />}
+
+        { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> }
 
       </Form.Item>
     </div>
