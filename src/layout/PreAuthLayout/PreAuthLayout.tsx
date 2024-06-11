@@ -15,7 +15,7 @@ interface IPreAuthLayout {
 
 export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
     title: "Admin Login",
-    description: "Restricted area."
+    description: ""
 }, children } ) => {
     const { isLoggedIn } = useAuth();
 

@@ -1,3 +1,4 @@
+import 'antd-css-utilities/utility.min.css';
 import "./global.css";
 export { UI24 } from "./UI24";
 export * from "./pages";

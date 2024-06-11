@@ -10,6 +10,16 @@ type ConfigResolver<T extends unknown> = T // the config itself
 | string  // config url/endpoint
 | ( () => Promise<T> ) // a function that resolves the config
 
+interface FormatConfig {
+    date?: string;
+    time?: string;
+    datetime?: string;
+    boolean?: {
+        true: string; // YES, TRUE, ACTIVE
+        false: string; // NO, FALSE, INACTIVE
+    }
+}
+
 interface IUI24Config {
     baseURL: string;
     appLogo: string;
@@ -19,6 +29,19 @@ interface IUI24Config {
         menu: ConfigResolver<any>,
         pages: ConfigResolver<any>;
         dashboard: ConfigResolver<any>;
+    }
+    
+    formatConfig?: FormatConfig 
+}
+
+
+const defaultFormatConfig: FormatConfig = {
+    date: "YYYY-MM-DD",
+    time: "HH:mm A",
+    datetime: "YYYY-MM-DD HH:mm A",
+    boolean: {
+        true: "YES",
+        false: "NO"
     }
 }
 
@@ -35,7 +58,8 @@ const loadConfigsFromUrls = async <T extends any[]>(...urls: string[]): Promise<
 }
 
 const UI24Config = {
-    uiConfig: {}
+    uiConfig: {},
+    formatConfig: defaultFormatConfig,
 } as IUI24Config;
 
 const initUI24Config = async ( config : IUI24Config ) => {
@@ -48,6 +72,9 @@ const initUI24Config = async ( config : IUI24Config ) => {
         console.warn("No menu-config provided..");
     }
 
+    // merge the format configs
+    UI24Config.formatConfig = { ...defaultFormatConfig, ...config.formatConfig };
+    
     createAxiosInstance(config.baseURL);
 
     UI24Config.appLogo = config.appLogo;

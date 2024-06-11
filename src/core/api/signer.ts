@@ -89,7 +89,7 @@ export const useRequestSigner = (options: UseSignerOptions) => {
 
         const signed = await signer.sign(req);
 
-        console.log("signed request ", {signed, payload});
+        // console.log("signed request ", {signed, payload});
 
         return signed as HttpRequest;
 

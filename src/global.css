@@ -2,3 +2,9 @@ body {
     margin: 0px;
     padding: 0px;
 }
+
+.editor-js-formats {
+    width: 100%;
+    border: .5px solid darkgray;
+    border-radius: 10px;
+}
