@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react"
-import { IApiConfig } from "../api/apiMethods";
+import { IApiConfig, useUi24Config } from "../context";
 import { mockApiResponse } from "../mock";
 import { convertColumnsConfigForFormField } from "./FormField/FormField";
-import { UI24Config } from "../config/config";
 
 type PreDefinedPageTypes = "list" | "form";
 
 //currently being used only for pre auth pages - login, forgot-password, reset-password
 export const usePageConfig  = <T extends object >( metaDataUrl: string = "") => {
     const [ propertiesConfig, setPropertiesConfig ] = useState([])
+    const {selectConfig } = useUi24Config()
+    const UI24Config = selectConfig( config => config )
     const [ apiConfig, setApiConfig ] = useState<IApiConfig>();
     const [ pageType, setPageType ] = useState<PreDefinedPageTypes | string>("")
 
