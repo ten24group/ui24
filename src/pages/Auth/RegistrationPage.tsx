@@ -1,16 +1,14 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { callApiMethod, usePageConfig } from '../../core';
+import { usePageConfig } from '../../core';
+import { useApi } from '../../core/context';
 import { Link } from '../../core/common';
 import { useAppContext } from '../../core/context/AppContext';
-import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
-import { PreAuthLayout } from '../../layout';
+import { AuthForm } from '../../forms/Layout/AuthForm';
 
 export const RegistrationPage = () => {
   return (
-    <PreAuthLayout>
-        <RegistrationForm />
-    </PreAuthLayout>
+    <RegistrationForm />
   );
 };
 
@@ -19,6 +17,7 @@ const RegistrationForm = () => {
 
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/signup");
+  const { callApiMethod } = useApi();
 
   const onFinish = async (payload: any) => {
     const response: any = await callApiMethod({...apiConfig, payload });
@@ -32,7 +31,7 @@ const RegistrationForm = () => {
     }
   }
 
-  return <>{ propertiesConfig && <PreAuthForm
+  return <>{ propertiesConfig && <AuthForm
             onSubmit={onFinish}
             propertiesConfig={ propertiesConfig }
             formButtons={ ["submit" ]} 
@@ -40,6 +39,6 @@ const RegistrationForm = () => {
             <div className="PreAuthLoginActions" style={{display: 'flex' }}>
                 <Link title="Back to login?" url='/login' />
             </div>
-        </PreAuthForm>
+        </AuthForm>
     }</>
 }

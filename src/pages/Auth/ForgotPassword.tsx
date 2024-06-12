@@ -1,40 +1,39 @@
 import React from 'react';
-import { callApiMethod, usePageConfig } from "../../core";
-import { PreAuthLayout } from "../../layout";
-import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
-import { useAppContext } from '../../core/context/AppContext';
-import { useNavigate } from 'react-router-dom';
+import { usePageConfig } from "../../core";
+import { useApi } from '../../core/context';
 import { Link } from '../../core/common';
+import { useAppContext } from '../../core/context/AppContext';
+import { AuthForm } from '../../forms/Layout/AuthForm';
 import { Button } from 'antd';
+import { useNavigate } from 'react-router-dom';
 
-export const ResetPasswordPage = () => {
+export const ForgotPasswordPage = () => {
   return (
-    <PreAuthLayout>
-        <ResetPasswordForm />
-    </PreAuthLayout>
+    <ForgotPasswordForm />
   );
 };
 
-export const ResetPasswordForm = () => {
+export const ForgotPasswordForm = () => {
     const navigate = useNavigate();
     const { notifySuccess, notifyError } = useAppContext();
-    const { propertiesConfig, apiConfig } = usePageConfig("/reset-password");
+    const { propertiesConfig, apiConfig } = usePageConfig("/forgot-password");
+    const { callApiMethod } = useApi();
 
     const onFinish = async (payload: any) => {
         const response: any = await callApiMethod({...apiConfig, payload});
-
         if( response.status === 200 ) {
             notifySuccess(response?.message || response?.data?.message);
-            navigate('/login');
+            handleResetPassword();
         } else {
             notifyError(response?.message || response?.error)
         }
     }
-    const handleForgotPassword = () => {
-        navigate('/forgot-password');
-    }
 
-    return <>{ propertiesConfig && <PreAuthForm
+    const handleResetPassword = () => {
+        navigate('/reset-password');
+    };
+
+    return <>{ propertiesConfig && <AuthForm
             onSubmit={onFinish}
             propertiesConfig={ propertiesConfig }
             formButtons={ ["forgotPassword" ]} 
@@ -42,19 +41,16 @@ export const ResetPasswordForm = () => {
             <div className="PreAuthLoginActions" style={{display: 'flex' }}>
                 <Link title="Back to login?" url='/login' />
             </div>
-            
             <div className="PreAuthLoginActions" style={{display: 'flex' }}>
                 <Button 
                     type = "dashed"
                     size = "middle"
                     style = {{ width: "99%", margin:"1%" }}
-                    onClick = {handleForgotPassword}
+                    onClick = {handleResetPassword}
                 > 
-                    Request new verification code?.
+                    Has verification code? Reset password.
                 </Button>
             </div>
-            
-        </PreAuthForm>
+        </AuthForm>
     }</>
-
 }

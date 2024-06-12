@@ -1,19 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { CheckboxProps } from 'antd';
 import { Button, Checkbox } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { callApiMethod, usePageConfig } from '../../core';
+import { usePageConfig } from '../../core';
+import { useApi } from '../../core/context';
 import { Link } from '../../core/common';
 import { useAppContext } from '../../core/context/AppContext';
-import { PreAuthForm } from '../../forms/PreAuth/PreAuthForm';
-import { PreAuthLayout } from '../../layout';
+import { AuthForm } from '../../forms/Layout/AuthForm';
 
 export const LoginPage = () => {
-  return (
-    <PreAuthLayout>
-        <LoginForm />
-    </PreAuthLayout>
-  );
+  return (<LoginForm />);
 };
 
 const LoginForm = () => {
@@ -21,8 +17,11 @@ const LoginForm = () => {
 
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/login");
+  const [ loader, setLoader ] = useState<boolean>( false )
+  const { callApiMethod } = useApi();
 
   const onFinish = async (payload: any) => {
+    setLoader(true)
     const response: any = await callApiMethod({...apiConfig, payload });
 
     if( response.status === 200 ) {
@@ -31,6 +30,7 @@ const LoginForm = () => {
     } else if( response?.error ) {
       notifyError(response?.error)
     }
+    setLoader(false)
   }
 
   const onChange: CheckboxProps['onChange'] = (e) => {
@@ -44,10 +44,12 @@ const LoginForm = () => {
       navigate('/verification');
   };
 
-  return <PreAuthForm
+  return <AuthForm
     onSubmit={onFinish}
     propertiesConfig={ propertiesConfig }
     formButtons={["login"]}
+    disabled={ loader }
+    buttonLoader={ loader }
   >
       <div className="PreAuthLoginActions">
           <Checkbox onChange={onChange}>Remember Me</Checkbox>
@@ -73,5 +75,5 @@ const LoginForm = () => {
             Verify Account 
           </Button>
       </div>
-  </PreAuthForm>
+  </AuthForm>
 }
