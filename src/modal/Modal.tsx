@@ -1,12 +1,11 @@
 import React from 'react';
 import { Modal as AntModal } from 'antd';
-import { ICustomForm } from '../core/forms/formConfig';
+import { IForm } from '../core/forms/formConfig';
 import { ITableConfig } from '../table/type';
 import { Icon } from '../core/common';
 import { Link } from '../core/common';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
-import { IApiConfig } from '../core';
-import { callApiMethod } from '../core';
+import { useApi, IApiConfig } from '../core/context';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../core/context/AppContext';
 
@@ -16,7 +15,7 @@ interface IConfirmModal {
 }
 type IModalType = "confirm" | "list" | "form"
 
-type IModalPageConfig = IConfirmModal | ICustomForm | ITableConfig
+type IModalPageConfig = IConfirmModal | IForm | ITableConfig
 
 export interface IModalConfig {
     modalType: IModalType;
@@ -39,6 +38,7 @@ export const Modal = ({
 } : IModalConfig ) => {
     const [open, setOpen] = React.useState(false)
     const { notifyError, notifySuccess } = useAppContext()
+    const { callApiMethod } = useApi();
 
     const deleteApiAction = async () => {
       const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
@@ -83,7 +83,7 @@ export const Modal = ({
           open={open}
           onCancel={()=> setOpen(false)}
         >
-            <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } formPageConfig={ modalType === "form" ? modalPageConfig as ICustomForm: undefined } />
+            <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } formPageConfig={ modalType === "form" ? modalPageConfig as IForm: undefined } />
             </AntModal>
           }
       </>
