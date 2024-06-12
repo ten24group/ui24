@@ -1,7 +1,6 @@
-import React, { Component, ReactNode } from 'react';
+import React, { Component, ReactNode, useEffect } from 'react';
 import { Checkbox, ColorPicker, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
-import { callApiMethod } from '../../api/apiMethods';
-import { UI24Config } from '../../config/config';
+import { useApi, useUi24Config } from '../../context';
 import { CustomEditorJs, EDITOR_JS_TOOLS } from '../../common/Editorjs';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
 type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg";
@@ -43,35 +42,6 @@ export function isFieldOptionsAPIConfig(obj: any): obj is FieldOptionsAPIConfig 
     );
 }
 
-export async function fetchFieldOptions(config: FieldOptionsAPIConfig): Promise<Array<IOptions>> {
-    // TODO: add support for query, pagination, fetching template-attributes etc
-    const response = await callApiMethod( { ...config } );
-
-    if( response.status === 200 ) {
-
-        const options = response.data[config.responseKey];
-
-        if( !config.optionMapping ) {
-            return options;
-        }
-
-        return options.map( (option: any) => {
-            return {
-                label: typeof config.optionMapping.label === 'string' 
-                    ? option[config.optionMapping.label] 
-                    : interpolateTemplate(config.optionMapping.label, option),
-                value: typeof config.optionMapping.value === 'string' 
-                    ? option[config.optionMapping.value] 
-                    : interpolateTemplate(config.optionMapping.value, option),
-            }
-        })
-    }
-    
-    // TODO: handle error
-
-    return [];
-}
-
 function interpolateTemplate(label: AttributesTemplate, option: any) {
     const { composite, template } = label;
     let interpolatedLabel = template;
@@ -95,33 +65,82 @@ interface IFormField {
     placeholder: string; //placeholder text
     prefixIcon?: ReactNode; //prefix icon as a react component
     fieldType?: IFormFieldType; //field type
-    options?: Array<IOptions>; //options for select, radio, checkbox
+    options?: FieldOptions; //options for select, radio, checkbox
     label: string;
     style?: React.CSSProperties;
     initialValue?: any;
+    setFormPropertiesConfig?: Function
 }
 
 const { TextArea } = Input;
+export function FormField( {fieldType = "text", name, validationRules, label = "", prefixIcon, placeholder = "", options = [], style, initialValue, setFormPropertiesConfig } : IFormField ) {
+    
+    const { callApiMethod } = useApi()
+    const { selectConfig } = useUi24Config()
+    const formatConfig = selectConfig( config => config.formatConfig )
 
-export function FormField( {fieldType = "text", name, validationRules, label = "", prefixIcon, placeholder = "", options = [], style, initialValue } : IFormField ) {
+    const fetchFieldOptions = async (config: FieldOptionsAPIConfig): Promise<Array<IOptions>> => {
+    
+        // TODO: add support for query, pagination, fetching template-attributes etc
+        const response = await callApiMethod( { ...config } );
+    
+        if( response.status === 200 ) {
+    
+            const options = response.data[config.responseKey];
+    
+            if( !config.optionMapping ) {
+                return options;
+            }
+    
+            return options.map( (option: any) => {
+                return {
+                    label: typeof config.optionMapping.label === 'string' 
+                        ? option[config.optionMapping.label] 
+                        : interpolateTemplate(config.optionMapping.label, option),
+                    value: typeof config.optionMapping.value === 'string' 
+                        ? option[config.optionMapping.value] 
+                        : interpolateTemplate(config.optionMapping.value, option),
+                }
+            })
+        }
+        
+        // TODO: handle error
+    
+        return [];
+    }
+
+    useEffect( () => {
+        const fetchOptions = async () => {
+            if( ['select', 'multi-select', 'checkbox', 'radio'].includes(fieldType.toLocaleLowerCase())){
+                if( typeof options === 'object' && isFieldOptionsAPIConfig(options) ){
+                    const apiOptions = await fetchFieldOptions(options as FieldOptionsAPIConfig)
+                    if( apiOptions.length > 0 ) {
+                        setFormPropertiesConfig( { name, options: apiOptions } )
+                    }
+                }
+            }
+        }
+        fetchOptions()
+    }, [options] )
+
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
       <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue={initialValue} >
         { fieldType === "text" && <Input type={ fieldType || "text" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "textarea" && <TextArea placeholder={ placeholder } />}
         { fieldType === "password" && <Input.Password type={ fieldType || "password" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "email" && <Input type={ fieldType || "email" } prefix={ prefixIcon } placeholder={ placeholder } /> }
-        { fieldType === "checkbox" && <Checkbox.Group options={ options }>{ label }</Checkbox.Group> }
-        { fieldType === "radio" && <Radio.Group options={ options } />}
-        { fieldType === "select" && <Select options={ options } />}
-        { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
+        { fieldType === "checkbox" && <Checkbox.Group options={ Array.isArray(options) ? options: [] }>{ label }</Checkbox.Group> }
+        { fieldType === "radio" && <Radio.Group options={ Array.isArray(options) ? options: [] } />}
+        { fieldType === "select" && <Select options={ Array.isArray(options) ? options: [] } />}
+        { fieldType === "multi-select" && <Select mode='multiple' options={ Array.isArray(options) ? options: [] } />}
 
         { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch/>}
 
         { fieldType === 'color' && <CustomColorPicker /> }
 
-        { fieldType === "date" && <DatePicker format={UI24Config.formatConfig.date} />}
-        { fieldType === "datetime" && <DatePicker format={UI24Config.formatConfig.datetime} showTime />}
-        { fieldType === "time" && <TimePicker format={UI24Config.formatConfig.time} />}
+        { fieldType === "date" && <DatePicker format={formatConfig.date} />}
+        { fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
+        { fieldType === "time" && <TimePicker format={formatConfig.time} />}
 
         { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> }
 
