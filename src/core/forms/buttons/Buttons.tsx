@@ -42,16 +42,18 @@ const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
     },
     "cancel" : {
         text: "Cancel",
-        htmlType: "reset"
+        htmlType: "reset",
+        style: { marginLeft: "10%" }
     }
   }
 
 interface ICreateButtons {
     formButtons: Array< IPreDefinedButtons | IFormButton >
+    loader?: boolean
 }
 
-export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
-    const renderButton = (buttonConfig: IFormButton ) => {
+export const CreateButtons = ({ formButtons, loader = false } : ICreateButtons ) => {
+    const renderButton = (buttonConfig: IFormButton, loader: boolean = false ) => {
         return <Form.Item>
                     <Button 
                         type = { buttonConfig?.buttonType || "primary" } 
@@ -60,8 +62,9 @@ export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
                         style = { buttonConfig.style } 
                         onClick = { buttonConfig?.onClick } 
                         htmlType = { buttonConfig?.htmlType || "button" } 
-                        className = { buttonConfig?.className || ""
-                    }> 
+                        className = { buttonConfig?.className || "" }
+                        loading = { loader }
+                    > 
                         { buttonConfig.text } 
                     </Button>
                 </Form.Item>
@@ -70,7 +73,7 @@ export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
     return <React.Fragment>
         { formButtons.map( (buttonConfig, index: number ) => {
             if( typeof buttonConfig === "string" ) {
-                return  <React.Fragment key={"bt" + index}>{ renderButton( PreDefinedButtons[ buttonConfig ] ) }</React.Fragment>
+                return  <React.Fragment key={"bt" + index}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" ) ) }</React.Fragment>
             } else {
                 return <React.Fragment key={"bt" + index}>{ renderButton( buttonConfig ) }</React.Fragment>
             }
