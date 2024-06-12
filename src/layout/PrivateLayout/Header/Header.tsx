@@ -1,14 +1,12 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Icon } from '../../../core/common';
 import type { MenuProps } from 'antd';
-import { Menu as AntMenu } from 'antd';
-import { Breadcrumb, Layout, theme } from 'antd';
+import { Menu as AntMenu, Layout } from 'antd';
+import {  } from 'antd';
 import { Link } from '../../../core/common';
 import "./Header.css";
-import { UI24Config } from '../../../core';
 import { HeaderActions } from './HeaderActions';
-import { getMethod } from '../../../core';
-import { mockApiResponse } from '../../../core';
+import { useUi24Config } from '../../../core/context';
 
 const { Header : AntHeader } = Layout;
 
@@ -30,17 +28,17 @@ function createMenuItem(
     } as MenuItem;
 }
   
-const sampleItems: MenuProps['items'] = [
-  createMenuItem('Sample', 'sub2', <Icon iconName="appStore" />, [
-    createMenuItem(<Link title='Sample List' url = "/sampleList" />, '5'),
-    createMenuItem(<Link title='Sample Form' url = "/sampleCreate" />, '6'),
-  ])
-];
+// const sampleItems: MenuProps['items'] = [
+//   createMenuItem('Sample', 'sub2', <Icon iconName="appStore" />, [
+//     createMenuItem(<Link title='Sample List' url = "/sampleList" />, '5'),
+//     createMenuItem(<Link title='Sample Form' url = "/sampleCreate" />, '6'),
+//   ])
+// ];
 
 
 const formatMenuItems = (menuItems: any) => {
     const items: MenuItem[] = [];
-    menuItems.forEach((item: any) => {
+    Array.isArray(menuItems) && menuItems.forEach((item: any) => {
         if (item.children) {
             items.push(createMenuItem(item.label, item.key, <Icon iconName={item.icon} />, formatMenuItems(item.children)));
         } else {
@@ -51,20 +49,22 @@ const formatMenuItems = (menuItems: any) => {
 }
 
 export const Header = () => {
-
-    const [ menuItems, setMenuItems ] = React.useState<MenuItem[]>( formatMenuItems( UI24Config.uiConfig.menu ?? [] ) );
-
+    const { selectConfig } = useUi24Config()
+    const appLogo = selectConfig( config => config.appLogo)
+    const menuRecords = selectConfig( config => config.menuItems || [])
+    const [ menuItems, setMenuItems ] = React.useState<MenuItem[]>( formatMenuItems( menuRecords ) );
+    
     return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
-          { UI24Config?.appLogo !== "" && <div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div> }
+          { appLogo !== "" && <div className="logo"><img src={appLogo} alt="App Logo" title="Logo" /></div> }
         </div>
         <div className="appMenu">
             <AntMenu
               style={{ width: "100%" }}
               theme="light"
               mode="horizontal"
-              items={ menuItems.length > 0 ? menuItems : ( UI24Config.uiConfig.menu === "" ? sampleItems : []) }
+              items={ menuItems.length > 0 ? menuItems : [] }
           />
         </div>
         <div className="appActions">

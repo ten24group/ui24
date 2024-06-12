@@ -1,9 +1,6 @@
 import React, { ReactNode } from 'react';
-import "./PreAuthLayout.css";
-import { UI24Config } from '../../core';
-import { CoreLayout } from '../CoreLayout';
-import { useAuth } from '../../core';
-import { AppNavigator } from '../../routes/AppRouter';
+import "./AuthLayout.css";
+import { useUi24Config } from '../../core/context';
 
 interface IPreAuthLayout {
     layoutConfig? : {
@@ -13,24 +10,18 @@ interface IPreAuthLayout {
     children: ReactNode;
 }
 
-export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
+export const AuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
     title: "Admin Login",
     description: "Restricted area."
 }, children } ) => {
-    const { isLoggedIn } = useAuth();
+    const { selectConfig } = useUi24Config()
+    const appLogo = selectConfig( config => config.appLogo)
 
-    
-    if( isLoggedIn ) {
-        return <AppNavigator />
-    }
-    
-
-    return <CoreLayout>
-      <div className="login-layout">
+    return <div className="login-layout">
         <div className="preAuthLoginContainer">
             <div className="containerTop">
                 <div className="header">
-                    { UI24Config?.appLogo !== "" && <div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div> }
+                    { appLogo !== "" && <div className="logo"><img src={appLogo} alt="App Logo" title="Logo" /></div> }
                 </div>
                 <div className="title">{ layoutConfig.title } </div>
                 
@@ -39,5 +30,4 @@ export const PreAuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
             {children}
         </div>
       </div>
-  </CoreLayout>
 }

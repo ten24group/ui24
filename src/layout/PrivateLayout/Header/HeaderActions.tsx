@@ -3,18 +3,17 @@ import { DownOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Dropdown } from 'antd';
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../../core";
+import { useAuth } from '../../../core/context';
 import { Icon, Link } from "../../../core/common";
 
 
 export const LogoutButton = () => {
 
-  const { logOut } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   
   const handleLogout = async () => {
-    logOut()
-    navigate('/login');
+    logout()
   }
 
   return <Link onClick={handleLogout} url="/logout" title="Logout" ><Icon iconName="logout" /></Link>
