@@ -7,7 +7,7 @@ import { useAppContext } from "../core/context/AppContext";
 import { addFilterUI } from "./Filters/addFilterUI";
 import { usePagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
-import { formatBoolean, formatDate } from "../core/utils";
+import { useFormat } from "../core/hooks";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -59,6 +59,7 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
   const [ appliedFilters, setAppliedFilters] = React.useState<Record<string, any>>({});
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
+  const { formatDate, formatBoolean } = useFormat();
 
   //call API get records
   const getRecords = async (
