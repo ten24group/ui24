@@ -3,7 +3,7 @@ import { Descriptions } from 'antd';
 import type { DescriptionsProps } from 'antd';
 import { useApi, IApiConfig } from '../core/context';
 import { useParams } from "react-router-dom"
-import { formatBoolean, formatDate } from '../core/utils';
+import { useFormat } from '../core/hooks';
 import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
 
 interface IPropertiesConfig {
@@ -29,6 +29,7 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
     const { dynamicID } = useParams()
     const { callApiMethod } = useApi();
     const [dataLoaded, setDataLoaded] = useState(false);
+    const { formatDate, formatBoolean } = useFormat()
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
