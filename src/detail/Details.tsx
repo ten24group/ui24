@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Descriptions } from 'antd';
 import type { DescriptionsProps } from 'antd';
-import { IApiConfig } from '../core';
-import { callApiMethod } from '../core';
+import { useApi, IApiConfig } from '../core/context';
 import { useParams } from "react-router-dom"
 
 interface IPropertiesConfig {
@@ -24,6 +23,7 @@ export interface IDetailsConfig extends IDetailApiConfig {
 const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : IDetailsConfig ) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
     const { dynamicID } = useParams()
+    const { callApiMethod } = useApi();
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
