@@ -2,7 +2,7 @@
   "name": "@ten24group/ui24",
   "version": "0.1.1-alpha.3",
   "description": "Admin UI package for fw24 projects",
-  "main": "dist/index.js",
+  "main": "src/index.tsx",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "webpack --mode production",
