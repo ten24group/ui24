@@ -1,7 +1,3 @@
-import { Dayjs } from 'dayjs';
-import { UI24Config } from './config/config';
-import { dayjsCustom } from './dayjs';
-
 export function isValidURL(str) {
   var pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
     '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
@@ -48,28 +44,7 @@ export function convertUTCDateToLocalDate(date: string | Date) {
     return newDate;
 }
 
-/**
- * Formats a date using a specified format string.
- * @param {Date} date - The date to format.
- * @param {string} type - The format-type to use.
- * @returns {string} The formatted date.
- */
-export function formatDate(date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' ): string {
-  const formatString = UI24Config.formatConfig?.[type];
-  return date ? dayjsCustom(date).format(formatString) : '';
-}
 
-/**
- *  Formats a boolean value to a string.
- * @param value - The boolean value to format.
- * @returns The formatted boolean value.
- * 
- * @example
- * ```ts
- * formatBoolean(true); // returns "YES"
- * ```
- */
-export function formatBoolean(value: boolean): string {
-  return value ? UI24Config.formatConfig?.boolean?.true || 'True' : UI24Config.formatConfig?.boolean?.false || 'False';
-}
+
+
 
