@@ -9,7 +9,7 @@ import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
 
-type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
+export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
 interface IRenderFromPageType {
     pageType?: IPageType;
@@ -24,7 +24,6 @@ export interface IPostAuthPage extends IPageHeader, IRenderFromPageType {
     CustomPageHeader?: React.ReactNode;
     children?: React.ReactNode;
 }
-
 
 export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAuthPage ) => {
     return <div style={{ paddingTop: "1%"}}>

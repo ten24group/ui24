@@ -3,11 +3,15 @@ import { Descriptions } from 'antd';
 import type { DescriptionsProps } from 'antd';
 import { useApi, IApiConfig } from '../core/context';
 import { useParams } from "react-router-dom"
+import { formatBoolean, formatDate } from '../core/utils';
+import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
 
 interface IPropertiesConfig {
     label: string;
     column: string;
+    hidden?: boolean;
     initialValue: string;
+    fieldType?: string;
 }
 
 export interface IDetailApiConfig {
@@ -24,6 +28,7 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
     const { dynamicID } = useParams()
     const { callApiMethod } = useApi();
+    const [dataLoaded, setDataLoaded] = useState(false);
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
@@ -31,19 +36,42 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
             if( response.status === 200 ) {
                 const detailResponse = response.data[detailApiConfig.responseKey]
                 setRecordInfo( recordInfo.map( ( item: IPropertiesConfig ) => {
+                    let initialValue = detailResponse[item.column];
+
+                    if([ 'date', 'datetime', 'time' ].includes(item.fieldType?.toLocaleLowerCase())){
+                        // formate the date value using uiConfig's date-time-formats
+                        initialValue = formatDate(initialValue, item.fieldType?.toLocaleLowerCase() as any);
+                    } else if (['boolean', 'switch', 'toggle'].includes(item.fieldType?.toLocaleLowerCase())){
+                        // format the boolean value using uiConfig's boolean-formats
+                        initialValue = formatBoolean(initialValue);
+                    }
+
                     return {
                         ...item,
-                        initialValue: detailResponse[item.column]
+                        initialValue
                     }
                 }) )
             }
+            setDataLoaded(true);
         }
 
         if( detailApiConfig ) 
             fetchRecordInfo();
     }, [] )
 
-    return <Descriptions title={ pageTitle } items={recordInfo.map( ( item: IPropertiesConfig, index : number ) => {
+    return dataLoaded && <Descriptions title={ pageTitle } layout='vertical' items={
+        recordInfo
+        .filter( item => !item.hidden )
+        .map( ( item: IPropertiesConfig, index : number ) => {
+
+        if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
+            return {
+                key: index,
+                label: item.label,
+                children:  <CustomEditorJs value={item.initialValue as any} readOnly tools={EDITOR_JS_TOOLS} minHeight={50} />
+            }
+        }
+
         return {
             key: index,
             label: item.label,

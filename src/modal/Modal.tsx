@@ -4,7 +4,7 @@ import { IForm } from '../core/forms/formConfig';
 import { ITableConfig } from '../table/type';
 import { Icon } from '../core/common';
 import { Link } from '../core/common';
-import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
+import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { useApi, IApiConfig } from '../core/context';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../core/context/AppContext';
@@ -60,31 +60,38 @@ export const Modal = ({
     }
 
     return <>
-    <Link onClick={(url) => {
-      setOpen(true)}
-      } ><Icon iconName={"delete"} /></Link>
+    <Link onClick={(url) => { setOpen(true)}}>
+        <Icon iconName={"delete"} />
+    </Link>
+    
     { modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig && 
-    <AntModal
-        title={ modalPageConfig?.title }
-        open={open}
-        onOk={ deleteApiAction }
-        onCancel={()=> setOpen(false)}
-        okText="Confirm"
-        cancelText="Cancel"
-      >
-        {modalPageConfig?.content}
-        {children}
-        
-      </AntModal>
+        <AntModal
+            title={ modalPageConfig?.title }
+            open={open}
+            onOk={ deleteApiAction }
+            onCancel={()=> setOpen(false)}
+            okText="Confirm"
+            cancelText="Cancel"
+          >
+            {modalPageConfig?.content}
+            {children}
+            
+          </AntModal>
       }
-          { open && ( modalType === "list" || modalType === "form" ) && modalPageConfig &&
+      
+      { open && ["list", "form"].includes(modalType) && modalPageConfig &&
           <AntModal
-          footer={ null }
-          open={open}
-          onCancel={()=> setOpen(false)}
-        >
-            <RenderFromPageType cardStyle={{ marginTop: "5%"}} pageType={ modalType } listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } formPageConfig={ modalType === "form" ? modalPageConfig as IForm: undefined } />
-            </AntModal>
-          }
+            footer={ null }
+            open={open}
+            onCancel={()=> setOpen(false)}
+          >
+            <RenderFromPageType 
+              cardStyle={{ marginTop: "5%"}} 
+              pageType={ modalType as IPageType } 
+              listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
+              formPageConfig={ modalType === "form" ? modalPageConfig as IForm: undefined } 
+            />
+          </AntModal>
+      }
       </>
 }

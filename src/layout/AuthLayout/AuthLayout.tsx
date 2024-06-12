@@ -12,7 +12,7 @@ interface IPreAuthLayout {
 
 export const AuthLayout: React.FC<IPreAuthLayout> = ( { layoutConfig = {
     title: "Admin Login",
-    description: "Restricted area."
+    description: ""
 }, children } ) => {
     const { selectConfig } = useUi24Config()
     const appLogo = selectConfig( config => config.appLogo)

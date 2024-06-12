@@ -57,7 +57,7 @@ export const Header = () => {
     return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
-          { appLogo !== "" && <div className="logo"><img src={appLogo} alt="App Logo" title="Logo" /></div> }
+          { appLogo !== "" && <Link url="/"><div className="logo"><img src={appLogo} alt="App Logo" title="Logo" /></div></Link> }
         </div>
         <div className="appMenu">
             <AntMenu

@@ -1,6 +1,8 @@
 import { Form as AntForm } from 'antd';
 import React, { Fragment, useState, useEffect } from 'react';
-import {  CreateButtons } from '../core/forms';
+import { dayjsCustom } from '../core/dayjs';
+
+import {  CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import { IForm } from '../core/forms/formConfig';
@@ -40,27 +42,71 @@ export function Form({
   }, [buttonLoader])
 
   useEffect( () => {
+
+      const loadFormDataAndFieldOptions = async () => {
+
+        // if form-form-fields has dynamic options, fetch the options and update the form-fields
+        const updatedFields = await Promise.all( 
+          formPropertiesConfig.map( async (item: IFormField) => {
+              if(!['select', 'multi-select', 'checkbox', 'radio'].includes(item.fieldType?.toLocaleLowerCase())){
+                return item;
+              }
+
+              let options = item.options;
+
+              if(isFieldOptionsAPIConfig(options)){
+                options = await fetchFieldOptions(options as FieldOptionsAPIConfig);
+              }
+            
+              return { ...item, options }
+          })
+        );
+
+        setFormPropertiesConfig( updatedFields );
+
+        // if the page has api-config and record identifier etch the record and update the form-fields with initial values.
+        const recordData =  (detailApiConfig && dynamicID !== "") ? await fetchRecordInfo() : {};
+
+        const updatedFieldsWithInitialValues = updatedFields.map( ( item: IFormField ) => {
+            const { name, fieldType } = item;
+            
+            let initialValue = recordData[name];
+            
+            if(fieldType === "datetime") {
+                initialValue = dayjsCustom(initialValue);
+            } else if(fieldType === "date") {
+                initialValue = dayjsCustom(initialValue);
+            } else if(fieldType === "time") {
+                initialValue = dayjsCustom(initialValue);
+            } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
+                initialValue = initialValue ?? true;
+            } else if (fieldType === "color"){
+                initialValue = initialValue ?? "#FFA500";
+            }
+
+            return { ...item, initialValue: initialValue || item.initialValue }
+        });
+        
+        setFormPropertiesConfig(updatedFieldsWithInitialValues);
+
+        setDataLoadedFromView( true );
+      }
+
       const fetchRecordInfo = async () => {
           setLoader( true)
           const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+          
           if( response.status === 200 ) {
-              const detailResponse = response.data[detailApiConfig.responseKey]
-              setFormPropertiesConfig( formPropertiesConfig.map( ( item: IFormField ) => {
-                  return {
-                      ...item,
-                      initialValue: detailResponse[item.name]
-                  }
-              }) )
-              setDataLoadedFromView( true )
+              const detailResponse = response.data[detailApiConfig.responseKey];
+              return detailResponse;
+          } else {
+              notifyError(response?.error)
           }
           setLoader( false )
       }
 
-      if( detailApiConfig && dynamicID !== "") 
-          fetchRecordInfo();
-  }, [] )
-
-  
+      loadFormDataAndFieldOptions();
+  },[])
 
   const onFinish = async (values: any) => {
     if( apiConfig ) {
@@ -118,12 +164,15 @@ export function Form({
     
     { formPropertiesConfig.map( 
       (item: IFormField, index: number ) => { 
-        return <React.Fragment key={"fe"+index}><FormField {...item} /></React.Fragment> 
-      }) 
+        return <React.Fragment key={"fe"+index}>
+            <FormField {...item} />
+          </React.Fragment> 
+      })
     }
+
     { children }
     
-    { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } loader={ btnLoader } /></div> }
+    { formButtons.length > 0 && <div style={{ display: "flex", float: "right"}}><CreateButtons formButtons={ formButtons } loader={ btnLoader } /></div> }
     
   </AntForm>
 }
