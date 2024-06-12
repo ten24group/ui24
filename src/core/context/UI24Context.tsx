@@ -5,6 +5,16 @@ type ConfigResolver<T extends unknown> = T // the config itself
 | string  // config url/endpoint
 | ( () => Promise<T> ) // a function that resolves the config
 
+interface IFormatConfig {
+  date?: string;
+  time?: string;
+  datetime?: string;
+  boolean?: {
+      true: string; // YES, TRUE, ACTIVE
+      false: string; // NO, FALSE, INACTIVE
+  }
+}
+
 export type IUi24Config = {
     baseURL: string;
     appLogo: string;
@@ -35,6 +45,7 @@ export type IUi24Config = {
     apiConfig: any;
     menuItem?: Array<any>
     pagesConfig?: Record<string, any>
+    formatConfig?: IFormatConfig 
 }
 
 interface IUi24Context {
@@ -47,9 +58,19 @@ interface IUi24Context {
 const Ui24Context = createContext<IUi24Context>(null);
 
 const Ui24ConfigProvider = ({ children, initConfig }) => {
+
+    const defaultFormatConfig: IFormatConfig = {
+      date: "YYYY-MM-DD",
+      time: "HH:mm A",
+      datetime: "YYYY-MM-DD HH:mm A",
+      boolean: {
+          true: "YES",
+          false: "NO"
+      }
+  }
     
     // Use initConfig as the initial state
-    const [config, setConfig] = useState<IUi24Config>({...initConfig});
+    const [config, setConfig] = useState<IUi24Config>({ formatConfig: defaultFormatConfig, ...initConfig});
 
     // Function to update config data
     const updateConfig = (newConfig: Partial<IUi24Config>) => {

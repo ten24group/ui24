@@ -1,6 +1,7 @@
 import React from 'react';
 import { AppRouter, IAppRouter } from './routes/AppRouter';
 import { Ui24ConfigProvider, AuthProvider, ApiProvider, IApiConfig } from './core/context';
+import { IUi24Config } from './core/context';
 
 type ConfigResolver<T extends unknown> = T // the config itself
 | string  // config url/endpoint
@@ -8,34 +9,7 @@ type ConfigResolver<T extends unknown> = T // the config itself
 
 type IUI24 = {
     customRoutes?: IAppRouter["customRoutes"];
-    ui24config: {
-        baseURL: string;
-        appLogo: string;
-        uiConfig: {
-            auth: ConfigResolver<any>,
-            menu: ConfigResolver<any>,
-            pages: ConfigResolver<any>;
-            dashboard: ConfigResolver<any>;
-        }
-        appName: string;
-        layouts: {
-            authLayout: React.ReactNode;
-            publicLayout: React.ReactNode;
-            privateLayout: React.ReactNode;
-        }
-        auth?: {
-            verifyToken: IApiConfig
-            redirectUrl?: string
-        }
-        routes: Array<{
-            route: string;
-            section: React.ReactNode;
-            authType: "auth" | "public" | "private";
-        }>
-        authProvider: string;
-        //customerInfo: any;
-        apiConfig: any;
-    }
+    ui24config: IUi24Config
 }
 
 const UI24 = ({ customRoutes = [], ui24config }: IUI24 ) => {
