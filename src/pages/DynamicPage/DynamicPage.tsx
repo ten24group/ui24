@@ -1,34 +1,27 @@
 import React from 'react';
 import { PostAuthPage } from '../PostAuth/PostAuthPage';
-import { PreAuthLayout } from '../../layout';
 import { useParams } from "react-router-dom"
-import { useAuth } from '../../core';
 import { UI24Config } from '../../core';
-import { AppNavigator } from '../../routes/AppRouter';
 import { NotFound } from '../404/NotFound';
+import { useUi24Config } from '../../core/context';
 
 export const DynamicPage = () => {
     //get routes from URL
     const { dynamicPage = "", dynamicID = ""} = useParams()
-    
-    const { isLoggedIn } = useAuth();
-
-    let pageConfig = dynamicPage === 'dashboard' ? UI24Config.uiConfig.dashboard : UI24Config.uiConfig.pages[dynamicPage]
+    const { getPageConfig, selectConfig } = useUi24Config()
+    const pagesConfig = selectConfig( (config) => config.pagesConfig )
+    const pageConfig = getPageConfig( dynamicPage )
+    const pageNotFound = pagesConfig && Object.keys(pagesConfig).length > 0 && !pageConfig
 
     //check if page config exists for the route
-    if( !pageConfig ){
+    if( pageNotFound ){
         //TODO: Fallback : make API call to get page config
+        console.error("Page config not found")
     }
 
-    if( !pageConfig ){
+    if( pageNotFound ){
         return <NotFound />
     }
 
-    if( !isLoggedIn && pageConfig?.private === true ){
-        return <AppNavigator />
-    }
-
-    return ( pageConfig?.private === true || ( pageConfig?.private ?? true ) ) ? <PostAuthPage {...pageConfig} /> : <PreAuthLayout>
-        <h3>Define your page.</h3>
-    </PreAuthLayout>;
+    return ( pageConfig?.private === true || ( pageConfig?.private ?? true ) ) ? <PostAuthPage {...pageConfig} /> :  <h3>Define your page.</h3>
 }
