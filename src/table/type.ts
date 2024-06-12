@@ -1,4 +1,4 @@
-import { IApiConfig } from "../core";
+import { IApiConfig } from "../core/context";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 

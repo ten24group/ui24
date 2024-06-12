@@ -1,7 +1,6 @@
 import React, { Fragment, useEffect } from "react";
 import { ITablePropertiesConfig } from "./type";
-import { IApiConfig } from "../core";
-import { callApiMethod } from "../core";
+import { IApiConfig, useApi } from "../core/context";
 
 import { addActionUI } from "./Actions/addActionUI";
 import { useAppContext } from "../core/context/AppContext";
@@ -50,7 +49,7 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
   );
   const [isLastPage, setIsLastPage] = React.useState(false);
   const [ appliedFilters, setAppliedFilters] = React.useState<Record<string, any>>({});
-
+  const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
 
   //call API get records
