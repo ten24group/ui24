@@ -1,12 +1,12 @@
 import { Form } from 'antd';
-import React, { Fragment, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { dayjsCustom } from '../core/dayjs';
 
-import {  CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
+import { CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
-import { UI24Config, callApiMethod } from '../core';
+import { callApiMethod } from '../core';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';

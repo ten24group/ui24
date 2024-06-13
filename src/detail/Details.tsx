@@ -64,12 +64,22 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
         .map( ( item: IPropertiesConfig, index : number ) => {
 
         if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
+
             return {
                 key: index,
                 label: item.label,
                 children:  <CustomEditorJs value={item.initialValue as any} readOnly tools={EDITOR_JS_TOOLS} minHeight={50} />
             }
-        }
+
+        } 
+        else if ( item.fieldType.toLocaleLowerCase() === 'image' ){
+
+            return {
+                key: index,
+                label: item.label,
+                children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
+            }
+        } 
 
         return {
             key: index,
