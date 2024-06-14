@@ -1,44 +1,73 @@
-import React, { useState } from 'react';
-import { Upload, UploadProps, GetProp, Input, InputProps, UploadFile } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Upload, UploadProps, GetProp, UploadFile } from 'antd';
 import { PlusOutlined, LoadingOutlined } from '@ant-design/icons';
 import ImgCrop from 'antd-img-crop';
 
-import { GetSignedUploadUrlAPIConfig, useCustomS3Uploader } from './s3FileUploader';
+import { GetSignedUploadUrlAPIConfig, useS3FileUploader } from './s3FileUploader';
+import classNames from 'classnames';
 
 type FileType = Parameters<GetProp<UploadProps, 'beforeUpload'>>[0];
 
 
-export type ImageUploaderProps = Exclude<UploadProps, 'maxCount' | 'customRequest' | 'showUploadList' | 'accept'> & InputProps &  {
-  fileNamePrefix?: string;
-  listType?: 'picture-card' | 'picture' | 'text';
+export type ImageUploaderProps = Exclude<UploadProps, 'maxCount' | 'customRequest' | 'showUploadList' | 'accept' | 'fileList'> &  {
+  
+  // Form Image picker
   accept?: string;
-  onChange?: (value: string) => void;
-  getSignedUploadUrlAPIConfig ?: GetSignedUploadUrlAPIConfig,
+  listType?: 'picture-card' | 'picture' | 'text';
   withImageCrop?: boolean;
+  
+  // image uploader
+  fileNamePrefix?: string;
+  getSignedUploadUrlAPIConfig ?: GetSignedUploadUrlAPIConfig,
+
+  // form-input
+  value?: string;
+  readOnly?: boolean;
+  onChange?: (value: string) => void;
 }
 
-const SingleImageUploader = (props: ImageUploaderProps ) => {
+export const FileUploader = (props: ImageUploaderProps ) => {
   let { 
 
-    accept= 'image/*', 
-    listType='picture-card', 
+    className = "avatar-uploader",
+
+    accept= '*/*', 
+    listType='text', 
     withImageCrop = false,
+
     fileNamePrefix = '', 
     getSignedUploadUrlAPIConfig, 
 
-    readOnly= false,
-
     value, 
+    readOnly= false,
     onChange: customOnChange,
+
     ...restProps 
   } = props;
 
   const [loading, setLoading] = useState<boolean>(false);
-  const [imageUrl, setImageUrl] = useState<string>(value as string);
+  const [uploadedFileList, setFileList] = useState<UploadFile[]>();
+
+  useEffect(() => {
+    if(!value) {
+      return;
+    }
+    
+    setFileList([
+      {
+        uid: undefined,
+        name: value,
+        status: 'done',
+        url: value,
+      }
+    ])
+  }, [value]);
   
-  const customS3Uploader = useCustomS3Uploader({ fileNamePrefix, getSignedUploadUrlAPIConfig });
+  const defaultFileUploader = useS3FileUploader({ fileNamePrefix, getSignedUploadUrlAPIConfig });
 
   const handleChange: UploadProps['onChange'] = (info) => {
+    setFileList(info.fileList);
+
     if (info.file.status === 'uploading') {
       setLoading(true);
     } 
@@ -47,14 +76,12 @@ const SingleImageUploader = (props: ImageUploaderProps ) => {
     }
     else if (info.file.status === 'done') {
       const uploadedImageUrl = info.file.response.data.url as string;
-      const uploadedFileName = info.file.response.data.name;
-      setImageUrl(uploadedImageUrl);
       customOnChange(uploadedImageUrl);
       setLoading(false);
     }
   };
   
-  const handlePreview = async (file: UploadFile) => {
+  const handlePreview: UploadProps['onPreview'] = async (file: UploadFile) => {
     let src = file.url as string;
     if (!src) {
       src = await new Promise((resolve) => {
@@ -69,6 +96,10 @@ const SingleImageUploader = (props: ImageUploaderProps ) => {
     imgWindow?.document.write(image.outerHTML);
   };
 
+  const handleRemove: UploadProps['onRemove'] = () => {
+    customOnChange(undefined);
+  }
+
   const uploadButton = (
     <button style={{ border: 0, background: 'none' }} disabled={loading} type="button">
       {loading ? <LoadingOutlined /> : <PlusOutlined />}
@@ -78,21 +109,23 @@ const SingleImageUploader = (props: ImageUploaderProps ) => {
 
   const imageUploader = (
     <Upload
-      listType="picture-card"
-      className="avatar-uploader"
+      {...restProps}
+
+      listType={listType}
+      className={className}
+
+      fileList={uploadedFileList}
 
       maxCount={1}
       disabled={loading || readOnly}
-
       showUploadList={true}
       
       onChange={handleChange}
       onPreview={handlePreview}
-      onRemove={() => setImageUrl('')}
-      customRequest={customS3Uploader as any}
+      onRemove={handleRemove}
+      customRequest={defaultFileUploader as any}
     >
       {!readOnly && uploadButton}
-      { imageUrl && !readOnly && <Input type="hidden" value={imageUrl} {...restProps} />}
     </Upload>
   )
 
@@ -103,5 +136,3 @@ const SingleImageUploader = (props: ImageUploaderProps ) => {
     </>
   )
 };
-
-export default SingleImageUploader;

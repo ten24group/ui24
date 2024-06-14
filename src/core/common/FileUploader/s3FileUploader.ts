@@ -1,6 +1,5 @@
-import { RcFile } from "antd/lib/upload";
 import { callApiMethod } from "../../api/apiMethods";
-import axios, { AxiosProgressEvent } from "axios";
+import axios, { AxiosProgressEvent, AxiosResponse } from "axios";
 
 export type GetSignedUploadUrlAPIConfig  = {
   apiUrl: string;
@@ -14,17 +13,28 @@ export type GetSignedUploadURLResponse = {
     signedUploadURL: string,
 };
 
-export type UseCustomS3UploaderOptions = {
-  fileNamePrefix: string;
+export type UseS3FileUploaderOptions = {
+  fileNamePrefix?: string;
   getSignedUploadUrlAPIConfig: GetSignedUploadUrlAPIConfig;
 }
 
-export const useCustomS3Uploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig}: UseCustomS3UploaderOptions) => ({ file, onError, onSuccess, onProgress }) => {
-    
-  const uploadingFile = file as RcFile;
+export type S3FileUploaderSuccessResponse = AxiosResponse<{name: string, url: string }, any>;
 
-  const fileType = uploadingFile.type;
-  const fileName = `${fileNamePrefix}${uploadingFile.name}`;
+export type OnErrorCallback = (error: any) => void;
+export type OnSuccessCallback = (response: S3FileUploaderSuccessResponse ) => void;
+export type OnProgressCallback = (progress: {percent: string}) => void;
+
+export type S3FileUploaderOptions = {
+  file: File,
+  onError: OnErrorCallback,
+  onSuccess: OnSuccessCallback,
+  onProgress: OnProgressCallback
+};
+
+export const useS3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig}: UseS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions ) => {
+    
+  const fileType = file.type;
+  const fileName = `${fileNamePrefix}${file.name}`;
   
   const signedUrlPayload = { fileName, fileType };
   
@@ -43,17 +53,19 @@ export const useCustomS3Uploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig
       // upload the image to S3
       const uploadResponse = await axios.put(
         signedResponse.signedUploadURL, 
-        uploadingFile, 
+        file, 
         {
           // Put the fileType in the headers for the upload
           headers: { 'Content-Type': fileType },
           onUploadProgress: (event: AxiosProgressEvent) => {
-            onProgress({ percent: Math.round((event.loaded / event.total) * 100).toFixed(2) });
+            const data = { percent: Math.round((event.loaded / event.total) * 100).toFixed(2) };            
+            onProgress(data);
           }
         }
       );
       
       uploadResponse.data = uploadResponse.data || {
+        uid: file['uid'],
         url: signedResponse.signedUploadURL.split('?')[0],
         name: signedResponse.fileName,
       };
