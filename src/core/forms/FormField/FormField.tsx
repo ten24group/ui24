@@ -145,6 +145,10 @@ export function FormField( {
                 accept= { restFormItemProps['accept'] ?? 'image/*'}  
                 listType={ restFormItemProps['listType'] ?? 'picture-card'} 
                 withImageCrop = {restFormItemProps['withImageCrop'] ?? true} 
+
+                 // config for the default image uploader
+                fileNamePrefix = { restFormItemProps['fileNamePrefix'] ?? undefined}
+                getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
             />
         }
 
@@ -155,10 +159,10 @@ export function FormField( {
             <CustomBlockNoteEditor 
                 
                 theme = { restFormItemProps['theme'] ?? undefined}
-                readOnly = { restFormItemProps['readonly'] ?? undefined}
+                readOnly = { restFormItemProps['readOnly'] ?? undefined}
                 
                 // config for the default image uploader
-                fileNamePrefix = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
+                fileNamePrefix = { restFormItemProps['fileNamePrefix'] ?? undefined}
                 getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
 
                 // custom uploader function

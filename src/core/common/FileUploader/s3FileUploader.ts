@@ -32,11 +32,12 @@ export type S3FileUploaderOptions = {
 };
 
 export const useS3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig}: UseS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions ) => {
-    
-  const fileType = file.type;
-  const fileName = `${fileNamePrefix}${file.name}`;
   
-  const signedUrlPayload = { fileName, fileType };
+  const signedUrlPayload = { 
+    fileName: file.name, 
+    contentType: file.type,
+    fileNamePrefix,
+  };
   
   callApiMethod({
     ...getSignedUploadUrlAPIConfig, 
@@ -56,7 +57,7 @@ export const useS3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig}:
         file, 
         {
           // Put the fileType in the headers for the upload
-          headers: { 'Content-Type': fileType },
+          headers: { 'Content-Type': file.type },
           onUploadProgress: (event: AxiosProgressEvent) => {
             const data = { percent: Math.round((event.loaded / event.total) * 100).toFixed(2) };            
             onProgress(data);
