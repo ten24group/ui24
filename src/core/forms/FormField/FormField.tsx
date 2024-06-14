@@ -1,14 +1,12 @@
 import React, { Component, ReactNode } from 'react';
-import { Checkbox, ColorPicker, DatePicker, Form, Image, Input, Radio, Select, Switch, TimePicker } from 'antd';
+import { Checkbox, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
 import { callApiMethod } from '../../api/apiMethods';
 import { UI24Config } from '../../config/config';
-import { CustomEditorJs, EDITOR_JS_TOOLS } from '../../common/Editorjs';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
-import SingleImageUploader from '../../common/FileUploader/SingleImageUploader';
-import SingleFileUploader from '../../common/FileUploader/SingleFileUploader';
-import { GetSignedUploadUrlAPIConfig } from '../../common/FileUploader';
-type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image";
 
+import {FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor} from '../../common/';
+
+type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image";
 
 /**
  * Represents the template for attributes.
@@ -136,12 +134,37 @@ export function FormField( {
         { fieldType === "time" && <TimePicker format={UI24Config.formatConfig.time} />}
         { fieldType === "datetime" && <DatePicker format={UI24Config.formatConfig.datetime} showTime />}
 
-        { fieldType === "file" && <SingleFileUploader {...restFormItemProps} />}
-        { fieldType === "image" && <SingleImageUploader {...restFormItemProps} />}
+        { fieldType === "file" && 
+            <FileUploader 
+                accept= { restFormItemProps['accept'] ?? undefined}  
+            />
+        }
+        
+        { fieldType === "image" && 
+            <FileUploader 
+                accept= { restFormItemProps['accept'] ?? 'image/*'}  
+                listType={ restFormItemProps['listType'] ?? 'picture-card'} 
+                withImageCrop = {restFormItemProps['withImageCrop'] ?? true} 
+            />
+        }
 
         { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch/>}
 
-        { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> }
+        {/* { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> } */}
+        { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && 
+            <CustomBlockNoteEditor 
+                
+                theme = { restFormItemProps['theme'] ?? undefined}
+                readOnly = { restFormItemProps['readonly'] ?? undefined}
+                
+                // config for the default image uploader
+                fileNamePrefix = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
+                getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
+
+                // custom uploader function
+                uploadFile = { restFormItemProps['uploadFile'] ?? undefined}
+            />
+        }
 
       </Form.Item>
     </div>

@@ -4,7 +4,7 @@ import { IApiConfig } from '../core';
 import { callApiMethod } from '../core';
 import { useParams } from "react-router-dom"
 import { formatBoolean, formatDate } from '../core/utils';
-import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
+import { CustomBlockNoteEditor } from '../core/common';
 
 interface IPropertiesConfig {
     label: string;
@@ -68,7 +68,7 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
             return {
                 key: index,
                 label: item.label,
-                children:  <CustomEditorJs value={item.initialValue as any} readOnly tools={EDITOR_JS_TOOLS} minHeight={50} />
+                children:  <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
             }
 
         } 
