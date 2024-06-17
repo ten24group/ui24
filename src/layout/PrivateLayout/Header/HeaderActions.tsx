@@ -2,7 +2,6 @@ import React from 'react';
 import { DownOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { Dropdown } from 'antd';
-import { useNavigate } from "react-router-dom";
 import { useAuth } from '../../../core/context';
 import { Icon, Link } from "../../../core/common";
 
@@ -10,13 +9,12 @@ import { Icon, Link } from "../../../core/common";
 export const LogoutButton = () => {
 
   const { logout } = useAuth();
-  const navigate = useNavigate();
   
   const handleLogout = async () => {
     logout()
   }
 
-  return <Link onClick={handleLogout} url="/logout" title="Logout" ><Icon iconName="logout" /></Link>
+  return <Link onClick={handleLogout} title="Logout" ><Icon iconName="logout" /></Link>
   
 }
 
