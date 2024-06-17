@@ -1,4 +1,4 @@
-import { Form } from 'antd';
+import { Form, Spin } from 'antd';
 import React, { useState, useEffect } from 'react';
 import { dayjsCustom } from '../core/dayjs';
 
@@ -120,28 +120,38 @@ export function PostAuthForm({
     onSubmit && onSubmit(values)
   }
 
-  return <Form
-      name={ formConfig.name || "" }
-      className={ formConfig?.className || "" }
-      layout="vertical"
-      onFinish={customOnSubmit}
-    >
-    
-    { dataLoadedFromView && formPropertiesConfig.map( 
-      (item: IFormField, index: number ) => { 
-        return <React.Fragment key={"fe"+index}>
-            <FormField {...item} />
-          </React.Fragment> 
-      })
-    }
+  return <>  
+    <Spin spinning={!dataLoadedFromView}>
+      { dataLoadedFromView &&
+        <Form
+          name={ formConfig.name || "" }
+          className={ formConfig?.className || "" }
+          layout="vertical"
+          onFinish={customOnSubmit}
+        >
+        
+          { formPropertiesConfig.map( 
+            (item: IFormField, index: number ) => { 
+              return <React.Fragment key={"fe"+index}>
+                  <FormField {...item} />
+                </React.Fragment> 
+            })
+          }
 
-    { children }
+          { children }
 
-    { formButtons.length > 0 && 
-      <div style={{ display: "flex", float: "right"}}>
-        <CreateButtons formButtons={ formButtons } />
-      </div> 
-    }
-    
-  </Form>
+          { formButtons.length > 0 && 
+            <div style={{ display: "flex", float: "right"}}>
+              <CreateButtons formButtons={ formButtons } />
+            </div> 
+          }
+          
+          {/* <pre>
+              <code>{JSON.stringify(formPropertiesConfig, null, 2)}</code>
+          </pre> */}
+        </Form>
+      }
+    </Spin>
+  </>
+
 }
