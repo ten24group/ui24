@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext } from 'react';
 import { IApiConfig } from './ApiContext';
 
-type ConfigResolver<T extends unknown> = T // the config itself
+export type IConfigResolver<T extends unknown> = T // the config itself
 | string  // config url/endpoint
 | ( () => Promise<T> ) // a function that resolves the config
 
@@ -19,10 +19,10 @@ export type IUi24Config = {
     baseURL: string;
     appLogo: string;
     uiConfig: {
-        auth: ConfigResolver<any>,
-        menu: ConfigResolver<any>,
-        pages: ConfigResolver<any>;
-        dashboard: ConfigResolver<any>;
+        auth: IConfigResolver<any>,
+        menu: IConfigResolver<any>,
+        pages: IConfigResolver<any>;
+        dashboard: IConfigResolver<any>;
     }
     appName: string;
     layouts?: {
@@ -64,10 +64,10 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
       time: "HH:mm A",
       datetime: "YYYY-MM-DD HH:mm A",
       boolean: {
-          true: "YES",
-          false: "NO"
+        true: "YES",
+        false: "NO"
       }
-  }
+    }
     
     // Use initConfig as the initial state
     const [config, setConfig] = useState<IUi24Config>({ formatConfig: defaultFormatConfig, ...initConfig});
@@ -78,16 +78,15 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
     }
 
     // Function to select specific property from config
-  const selectConfig = (selector) => {
-    return selector(config as IUi24Config);
-  };
+    const selectConfig = (selector) => {
+      return selector(config as IUi24Config);
+    };
 
-  const getPageConfig = ( pageName: string ) => {
-    
-    if( config?.pagesConfig && Object.keys(config?.pagesConfig).length > 0 ) {
-      return config?.pagesConfig[pageName]
+    const getPageConfig = ( pageName: string ) => {
+      if( config?.pagesConfig && Object.keys(config?.pagesConfig).length > 0 ) {
+        return config?.pagesConfig[pageName]
+      }
     }
-  }
 
     return <Ui24Context.Provider value={{ config, updateConfig, selectConfig, getPageConfig }}>
         { children }
