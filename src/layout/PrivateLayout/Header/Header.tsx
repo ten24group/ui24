@@ -27,13 +27,6 @@ function createMenuItem(
       type,
     } as MenuItem;
 }
-  
-// const sampleItems: MenuProps['items'] = [
-//   createMenuItem('Sample', 'sub2', <Icon iconName="appStore" />, [
-//     createMenuItem(<Link title='Sample List' url = "/sampleList" />, '5'),
-//     createMenuItem(<Link title='Sample Form' url = "/sampleCreate" />, '6'),
-//   ])
-// ];
 
 
 const formatMenuItems = (menuItems: any) => {
