@@ -23,8 +23,8 @@ export type IPageAction = {
   label: string;
   icon: string;
   htmlType: string;
-  openInModel?: boolean;
-  modelConfig?: IModalConfig;
+  openInModal?: boolean;
+  modalConfig?: IModalConfig;
 };
 
 export interface IActionIndexValue {
