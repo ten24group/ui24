@@ -53,7 +53,7 @@ const LoginForm = () => {
   >
       <div className="PreAuthLoginActions">
           <Checkbox onChange={onChange}>Remember Me</Checkbox>
-          <Link title="Forgot Password ?" url='/forgot-password' />
+          <Link className="forgotPassword" title="Forgot Password ?" url='/forgot-password' />
       </div>
 
       <div className="PreAuthLoginActions">
