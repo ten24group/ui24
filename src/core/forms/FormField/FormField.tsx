@@ -1,11 +1,12 @@
 import React, { Component, ReactNode } from 'react';
-import { Checkbox, ColorPicker, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
+import { Checkbox, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
 import { callApiMethod } from '../../api/apiMethods';
 import { UI24Config } from '../../config/config';
-import { CustomEditorJs, EDITOR_JS_TOOLS } from '../../common/Editorjs';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
-type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg";
 
+import {FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor} from '../../common/';
+
+type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image";
 
 /**
  * Represents the template for attributes.
@@ -103,27 +104,71 @@ interface IFormField {
 
 const { TextArea } = Input;
 
-export function FormField( {fieldType = "text", name, validationRules, label = "", prefixIcon, placeholder = "", options = [], style, initialValue } : IFormField ) {
+export function FormField( {
+    fieldType = "text", 
+    name, 
+    validationRules, 
+    label = "", 
+    prefixIcon, 
+    placeholder = "", 
+    options = [], 
+    style, 
+    initialValue, 
+    ...restFormItemProps
+} : IFormField ) {
+
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
       <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue={initialValue} >
         { fieldType === "text" && <Input type={ fieldType || "text" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "textarea" && <TextArea placeholder={ placeholder } />}
         { fieldType === "password" && <Input.Password type={ fieldType || "password" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "email" && <Input type={ fieldType || "email" } prefix={ prefixIcon } placeholder={ placeholder } /> }
-        { fieldType === "checkbox" && <Checkbox.Group options={ options }>{ label }</Checkbox.Group> }
-        { fieldType === "radio" && <Radio.Group options={ options } />}
-        { fieldType === "select" && <Select options={ options } />}
-        { fieldType === "multi-select" && <Select mode='multiple' options={ options } />}
-
-        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch/>}
+        { fieldType === "checkbox" && <Checkbox.Group options={ options as Array<IOptions> }>{ label }</Checkbox.Group> }
+        { fieldType === "radio" && <Radio.Group options={ options as Array<IOptions> } />}
+        { fieldType === "select" && <Select options={ options as Array<IOptions> } />}
+        { fieldType === "multi-select" && <Select mode='multiple' options={ options as Array<IOptions> } />}
 
         { fieldType === 'color' && <CustomColorPicker /> }
 
         { fieldType === "date" && <DatePicker format={UI24Config.formatConfig.date} />}
-        { fieldType === "datetime" && <DatePicker format={UI24Config.formatConfig.datetime} showTime />}
         { fieldType === "time" && <TimePicker format={UI24Config.formatConfig.time} />}
+        { fieldType === "datetime" && <DatePicker format={UI24Config.formatConfig.datetime} showTime />}
 
-        { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> }
+        { fieldType === "file" && 
+            <FileUploader 
+                accept= { restFormItemProps['accept'] ?? undefined}  
+            />
+        }
+        
+        { fieldType === "image" && 
+            <FileUploader 
+                accept= { restFormItemProps['accept'] ?? 'image/*'}  
+                listType={ restFormItemProps['listType'] ?? 'picture-card'} 
+                withImageCrop = {restFormItemProps['withImageCrop'] ?? true} 
+
+                 // config for the default image uploader
+                fileNamePrefix = { restFormItemProps['fileNamePrefix'] ?? undefined}
+                getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
+            />
+        }
+
+        { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch/>}
+
+        {/* { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> } */}
+        { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && 
+            <CustomBlockNoteEditor 
+                
+                theme = { restFormItemProps['theme'] ?? undefined}
+                readOnly = { restFormItemProps['readOnly'] ?? undefined}
+                
+                // config for the default image uploader
+                fileNamePrefix = { restFormItemProps['fileNamePrefix'] ?? undefined}
+                getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
+
+                // custom uploader function
+                uploadFile = { restFormItemProps['uploadFile'] ?? undefined}
+            />
+        }
 
       </Form.Item>
     </div>
@@ -137,6 +182,14 @@ interface IFormFieldResponse {
     validations: Array<IPreDefinedValidations>;
     fieldType?: IFormFieldType;
     options?: Array<IOptions>;
+
+    //for image and file
+    accept?: string;
+    fileNamePrefix?: string;
+    listType?: string;
+    getSignedUploadUrlAPIConfig ?: GetSignedUploadUrlAPIConfig,
+    withImageCrop?: boolean;
+
 }
 
 const convertValidationRules = ( validationRules : Array<IPreDefinedValidations> ) => {
@@ -164,12 +217,20 @@ const convertValidationRules = ( validationRules : Array<IPreDefinedValidations>
 export const convertColumnsConfigForFormField  = ( columnsConfig : Array<IFormFieldResponse> ):  Array<IFormField> => {
   return columnsConfig.map( columnConfig => {
       return {
-          name: columnConfig.column,
-          validationRules: convertValidationRules(columnConfig.validations),
-          label: columnConfig.label,
-          placeholder: columnConfig.placeholder ?? columnConfig.label,
-          fieldType: columnConfig.fieldType ?? "text",
-          options: columnConfig.options ?? [],
+            name: columnConfig.column,
+            validationRules: convertValidationRules(columnConfig.validations),
+            label: columnConfig.label,
+            placeholder: columnConfig.placeholder ?? columnConfig.label,
+            fieldType: columnConfig.fieldType ?? "text",
+            options: columnConfig.options ?? [],
+
+            // for image and files
+            accept: columnConfig.accept,
+            listType: columnConfig.listType,
+            withImageCrop: columnConfig.withImageCrop,
+            fileNamePrefix:  columnConfig.fileNamePrefix,
+            getSignedUploadUrlAPIConfig: columnConfig.getSignedUploadUrlAPIConfig,
+          
       } as IFormField
   })
 }

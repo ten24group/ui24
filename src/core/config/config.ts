@@ -34,11 +34,10 @@ interface IUI24Config {
     formatConfig?: FormatConfig 
 }
 
-
 const defaultFormatConfig: FormatConfig = {
     date: "YYYY-MM-DD",
-    time: "HH:mm A",
-    datetime: "YYYY-MM-DD HH:mm A",
+    time: "hh:mm A",
+    datetime: "YYYY-MM-DD hh:mm A",
     boolean: {
         true: "YES",
         false: "NO"
@@ -93,6 +92,10 @@ const initUI24Config = async ( config : IUI24Config ) => {
 
             const menuConfig = await config.uiConfig.menu();
             UI24Config.uiConfig.menu = menuConfig;
+
+        } if(typeof config.uiConfig.menu === "object"){
+
+            UI24Config.uiConfig.menu = await config.uiConfig.menu
         }
 
     } else {
@@ -111,8 +114,13 @@ const initUI24Config = async ( config : IUI24Config ) => {
             UI24Config.uiConfig.auth = authConfig;
 
         } if(typeof config.uiConfig.auth === "function"){
+
             const authConfig = await config.uiConfig.auth();
             UI24Config.uiConfig.auth = authConfig;
+
+        } if(typeof config.uiConfig.auth === "object"){
+
+            UI24Config.uiConfig.auth = await config.uiConfig.auth
         }
 
     } else {
@@ -131,8 +139,13 @@ const initUI24Config = async ( config : IUI24Config ) => {
             UI24Config.uiConfig.dashboard = authConfig;
 
         } if(typeof config.uiConfig.dashboard === "function"){
+
             const authConfig = await config.uiConfig.dashboard();
             UI24Config.uiConfig.dashboard = authConfig;
+
+        } if(typeof config.uiConfig.dashboard === "object"){
+
+            UI24Config.uiConfig.dashboard = await config.uiConfig.dashboard
         }
 
     } else {
@@ -154,6 +167,10 @@ const initUI24Config = async ( config : IUI24Config ) => {
 
             const pagesConfig = await config.uiConfig.pages();
             UI24Config.uiConfig.pages = pagesConfig;
+
+        } if(typeof config.uiConfig.pages === "object"){
+
+            UI24Config.uiConfig.pages = await config.uiConfig.pages
         }
 
     } else {

@@ -53,6 +53,9 @@
   "dependencies": {
     "@ant-design/pro-components": "^2.6.49",
     "@aws-crypto/sha256-js": "^5.2.0",
+    "@blocknote/core": "^0.14.1",
+    "@blocknote/mantine": "^0.14.1",
+    "@blocknote/react": "^0.14.1",
     "@editorjs/checklist": "^1.6.0",
     "@editorjs/code": "^2.9.0",
     "@editorjs/delimiter": "^1.4.0",
@@ -75,6 +78,7 @@
     "@smithy/protocol-http": "^3.3.0",
     "@smithy/signature-v4": "^2.3.0",
     "antd-css-utilities": "^2.0.5",
+    "antd-img-crop": "^4.22.0",
     "antd-style": "^3.6.1",
     "classnames": "^2.5.1",
     "dayjs": "^1.11.11",

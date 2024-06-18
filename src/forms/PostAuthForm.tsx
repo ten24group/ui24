@@ -1,12 +1,12 @@
-import { Form } from 'antd';
-import React, { Fragment, useState, useEffect } from 'react';
+import { Form, Spin } from 'antd';
+import React, { useState, useEffect } from 'react';
 import { dayjsCustom } from '../core/dayjs';
 
-import {  CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
+import { CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import { ICustomForm } from '../core/forms/formConfig';
-import { UI24Config, callApiMethod } from '../core';
+import { callApiMethod } from '../core';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
@@ -120,28 +120,38 @@ export function PostAuthForm({
     onSubmit && onSubmit(values)
   }
 
-  return <Form
-      name={ formConfig.name || "" }
-      className={ formConfig?.className || "" }
-      layout="vertical"
-      onFinish={customOnSubmit}
-    >
-    
-    { dataLoadedFromView && formPropertiesConfig.map( 
-      (item: IFormField, index: number ) => { 
-        return <React.Fragment key={"fe"+index}>
-            <FormField {...item} />
-          </React.Fragment> 
-      })
-    }
+  return <>  
+    <Spin spinning={!dataLoadedFromView}>
+      { dataLoadedFromView &&
+        <Form
+          name={ formConfig.name || "" }
+          className={ formConfig?.className || "" }
+          layout="vertical"
+          onFinish={customOnSubmit}
+        >
+        
+          { formPropertiesConfig.map( 
+            (item: IFormField, index: number ) => { 
+              return <React.Fragment key={"fe"+index}>
+                  <FormField {...item} />
+                </React.Fragment> 
+            })
+          }
 
-    { children }
+          { children }
 
-    { formButtons.length > 0 && 
-      <div style={{ display: "flex", float: "right"}}>
-        <CreateButtons formButtons={ formButtons } />
-      </div> 
-    }
-    
-  </Form>
+          { formButtons.length > 0 && 
+            <div style={{ display: "flex", float: "right"}}>
+              <CreateButtons formButtons={ formButtons } />
+            </div> 
+          }
+          
+          {/* <pre>
+              <code>{JSON.stringify(formPropertiesConfig, null, 2)}</code>
+          </pre> */}
+        </Form>
+      }
+    </Spin>
+  </>
+
 }
