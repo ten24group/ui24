@@ -21,3 +21,9 @@ body {
     overflow: auto;
     max-width: 99%;
 }
+
+/* Fix image cropper --> forces the image size and ignores the aspect ratio; not recommended  */
+/* .reactEasyCrop_CropArea {
+    width: 90% !important;
+    height: 90% !important;
+} */

@@ -131,7 +131,21 @@ export const FileUploader = (props: ImageUploaderProps ) => {
 
   return (
     <>
-      { withImageCrop && <ImgCrop zoomSlider aspectSlider rotationSlider showGrid quality={1}>{imageUploader}</ImgCrop>}
+      { withImageCrop && <ImgCrop 
+        zoomSlider 
+        aspectSlider 
+        rotationSlider 
+        showReset 
+        showGrid 
+        modalWidth={800}
+        quality={1} 
+        minZoom={.1}
+        maxZoom={5}
+        cropperProps={{
+          objectFit: "contain",
+          zoomSpeed: .1,
+        } as any}
+      >{imageUploader}</ImgCrop>}
       { !withImageCrop && imageUploader}
     </>
   )
