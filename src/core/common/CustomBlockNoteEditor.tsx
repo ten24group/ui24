@@ -82,15 +82,16 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   };
   
   // Renders the editor instance using a React component.
-  return <div className={"ma-1 pa-3 wysiwyg-html-content-wrapper"}>
+  return <div>
       { readOnly && 
-        <div 
+        <div className="ma-1 pa-3 wysiwyg-html-content-wrapper"
           dangerouslySetInnerHTML={{ __html: htmlContent }}
         >
         </div>
       }
       { !readOnly &&
         <BlockNoteView 
+          className="ma-1 pa-3 wysiwyg-wrapper"
           {...restProps} 
           theme={theme}
           editor={editor} 

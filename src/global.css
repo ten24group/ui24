@@ -14,12 +14,19 @@ body {
     border: .5px solid darkgray;
     border-radius: 10px;
     overflow: auto;
-    min-height: 30vh;
+    height: 50vh;
 }
 
 .wysiwyg-html-content-wrapper * {
     overflow: auto;
     max-width: 99%;
+}
+
+.wysiwyg-wrapper{
+    width: 100%;
+    border: .5px solid darkgray;
+    border-radius: 10px;
+    min-height: 30vh;
 }
 
 /* Fix image cropper --> forces the image size and ignores the aspect ratio; not recommended  */
