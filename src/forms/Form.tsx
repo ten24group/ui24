@@ -1,4 +1,4 @@
-import { Form as AntForm } from 'antd';
+import { Form as AntForm, Spin } from 'antd';
 import React, { useState, useEffect } from 'react';
 import { dayjsCustom } from '../core/dayjs';
 
@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import { IForm } from '../core/forms/formConfig';
 import { useApi } from '../core/context';
+//import { CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
@@ -120,6 +121,7 @@ export function Form({
     onSubmit && onSubmit(values)
   }
 
+  
   const [form] = AntForm.useForm();
   
   useEffect( () => {
@@ -133,7 +135,8 @@ export function Form({
     form.setFieldsValue( initialValues )
   }, [dataLoadedFromView])
 
-  return <AntForm
+  return <Spin spinning={!dataLoadedFromView}>
+    <AntForm
       form={ form }
       name={ formConfig.name || "" }
       className={ formConfig?.className || "" }
@@ -163,4 +166,5 @@ export function Form({
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } loader={ btnLoader } /></div> }
     
   </AntForm>
+  </Spin>
 }

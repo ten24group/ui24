@@ -8,3 +8,22 @@ body {
     border: .5px solid darkgray;
     border-radius: 10px;
 }
+
+.wysiwyg-html-content-wrapper{
+    width: 100%;
+    border: .5px solid darkgray;
+    border-radius: 10px;
+    overflow: auto;
+    height: 50vh;
+}
+
+.wysiwyg-html-content-wrapper * {
+    overflow: auto;
+    max-width: 99%;
+}
+
+/* Fix image cropper --> forces the image size and ignores the aspect ratio; not recommended  */
+/* .reactEasyCrop_CropArea {
+    width: 90% !important;
+    height: 90% !important;
+} */

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Descriptions } from 'antd';
+import { Descriptions, Spin } from 'antd';
 import type { DescriptionsProps } from 'antd';
 import { useApi, IApiConfig } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
-import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
+//import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
+import { CustomBlockNoteEditor } from '../core/common';
 
 interface IPropertiesConfig {
     label: string;
@@ -60,24 +61,40 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
             fetchRecordInfo();
     }, [] )
 
-    return dataLoaded && <Descriptions title={ pageTitle } layout='vertical' items={
-        recordInfo
-        .filter( item => !item.hidden )
-        .map( ( item: IPropertiesConfig, index : number ) => {
+    return <>  
+    <Spin spinning={!dataLoaded}>
+        <Descriptions title={ pageTitle } layout='vertical' items={
+            recordInfo
+            .filter( item => !item.hidden )
+            .map( ( item: IPropertiesConfig, index : number ) => {
 
-        if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
+            if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
+
+                return {
+                    key: index,
+                    label: item.label,
+                    children:  <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
+                }
+
+            } 
+            else if ( item.fieldType.toLocaleLowerCase() === 'image' ){
+
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
+                }
+            } 
+
             return {
                 key: index,
                 label: item.label,
-                children:  <CustomEditorJs value={item.initialValue as any} readOnly tools={EDITOR_JS_TOOLS} minHeight={50} />
+                children: item.initialValue
             }
-        }
-
-        return {
-            key: index,
-            label: item.label,
-            children: item.initialValue
-        }
-    })} /> 
+            
+        })} /> 
+    </Spin>
+    </>
+    
 }
 export { Details }
