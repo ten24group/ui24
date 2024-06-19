@@ -61,8 +61,8 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
 
     const defaultFormatConfig: IFormatConfig = {
       date: "YYYY-MM-DD",
-      time: "HH:mm A",
-      datetime: "YYYY-MM-DD HH:mm A",
+      time: "hh:mm A",
+      datetime: "YYYY-MM-DD hh:mm A",
       boolean: {
         true: "YES",
         false: "NO"
