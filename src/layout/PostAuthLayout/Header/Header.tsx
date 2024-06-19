@@ -57,7 +57,7 @@ export const Header = () => {
     return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
-          { UI24Config?.appLogo !== "" && <div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div> }
+          { UI24Config?.appLogo !== "" && <a href="/"><div className="logo"><img src={UI24Config.appLogo} alt="App Logo" title="Logo" /></div></a> }
         </div>
         <div className="appMenu">
             <AntMenu
