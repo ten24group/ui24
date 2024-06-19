@@ -1,41 +1,12 @@
 import { CaretRightOutlined } from '@ant-design/icons';
-import type { CSSProperties } from 'react';
 import React from 'react';
-import type { CollapseProps } from 'antd';
 import { Collapse, theme } from 'antd';
+import { IRenderFromPageType } from '../PostAuthPage';
+import { RenderFromPageType } from '../PostAuthPage';
 
-const text = `
-  A dog is a type of domesticated animal.
-  Known for its loyalty and faithfulness,
-  it can be found as a welcome guest in many households across the world.
-`;
+type IAccordion = Record<string, IRenderFromPageType>
 
-const getItems: (panelStyle: CSSProperties) => CollapseProps['items'] = (panelStyle) => [
-  {
-    key: '1',
-    label: 'This is panel header 1',
-    children: <p>{text}</p>,
-    style: { ...panelStyle, background: "white"},
-  },
-  {
-    key: '2',
-    label: 'This is panel header 2',
-    children: <p>{text}</p>,
-    style: panelStyle,
-  },
-  {
-    key: '3',
-    label: 'This is panel header 3',
-    children: <p>{text}</p>,
-    style: {...panelStyle, size: "large"},
-  },
-];
-
-export const AccordionParent = ({ children } : { children: React.ReactNode }) => {
-  return <Accordion items={ [ { key: "1", label: "Basic", children : children, style: { background: "white"} } ] } />
-}
-
-export const Accordion = ({ items } : { items: any }) => {
+export const Accordion = ({ accordionsPageConfig } : { accordionsPageConfig: IAccordion }) => {
   const { token } = theme.useToken();
 
   const panelStyle: React.CSSProperties = {
@@ -45,10 +16,30 @@ export const Accordion = ({ items } : { items: any }) => {
     border: 'none',
   };
 
+  console.log(accordionsPageConfig, " accordionsPageConfig ")
+
+  //loop over accordionsPageConfig create a Collapse for every record and render the respective component using RenderFromPageType
+  let itemCount = -1;
+  const items = Object.keys(accordionsPageConfig).map((key: string) => {
+    const accordion = accordionsPageConfig[key];
+    const { pageTitle = "" } = accordion;
+    itemCount += 1;
+    return {
+      itemCount,
+      label: pageTitle || key,
+      children: <RenderFromPageType {...accordion} />,
+      style: panelStyle,
+    };
+  });
+
+  const onChange = (key: string | string[]) => {
+    console.log(key, "accordion click");
+  }
+
   return (
     <Collapse
       bordered={false}
-      defaultActiveKey={['1']}
+      defaultActiveKey={['0']}
       size = "large"
       expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
       style={{ background: "transparent" }}
