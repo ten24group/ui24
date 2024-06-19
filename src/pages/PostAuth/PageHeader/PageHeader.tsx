@@ -15,10 +15,9 @@ type IPageActions = Array<IPageAction> | React.ReactNode;
 
 export interface IPageHeader {
     breadcrumbs?: Array<IBreadcrumbs>;
-    pageTitle: string;
+    pageTitle?: string;
     pageHeaderActions?: IPageActions;
 }
-
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : IPageHeader ) => {
 
