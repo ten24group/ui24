@@ -5,22 +5,24 @@ import "./PostAuthPage.css";
 import { Card } from 'antd';
 import { Form } from '../../forms/Form';
 import { Table } from '../../table/Table';
+import { Accordion } from './Accordion/Accordion';
 import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
 
 export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
-interface IRenderFromPageType {
+export interface IRenderFromPageType extends IPageHeader {
     pageType?: IPageType;
     cardStyle?: React.CSSProperties;
     formPageConfig?: IForm;
     listPageConfig?: ITableConfig;
     detailsPageConfig?: IDetailsConfig;
+    accordionsPageConfig?: Record<string, IRenderFromPageType>;
     //accordion?: Record<string, <ICustomForm | ITableConfig | IDetailsConfig>>
 }
 
-export interface IPostAuthPage extends IPageHeader, IRenderFromPageType {
+export interface IPostAuthPage extends IRenderFromPageType {
     CustomPageHeader?: React.ReactNode;
     children?: React.ReactNode;
 }
@@ -37,13 +39,13 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAut
         </div>
 }
 
-export const RenderFromPageType = ( {pageType, cardStyle, formPageConfig, listPageConfig, detailsPageConfig}: IRenderFromPageType ) => {
+export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig}: IRenderFromPageType ) => {
     
     switch( pageType ) {
         case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} key={`list-${uuidv4()}`} /> </Card>;
         case "form": return <Card style={ cardStyle } > <Form {...formPageConfig} key={`form-${uuidv4()}`} /> </Card>;
         case "details": return <Card style={ cardStyle } > <Details {...detailsPageConfig}  key={`details-${uuidv4()}`}/> </Card>;
-        case "accordion": return <div> Accordion Page </div>;
+        case "accordion": return <Accordion accordionsPageConfig={ accordionsPageConfig} />;
         case "dashboard": return <Card style={ cardStyle } >  </Card>;
         default: return <>Invalid Page Type</>;
     }
