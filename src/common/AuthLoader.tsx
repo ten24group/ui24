@@ -43,8 +43,9 @@ export const AuthLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     return (
         <AuthLoaderContext.Provider value={undefined}>
-          { loader && <div style={{ paddingTop: '25%', display: 'flex',justifyContent: 'center', alignContent: 'center'}}><Spin/></div> }
-          {!loader && children}
+            <Spin spinning={loader} style={{ paddingTop: '25%', display: 'flex',justifyContent: 'center', alignContent: 'center'}}>
+                {children}
+            </Spin>
         </AuthLoaderContext.Provider>
       );
 }

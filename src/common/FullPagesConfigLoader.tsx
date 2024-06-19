@@ -61,8 +61,9 @@ export const FullPagesConfigLoader: React.FC<{ children: ReactNode }> = ({ child
 
     return (
         <FullPagesConfigLoaderContext.Provider value={undefined}>
-          { loader && <div style={{ paddingTop: '25%', display: 'flex',justifyContent: 'center', alignContent: 'center'}}><Spin/></div> }
-          {!loader && children}
+            <Spin spinning={loader} style={{ paddingTop: '25%', display: 'flex',justifyContent: 'center', alignContent: 'center'}}>
+                {children}
+            </Spin>
         </FullPagesConfigLoaderContext.Provider>
       );
 }
