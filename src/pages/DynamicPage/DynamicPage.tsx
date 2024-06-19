@@ -1,7 +1,6 @@
 import React from 'react';
 import { PostAuthPage } from '../PostAuth/PostAuthPage';
 import { useParams } from "react-router-dom"
-import { UI24Config } from '../../core';
 import { NotFound } from '../404/NotFound';
 import { useUi24Config } from '../../core/context';
 
