@@ -1,6 +1,5 @@
-import { callApiMethod } from "../../api/apiMethods";
 import axios, { AxiosProgressEvent, AxiosResponse } from "axios";
-
+import { useApi } from "../../context";
 export type GetSignedUploadUrlAPIConfig  = {
   apiUrl: string;
   apiMethod: 'GET' | 'POST';
@@ -33,6 +32,8 @@ export type S3FileUploaderOptions = {
 
 export const useS3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig}: UseS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions ) => {
   
+  const { callApiMethod } = useApi()
+
   const signedUrlPayload = { 
     fileName: file.name, 
     contentType: file.type,
