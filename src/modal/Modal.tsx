@@ -6,7 +6,6 @@ import { Icon } from '../core/common';
 import { Link } from '../core/common';
 import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { useApi, IApiConfig } from '../core/context';
-import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../core/context/AppContext';
 
 interface IConfirmModal {
@@ -20,11 +19,13 @@ type IModalPageConfig = IConfirmModal | IForm | ITableConfig
 export interface IModalConfig {
     modalType: IModalType;
     modalPageConfig?: IModalPageConfig;
-    children?: React.ReactNode;
+    children?: React.ReactNode | React.ReactNode[];
     button?: React.ReactNode;
     apiConfig?: IApiConfig;
     primaryIndex: string;
     onSuccessCallback?: () => void;
+    onConfirmCallback?: () => void;
+    onCancelCallback?: () => void;
 }
 
 export const Modal = ({
@@ -34,13 +35,15 @@ export const Modal = ({
     apiConfig,
     primaryIndex = "",
     onSuccessCallback,
-    button
+    button,
+    onCancelCallback,
+    onConfirmCallback
 } : IModalConfig ) => {
-    const [open, setOpen] = React.useState(false)
-    const { notifyError, notifySuccess } = useAppContext()
+    
+    const { notifyError } = useAppContext()
     const { callApiMethod } = useApi();
 
-    const deleteApiAction = async () => {
+    const confirmApiAction = async () => {
       const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
       const response: any = await callApiMethod({
         ...apiConfig,
@@ -48,42 +51,33 @@ export const Modal = ({
       });
       
       if( response.status === 200 ) {
-        notifySuccess("Deleted Successfully")
-
         onSuccessCallback && onSuccessCallback()
-
       } else if( response.status === 400 || response.status === 500 ) {
         notifyError(response?.error)
       }
-      
-      setOpen(false)
+
+      onConfirmCallback && onConfirmCallback()
     }
 
     return <>
-    <Link onClick={(url) => { setOpen(true)}}>
-        <Icon iconName={"delete"} />
-    </Link>
-    
-    { modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig && 
-        <AntModal
+    { modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig ? //confirm Moda
+        (<AntModal
             title={ modalPageConfig?.title }
-            open={open}
-            onOk={ deleteApiAction }
-            onCancel={()=> setOpen(false)}
+            open={true}
+            onOk={ confirmApiAction }
+            onCancel={ onCancelCallback }
             okText="Confirm"
             cancelText="Cancel"
           >
             {modalPageConfig?.content}
             {children}
             
-          </AntModal>
-      }
-      
-      { open && ["list", "form"].includes(modalType) && modalPageConfig &&
-          <AntModal
+          </AntModal>) :
+        ["list", "form"].includes(modalType) && modalPageConfig ? //Dynamic Modal based on pageType
+        <AntModal
             footer={ null }
-            open={open}
-            onCancel={()=> setOpen(false)}
+            open={true}
+            onCancel={ onCancelCallback }
           >
             <RenderFromPageType 
               cardStyle={{ marginTop: "5%"}} 
@@ -92,6 +86,35 @@ export const Modal = ({
               formPageConfig={ modalType === "form" ? modalPageConfig as IForm: undefined } 
             />
           </AntModal>
+          : null //fallback to null
       }
       </>
+}
+
+type IOpenInModal = IModalConfig
+
+export const OpenInModal = ({...props }: IOpenInModal ) => {
+  
+  const [open, setOpen] = React.useState(false)
+
+  const onCancelCallback = () => {
+    setOpen(false)
+    if( props.onCancelCallback ) {
+      props.onCancelCallback()
+    }
+  }
+
+  const onConfirmCallback = () => {
+    setOpen(false)
+    if( props.onConfirmCallback ) {
+      props.onConfirmCallback()
+    }
+  }
+  
+  return <>
+    <Link onClick={(url) => { setOpen(true); }} className="OpenInModal">
+        { props.children }
+    </Link>
+    { open && <Modal {...props} onConfirmCallback={ onConfirmCallback } onCancelCallback={onCancelCallback} children={ Array.isArray(props.children) ? props.children[1]: null } /> }
+    </>
 }

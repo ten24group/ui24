@@ -1,9 +1,10 @@
 import React, { Fragment } from "react";
 import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from "../type";
 import type { TableProps } from "antd";
-import { Modal } from "../../modal/Modal";
+import { OpenInModal } from "../../modal/Modal";
 import { Icon, Link } from "../../core/common";
 import { Space } from 'antd';
+import { useAppContext } from "../../core/context";
 
 export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void) => {
 
@@ -58,21 +59,7 @@ export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, ge
             <div style={{ display: "flex", justifyContent: "end" }}>
               <Space size="middle" align="end">
                 {recordActions?.map((item: IPageAction, index) => {
-                  return (
-                    <Fragment key={index}>
-                      {item.openInModel ? (
-                        <Modal
-                          onSuccessCallback={getRecordsCallback}
-                          primaryIndex={primaryIndexValue}
-                          {...item.modelConfig}
-                        />
-                      ) : (
-                        <Link url={item.url + "/" + primaryIndexValue}>
-                          <Icon iconName={item.icon} />
-                        </Link>
-                      )}{" "}
-                    </Fragment>
-                  );
+                  return <ListPageAction getRecordsCallback={ getRecordsCallback } key={index} item={item} primaryIndexValue={ primaryIndexValue }/>;
                 })}
               </Space>
             </div>
@@ -83,3 +70,25 @@ export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, ge
   
     return columns
   }
+
+const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback } : { item: IPageAction, primaryIndexValue: string, getRecordsCallback: () => void }) => {
+  
+  const { notifySuccess } = useAppContext()
+
+  return <Fragment >
+  {item.openInModal ? (
+    <OpenInModal
+      onSuccessCallback={() => {
+        notifySuccess("Deleted Successfully")
+        getRecordsCallback()
+      }}
+      primaryIndex={primaryIndexValue}
+      {...item.modalConfig}
+    ><Icon iconName={"delete"} /></OpenInModal>
+  ) : (
+    <Link url={item.url + "/" + primaryIndexValue}>
+      <Icon iconName={item.icon} />
+    </Link>
+  )}{" "}
+</Fragment>
+}
