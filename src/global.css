@@ -14,7 +14,7 @@ body {
     border: .5px solid darkgray;
     border-radius: 10px;
     overflow: auto;
-    height: 50vh;
+    min-height: 30vh;
 }
 
 .wysiwyg-html-content-wrapper * {
