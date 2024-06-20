@@ -21,6 +21,10 @@ const LoginForm = () => {
 
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/login");
+  const {propertiesConfig:signupPropertiesConfig} = usePageConfig("/signup");
+  const {propertiesConfig:verifyPropertiesConfig} = usePageConfig("/verify");
+  const {propertiesConfig:forgotPasswordPropertiesConfig} = usePageConfig("/forgot-password");
+
 
   const onFinish = async (payload: any) => {
     const response: any = await callApiMethod({...apiConfig, payload });
@@ -49,29 +53,34 @@ const LoginForm = () => {
     propertiesConfig={ propertiesConfig }
     formButtons={["login"]}
   >
+      
+    { forgotPasswordPropertiesConfig?.length &&
       <div className="PreAuthLoginActions">
           <Checkbox onChange={onChange}>Remember Me</Checkbox>
           <Link title="Forgot Password ?" url='/forgot-password' />
       </div>
+    }
 
-      <div className="PreAuthLoginActions">
+    <div className="PreAuthLoginActions">
+      {signupPropertiesConfig?.length &&
         <Button 
-              type = "default"
-              size = "middle"
-              style = {{ width: "48%", margin:"1%" }}
-              onClick = {handleRegister}
-          > 
-            Create Account 
-          </Button>
-
-          <Button 
-              type = "dashed"
-              size = "middle"
-              style = {{ width: "48%", margin:"1%" }}
-              onClick = {handleVerification}
-          > 
-            Verify Account 
-          </Button>
-      </div>
+            type = "default"
+            size = "middle"
+            style = {{ width: "48%", margin:"1%" }}
+            onClick = {handleRegister}
+        > 
+          Create Account 
+        </Button>
+      }
+      { verifyPropertiesConfig?.length &&  <Button 
+            type = "dashed"
+            size = "middle"
+            style = {{ width: "48%", margin:"1%" }}
+            onClick = {handleVerification}
+        > 
+          Verify Account 
+        </Button>
+      }
+    </div>
   </PreAuthForm>
 }

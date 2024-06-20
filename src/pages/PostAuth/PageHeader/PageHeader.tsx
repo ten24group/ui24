@@ -38,7 +38,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : 
     const PageActions = Array.isArray(pageHeaderActions) ? <React.Fragment>{ pageHeaderActions.map( (item, index) => {
         return <Button type="primary" key={"actionButton" + index } onClick={ (e) => {
             navigate(item.url)
-        }}> <Link title={ item.label } url={ item.url } /></Button>
+        }}><Link title={ item.label } url={ item.url } /></Button>
     }) }</React.Fragment>: pageHeaderActions;
 
     return <div className="PageHeader">
