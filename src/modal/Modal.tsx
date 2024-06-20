@@ -23,9 +23,10 @@ export interface IModalConfig {
     button?: React.ReactNode;
     apiConfig?: IApiConfig;
     primaryIndex: string;
-    onSuccessCallback?: () => void;
+    onSuccessCallback?: ( response?:any ) => void;
     onConfirmCallback?: () => void;
     onCancelCallback?: () => void;
+    onOpenCallback?: () => void;
 }
 
 export const Modal = ({
@@ -51,7 +52,8 @@ export const Modal = ({
       });
       
       if( response.status === 200 ) {
-        onSuccessCallback && onSuccessCallback()
+        console.log("Modal Success")
+        onSuccessCallback && onSuccessCallback(response)
       } else if( response.status === 400 || response.status === 500 ) {
         notifyError(response?.error)
       }
@@ -83,7 +85,7 @@ export const Modal = ({
               cardStyle={{ marginTop: "5%"}} 
               pageType={ modalType as IPageType } 
               listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
-              formPageConfig={ modalType === "form" ? modalPageConfig as IForm: undefined } 
+              formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback } as IForm: undefined } 
             />
           </AntModal>
           : null //fallback to null
@@ -95,6 +97,8 @@ type IOpenInModal = IModalConfig
 
 export const OpenInModal = ({...props }: IOpenInModal ) => {
   
+  //console.log("OpenInModal", props.onSuccessCallback("something") )
+
   const [open, setOpen] = React.useState(false)
 
   const onCancelCallback = () => {
@@ -110,11 +114,24 @@ export const OpenInModal = ({...props }: IOpenInModal ) => {
       props.onConfirmCallback()
     }
   }
+
+  const onSuccessCallback = (response) => {
+    setOpen(false)
+    if( props.onSuccessCallback ) {
+      console.log("OpenInMoal onSuccessCallback ", response)
+      props.onSuccessCallback(response)
+    }
+  }
   
   return <>
-    <Link onClick={(url) => { setOpen(true); }} className="OpenInModal">
+    <Link onClick={(url) => { 
+      setOpen(true);
+      if( props.onOpenCallback ) {
+        props.onOpenCallback()
+      }
+      }} className="OpenInModal">
         { props.children }
     </Link>
-    { open && <Modal {...props} onConfirmCallback={ onConfirmCallback } onCancelCallback={onCancelCallback} children={ Array.isArray(props.children) ? props.children[1]: null } /> }
+    { open && <Modal {...props} onSuccessCallback={ onSuccessCallback } onConfirmCallback={ onConfirmCallback } onCancelCallback={onCancelCallback} children={ Array.isArray(props.children) ? props.children[1]: null } /> }
     </>
 }

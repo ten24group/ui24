@@ -78,7 +78,7 @@ const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback } : { item
   return <Fragment >
   {item.openInModal ? (
     <OpenInModal
-      onSuccessCallback={() => {
+      onSuccessCallback={(response) => {
         notifySuccess("Deleted Successfully")
         getRecordsCallback()
       }}
