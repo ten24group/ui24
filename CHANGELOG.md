@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.5](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.4...v0.1.1-alpha.5) (2024-06-20)
+
+
+### Bug Fixes
+
+* block-editor default height ([d9349cb](https://github.com/ten24group/ui24/commit/d9349cba3cc96e80ec939c09a80b306edb6b29b0))
+* wysiwyg wrapper css ([37775fd](https://github.com/ten24group/ui24/commit/37775fdb433071206c55ee2eea365264f42e775e))
+
 ### [0.1.1-alpha.4](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.3...v0.1.1-alpha.4) (2024-06-19)
 
 
