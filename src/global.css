@@ -22,6 +22,13 @@ body {
     max-width: 99%;
 }
 
+.wysiwyg-wrapper{
+    width: 100%;
+    border: .5px solid darkgray;
+    border-radius: 10px;
+    min-height: 30vh;
+}
+
 /* Fix image cropper --> forces the image size and ignores the aspect ratio; not recommended  */
 /* .reactEasyCrop_CropArea {
     width: 90% !important;
