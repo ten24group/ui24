@@ -28,24 +28,29 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     //setup intercetors
     axiosInstance.interceptors.request.use(
-        (config) => {
-            requestHeaders(config);
+        async (config) => {
+            config.headers['Content-Type'] = 'application/json';
+            await requestHeaders(config);
             return config;
         },
-        (error) => Promise.reject(error)
+        (error) => {
+            return Promise.reject(error)
+        }
     );
 
     axiosInstance.interceptors.response.use(
-        (response) => {
-          processToken(response)
-          // TODO: handle 401 and redirect to the login page
-          if( response.status === 401 ) {
-            logout()
-          }
+        async (response) => {
+            await processToken(response)
+            // TODO: handle 401 and redirect to the login page
+            if( response.status === 401 ) {
+                logout()
+            }
   
           return response;
         },
-        (error) => Promise.reject(error)
+        (error) => {
+            return Promise.reject(error)
+        }
     );
 
     //** API Methods */
