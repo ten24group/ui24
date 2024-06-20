@@ -16,6 +16,7 @@ export function Form({
     formConfig = { name: "customForm" },
     propertiesConfig = [],
     onSubmit,
+    onSubmitSuccessCallback,
     formButtons = [],
     children,
     apiConfig,
@@ -109,6 +110,7 @@ export function Form({
           //redirect to the page
           navigate( submitSuccessRedirect)
         }
+        onSubmitSuccessCallback && onSubmitSuccessCallback(response)
       } else if( response.status >= 400 || response.status <= 500 ) {
         const errorMessage =  response.message || response.error.message || response.error;
         notifyError(response?.error)
@@ -149,13 +151,8 @@ export function Form({
     { formPropertiesConfig.map( 
       (item: IFormField, index: number ) => { 
         return <React.Fragment key={"fe"+index}>
-            <FormField {...item} setFormPropertiesConfig={ ( newPropertyConfig: IFormField) => {
-              setFormPropertiesConfig(formPropertiesConfig.map( (field, index) => {
-                  if( field.name === newPropertyConfig.name ) {
-                    return {...field, ...newPropertyConfig}
-                  }
-                  return field
-              }))
+            <FormField {...item} setFormValue={ ( newValue: { name: string, value: string }) => {
+              form.setFieldsValue( { [newValue.name]: newValue.value } )
               }} />
           </React.Fragment> 
       })

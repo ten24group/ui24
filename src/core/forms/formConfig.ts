@@ -14,6 +14,7 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     formConfig?: IFormConfig;
     propertiesConfig: Array<IFormFieldResponse>;
     onSubmit: (values: any) => void;
+    onSubmitSuccessCallback: (response?: any) => void;
     children?: React.ReactNode;
     style?: React.CSSProperties;
     apiConfig?: IApiConfig;
