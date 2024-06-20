@@ -13,7 +13,6 @@ export function Link ({title, url, children, onClick, ...props }: ILinkProps ) {
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     e.preventDefault(); // Prevent the default anchor behavior
-    //console.log("triggered")
     if( onClick ) {
       onClick(url)
     }
@@ -22,8 +21,6 @@ export function Link ({title, url, children, onClick, ...props }: ILinkProps ) {
       navigate(url);
     }
   };
-
-  //console.log("Link", url, onClick)
 
   return <a onClick={ handleClick }  {...props} >
       { title !== "" ? title : "" } { children !== undefined ? children : "" }

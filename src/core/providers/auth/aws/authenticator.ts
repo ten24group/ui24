@@ -171,7 +171,5 @@ class Authenticator implements IAuthProvider {
                 config.headers[key] = value;
             });
         }
-
-        // console.log("config with auth ", {config});
     };
 }

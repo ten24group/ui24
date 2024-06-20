@@ -52,7 +52,6 @@ export const Modal = ({
       });
       
       if( response.status === 200 ) {
-        console.log("Modal Success")
         onSuccessCallback && onSuccessCallback(response)
       } else if( response.status === 400 || response.status === 500 ) {
         notifyError(response?.error)
@@ -96,8 +95,6 @@ export const Modal = ({
 type IOpenInModal = IModalConfig
 
 export const OpenInModal = ({...props }: IOpenInModal ) => {
-  
-  //console.log("OpenInModal", props.onSuccessCallback("something") )
 
   const [open, setOpen] = React.useState(false)
 
@@ -118,7 +115,6 @@ export const OpenInModal = ({...props }: IOpenInModal ) => {
   const onSuccessCallback = (response) => {
     setOpen(false)
     if( props.onSuccessCallback ) {
-      console.log("OpenInMoal onSuccessCallback ", response)
       props.onSuccessCallback(response)
     }
   }

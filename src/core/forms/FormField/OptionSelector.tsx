@@ -120,7 +120,6 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
               <Divider style={{ margin: '8px 0' }} />
               <Space style={{ padding: '0 8px 4px' }}>
                 <OpenInModal onOpenCallback={ () => setOpen(false) } onSuccessCallback={ (response) => {
-                    console.log("New Option Added", response)
                     fetchOptions()
                 }} {...addNewOption}> 
                     <PlusOutlined/> Add Record 

@@ -16,8 +16,6 @@ export const Accordion = ({ accordionsPageConfig } : { accordionsPageConfig: IAc
     border: 'none',
   };
 
-  console.log(accordionsPageConfig, " accordionsPageConfig ")
-
   //loop over accordionsPageConfig create a Collapse for every record and render the respective component using RenderFromPageType
   let itemCount = -1;
   const items = Object.keys(accordionsPageConfig).map((key: string) => {
@@ -31,10 +29,6 @@ export const Accordion = ({ accordionsPageConfig } : { accordionsPageConfig: IAc
       style: panelStyle,
     };
   });
-
-  const onChange = (key: string | string[]) => {
-    console.log(key, "accordion click");
-  }
 
   return (
     <Collapse
