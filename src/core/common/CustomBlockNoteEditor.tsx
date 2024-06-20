@@ -34,7 +34,7 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   ...restProps
 }) => {
 
-  value = value || [{ type: 'paragraph', id: '__default_block___'} as any];
+  value = (value && value.length) ? value : [{ type: 'paragraph', id: '__default_block___'} as any];
   
   const [blocks, setBlocks] = useState<Block[]>(value);
   const [htmlContent, setHtmlContent] = useState<string>('');

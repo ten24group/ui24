@@ -1,5 +1,7 @@
 import React, { Component, ReactNode } from 'react';
-import { Checkbox, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
+import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Select, Switch, TimePicker } from 'antd';
+import { CloseOutlined } from '@ant-design/icons';
+
 import { callApiMethod } from '../../api/apiMethods';
 import { UI24Config } from '../../config/config';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
@@ -91,6 +93,7 @@ interface IOptions {
 }
 
 interface IFormField {
+    namePrefixPath?: any[];
     name: string; //unique identifier, should be without spaces
     validationRules?: Array<any>; //rules matching ant design convention
     placeholder: string; //placeholder text
@@ -100,25 +103,40 @@ interface IFormField {
     label: string;
     style?: React.CSSProperties;
     initialValue?: any;
+
+    // for list and map fields
+    type?: string;
+    properties?: Array<IFormField>
+    items?: {
+        type: string,
+        properties?: Array<IFormField>
+    }
 }
 
 const { TextArea } = Input;
 
-export function FormField( {
-    fieldType = "text", 
-    name, 
-    validationRules, 
-    label = "", 
-    prefixIcon, 
-    placeholder = "", 
-    options = [], 
-    style, 
-    initialValue, 
-    ...restFormItemProps
-} : IFormField ) {
+const makeFormItem = ({
+        fieldType = "text", 
+        namePrefixPath,
+        name, 
+        validationRules, 
+        label = "", 
+        prefixIcon, 
+        placeholder = "", 
+        options = [], 
+        style, 
+        initialValue, 
+        ...restFormItemProps
+    }: IFormField) => {
+    return <>
+        <Form.Item 
+            name={ namePrefixPath?.length ? [...namePrefixPath, name] : name } 
+            rules={ validationRules } 
+            label={ label } 
+            style={ style } 
+            initialValue={initialValue} 
+        >
 
-    return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
-      <Form.Item name={ name } rules={ validationRules } label={ label } style={ style } initialValue={initialValue} >
         { fieldType === "text" && <Input type={ fieldType || "text" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "textarea" && <TextArea placeholder={ placeholder } />}
         { fieldType === "password" && <Input.Password type={ fieldType || "password" } prefix={ prefixIcon } placeholder={ placeholder } /> }
@@ -146,7 +164,7 @@ export function FormField( {
                 listType={ restFormItemProps['listType'] ?? 'picture-card'} 
                 withImageCrop = {restFormItemProps['withImageCrop'] ?? true} 
 
-                 // config for the default image uploader
+                // config for the default image uploader
                 fileNamePrefix = { restFormItemProps['fileNamePrefix'] ?? undefined}
                 getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
             />
@@ -169,8 +187,62 @@ export function FormField( {
                 uploadFile = { restFormItemProps['uploadFile'] ?? undefined}
             />
         }
+    </Form.Item>
+    </>
+}
 
-      </Form.Item>
+const makeFormListItem = ({
+    name, 
+    namePrefixPath,
+    validationRules, 
+    label = "", 
+    initialValue, 
+    items,
+}: IFormField) => {
+    return <>
+        <Form.List 
+        name={ namePrefixPath?.length ? [...namePrefixPath, name] : name } 
+            rules={ validationRules } 
+            initialValue={initialValue} 
+        >
+        {(fields, { add, remove }) => (
+            <div style={{ display: 'flex', rowGap: 16, flexDirection: 'column' }}>
+                {fields.map((field) => (
+                    <Card
+                        size="small"
+                        title={`${label} ${field.name + 1}`}
+                        key={field.key}
+                        extra={ <CloseOutlined onClick={() => { remove(field.name); }} /> }
+                    >
+                        {
+                            items.properties.map( (property) => {
+                                return makeFormItem({
+                                    ...property,
+                                    namePrefixPath: namePrefixPath?.length ? [...namePrefixPath, field.name] : [field.name]
+                                })
+                            })
+                        }
+                    </Card>
+                ))}
+
+                <Button type="dashed" onClick={() => add()} block> + Add {label} </Button>
+            </div>
+        )}
+        </Form.List>
+    </>
+}
+export function FormField( formField : IFormField ) {
+
+    const {
+        fieldType = "text",
+        type,
+    } = formField;
+
+    return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
+        { ( type === 'list' && !['wysiwyg', 'rich-text'].includes(fieldType.toLocaleLowerCase()) ) 
+            ? makeFormListItem(formField) 
+            : makeFormItem(formField) 
+        }
     </div>
 }
 
@@ -190,6 +262,13 @@ interface IFormFieldResponse {
     getSignedUploadUrlAPIConfig ?: GetSignedUploadUrlAPIConfig,
     withImageCrop?: boolean;
 
+    // list and map fields
+    type?: string;
+    properties?: Array<IFormFieldResponse>
+    items?: {
+        type: string,
+        properties?: Array<IFormFieldResponse>
+    }
 }
 
 const convertValidationRules = ( validationRules : Array<IPreDefinedValidations> ) => {
@@ -230,7 +309,14 @@ export const convertColumnsConfigForFormField  = ( columnsConfig : Array<IFormFi
             withImageCrop: columnConfig.withImageCrop,
             fileNamePrefix:  columnConfig.fileNamePrefix,
             getSignedUploadUrlAPIConfig: columnConfig.getSignedUploadUrlAPIConfig,
-          
+
+            // for list and map fields
+            type: columnConfig.type,
+            properties: columnConfig.properties ? convertColumnsConfigForFormField(columnConfig.properties) : [],
+            items: {
+                ...(columnConfig.items || {}),
+                properties: columnConfig.items?.properties ? convertColumnsConfigForFormField(columnConfig.items.properties) : []
+            }
       } as IFormField
   })
 }

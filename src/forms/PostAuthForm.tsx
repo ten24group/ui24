@@ -54,28 +54,42 @@ export function PostAuthForm({
         // if the page has api-config and record identifier etch the record and update the form-fields with initial values.
         const recordData =  (detailApiConfig && dynamicID !== "") ? await fetchRecordInfo() : {};
 
-        const updatedFieldsWithInitialValues = updatedFields.map( ( item: IFormField ) => {
-            const { name, fieldType } = item;
+        const itemValueFormatter = ( item: IFormField, itemValue: any ) => {
+            const { name, fieldType, type } = item;
             
-            let initialValue = recordData[name];
-            
-            if(fieldType === "datetime") {
-                initialValue = dayjsCustom(initialValue);
-            } else if(fieldType === "date") {
-                initialValue = dayjsCustom(initialValue);
-            } else if(fieldType === "time") {
-                initialValue = dayjsCustom(initialValue);
-            } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
-                initialValue = initialValue ?? true;
-            } else if (fieldType === "color"){
-                initialValue = initialValue ?? "#FFA500";
+            if(type === "map"){
+              itemValue = item.properties.reduce((acc, prop: IFormField) => { 
+                acc[prop.name] = itemValueFormatter(prop, itemValue[prop.name]);
+                return acc;
+              }, {});
             }
 
-            return { ...item, initialValue: initialValue || item.initialValue }
-        });
-        
-        setFormPropertiesConfig(updatedFieldsWithInitialValues);
+            if(type === "list"){
+              itemValue = itemValue || [];
+              itemValue = itemValue.map( it => itemValueFormatter(item.items as any, it) );
+            }
+            
+            if(fieldType === "datetime") {
+                itemValue = dayjsCustom(itemValue);
+            } else if(fieldType === "date") {
+                itemValue = dayjsCustom(itemValue);
+            } else if(fieldType === "time") {
+                itemValue = dayjsCustom(itemValue);
+            } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
+                itemValue = itemValue ?? true;
+            } else if (fieldType === "color"){
+                itemValue = itemValue ?? "#FFA500";
+            }
+            return itemValue;
+          }
 
+        const updatedFieldsWithInitialValues = updatedFields.map((item: IFormField) => {
+          const itemValue = itemValueFormatter(item, recordData[item.name]) 
+          return { ...item, initialValue: itemValue }
+        });
+
+        setFormPropertiesConfig(updatedFieldsWithInitialValues);
+        
         setDataLoadedFromView( true );
       }
 
@@ -94,6 +108,9 @@ export function PostAuthForm({
   },[])
 
   const customOnSubmit = async (values: any) => {
+
+    console.log("Form on submit values ",values);
+
     if( apiConfig ) {
 
       const formattedApiUrl = dynamicID !== "" ? apiConfig.apiUrl + `/${dynamicID}` : apiConfig.apiUrl
@@ -112,7 +129,7 @@ export function PostAuthForm({
         }
       } else if( response.status >= 400 || response.status <= 500 ) {
         const errorMessage =  response.message || response.error.message || response.error;
-        notifyError(response?.error)
+        notifyError(errorMessage)
       }
     }
 
