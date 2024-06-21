@@ -36,7 +36,7 @@ interface IFormField {
 
 const { TextArea } = Input;
 
-const makeFormItem = ({
+const MakeFormItem = ({
         fieldType = "text", 
         namePrefixPath,
         name, 
@@ -122,7 +122,7 @@ const makeFormItem = ({
     </>
 }
 
-const makeFormListItem = ({
+const MakeFormListItem = ({
     name, 
     namePrefixPath,
     validationRules, 
@@ -146,11 +146,8 @@ const makeFormListItem = ({
                         extra={ <CloseOutlined onClick={() => { remove(field.name); }} /> }
                     >
                         {
-                            items.properties.map( (property) => {
-                                return makeFormItem({
-                                    ...property,
-                                    namePrefixPath: namePrefixPath?.length ? [...namePrefixPath, field.name] : [field.name]
-                                })
+                            items.properties.map( (property:any) => {
+                                return <MakeFormItem {...property} namePrefixPath={namePrefixPath?.length ? [...namePrefixPath, field.name] : [field.name]} />
                             })
                         }
                     </Card>
@@ -171,8 +168,8 @@ export function FormField( formField : IFormField ) {
 
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
         { ( type === 'list' && !['wysiwyg', 'rich-text'].includes(fieldType.toLocaleLowerCase()) ) 
-            ? makeFormListItem(formField) 
-            : makeFormItem(formField) 
+            ? <MakeFormListItem {...formField}/>
+            : <MakeFormItem {...formField} />
         }
     </div>
 }

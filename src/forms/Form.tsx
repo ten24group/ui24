@@ -79,13 +79,13 @@ export function Form({
             return itemValue;
           }
 
-        const updatedFieldsWithInitialValues = recordData.map((item: IFormField) => {
+        const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
           const itemValue = itemValueFormatter(item, recordData[item.name]) 
           return { ...item, initialValue: itemValue }
         });
 
         setFormPropertiesConfig(updatedFieldsWithInitialValues);
-        
+        setLoader( false )
         setDataLoadedFromView( true );
       }
 
