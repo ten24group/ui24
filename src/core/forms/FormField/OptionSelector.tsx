@@ -62,9 +62,11 @@ interface IOptionSelector {
     onOptionChange?: Function,
     fieldType: IFormFieldType,
     addNewOption?: IModalConfig,
+    initialValue?: string,
 }
 
-export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange } : IOptionSelector ) => {
+export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange, initialValue = "" } : IOptionSelector ) => {
+
     const { callApiMethod } = useApi()
     const [open, setOpen] = useState(false);
     const [ disabled, setDisabled ] = useState<boolean>(false)
@@ -130,14 +132,14 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
     }
 
     return <>
-    { fieldType === "checkbox" && <Checkbox.Group options={ fieldOptions } />}
-    { fieldType === "radio" && <Radio.Group options={ fieldOptions } />}
-    { fieldType === "select" && <AntSelect disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
+    { fieldType === "checkbox" && <Checkbox.Group value={ [initialValue] } options={ fieldOptions } />}
+    { fieldType === "radio" && <Radio.Group value={ [initialValue] } options={ fieldOptions } />}
+    { fieldType === "select" && <AntSelect value={initialValue } disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
             addNewOption ? enableAddNewOption() : undefined
         } onChange={ (value) => {
             onOptionChange(value)
         }} /> }
-    { fieldType === "multi-select" && <AntSelect disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
+    { fieldType === "multi-select" && <AntSelect value={initialValue }  disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
             addNewOption ? enableAddNewOption() : undefined
         } mode='multiple' />}
     </>
