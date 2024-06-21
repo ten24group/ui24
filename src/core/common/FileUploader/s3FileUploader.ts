@@ -12,9 +12,10 @@ export type GetSignedUploadURLResponse = {
     signedUploadURL: string,
 };
 
-export type UseS3FileUploaderOptions = {
+export type IS3FileUploaderOptions = {
   fileNamePrefix?: string;
   getSignedUploadUrlAPIConfig: GetSignedUploadUrlAPIConfig;
+  callApiMethod?: Function
 }
 
 export type S3FileUploaderSuccessResponse = AxiosResponse<{name: string, url: string }, any>;
@@ -27,12 +28,10 @@ export type S3FileUploaderOptions = {
   file: File,
   onError: OnErrorCallback,
   onSuccess: OnSuccessCallback,
-  onProgress: OnProgressCallback
+  onProgress: OnProgressCallback,
 };
 
-export const useS3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig}: UseS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions ) => {
-  
-  const { callApiMethod } = useApi()
+export const s3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod}: IS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions ) => {
 
   const signedUrlPayload = { 
     fileName: file.name, 
