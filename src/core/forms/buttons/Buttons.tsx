@@ -39,20 +39,18 @@ const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
     }, 
     "submit" : {
         text: "Submit",
-        className: "login-form-button mr-2",
+        className: "login-form-button",
         buttonType: "primary",
         htmlType: "submit"
     },
     "cancel" : {
         text: "Cancel",
         htmlType: "reset",
-        style: { marginLeft: "10%" }
     },
     "reset" : {
         text: "Reset",
         danger: true,
         htmlType: "reset",
-        style: { marginLeft: "10%" }
     }
   }
 
@@ -83,9 +81,9 @@ export const CreateButtons = ({ formButtons, loader = false } : ICreateButtons )
     return <React.Fragment>
         { formButtons.map( (buttonConfig, index: number ) => {
             if( typeof buttonConfig === "string" ) {
-                return  <React.Fragment key={"bt" + index}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" ) ) }</React.Fragment>
+                return  <div key={"bt" + index} style={ {marginLeft: "1%"}}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset" ) ) }</div>
             } else {
-                return <React.Fragment key={"bt" + index}>{ renderButton( buttonConfig ) }</React.Fragment>
+                return <div key={"bt" + index} style={ {marginLeft: "1%"}}>{ renderButton( buttonConfig ) }</div>
             }
         })}
     </React.Fragment>
