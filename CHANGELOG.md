@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.4](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.3...v0.1.1-alpha.4) (2024-06-19)
+
+
+### Bug Fixes
+
+* block-note editor crashing when using menu ([315c20b](https://github.com/ten24group/ui24/commit/315c20b8a7852d14b3593ebdff49c07622d6d409))
+* boolean fields not showing, changing routes not refreshing the contents, date-formats, table record-key warning, and color-form-field's width ([80a0bb3](https://github.com/ten24group/ui24/commit/80a0bb33aa187f857271735fd5050abcbf203872))
+* bugs in file-uploader ([bd338b4](https://github.com/ten24group/ui24/commit/bd338b4c072db849e1dbbefeeaff4ff7fb011428))
+* default time formats ([e1a9002](https://github.com/ten24group/ui24/commit/e1a9002ac0cd3240d95e2595da09365d97c49cf9))
+* image-croper ([00de42e](https://github.com/ten24group/ui24/commit/00de42e16595d669280a2d7c24ba13c7ad80d7ee))
+* initUI24Config ignoring config objects ([430fb8a](https://github.com/ten24group/ui24/commit/430fb8a6ddb140c31a02657ddce145d72fc3f3d0))
+* issues with Date-picker and Switch fields and add support for form reset button ([79a57f0](https://github.com/ten24group/ui24/commit/79a57f089850d2182c4372fd2fdfc2c472162d84))
+* issues with image uploader and consoladited image and file uploader into one ([ccc155a](https://github.com/ten24group/ui24/commit/ccc155a783d9d498339f6c083c8ecf5f8dd4cae5))
+* typos in formatConfig ([afd96e2](https://github.com/ten24group/ui24/commit/afd96e2c861b1556fef7be2ba192587d52c65abe))
+
 ### [0.1.1-alpha.3](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.2...v0.1.1-alpha.3) (2024-05-23)
 
 ### [0.1.1-alpha.2](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.1...v0.1.1-alpha.2) (2024-05-23)

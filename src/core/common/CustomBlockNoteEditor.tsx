@@ -34,7 +34,7 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   ...restProps
 }) => {
 
-  value = value || [{ type: 'paragraph', id: '__default_block___'} as any];
+  value = (value && value.length) ? value : [{ type: 'paragraph', id: '__default_block___'} as any];
   
   const [blocks, setBlocks] = useState<Block[]>(value);
   const [htmlContent, setHtmlContent] = useState<string>('');
@@ -82,16 +82,16 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   };
   
   // Renders the editor instance using a React component.
-  return <div className={"item bordered"}>
+  return <div>
       { readOnly && 
-        <div 
-          className="ma-1 pa-3 wysiwyg-html-content-wrapper" 
+        <div className="ma-1 pa-3 wysiwyg-html-content-wrapper"
           dangerouslySetInnerHTML={{ __html: htmlContent }}
         >
         </div>
       }
       { !readOnly &&
         <BlockNoteView 
+          className="ma-1 pa-3 wysiwyg-wrapper"
           {...restProps} 
           theme={theme}
           editor={editor} 
