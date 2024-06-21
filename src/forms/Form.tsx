@@ -127,22 +127,23 @@ export function Form({
   const [form] = AntForm.useForm();
   
   useEffect( () => {
-    //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
-    //this is used to set the initial values of the form
-    const initialValues = formPropertiesConfig.reduce( (acc, item) => {
-      acc[item.name] = item.initialValue
-      return acc
-    }, {})
+    if( dataLoadedFromView ) {
+      //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
+      //this is used to set the initial values of the form
+      const initialValues = formPropertiesConfig.reduce( (acc, item) => {
+        acc[item.name] = item.initialValue
+        return acc
+      }, {})
 
-    form.setFieldsValue( initialValues )
+      form.setFieldsValue( initialValues )
+    }
+    
   }, [dataLoadedFromView])
 
   return <Spin spinning={!dataLoadedFromView}>
     <AntForm
       form={ form }
-      name={ formConfig.name || "" }
-      className={ formConfig?.className || "" }
-      initialValues={ formConfig?.initialValues }
+      {...formConfig}
       layout="vertical"
       onFinish={onFinish}
       disabled={ loader }
