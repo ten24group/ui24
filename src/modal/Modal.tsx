@@ -7,14 +7,15 @@ import { Link } from '../core/common';
 import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { useApi, IApiConfig } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
+import { IDetailsConfig } from '../detail/Details';
 
 interface IConfirmModal {
   title: string;
   content: string;
 }
-type IModalType = "confirm" | "list" | "form"
+type IModalType = "confirm" | "list" | "form" | "details";
 
-type IModalPageConfig = IConfirmModal | IForm | ITableConfig
+type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig;
 
 export interface IModalConfig {
     modalType: IModalType;
@@ -23,6 +24,7 @@ export interface IModalConfig {
     button?: React.ReactNode;
     apiConfig?: IApiConfig;
     primaryIndex: string;
+    useDynamicIdFromParams?: boolean;
     onSuccessCallback?: ( response?:any ) => void;
     onConfirmCallback?: () => void;
     onCancelCallback?: () => void;
@@ -35,6 +37,7 @@ export const Modal = ({
     modalPageConfig,
     apiConfig,
     primaryIndex = "",
+    useDynamicIdFromParams = true,
     onSuccessCallback,
     button,
     onCancelCallback,
@@ -74,19 +77,21 @@ export const Modal = ({
             {children}
             
           </AntModal>) :
-        ["list", "form"].includes(modalType) && modalPageConfig ? //Dynamic Modal based on pageType
-        <AntModal
-            footer={ null }
-            open={true}
-            onCancel={ onCancelCallback }
-          >
-            <RenderFromPageType 
-              cardStyle={{ marginTop: "5%"}} 
-              pageType={ modalType as IPageType } 
-              listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
-              formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback } as IForm: undefined } 
-            />
-          </AntModal>
+        ["list", "form", "details"].includes(modalType) && modalPageConfig ? //Dynamic Modal based on pageType
+          <AntModal
+              footer={ null }
+              open={true}
+              onCancel={ onCancelCallback }
+            >
+              <RenderFromPageType 
+                cardStyle={{ marginTop: "5%"}} 
+                pageType={ modalType as IPageType } 
+                identifiers={primaryIndex}
+                listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
+                formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback, useDynamicIdFromParams } as IForm: undefined } 
+                detailsPageConfig={ modalType === "details" ? modalPageConfig as IDetailsConfig : undefined}
+                />
+            </AntModal>
           : null //fallback to null
       }
       </>

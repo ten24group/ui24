@@ -121,9 +121,12 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
               {menu}
               <Divider style={{ margin: '8px 0' }} />
               <Space style={{ padding: '0 8px 4px' }}>
-                <OpenInModal onOpenCallback={ () => setOpen(false) } onSuccessCallback={ (response) => {
-                    fetchOptions()
-                }} {...addNewOption}> 
+                <OpenInModal 
+                    onOpenCallback={ () => setOpen(false) } 
+                    onSuccessCallback={ (response) => { fetchOptions() } } 
+                    {...addNewOption} 
+                    useDynamicIdFromParams={false}
+                > 
                     <PlusOutlined/> Add Record 
                 </OpenInModal>
               </Space>

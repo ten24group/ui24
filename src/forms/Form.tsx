@@ -1,5 +1,7 @@
 import { Form as AntForm, Spin } from 'antd';
 import React, { useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
+
 import { dayjsCustom } from '../core/dayjs';
 
 import {  CreateButtons } from '../core/forms';
@@ -13,7 +15,7 @@ import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
 
 export function Form({
-    formConfig = { name: "customForm" },
+    formConfig = { name: "customForm-"+uuidv4() },
     propertiesConfig = [],
     onSubmit,
     onSubmitSuccessCallback,
@@ -23,17 +25,20 @@ export function Form({
     detailApiConfig,
     submitSuccessRedirect = "",
     disabled = false,
-    buttonLoader = false
+    buttonLoader = false,
+    identifiers,
+    useDynamicIdFromParams = true,
 } : IForm ) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
 
   const { dynamicID = "" } = useParams()
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>( convertColumnsConfigForFormField(propertiesConfig) )
-  const [ dataLoadedFromView, setDataLoadedFromView ] = useState( dynamicID !== "" ? false : true )
+  const [ dataLoadedFromView, setDataLoadedFromView ] = useState( ( identifiers || ( useDynamicIdFromParams && dynamicID ) ) ? false : true )
   const { callApiMethod } = useApi();
   const [ loader, setLoader ] = useState<boolean>( false )
   const [ btnLoader, setBtnLoader ] = useState<boolean>( false )
+  const [identifiersToUse, setIdentifiersToUse] = useState<string | number | undefined>(useDynamicIdFromParams ? dynamicID : identifiers);
 
   useEffect( () => {
     setLoader( disabled )
@@ -44,54 +49,66 @@ export function Form({
   }, [buttonLoader])
 
   useEffect( () => {
+    if(useDynamicIdFromParams){
+      setIdentifiersToUse(dynamicID);
+    } else {
+      setIdentifiersToUse(identifiers);
+    }
+  }, [identifiers, dynamicID])
+
+  useEffect( () => {
 
       const loadAndFormatData = async () => {
         setLoader( true)
         // if the page has api-config and record identifier etch the record and update the form-fields with initial values.
-        const recordData =  (detailApiConfig && dynamicID !== "") ? await fetchRecordInfo() : {};
+        const recordData =  (detailApiConfig && ( identifiersToUse) !== "") ? await fetchRecordInfo() : {};
 
         const itemValueFormatter = ( item: IFormField, itemValue: any ) => {
-            const { name, fieldType, type } = item;
-            
-            if(type === "map"){
-              itemValue = item.properties.reduce((acc, prop: IFormField) => { 
-                acc[prop.name] = itemValueFormatter(prop, itemValue[prop.name]);
-                return acc;
-              }, {});
-            }
-
-            if(type === "list"){
-              itemValue = itemValue || [];
-              itemValue = itemValue.map( it => itemValueFormatter(item.items as any, it) );
-            }
-            
-            if(fieldType === "datetime") {
-                itemValue = dayjsCustom(itemValue);
-            } else if(fieldType === "date") {
-                itemValue = dayjsCustom(itemValue);
-            } else if(fieldType === "time") {
-                itemValue = dayjsCustom(itemValue);
-            } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
-                itemValue = itemValue ?? true;
-            } else if (fieldType === "color"){
-                itemValue = itemValue ?? "#FFA500";
-            }
-            return itemValue;
+          const { name, fieldType, type } = item;
+          
+          if(type === "map"){
+            itemValue = item.properties.reduce((acc, prop: IFormField) => { 
+              acc[prop.name] = itemValueFormatter(prop, itemValue[prop.name]);
+              return acc;
+            }, {});
           }
 
-        const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-          const itemValue = itemValueFormatter(item, recordData[item.name]) 
-          return { ...item, initialValue: itemValue }
-        });
+          if(type === "list"){
+            itemValue = itemValue || [];
+            itemValue = itemValue.map( it => itemValueFormatter(item.items as any, it) );
+          }
+          
+          if(fieldType === "datetime") {
+              itemValue = dayjsCustom(itemValue);
+          } else if(fieldType === "date") {
+              itemValue = dayjsCustom(itemValue);
+          } else if(fieldType === "time") {
+              itemValue = dayjsCustom(itemValue);
+          } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
+              itemValue = itemValue ?? true;
+          } else if (fieldType === "color"){
+              itemValue = itemValue ?? "#FFA500";
+          }
+          return itemValue;
+        }
 
-        setFormPropertiesConfig(updatedFieldsWithInitialValues);
+        if(recordData){
+          
+          const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
+            const itemValue = itemValueFormatter(item, recordData[item.name]) 
+            return { ...item, initialValue: itemValue }
+          });
+
+          setFormPropertiesConfig(updatedFieldsWithInitialValues);
+        }
+
         setLoader( false )
         setDataLoadedFromView( true );
       }
 
       const fetchRecordInfo = async () => {
           
-          const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+          const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifiersToUse}` } );
           
           if( response.status === 200 ) {
               const detailResponse = response.data[detailApiConfig.responseKey];
@@ -109,7 +126,7 @@ export function Form({
     if( apiConfig ) {
       setLoader( true)
       setBtnLoader( true )
-      const formattedApiUrl = dynamicID !== "" ? apiConfig.apiUrl + `/${dynamicID}` : apiConfig.apiUrl
+      const formattedApiUrl = identifiersToUse !== "" ? apiConfig.apiUrl + `/${identifiersToUse}` : apiConfig.apiUrl
       
       const response: any = await callApiMethod({
         ...apiConfig,
