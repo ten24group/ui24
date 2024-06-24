@@ -49,7 +49,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           return response;
         },
         (error) => {
-            return Promise.reject(error)
+            if( error.response?.status == 500 && error.response.data?.message?.includes?.("Invalid ID-Token") ) {
+                logout()
+            }
+            return Promise.reject(error.response)
         }
     );
 
