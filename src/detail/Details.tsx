@@ -4,7 +4,7 @@ import { useApi, IApiConfig } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 //import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
-import { CustomBlockNoteEditor } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 
 interface IPropertiesConfig {
@@ -77,7 +77,6 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
                     return { ...item, initialValue: formatted }
                 });
 
-                console.log("formatted", formatted)
                 setRecordInfo(formatted)
             }
             setDataLoaded(true);
@@ -172,6 +171,15 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
                     key: index,
                     label: item.label,
                     children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
+                }
+            } 
+
+            if ( item.fieldType.toLocaleLowerCase() === 'color' ){
+
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <CustomColorPicker value={item.initialValue} disabled />
                 }
             } 
 
