@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 //import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
 import { CustomBlockNoteEditor } from '../core/common';
+import { OpenInModal } from '../modal/Modal';
 
 interface IPropertiesConfig {
     label: string;
@@ -19,7 +20,9 @@ interface IPropertiesConfig {
     items?: {
         type: string,
         properties?: Array<IPropertiesConfig>
-    }
+    },
+
+    viewInModel ?: any,
 }
 
 export interface IDetailApiConfig {
@@ -28,10 +31,11 @@ export interface IDetailApiConfig {
 
 export interface IDetailsConfig extends IDetailApiConfig {
     pageTitle?: string;
+    identifiers?: any;
     propertiesConfig: Array<IPropertiesConfig>;
 }
 
-const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : IDetailsConfig ) => {
+const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers } : IDetailsConfig ) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
     const { dynamicID } = useParams()
     const { callApiMethod } = useApi();
@@ -62,7 +66,8 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
-            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+            const identifier = identifiers || dynamicID;
+            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` } );
             if( response.status === 200 ) {
                 const detailResponse = response.data[detailApiConfig.responseKey]
                 
@@ -170,11 +175,10 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
             } 
 
             if(item.type === 'list'){
-
-            return {
-                key: index,
-                label: item.label,
-                children: <List
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <List
                         itemLayout="horizontal"
                         dataSource={item.initialValue as unknown as any[]}
                         renderItem={(item, index) => (
@@ -187,9 +191,15 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
                             </List.Item>
                         )}
                     />
-
                 }
+            }
 
+            if(item.viewInModel){
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <OpenInModal {...item.viewInModel} primaryIndex={item.initialValue} >{item.initialValue}</OpenInModal>
+                }
             }
 
             return {
