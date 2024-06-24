@@ -154,7 +154,7 @@ export function Form({
   }, [dataLoadedFromView])
 
   return <Spin spinning={!dataLoadedFromView}>
-    <AntForm
+    { dataLoadedFromView && <AntForm
       form={ form }
       {...formConfig}
       layout="vertical"
@@ -177,5 +177,6 @@ export function Form({
     { formButtons.length > 0 && <div style={{ display: "flex"}}><CreateButtons formButtons={ formButtons } loader={ btnLoader } /></div> }
     
   </AntForm>
+  }
   </Spin>
 }
