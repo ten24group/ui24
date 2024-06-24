@@ -35,14 +35,14 @@ export type IUi24Config = {
         apiConfig: IApiConfig
       }
     },
-    routes: Array<{
+    routes?: Array<{
         route: string;
         section: React.ReactNode;
         authType: "auth" | "public" | "private";
     }>
-    authProvider: any;
+    authProvider?: any;
     //customerInfo: any;
-    apiConfig: any;
+    apiConfig?: any;
     menuItem?: Array<any>
     pagesConfig?: Record<string, any>
     formatConfig?: IFormatConfig 

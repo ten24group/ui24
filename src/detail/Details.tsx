@@ -41,18 +41,18 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
     const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
         let initialValue = itemData;
 
-        if(item.type === "map"){
+        if(item?.type === "map"){
             initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => { 
                 acc[prop.column] = valueFormatter(prop, itemData?.[prop.column]);
                 return acc;
             }, {});
 
-        } else if(item.type === "list"){
+        } else if(item?.type === "list"){
             initialValue = itemData?.map( it => valueFormatter(item.items as any, it) ) ?? [];
-        } else if([ 'date', 'datetime', 'time' ].includes(item.fieldType?.toLocaleLowerCase())){
+        } else if([ 'date', 'datetime', 'time' ].includes(item?.fieldType?.toLocaleLowerCase())){
             // formate the date value using uiConfig's date-time-formats
             initialValue = formatDate(initialValue, item.fieldType?.toLocaleLowerCase() as any);
-        } else if (['boolean', 'switch', 'toggle'].includes(item.fieldType?.toLocaleLowerCase())){
+        } else if (['boolean', 'switch', 'toggle'].includes(item?.fieldType?.toLocaleLowerCase())){
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
         }

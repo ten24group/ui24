@@ -81,7 +81,7 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
     console.log("Editor doc has been changed:", editor.document, editor.isEditable);
     setBlocks(editor.document);
     // notify the parent component when the editor content changes.
-    customOnChange && customOnChange(blocks);
+    customOnChange && customOnChange(editor.document);
   };
   
   // Renders the editor instance using a React component.
