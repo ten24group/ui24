@@ -32,7 +32,9 @@ export function Form({
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
 
+  // TODO: remove the dynamic-id option from here and use the identifiers prop instead
   const { dynamicID = "" } = useParams()
+  
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>( convertColumnsConfigForFormField(propertiesConfig) )
   const [ dataLoadedFromView, setDataLoadedFromView ] = useState( ( identifiers || ( useDynamicIdFromParams && dynamicID ) ) ? false : true )
   const { callApiMethod } = useApi();

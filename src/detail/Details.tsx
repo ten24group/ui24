@@ -37,6 +37,7 @@ export interface IDetailsConfig extends IDetailApiConfig {
 
 const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers } : IDetailsConfig ) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
+    // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
     const { callApiMethod } = useApi();
     const [dataLoaded, setDataLoaded] = useState(false);
