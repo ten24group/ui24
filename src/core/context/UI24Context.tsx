@@ -43,7 +43,7 @@ export type IUi24Config = {
     authProvider?: any;
     //customerInfo: any;
     apiConfig?: any;
-    menuItem?: Array<any>
+    menuItems?: Array<any>
     pagesConfig?: Record<string, any>
     formatConfig?: IFormatConfig 
 }

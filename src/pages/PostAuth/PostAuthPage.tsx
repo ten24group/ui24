@@ -19,7 +19,6 @@ export interface IRenderFromPageType extends IPageHeader {
     listPageConfig?: ITableConfig;
     detailsPageConfig?: IDetailsConfig;
     accordionsPageConfig?: Record<string, IRenderFromPageType>;
-    //accordion?: Record<string, <ICustomForm | ITableConfig | IDetailsConfig>>
 }
 
 export interface IPostAuthPage extends IRenderFromPageType {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Icon } from '../../../core/common';
 import type { MenuProps } from 'antd';
 import { Menu as AntMenu, Layout } from 'antd';
@@ -7,6 +7,8 @@ import { Link } from '../../../core/common';
 import "./Header.css";
 import { HeaderActions } from './HeaderActions';
 import { useUi24Config } from '../../../core/context';
+import { OpenInModal } from '../../../modal/Modal';
+import { JsonEditor } from '../../../core/common';
 
 const { Header : AntHeader } = Layout;
 
@@ -42,10 +44,10 @@ const formatMenuItems = (menuItems: any) => {
 }
 
 export const Header = () => {
-    const { selectConfig } = useUi24Config()
+    const { selectConfig, updateConfig } = useUi24Config()
     const appLogo = selectConfig( config => config.appLogo)
     const menuRecords = selectConfig( config => config.menuItems || [])
-    const [ menuItems, setMenuItems ] = React.useState<MenuItem[]>( formatMenuItems( menuRecords ) );
+    const menuItems = formatMenuItems( menuRecords )
     
     return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
       <div className="appHeader">
@@ -58,8 +60,15 @@ export const Header = () => {
               theme="light"
               mode="horizontal"
               items={ menuItems.length > 0 ? menuItems : [] }
-          />
+            />
+            { process.env.REACT_APP_DEV_MODE && <OpenInModal modalType='custom' >
+              <Icon iconName='edit' />
+              <JsonEditor initObject={ menuRecords } onChange = { (newJson) => {
+                updateConfig({ menuItems: newJson })
+              }} />
+            </OpenInModal> }
         </div>
+        
         <div className="appActions">
           <HeaderActions />
         </div>

@@ -12,7 +12,7 @@ interface IConfirmModal {
   title: string;
   content: string;
 }
-type IModalType = "confirm" | "list" | "form"
+type IModalType = "confirm" | "list" | "form" | "custom"
 
 type IModalPageConfig = IConfirmModal | IForm | ITableConfig
 
@@ -22,7 +22,7 @@ export interface IModalConfig {
     children?: React.ReactNode | React.ReactNode[];
     button?: React.ReactNode;
     apiConfig?: IApiConfig;
-    primaryIndex: string;
+    primaryIndex?: string;
     onSuccessCallback?: ( response?:any ) => void;
     onConfirmCallback?: () => void;
     onCancelCallback?: () => void;
@@ -87,7 +87,9 @@ export const Modal = ({
               formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback } as IForm: undefined } 
             />
           </AntModal>
-          : null //fallback to null
+          : modalType === "custom" && children ? <AntModal footer={ null }
+          open={true}
+          onCancel={ onCancelCallback } >{ children } </AntModal> : null
       }
       </>
 }
@@ -126,7 +128,7 @@ export const OpenInModal = ({...props }: IOpenInModal ) => {
         props.onOpenCallback()
       }
       }} className="OpenInModal">
-        { props.children }
+        { Array.isArray(props.children) ? props.children[0]: props.children }
     </Link>
     { open && <Modal {...props} onSuccessCallback={ onSuccessCallback } onConfirmCallback={ onConfirmCallback } onCancelCallback={onCancelCallback} children={ Array.isArray(props.children) ? props.children[1]: null } /> }
     </>
