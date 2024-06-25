@@ -21,6 +21,8 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     submitSuccessRedirect?: string;
     disabled?: boolean;
     buttonLoader?: boolean;
+    identifiers ?: any;
+    useDynamicIdFromParams?: boolean;
 }
 
 

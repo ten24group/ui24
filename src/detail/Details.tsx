@@ -4,7 +4,8 @@ import { useApi, IApiConfig } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 //import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
-import { CustomBlockNoteEditor } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
+import { OpenInModal } from '../modal/Modal';
 
 interface IPropertiesConfig {
     label: string;
@@ -19,7 +20,9 @@ interface IPropertiesConfig {
     items?: {
         type: string,
         properties?: Array<IPropertiesConfig>
-    }
+    },
+
+    openInModal ?: any,
 }
 
 export interface IDetailApiConfig {
@@ -28,11 +31,13 @@ export interface IDetailApiConfig {
 
 export interface IDetailsConfig extends IDetailApiConfig {
     pageTitle?: string;
+    identifiers?: any;
     propertiesConfig: Array<IPropertiesConfig>;
 }
 
-const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : IDetailsConfig ) => {
+const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers } : IDetailsConfig ) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
+    // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
     const { callApiMethod } = useApi();
     const [dataLoaded, setDataLoaded] = useState(false);
@@ -62,7 +67,8 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
 
     useEffect( () => {
         const fetchRecordInfo = async () => {
-            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${dynamicID}` } );
+            const identifier = identifiers || dynamicID;
+            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` } );
             if( response.status === 200 ) {
                 const detailResponse = response.data[detailApiConfig.responseKey]
                 
@@ -71,7 +77,6 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
                     return { ...item, initialValue: formatted }
                 });
 
-                console.log("formatted", formatted)
                 setRecordInfo(formatted)
             }
             setDataLoaded(true);
@@ -169,12 +174,20 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
                 }
             } 
 
-            if(item.type === 'list'){
+            if ( item.fieldType.toLocaleLowerCase() === 'color' ){
 
-            return {
-                key: index,
-                label: item.label,
-                children: <List
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <CustomColorPicker value={item.initialValue} disabled />
+                }
+            } 
+
+            if(item.type === 'list'){
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <List
                         itemLayout="horizontal"
                         dataSource={item.initialValue as unknown as any[]}
                         renderItem={(item, index) => (
@@ -187,9 +200,15 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig } : ID
                             </List.Item>
                         )}
                     />
-
                 }
+            }
 
+            if(item.openInModal){
+                return {
+                    key: index,
+                    label: item.label,
+                    children: <OpenInModal {...item.openInModal} primaryIndex={item.initialValue} >{item.initialValue}</OpenInModal>
+                }
             }
 
             return {
