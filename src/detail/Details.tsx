@@ -22,7 +22,7 @@ interface IPropertiesConfig {
         properties?: Array<IPropertiesConfig>
     },
 
-    viewInModel ?: any,
+    openInModal ?: any,
 }
 
 export interface IDetailApiConfig {
@@ -203,11 +203,11 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
                 }
             }
 
-            if(item.viewInModel){
+            if(item.openInModal){
                 return {
                     key: index,
                     label: item.label,
-                    children: <OpenInModal {...item.viewInModel} primaryIndex={item.initialValue} >{item.initialValue}</OpenInModal>
+                    children: <OpenInModal {...item.openInModal} primaryIndex={item.initialValue} >{item.initialValue}</OpenInModal>
                 }
             }
 
