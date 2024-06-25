@@ -62,10 +62,10 @@ interface IOptionSelector {
     onOptionChange?: Function,
     fieldType: IFormFieldType,
     addNewOption?: IModalConfig,
-    initialValue?: string,
+    value?: string,
 }
 
-export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange, initialValue = "" } : IOptionSelector ) => {
+export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange, value } : IOptionSelector ) => {
 
     const { callApiMethod } = useApi()
     const [open, setOpen] = useState(false);
@@ -135,14 +135,14 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
     }
 
     return <>
-    { fieldType === "checkbox" && <Checkbox.Group value={ [initialValue] } options={ fieldOptions } />}
-    { fieldType === "radio" && <Radio.Group value={ [initialValue] } options={ fieldOptions } />}
-    { fieldType === "select" && <AntSelect value={initialValue } disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
+    { fieldType === "checkbox" && <Checkbox.Group value={ [value] } options={ fieldOptions } />}
+    { fieldType === "radio" && <Radio.Group value={ [value] } options={ fieldOptions } />}
+    { fieldType === "select" && <AntSelect value={value} disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
             addNewOption ? enableAddNewOption() : undefined
         } onChange={ (value) => {
             onOptionChange(value)
         }} /> }
-    { fieldType === "multi-select" && <AntSelect value={initialValue }  disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
+    { fieldType === "multi-select" && <AntSelect value={value }  disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
             addNewOption ? enableAddNewOption() : undefined
         } mode='multiple' />}
     </>
