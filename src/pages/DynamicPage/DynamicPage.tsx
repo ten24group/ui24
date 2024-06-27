@@ -3,11 +3,14 @@ import { PostAuthPage } from '../PostAuth/PostAuthPage';
 import { useParams } from "react-router-dom"
 import { NotFound } from '../404/NotFound';
 import { useUi24Config } from '../../core/context';
+import { OpenInModal } from '../../modal/Modal';
+import { JsonEditor } from '../../core/common';
+import { Icon } from '../../core/common';
 
 export const DynamicPage = () => {
     //get routes from URL
     const { dynamicPage = "", dynamicID = ""} = useParams()
-    const { getPageConfig, selectConfig } = useUi24Config()
+    const { getPageConfig, selectConfig, updateConfig } = useUi24Config()
     const pagesConfig = selectConfig( (config) => config.pagesConfig )
     const pageConfig = getPageConfig( dynamicPage )
     const pageNotFound = pagesConfig && Object.keys(pagesConfig).length > 0 && !pageConfig
@@ -22,5 +25,24 @@ export const DynamicPage = () => {
         return <NotFound />
     }
 
-    return ( pageConfig?.private === true || ( pageConfig?.private ?? true ) ) ? <PostAuthPage {...pageConfig} /> :  <h3>Define your page.</h3>
+    
+
+    return ( pageConfig?.private === true || ( pageConfig?.private ?? true ) ) ? 
+    <>
+    { process.env.REACT_APP_DEV_MODE && <span style={{ alignContent: 'center'}}>
+        <div style={{ display: "flex", justifyContent: "center", width: "100%"}}>
+          <OpenInModal modalType='custom' >
+              <>
+              <span style={{ marginRight: "10px"}}>Edit Page Config</span>
+              <Icon iconName='edit' />
+              </>
+              <JsonEditor initObject={ pageConfig } onChange = { (newJson) => {
+                updateConfig({ pagesConfig: {...pagesConfig, [dynamicPage] : newJson } })
+              }} />
+        </OpenInModal></div>
+    </span> }
+    <PostAuthPage {...pageConfig} />
+    </>
+    
+     :  <h3>Define your page.</h3>
 }

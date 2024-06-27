@@ -13,7 +13,7 @@ interface IConfirmModal {
   title: string;
   content: string;
 }
-type IModalType = "confirm" | "list" | "form" | "details";
+type IModalType = "confirm" | "list" | "form" | "custom"| "details"
 
 type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig;
 
@@ -23,7 +23,7 @@ export interface IModalConfig {
     children?: React.ReactNode | React.ReactNode[];
     button?: React.ReactNode;
     apiConfig?: IApiConfig;
-    primaryIndex: string;
+    primaryIndex?: string;
     useDynamicIdFromParams?: boolean;
     onSuccessCallback?: ( response?:any ) => void;
     onConfirmCallback?: () => void;
@@ -78,21 +78,22 @@ export const Modal = ({
             
           </AntModal>) :
         ["list", "form", "details"].includes(modalType) && modalPageConfig ? //Dynamic Modal based on pageType
-          <AntModal
-              footer={ null }
-              open={true}
-              onCancel={ onCancelCallback }
-            >
-              <RenderFromPageType 
-                cardStyle={{ marginTop: "5%"}} 
-                pageType={ modalType as IPageType } 
-                identifiers={primaryIndex}
-                listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
-                formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback, useDynamicIdFromParams } as IForm: undefined } 
-                detailsPageConfig={ modalType === "details" ? modalPageConfig as IDetailsConfig : undefined}
-                />
-            </AntModal>
-          : null //fallback to null
+        <AntModal
+            footer={ null }
+            open={true}
+            onCancel={ onCancelCallback }
+          >
+            <RenderFromPageType 
+              cardStyle={{ marginTop: "5%"}} 
+              pageType={ modalType as IPageType } 
+              listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
+              formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback } as IForm: undefined } 
+              detailsPageConfig={ modalType === "details" ? modalPageConfig as IDetailsConfig : undefined}
+            />
+          </AntModal>
+          : modalType === "custom" && children ? <AntModal footer={ null }
+          open={true}
+          onCancel={ onCancelCallback } >{ children } </AntModal> : null
       }
       </>
 }
@@ -131,7 +132,7 @@ export const OpenInModal = ({...props }: IOpenInModal ) => {
         props.onOpenCallback()
       }
       }} className="OpenInModal">
-        { props.children }
+        { Array.isArray(props.children) ? props.children[0]: props.children }
     </Link>
     { open && <Modal {...props} onSuccessCallback={ onSuccessCallback } onConfirmCallback={ onConfirmCallback } onCancelCallback={onCancelCallback} children={ Array.isArray(props.children) ? props.children[1]: null } /> }
     </>
