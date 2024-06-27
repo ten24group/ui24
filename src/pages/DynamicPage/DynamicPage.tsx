@@ -30,12 +30,16 @@ export const DynamicPage = () => {
     return ( pageConfig?.private === true || ( pageConfig?.private ?? true ) ) ? 
     <>
     { process.env.REACT_APP_DEV_MODE && <span style={{ alignContent: 'center'}}>
-        <OpenInModal modalType='custom' >
+        <div style={{ display: "flex", justifyContent: "center", width: "100%"}}>
+          <OpenInModal modalType='custom' >
+              <>
+              <span style={{ marginRight: "10px"}}>Edit Page Config</span>
               <Icon iconName='edit' />
+              </>
               <JsonEditor initObject={ pageConfig } onChange = { (newJson) => {
                 updateConfig({ pagesConfig: {...pagesConfig, [dynamicPage] : newJson } })
               }} />
-            </OpenInModal>
+        </OpenInModal></div>
     </span> }
     <PostAuthPage {...pageConfig} />
     </>
