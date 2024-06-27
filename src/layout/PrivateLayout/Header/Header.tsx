@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Icon } from '../../../core/common';
 import type { MenuProps } from 'antd';
-import { Menu as AntMenu, Layout } from 'antd';
+import { Menu as AntMenu, Layout, theme } from 'antd';
 import {  } from 'antd';
 import { Link } from '../../../core/common';
 import "./Header.css";
@@ -48,8 +48,12 @@ export const Header = () => {
     const appLogo = selectConfig( config => config.appLogo)
     const menuRecords = selectConfig( config => config.menuItems || [])
     const menuItems = formatMenuItems( menuRecords )
+
+    const { useToken } = theme;
+    const { token } = useToken();
     
-    return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
+    
+    return <AntHeader style={{ display: 'flex', background: token.colorBgContainer, alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
           { appLogo !== "" && <Link url="/"><div className="logo"><img src={appLogo} alt="App Logo" title="Logo" /></div></Link> }
