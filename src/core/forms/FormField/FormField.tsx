@@ -68,12 +68,12 @@ const MakeFormItem = ({
         { fieldType === "password" && <Input.Password type={ fieldType || "password" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         { fieldType === "email" && <Input type={ fieldType || "email" } prefix={ prefixIcon } placeholder={ placeholder } /> }
         
-        { fieldType === "checkbox" && <OptionSelector initialValue={ initialValue } fieldType={ fieldType } options={ options } />}
-        { fieldType === "radio" && <OptionSelector initialValue={ initialValue } fieldType={ fieldType } options={ options } />}
-        { fieldType === "select" && <OptionSelector initialValue={ initialValue } fieldType={ fieldType } options={ options } addNewOption={ addNewOption } onOptionChange={ (newSelections) => {
+        { fieldType === "checkbox" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } />}
+        { fieldType === "radio" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } />}
+        { fieldType === "select" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } addNewOption={ addNewOption } onOptionChange={ (newSelections) => {
             setFormValue( { name, value: newSelections } )
         }}/>}
-        { fieldType === "multi-select" && <OptionSelector initialValue={ initialValue } fieldType={ fieldType } options={ options } addNewOption={ addNewOption } onOptionChange={ (newSelections) => {
+        { fieldType === "multi-select" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } addNewOption={ addNewOption } onOptionChange={ (newSelections) => {
             setFormValue( { name, value: newSelections } )
         }} />}
 
