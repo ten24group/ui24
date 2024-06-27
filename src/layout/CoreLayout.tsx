@@ -1,6 +1,6 @@
 import React, { ReactNode } from 'react';
 import { Layout } from 'antd';
-import { AppContextProvider } from '../core/context/AppContext';
+import { AppContextProvider, ThemeProvider } from '../core/context';
 import { AuthLayout } from './AuthLayout/AuthLayout';
 import { PublicLayout } from './PublicLayout/PublicLayout';
 import { PrivateLayout } from './PrivateLayout/PrivateLayout';
@@ -31,9 +31,11 @@ export const CoreLayout = ({children, authType = "public"} : { children? : React
   const WrapperLayout = getLayoutComponent(authType);
     return <Layout style={{ minHeight: '100vh' }}>
         <AppContextProvider>
-            <WrapperLayout>
-                {children}
-            </WrapperLayout>
+            <ThemeProvider>
+                <WrapperLayout>
+                    {children}
+                </WrapperLayout>
+            </ThemeProvider>
         </AppContextProvider>
     </Layout>
 }

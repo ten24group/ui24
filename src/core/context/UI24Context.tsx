@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext } from 'react';
 import { IApiConfig } from './ApiContext';
+import { ThemeConfig as IAntThemeConfig } from 'antd';
 
 export type IConfigResolver<T extends unknown> = T // the config itself
 | string  // config url/endpoint
@@ -46,6 +47,7 @@ export type IUi24Config = {
     menuItems?: Array<any>
     pagesConfig?: Record<string, any>
     formatConfig?: IFormatConfig 
+    themeConfig?: IAntThemeConfig
 }
 
 interface IUi24Context {
@@ -78,8 +80,8 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
     }
 
     // Function to select specific property from config
-    const selectConfig = (selector) => {
-      return selector(config as IUi24Config);
+    const selectConfig = <T extends keyof IUi24Config>(selector: (config: IUi24Config) => T): IUi24Config[T] => {
+      return selector(config);
     };
 
     const getPageConfig = ( pageName: string ) => {
