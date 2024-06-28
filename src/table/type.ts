@@ -1,4 +1,4 @@
-import { IApiConfig } from "../core";
+import { IApiConfig } from "../core/context";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
@@ -23,8 +23,8 @@ export type IPageAction = {
   label: string;
   icon: string;
   htmlType: string;
-  openInModel?: boolean;
-  modelConfig?: IModalConfig;
+  openInModal?: boolean;
+  modalConfig?: IModalConfig;
 };
 
 export interface IActionIndexValue {

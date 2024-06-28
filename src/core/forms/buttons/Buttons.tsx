@@ -39,27 +39,28 @@ const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
     }, 
     "submit" : {
         text: "Submit",
-        className: "login-form-button mr-2",
+        className: "login-form-button",
         buttonType: "primary",
         htmlType: "submit"
     },
     "cancel" : {
         text: "Cancel",
-        htmlType: "reset"
+        htmlType: "reset",
     },
     "reset" : {
         text: "Reset",
         danger: true,
-        htmlType: "reset"
+        htmlType: "reset",
     }
   }
 
 interface ICreateButtons {
     formButtons: Array< IPreDefinedButtons | IFormButton >
+    loader?: boolean
 }
 
-export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
-    const renderButton = (buttonConfig: IFormButton ) => {
+export const CreateButtons = ({ formButtons, loader = false } : ICreateButtons ) => {
+    const renderButton = (buttonConfig: IFormButton, loader: boolean = false ) => {
         return <Form.Item>
                     <Button 
                         type = { buttonConfig?.buttonType } 
@@ -67,8 +68,9 @@ export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
                         href = { buttonConfig.href } 
                         onClick = { buttonConfig?.onClick } 
                         htmlType = { buttonConfig?.htmlType || "button" } 
-                        className = { buttonConfig?.className || "mr-2" }
+                        className = { buttonConfig?.className }
                         danger = { buttonConfig.danger }
+                        loading = { loader }
                     >
                         { buttonConfig.url && <Link title={ buttonConfig.text} url={ buttonConfig.url } />} 
                         { !buttonConfig.url && buttonConfig.text } 
@@ -79,9 +81,9 @@ export const CreateButtons = ({ formButtons } : ICreateButtons ) => {
     return <React.Fragment>
         { formButtons.map( (buttonConfig, index: number ) => {
             if( typeof buttonConfig === "string" ) {
-                return <React.Fragment key={"bt" + index}>{ renderButton( PreDefinedButtons[ buttonConfig ] ) }</React.Fragment>
+                return  <div key={"bt" + index} style={ {marginLeft: "1%"}}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset" ) ) }</div>
             } else {
-                return <React.Fragment key={"bt" + index}>{ renderButton( buttonConfig ) }</React.Fragment>
+                return <div key={"bt" + index} style={ {marginLeft: "1%"}}>{ renderButton( buttonConfig ) }</div>
             }
         })}
     </React.Fragment>

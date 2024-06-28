@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Upload, UploadProps, GetProp, UploadFile } from 'antd';
 import { PlusOutlined, LoadingOutlined } from '@ant-design/icons';
 import ImgCrop from 'antd-img-crop';
-
-import { GetSignedUploadUrlAPIConfig, useS3FileUploader } from './s3FileUploader';
+import { useApi } from '../../context';
+import { GetSignedUploadUrlAPIConfig, s3FileUploader } from './s3FileUploader';
 import classNames from 'classnames';
 
 type FileType = Parameters<GetProp<UploadProps, 'beforeUpload'>>[0];
@@ -47,7 +47,8 @@ export const FileUploader = (props: ImageUploaderProps ) => {
 
   const [loading, setLoading] = useState<boolean>(false);
   const [uploadedFileList, setFileList] = useState<UploadFile[]>();
-
+  
+  const { callApiMethod } = useApi()
   useEffect(() => {
     if(!value) {
       return;
@@ -63,7 +64,7 @@ export const FileUploader = (props: ImageUploaderProps ) => {
     ])
   }, [value]);
   
-  const defaultFileUploader = useS3FileUploader({ fileNamePrefix, getSignedUploadUrlAPIConfig });
+  const defaultFileUploader = s3FileUploader({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod });
 
   const handleChange: UploadProps['onChange'] = (info) => {
     setFileList(info.fileList);

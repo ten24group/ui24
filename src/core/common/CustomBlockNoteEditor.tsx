@@ -6,7 +6,8 @@ import { Block, BlockNoteEditorOptions } from "@blocknote/core";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 
-import { GetSignedUploadUrlAPIConfig, S3FileUploaderSuccessResponse, useS3FileUploader } from "./FileUploader";
+import { GetSignedUploadUrlAPIConfig, S3FileUploaderSuccessResponse, s3FileUploader } from "./FileUploader";
+import { useApi } from "../context";
 
 export type BlockNoteEditorProps = 
   Partial<Omit<BlockNoteEditorOptions<any, any, any>, 'initialContent' | 'onChange'>> 
@@ -38,12 +39,14 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   
   const [blocks, setBlocks] = useState<Block[]>(value);
   const [htmlContent, setHtmlContent] = useState<string>('');
+  const { callApiMethod }  = useApi()
 
   const defaultFileUploader = async (file: File): Promise<string | Record<string, any>> => {
 
-    const upload = useS3FileUploader({
+    const upload = s3FileUploader({
       fileNamePrefix, 
-      getSignedUploadUrlAPIConfig
+      getSignedUploadUrlAPIConfig,
+      callApiMethod
     });
 
     const response = await new Promise<S3FileUploaderSuccessResponse>((resolve, reject) => {
@@ -78,7 +81,7 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
     console.log("Editor doc has been changed:", editor.document, editor.isEditable);
     setBlocks(editor.document);
     // notify the parent component when the editor content changes.
-    customOnChange && customOnChange(blocks);
+    customOnChange && customOnChange(editor.document);
   };
   
   // Renders the editor instance using a React component.
