@@ -1,3 +1,5 @@
+import { Block, BlockNoteEditor } from "@blocknote/core";
+
 export function isValidURL(str) {
   var pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
     '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
@@ -43,6 +45,17 @@ export function convertUTCDateToLocalDate(date: string | Date) {
     newDate.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return newDate;
 }
+
+
+export async function getBlocksToHtml(blocks: Block[], editor?: BlockNoteEditor): Promise<string> {
+  editor = editor || BlockNoteEditor.create({});
+
+  const markup = await editor.blocksToHTMLLossy(blocks)
+
+  return markup
+}
+
+
 
 
 

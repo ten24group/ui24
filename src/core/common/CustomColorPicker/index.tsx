@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import React, { Component, ReactNode } from 'react';
 import { ColorPicker } from 'antd';
 import { ColorPickerProps } from 'antd/lib';
