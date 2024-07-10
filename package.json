@@ -2,7 +2,7 @@
   "name": "@ten24group/ui24",
   "version": "0.1.1-alpha.4",
   "description": "Admin UI package for fw24 projects",
-  "main": "src/index.tsx",
+  "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "webpack --mode production",
@@ -83,7 +83,6 @@
     "classnames": "^2.5.1",
     "dayjs": "^1.11.11",
     "react-editor-js": "^2.1.0",
-    "react-jsondata-editor": "^2.0.2",
     "remove": "^0.1.5",
     "uuid": "^9.0.1"
   }

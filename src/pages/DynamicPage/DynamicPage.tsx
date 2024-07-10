@@ -4,7 +4,6 @@ import { useParams } from "react-router-dom"
 import { NotFound } from '../404/NotFound';
 import { useUi24Config } from '../../core/context';
 import { OpenInModal } from '../../modal/Modal';
-import { JsonEditor } from '../../core/common';
 import { Icon } from '../../core/common';
 
 export const DynamicPage = () => {
@@ -29,18 +28,6 @@ export const DynamicPage = () => {
 
     return ( pageConfig?.private === true || ( pageConfig?.private ?? true ) ) ? 
     <>
-    { process.env.REACT_APP_DEV_MODE && <span style={{ alignContent: 'center'}}>
-        <div style={{ display: "flex", justifyContent: "center", width: "100%"}}>
-          <OpenInModal modalType='custom' >
-              <>
-              <span style={{ marginRight: "10px"}}>Edit Page Config</span>
-              <Icon iconName='edit' />
-              </>
-              <JsonEditor initObject={ pageConfig } onChange = { (newJson) => {
-                updateConfig({ pagesConfig: {...pagesConfig, [dynamicPage] : newJson } })
-              }} />
-        </OpenInModal></div>
-    </span> }
     <PostAuthPage {...pageConfig} />
     </>
     

@@ -8,7 +8,7 @@ import "./Header.css";
 import { HeaderActions } from './HeaderActions';
 import { useUi24Config } from '../../../core/context';
 import { OpenInModal } from '../../../modal/Modal';
-import { JsonEditor } from '../../../core/common';
+//import { JsonEditor } from '../../../core/common';
 
 const { Header : AntHeader } = Layout;
 
@@ -65,12 +65,6 @@ export const Header = () => {
               mode="horizontal"
               items={ menuItems.length > 0 ? menuItems : [] }
             />
-            { process.env.REACT_APP_DEV_MODE && <OpenInModal modalType='custom' >
-              <Icon iconName='edit' />
-              <JsonEditor initObject={ menuRecords } onChange = { (newJson) => {
-                updateConfig({ menuItems: newJson })
-              }} />
-            </OpenInModal> }
         </div>
         
         <div className="appActions">
