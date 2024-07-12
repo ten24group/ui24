@@ -1,6 +1,4 @@
-import { Dayjs } from 'dayjs';
-import { UI24Config } from './config/config';
-import { dayjsCustom } from './dayjs';
+import { Block, BlockNoteEditor } from "@blocknote/core";
 
 export function isValidURL(str) {
   var pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
@@ -48,28 +46,25 @@ export function convertUTCDateToLocalDate(date: string | Date) {
     return newDate;
 }
 
-/**
- * Formats a date using a specified format string.
- * @param {Date} date - The date to format.
- * @param {string} type - The format-type to use.
- * @returns {string} The formatted date.
- */
-export function formatDate(date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' ): string {
-  const formatString = UI24Config.formatConfig?.[type];
-  return date ? dayjsCustom(date).format(formatString) : '';
+
+export async function getBlocksToHtml(blocks: Block[], editor?: BlockNoteEditor): Promise<string> {
+  editor = editor || BlockNoteEditor.create({});
+
+  const markup = await editor.blocksToHTMLLossy(blocks)
+
+  return markup
 }
 
-/**
- *  Formats a boolean value to a string.
- * @param value - The boolean value to format.
- * @returns The formatted boolean value.
- * 
- * @example
- * ```ts
- * formatBoolean(true); // returns "YES"
- * ```
- */
-export function formatBoolean(value: boolean): string {
-  return value ? UI24Config.formatConfig?.boolean?.true || 'True' : UI24Config.formatConfig?.boolean?.false || 'False';
+
+
+
+
+export function isValidJson(str) {
+  try {
+      JSON.parse(str);
+  } catch (e) {
+      return false;
+  }
+  return true;
 }
 
