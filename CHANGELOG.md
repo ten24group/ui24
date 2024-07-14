@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.7](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.6...v0.1.1-alpha.7) (2024-07-14)
+
+
+### Bug Fixes
+
+* missing utils import and webpack build ([763277e](https://github.com/ten24group/ui24/commit/763277e7fde0a73e0460ddda57cf8ce3fc22a1ef))
+
 ### [0.1.1-alpha.6](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.5...v0.1.1-alpha.6) (2024-07-12)
 
 
