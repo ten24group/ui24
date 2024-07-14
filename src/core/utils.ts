@@ -59,5 +59,12 @@ export async function getBlocksToHtml(blocks: Block[], editor?: BlockNoteEditor)
 
 
 
-
+export function isValidJson(str) {
+  try {
+      JSON.parse(str);
+  } catch (e) {
+      return false;
+  }
+  return true;
+}
 

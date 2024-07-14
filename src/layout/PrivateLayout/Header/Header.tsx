@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Icon } from '../../../core/common';
 import type { MenuProps } from 'antd';
-import { Menu as AntMenu, Layout } from 'antd';
+import { Menu as AntMenu, Layout, theme } from 'antd';
 import {  } from 'antd';
 import { Link } from '../../../core/common';
 import "./Header.css";
 import { HeaderActions } from './HeaderActions';
 import { useUi24Config } from '../../../core/context';
+import { OpenInModal } from '../../../modal/Modal';
+//import { JsonEditor } from '../../../core/common';
 
 const { Header : AntHeader } = Layout;
 
@@ -42,12 +44,16 @@ const formatMenuItems = (menuItems: any) => {
 }
 
 export const Header = () => {
-    const { selectConfig } = useUi24Config()
+    const { selectConfig, updateConfig } = useUi24Config()
     const appLogo = selectConfig( config => config.appLogo)
     const menuRecords = selectConfig( config => config.menuItems || [])
-    const [ menuItems, setMenuItems ] = React.useState<MenuItem[]>( formatMenuItems( menuRecords ) );
+    const menuItems = formatMenuItems( menuRecords )
+
+    const { useToken } = theme;
+    const { token } = useToken();
     
-    return <AntHeader style={{ display: 'flex', background: 'white', alignItems: 'center' }}>
+    
+    return <AntHeader style={{ display: 'flex', background: token.colorBgContainer, alignItems: 'center' }}>
       <div className="appHeader">
         <div className="appLogo">
           { appLogo !== "" && <Link url="/"><div className="logo"><img src={appLogo} alt="App Logo" title="Logo" /></div></Link> }
@@ -58,8 +64,9 @@ export const Header = () => {
               theme="light"
               mode="horizontal"
               items={ menuItems.length > 0 ? menuItems : [] }
-          />
+            />
         </div>
+        
         <div className="appActions">
           <HeaderActions />
         </div>
