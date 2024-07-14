@@ -1,4 +1,5 @@
 const path = require('path');
+const CompressionPlugin = require("compression-webpack-plugin");
 
 module.exports = {
   entry: './src/index.tsx',
@@ -8,6 +9,7 @@ module.exports = {
     libraryTarget: 'umd',
     globalObject: 'this',
     publicPath: '/',
+    clean: true,
   },
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx']
@@ -29,8 +31,9 @@ module.exports = {
         test: /\.css$/,
         use: ['style-loader', 'css-loader']
       }
-    ]
+    ],
   },
+  plugins: [new CompressionPlugin()],
   externals: {
     react: 'react',
     'react-dom': 'react-dom'
