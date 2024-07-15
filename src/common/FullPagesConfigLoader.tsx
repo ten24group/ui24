@@ -1,7 +1,7 @@
 import React, { createContext, useRef, useState, useEffect, ReactNode } from 'react';
 import { useAuth, useUi24Config } from '../core/context';
 import { Spin } from 'antd';
-import { IConfigResolver } from '../core/context';
+import { loadConfigs } from './utils';
 
 const FullPagesConfigLoaderContext = createContext<undefined>(undefined);
 
@@ -15,28 +15,11 @@ export const FullPagesConfigLoader: React.FC<{ children: ReactNode }> = ({ child
     const { pages: pageConfigUrl, menu : menuConfigUrl, dashboard } = selectConfig( (config) => config.uiConfig )
     const initPageConfig = useRef(false)
 
-    const loadConfigs = async <T extends IConfigResolver<any>[]>(...props: IConfigResolver<any>[]): Promise<T>  => {
-        const configs = await Promise.all( 
-            props.map( async (prop) => { 
-                if( typeof prop === 'function' ) {
-                    return await prop()
-                } else if( typeof prop === 'string' ) {
-                    const config = await fetch(prop);
-                    const resolved = await config.json();
-                    return resolved;
-                } else if( typeof prop === 'object' ) {
-                    return prop
-                }
-            }) 
-        );
-        return configs as T;
-    }
-
     useEffect( () => {
 
         async function loadPagesConfig() {
             setLoader( true )
-
+            
             const resolver  = await loadConfigs(pageConfigUrl, menuConfigUrl, dashboard)
             const { [0] : response, [1] : menuResponse, [2]: dashboardResponse } = resolver
 
@@ -46,6 +29,7 @@ export const FullPagesConfigLoader: React.FC<{ children: ReactNode }> = ({ child
             }
 
             updateConfig( configPayload )
+            
             setLoader( false )
         }
 
