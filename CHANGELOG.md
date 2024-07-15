@@ -2,6 +2,36 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.8](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.7...v0.1.1-alpha.8) (2024-07-15)
+
+### [0.1.1-alpha.7](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.6...v0.1.1-alpha.7) (2024-07-14)
+
+
+### Bug Fixes
+
+* missing utils import and webpack build ([763277e](https://github.com/ten24group/ui24/commit/763277e7fde0a73e0460ddda57cf8ce3fc22a1ef))
+
+### [0.1.1-alpha.6](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.5...v0.1.1-alpha.6) (2024-07-12)
+
+
+### Bug Fixes
+
+* block-note changes not getting persisted ([c96777b](https://github.com/ten24group/ui24/commit/c96777bc2529026d975ee25dac7e6b9ffac5110f))
+* block-note editor data not getting populated on edit pages ([3273a0f](https://github.com/ten24group/ui24/commit/3273a0f4aee3ac070cc52be6ee765e977506c2fa))
+* bug in form unique name, ([9ab372b](https://github.com/ten24group/ui24/commit/9ab372b3a085b1eba4edf03c207571448086b851))
+* color renderer on detail pages and removed console logs ([525e708](https://github.com/ten24group/ui24/commit/525e70802c1d96fa992d459d63ed16556328cf3f))
+* error on entity-detail page ([9eaad18](https://github.com/ten24group/ui24/commit/9eaad1864325efb7920107904f67da4a5492ec1e))
+* not able to select option in selects ([c91f5fb](https://github.com/ten24group/ui24/commit/c91f5fb695fb8f44169d427a23082693f3500994))
+* not logging out on expired token ([459c027](https://github.com/ten24group/ui24/commit/459c027ef3cf61dd3bd12a7ac722261de97beaa8))
+
+### [0.1.1-alpha.5](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.4...v0.1.1-alpha.5) (2024-06-20)
+
+
+### Bug Fixes
+
+* block-editor default height ([d9349cb](https://github.com/ten24group/ui24/commit/d9349cba3cc96e80ec939c09a80b306edb6b29b0))
+* wysiwyg wrapper css ([37775fd](https://github.com/ten24group/ui24/commit/37775fdb433071206c55ee2eea365264f42e775e))
+
 ### [0.1.1-alpha.4](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.3...v0.1.1-alpha.4) (2024-06-19)
 
 
