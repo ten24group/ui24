@@ -13,7 +13,7 @@ export type IAppRouter = { customRoutes?: IRoutes }
 
 export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
     const { selectConfig } = useUi24Config()
-    const authConfig = selectConfig( (config) => config.auth?.verifyToken );
+    const { auth: authConfigUrl } = selectConfig( (config) => config.uiConfig );
   
     // Merge custom routes with default routes, giving precedence to custom ones
     const mergedRoutes = [...customRoutes, ...defaultRoutes ].reduce((acc: any, route: IRoute, index:number ) => {
@@ -32,7 +32,7 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
     }, {});
 
     const renderChildWithLoader = ( children: ReactNode) => {
-      if( !!authConfig ) {
+      if( typeof authConfigUrl === 'string' ) {
         return <AuthLoader>{children}</AuthLoader>
       }
       return children
