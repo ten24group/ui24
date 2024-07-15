@@ -45,7 +45,6 @@ export const AuthLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
 
             updateConfig( configPayload )
         }
-        console.log("here AuthLoader")
 
         if (!initAuth.current) {
             initAuth.current = true
