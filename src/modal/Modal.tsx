@@ -87,7 +87,7 @@ export const Modal = ({
               cardStyle={{ marginTop: "5%"}} 
               pageType={ modalType as IPageType } 
               listPageConfig={ modalType === "list" ? modalPageConfig as ITableConfig : undefined } 
-              formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback } as IForm: undefined } 
+              formPageConfig={ modalType === "form" ? {...modalPageConfig, onSubmitSuccessCallback : onSuccessCallback, useDynamicIdFromParams: false } as IForm: undefined } 
               detailsPageConfig={ modalType === "details" ? modalPageConfig as IDetailsConfig : undefined}
             />
           </AntModal>

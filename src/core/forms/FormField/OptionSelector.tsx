@@ -144,6 +144,8 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
         }} /> }
     { fieldType === "multi-select" && <AntSelect value={value }  disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
             addNewOption ? enableAddNewOption() : undefined
-        } mode='multiple' />}
+        } onChange={ (value) => {
+            onOptionChange(value)
+        }} mode='multiple' />}
     </>
 }
