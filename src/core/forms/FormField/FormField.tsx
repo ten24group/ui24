@@ -71,10 +71,10 @@ const MakeFormItem = ({
         { fieldType === "checkbox" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } />}
         { fieldType === "radio" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } />}
         { fieldType === "select" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } addNewOption={ addNewOption } onOptionChange={ (newSelections) => {
-            setFormValue( { name, value: newSelections } )
+            setFormValue && setFormValue( { name, value: newSelections } )
         }}/>}
         { fieldType === "multi-select" && <OptionSelector value={ initialValue } fieldType={ fieldType } options={ options } addNewOption={ addNewOption } onOptionChange={ (newSelections) => {
-            setFormValue( { name, value: newSelections } )
+            setFormValue && setFormValue( { name, value: newSelections } )
         }} />}
 
         { fieldType === 'color' && <CustomColorPicker /> }
@@ -129,15 +129,17 @@ const MakeFormListItem = ({
     label = "", 
     initialValue, 
     items,
+    setFormValue,
 }: IFormField) => {
+    const parentFieldName = name;
     return <>
         <Form.List 
         name={ namePrefixPath?.length ? [...namePrefixPath, name] : name } 
             rules={ validationRules } 
             initialValue={initialValue} 
         >
-        {(fields, { add, remove }) => (
-            <div style={{ display: 'flex', rowGap: 16, flexDirection: 'column' }}>
+        {(fields, { add, remove }) => {
+            return <div style={{ display: 'flex', rowGap: 16, flexDirection: 'column' }}>
                 {fields.map((field) => (
                     <Card
                         size="small"
@@ -147,7 +149,9 @@ const MakeFormListItem = ({
                     >
                         {
                             items.properties.map( (property:any) => {
-                                return <MakeFormItem {...property} namePrefixPath={namePrefixPath?.length ? [...namePrefixPath, field.name] : [field.name]} />
+                                return <MakeFormItem {...property} namePrefixPath={namePrefixPath?.length ? [...namePrefixPath, field.name] : [field.name]} setFormValue={ ({ name, value }) => {
+                                    setFormValue( { name: parentFieldName, value: { [name] : value }, index: field.key } )
+                                }} />
                             })
                         }
                     </Card>
@@ -155,7 +159,7 @@ const MakeFormListItem = ({
 
                 <Button type="dashed" onClick={() => add()} block> + Add {label} </Button>
             </div>
-        )}
+        }}
         </Form.List>
     </>
 }
