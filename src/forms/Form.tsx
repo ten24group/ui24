@@ -128,7 +128,7 @@ export function Form({
     if( apiConfig ) {
       setLoader( true)
       setBtnLoader( true )
-      const formattedApiUrl = identifiersToUse !== "" ? apiConfig.apiUrl + `/${identifiersToUse}` : apiConfig.apiUrl
+      const formattedApiUrl = identifiersToUse !== "" && identifiersToUse ? apiConfig.apiUrl + `/${identifiersToUse}` : apiConfig.apiUrl
       
       const response: any = await callApiMethod({
         ...apiConfig,
@@ -184,8 +184,15 @@ export function Form({
     { formPropertiesConfig.map( 
       (item: IFormField, index: number ) => { 
         return <React.Fragment key={"fe"+index}>
-            <FormField {...item} setFormValue={ ( newValue: { name: string, value: string }) => {
-              form.setFieldsValue( { [newValue.name]: newValue.value } )
+            <FormField {...item} setFormValue={ ( newValue: { name: string, value: string | object, index?: number }) => {
+              
+              if( newValue.index !== undefined && typeof newValue.value === "object" ) {
+                const currentValue = form.getFieldValue( newValue.name ) || [];
+                form.setFieldsValue( { [newValue.name]: [...currentValue.slice(0, newValue.index ), { ...currentValue[newValue.index], ...newValue.value }, ...currentValue.slice( newValue.index + 1 ) ] } )
+              } else {
+                form.setFieldsValue( { [newValue.name]: newValue.value } )
+              }
+              
               }} />
           </React.Fragment> 
       })
