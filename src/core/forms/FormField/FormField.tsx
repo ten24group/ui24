@@ -171,7 +171,7 @@ export function FormField( formField : IFormField ) {
     } = formField;
 
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
-        { ( type === 'list' && !['wysiwyg', 'rich-text'].includes(fieldType.toLocaleLowerCase()) ) 
+        { ( type === 'list' && !['wysiwyg', 'rich-text', 'multi-select'].includes(fieldType.toLocaleLowerCase()) ) 
             ? <MakeFormListItem {...formField}/>
             : <MakeFormItem {...formField} />
         }
