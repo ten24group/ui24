@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.10](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.9...v0.1.1-alpha.10) (2024-07-22)
+
+
+### Bug Fixes
+
+* multi-select ui for list type attributes ([c7f528f](https://github.com/ten24group/ui24/commit/c7f528fc767a4383710af40981c37bb5ff444386))
+
 ### [0.1.1-alpha.9](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.8...v0.1.1-alpha.9) (2024-07-19)
 
 ### [0.1.1-alpha.8](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.7...v0.1.1-alpha.8) (2024-07-15)
