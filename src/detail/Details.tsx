@@ -113,12 +113,12 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
                     }
                 } 
 
-                if(item.type === 'list'){
+                if(item.type === 'list' && item.fieldType !== 'multi-select'){
 
-                return {
-                    key: index,
-                    label: item.label,
-                    children: <List
+                    return {
+                        key: index,
+                        label: item.label,
+                        children: <List
                             itemLayout="horizontal"
                             dataSource={item.initialValue as unknown as any[]}
                             renderItem={(item, index) => (
@@ -133,7 +133,6 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
                                 </List.Item>
                             )}
                         />
-
                     }
                 }
 
@@ -183,7 +182,7 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
                 }
             } 
 
-            if(item.type === 'list'){
+            if(item.type === 'list' && item.fieldType !== 'multi-select'){
                 return {
                     key: index,
                     label: item.label,
