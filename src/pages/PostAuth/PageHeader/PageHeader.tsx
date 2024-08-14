@@ -5,6 +5,7 @@ import { Breadcrumb, Button } from "antd";
 import { IPageAction } from "../../../table/type";
 import { Link } from "../../../core/common";
 import { OpenInModal } from "../../../modal/Modal";
+import { useParams } from "react-router-dom";
 
 interface IBreadcrumbs {
     title: string;
@@ -20,6 +21,7 @@ export interface IPageHeader {
 }
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : IPageHeader ) => {
+    const { dynamicID } = useParams()
 
     const LocalBreadcrumbs = () => breadcrumbs.length ? <Breadcrumb items={ breadcrumbs.map( ( item ) => {
         return item.url ? <Breadcrumb.Item><Link title={ item.title } url={ item.url } /></Breadcrumb.Item> : <Breadcrumb.Item>{ item.title }</Breadcrumb.Item>
@@ -27,9 +29,10 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : 
 
     const PageActions = Array.isArray(pageHeaderActions) ? <React.Fragment>{ pageHeaderActions.map( (item, index) => {
         return <Button type="primary" key={"actionButton" + index }> 
-            { item.openInModal && item.modalConfig ? <OpenInModal {...item.modalConfig} >
-                { item.label }
-            </OpenInModal>: <Link title={ item.label } url={ item.url } /> }
+            { item.openInModal && item.modalConfig 
+                ? <OpenInModal {...item.modalConfig} primaryIndex={dynamicID}>{item.label}</OpenInModal>
+                : <Link title={ item.label } url={ item.url } /> 
+            }
         </Button>
     }) }</React.Fragment>: pageHeaderActions;
 
