@@ -29,6 +29,7 @@ export interface IModalConfig {
     onConfirmCallback?: () => void;
     onCancelCallback?: () => void;
     onOpenCallback?: () => void;
+    submitSuccessRedirect?: string;
 }
 
 export const Modal = ({
