@@ -138,7 +138,7 @@ class Authenticator implements IAuthProvider {
     requestHeaders = async (config: InternalAxiosRequestConfig<any>) => {
         
         if(!this.isLoggedIn()){
-            console.warn("Not logged in: can't set auth on request", config);
+            //console.warn("Not logged in: can't set auth on request", config);
             return;
         }
 
