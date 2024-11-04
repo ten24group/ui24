@@ -77,23 +77,30 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
         // TODO: add support for query, pagination, fetching template-attributes etc
         const response = await callApiMethod( { ...config } );
         setDisabled(false)
+
         if( response.status === 200 ) {
-    
-            const options = response.data[config.responseKey];
+            let formattedOptions: Array<any>;
+            const options = response.data[config.responseKey] as Array<any>;
+            
             if( !config.optionMapping ) {
-                return options;
+
+                formattedOptions = options;
+            } else {
+
+                formattedOptions = options.map( (option) => {
+                    return {
+                        label: typeof config.optionMapping.label === 'string' 
+                            ? option[config.optionMapping.label] 
+                            : interpolateTemplate(config.optionMapping.label, option),
+                        value: typeof config.optionMapping.value === 'string' 
+                            ? option[config.optionMapping.value] 
+                            : interpolateTemplate(config.optionMapping.value, option),
+                    }
+                });
             }
 
-            return options.map( (option: any) => {
-                return {
-                    label: typeof config.optionMapping.label === 'string' 
-                        ? option[config.optionMapping.label] 
-                        : interpolateTemplate(config.optionMapping.label, option),
-                    value: typeof config.optionMapping.value === 'string' 
-                        ? option[config.optionMapping.value] 
-                        : interpolateTemplate(config.optionMapping.value, option),
-                }
-            })
+            // sort options by label
+            return formattedOptions?.sort( (a, b) => a.label.localeCompare(b.label) )
         }
         
         // TODO: handle error
