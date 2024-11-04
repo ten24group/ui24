@@ -100,7 +100,7 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
             }
 
             // sort options by label
-            return formattedOptions?.sort( (a, b) => a.label.localeCompare(b.label) )
+            return formattedOptions?.sort( (a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()) )
         }
         
         // TODO: handle error
