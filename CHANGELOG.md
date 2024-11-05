@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.13](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.11...v0.1.1-alpha.13) (2024-08-28)
+
+### [0.1.1-alpha.11](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.10...v0.1.1-alpha.11) (2024-08-16)
+
+
+### Bug Fixes
+
+* entity-id not getting passed into the page-header actions ([c2d1c9d](https://github.com/ten24group/ui24/commit/c2d1c9da395c9e23bfc01148dadbf85e371085e9))
+
 ### [0.1.1-alpha.10](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.9...v0.1.1-alpha.10) (2024-07-22)
 
 
