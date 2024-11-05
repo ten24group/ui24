@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.14](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.13...v0.1.1-alpha.14) (2024-11-05)
+
+
+### Bug Fixes
+
+* hard error on a failed api response ([26d7221](https://github.com/ten24group/ui24/commit/26d72210db6b3db9f8a34a4ef557d94e0fe3936c))
+* select dd options sorting for case-insensitive labels ([35d0557](https://github.com/ten24group/ui24/commit/35d0557a49728a661075e364a60baae22d15aa1a))
+
 ### [0.1.1-alpha.13](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.11...v0.1.1-alpha.13) (2024-08-28)
 
 ### [0.1.1-alpha.11](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.10...v0.1.1-alpha.11) (2024-08-16)
