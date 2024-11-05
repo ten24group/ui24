@@ -104,15 +104,15 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 return await headMethod( apiConfig.apiUrl, apiConfig.payload );
             }
         } catch (error) {
-            const status = error?.status || 500;
-            const parsedErrorMessage = error?.data?.message || error?.data?.error  || `(${error.name}) ${error.message ?? 'Error in API call'}: (${status})`;
-            //console.error(parsedErrorMessage, error);
+            const status = error?.response?.status || 500;
+            const parsedErrorMessage = error?.response?.data?.message || error?.response?.data?.error  || `(${error?.name}) ${error?.message ?? 'Error in API call'}: (${status})`;
+            console.error(parsedErrorMessage, error);
     
             return {
-                ...error?.data,
+                ...error?.response?.data,
                 status,
-                error: error?.data?.error || parsedErrorMessage,
-                message: error?.data?.message || parsedErrorMessage,
+                error: error?.response?.data?.error || parsedErrorMessage,
+                message: error?.response?.data?.message || parsedErrorMessage,
             }
         }
     }
