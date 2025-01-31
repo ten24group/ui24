@@ -103,7 +103,6 @@ const MakeFormItem = ({
 
         { ['boolean', 'toggle', 'switch'].includes( fieldType.toLocaleLowerCase() ) && <Switch/>}
 
-        {/* { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && <CustomEditorJs tools={EDITOR_JS_TOOLS} minHeight={50} /> } */}
         { ['rich-text', 'wysiwyg'].includes( fieldType.toLocaleLowerCase()) && 
             <CustomBlockNoteEditor 
                 
