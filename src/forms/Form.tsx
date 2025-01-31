@@ -87,7 +87,7 @@ export function Form({
           } else if(fieldType === "time") {
               itemValue = dayjsCustom(itemValue);
           } else if( ['boolean', 'toggle', 'switch'].includes(fieldType) ){
-              itemValue = itemValue ?? true;
+              itemValue = itemValue;
           } else if (fieldType === "color"){
               itemValue = itemValue ?? "#FFA500";
           }
