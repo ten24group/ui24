@@ -85,7 +85,11 @@ const MakeFormItem = ({
 
         { fieldType === "file" && 
             <FileUploader 
-                accept= { restFormItemProps['accept'] ?? undefined}  
+                accept= { restFormItemProps['accept'] ?? undefined}
+                listType={ restFormItemProps['listType'] ?? 'picture-card'} 
+                // config for the default image uploader
+                fileNamePrefix = { restFormItemProps['fileNamePrefix'] ?? undefined}
+                getSignedUploadUrlAPIConfig  = { restFormItemProps['getSignedUploadUrlAPIConfig'] ?? undefined}
             />
         }
         
