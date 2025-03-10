@@ -3,6 +3,7 @@ import { LoginPage, ForgotPasswordPage, ResetPasswordPage, DynamicPage, PostAuth
 import { IRoutes } from './types';
 import { useAuth } from '../core/context';
 import { useNavigate } from 'react-router-dom';
+import { SetNewPasswordPage } from '../pages/Auth/SetNewPassword';
 
 /**
  * AppNavigator component to redirect the base / route based on auth status.
@@ -26,6 +27,7 @@ export const defaultRoutes: IRoutes = [
   { path: "/verification", element: <VerifyRegistrationPage />, authType: "auth" },
   { path: "/forgot-password", element: <ForgotPasswordPage />, authType: "auth"},
   { path: "/reset-password", element: <ResetPasswordPage />, authType: "auth" },
+  { path: "/set-new-password", element: <SetNewPasswordPage />, authType: "auth" },
   { path: "/", element: <AppNavigator />, authType: "private" },
   { path: "/:dynamicPage", element : <DynamicPage />, authType: "private" },
   { path: "/:dynamicPage/:dynamicID", element : <DynamicPage />, authType: "private" },

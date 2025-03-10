@@ -1,0 +1,68 @@
+import React from 'react';
+import { usePageConfig } from "../../core";
+import { useApi } from '../../core/context';
+import { AuthForm } from '../../forms/Layout/AuthForm';
+import { useAppContext } from '../../core/context/AppContext';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Link } from '../../core/common';
+
+export const SetNewPasswordPage = () => {
+  return (
+    <SetNewPasswordForm />
+  );
+};
+
+export const SetNewPasswordForm = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { notifySuccess, notifyError } = useAppContext();
+    const { propertiesConfig, apiConfig } = usePageConfig("/set-new-password");
+    const { callApiMethod } = useApi();
+
+    // Get the username and session from the location state
+    // These should be passed when redirecting to this page after receiving the NEW_PASSWORD_REQUIRED challenge
+    const { username, session } = location.state || {};
+
+    const onFinish = async (payload: any) => {
+        try {
+            // Add the username and session to the payload
+            const requestPayload = {
+                ...payload,
+                username,
+                session
+            };
+
+            const response: any = await callApiMethod({...apiConfig, payload: requestPayload});
+
+            if (response.status === 200) {
+                notifySuccess('Password updated successfully');
+                // After successful password change, redirect to the main application
+                // The response should contain the authentication tokens
+                navigate('/');
+            } else {
+                notifyError(response?.message || response?.error || 'Failed to update password');
+            }
+        } catch (error: any) {
+            notifyError(error?.message || 'An error occurred while updating password');
+        }
+    };
+
+    // If we don't have the required data, redirect to login
+    if (!username || !session) {
+        React.useEffect(() => {
+            navigate('/login');
+        }, []);
+        return null;
+    }
+
+    return <>{ propertiesConfig && <AuthForm
+            onSubmit={onFinish}
+            propertiesConfig={propertiesConfig}
+            formButtons={["submit"]}
+        >
+            <div className="PreAuthLoginActions" style={{display: 'flex', justifyContent: 'center', marginTop: '1rem'}}>
+                <Link title="Back to login?" url='/login' />
+            </div>
+        </AuthForm>
+    }</>
+}; 
