@@ -26,15 +26,30 @@ const LoginForm = () => {
 
   const onFinish = async (payload: any) => {
     setLoader(true)
-    const response: any = await callApiMethod({...apiConfig, payload });
+    try {
+      const response: any = await callApiMethod({...apiConfig, payload });
 
-    if( response.status === 200 ) {
-      notifySuccess("Login Successful!");
-      navigate('/dashboard');
-    } else if( response?.error ) {
-      notifyError(response?.error)
+      if (response.status === 200) {
+        if (response.data?.challengeName === 'NEW_PASSWORD_REQUIRED') {
+          const userName = payload.username || payload.email;
+          navigate('/set-new-password', {
+            state: {
+              username: userName,
+              session: response.data.session
+            }
+          });
+          return;
+        }
+        notifySuccess("Login Successful!");
+        navigate('/dashboard');
+      } else if (response?.error) {
+        notifyError(response?.error)
+      }
+    } catch (error: any) {
+      notifyError(error?.message || 'An error occurred during login');
+    } finally {
+      setLoader(false)
     }
-    setLoader(false)
   }
 
   const onChange: CheckboxProps['onChange'] = (e) => {
