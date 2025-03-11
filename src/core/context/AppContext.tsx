@@ -1,9 +1,12 @@
 import React, { ReactNode, createContext, useContext, useState } from 'react';
-import { Layout, notification, App } from 'antd';
+import { notification, App } from 'antd';
 
 interface AppContext {
     notifyError: (message: string) => void;
     notifySuccess: (message: string) => void;
+    notifyWarning: (message: string) => void;
+    notifyInfo: (message: string) => void;
+    notifyLoading: (message: string) => void;
 };
 const AppContext = createContext<AppContext>(null);
 
@@ -24,7 +27,21 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         messageHandler.error(message)
     }
 
-    return <AppContext.Provider value={{ notifySuccess, notifyError }}>
+    const notifyWarning = (message: string) => {
+        messageHandler.warning(message)
+    }
+
+    const notifyInfo = (message: string) => {
+        messageHandler.info(message)
+    }
+
+    const notifyLoading = (message: string) => {
+        messageHandler.loading(message)
+    }
+
+
+
+    return <AppContext.Provider value={{ notifySuccess, notifyError, notifyWarning, notifyInfo, notifyLoading }}>
         <>
             {contextHolder}
         </>

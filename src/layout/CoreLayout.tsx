@@ -27,13 +27,11 @@ export const CoreLayout = ({ children, authType = "public" }: { children?: React
 
     const WrapperLayout = getLayoutComponent(authType);
 
-    return <Layout style={{ minHeight: '100vh' }}>
-        <AppContextProvider>
-            <ThemeProvider>
-                <WrapperLayout>
-                    {children}
-                </WrapperLayout>
-            </ThemeProvider>
-        </AppContextProvider>
-    </Layout>
+    return (
+        <Layout style={{ minHeight: '100vh' }}>
+            <WrapperLayout>
+                {children}
+            </WrapperLayout>
+        </Layout>
+    )
 }

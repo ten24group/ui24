@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { useAuth } from './AuthContext';
 import { useUi24Config } from './UI24Context';
+import { useAppContext } from './AppContext';
 
 export interface IApiConfig {
     apiUrl: string;
@@ -19,6 +20,8 @@ const ApiContext = createContext<IApiContext | undefined>(undefined);
 
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
+    const { notifyError } = useAppContext()
+
     const { requestHeaders, processToken, logout, getToken } = useAuth();
 
     //create axios instance
@@ -53,13 +56,13 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token"))) {
 
                 // Show appropriate message based on error type
-                // if (error.response?.status === 401) {
-                //     showNotification('Your session has expired. Please log in again.', 'error');
-                // } else if (error.response?.status === 403) {
-                //     showNotification('Your session has expired. Please log in again.', 'error');
-                // } else if (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token")) {
-                //     showNotification('Your session is invalid. Please log in again.', 'error');
-                // }
+                if (error.response?.status === 401) {
+                    notifyError('Your session has expired. Please log in again.');
+                } else if (error.response?.status === 403) {
+                    notifyError('Your session has expired. Please log in again.');
+                } else if (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token")) {
+                    notifyError('Your session is invalid. Please log in again.');
+                }
 
                 // Attempt to refresh token if we have one
                 const currentToken = getToken();
