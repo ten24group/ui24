@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
+import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { useAuth } from './AuthContext';
-import axios from 'axios';
 import { useUi24Config } from './UI24Context';
 
 export interface IApiConfig {
@@ -8,28 +8,30 @@ export interface IApiConfig {
     apiMethod: string;
     payload?: any;
     responseKey?: string;
+    headers?: Record<string, string>;
 }
 
 interface IApiContext {
-    callApiMethod: (apiConfig: IApiConfig) => Promise<any>;
+    callApiMethod: <T>(apiConfig: IApiConfig) => Promise<AxiosResponse<T>>;
 }
 
 const ApiContext = createContext<IApiContext | undefined>(undefined);
 
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-
     const { selectConfig, config } = useUi24Config()
-    const { requestHeaders, processToken, logout } = useAuth();
+    const { requestHeaders, processToken, logout, getToken } = useAuth();
 
     //create axios instance
     const axiosInstance = axios.create();
     //set base url
-    axiosInstance.defaults.baseURL = selectConfig( config => config.baseURL )
+    axiosInstance.defaults.baseURL = selectConfig(config => config.baseURL)
 
-    //setup intercetors
+    //setup interceptors
     axiosInstance.interceptors.request.use(
-        async (config) => {
-            config.headers['Content-Type'] = 'application/json';
+        async (config: InternalAxiosRequestConfig) => {
+            if (!config.headers.hasContentType()) {
+                config.headers.setContentType('application/json');
+            }
             await requestHeaders(config);
             return config;
         },
@@ -40,81 +42,151 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     axiosInstance.interceptors.response.use(
         async (response) => {
-            await processToken(response)
-            // TODO: handle 401 and redirect to the login page
-            if( response.status === 401 ) {
-                logout()
+            processToken(response)
+            return response;
+        }, async (error) => {
+            const originalRequest = error.config;
+
+            // Handle session expiration
+            if (error.response?.status === 401 ||
+                error.response?.status === 403 ||
+                (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token"))) {
+
+                // Show appropriate message based on error type
+                // if (error.response?.status === 401) {
+                //     showNotification('Your session has expired. Please log in again.', 'error');
+                // } else if (error.response?.status === 403) {
+                //     showNotification('Your session has expired. Please log in again.', 'error');
+                // } else if (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token")) {
+                //     showNotification('Your session is invalid. Please log in again.', 'error');
+                // }
+
+                // Attempt to refresh token if we have one
+                const currentToken = getToken();
+                if (currentToken) {
+                    try {
+                        const refreshResponse = await axiosInstance.post('/mauth/refreshToken', {
+                            refreshToken: currentToken
+                        });
+
+                        if (refreshResponse.data?.IdToken) {
+                            processToken(refreshResponse);
+                            // Retry the original request
+                            return axiosInstance(originalRequest);
+                        }
+                    } catch (refreshError) {
+                        console.error('Token refresh failed:', refreshError);
+                    }
+                }
+
+                // If refresh failed or no token, logout
+                logout();
             }
-  
-          return response;
-        },
-        (error) => {
-            if( error.response?.status == 500 && error.response.data?.message?.includes?.("Invalid ID-Token") ) {
-                logout()
-            }
+
             return Promise.reject(error.response)
         }
     );
 
     //** API Methods */
-    const getMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    const getMethod = async (url: string, params: any = {}, headers: any = {}) => {
         return await axiosInstance.get(url, { params, headers });
     }
 
-    const postMethod = async (url: string, data: any, headers: any ={}) => {
+    const postMethod = async (url: string, data: any, headers: any = {}) => {
         return await axiosInstance.post(url, data, { headers });
     };
 
-    const putMethod = async (url: string, data: any, headers: any ={} ) => {
-
+    const putMethod = async (url: string, data: any, headers: any = {}) => {
         return await axiosInstance.put(url, data, { headers });
     };
 
-    const patchMethod = async (url: string, data: any, headers: any ={}) => {
+    const patchMethod = async (url: string, data: any, headers: any = {}) => {
         return await axiosInstance.patch(url, data, { headers });
     };
 
-    const deleteMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    const deleteMethod = async (url: string, params: any = {}, headers: any = {}) => {
         return await axiosInstance.delete(url, { params, headers });
-    }; 
+    };
 
-    const optionsMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    const optionsMethod = async (url: string, params: any = {}, headers: any = {}) => {
         return await axiosInstance.options(url, { params, headers });
     };
 
-    const headMethod = async (url: string, params: any = {}, headers: any ={}) => {
+    const headMethod = async (url: string, params: any = {}, headers: any = {}) => {
         return await axiosInstance.head(url, { params, headers });
     };
-    
-    const callApiMethod = async (apiConfig: IApiConfig) => {
-        try{
-            if( apiConfig.apiMethod.toUpperCase() === "GET" ) {
-                return await getMethod( apiConfig.apiUrl, apiConfig.payload );
-            } else if( apiConfig.apiMethod.toUpperCase() === "POST" ) {
-                return await postMethod( apiConfig.apiUrl, apiConfig.payload );
-            } else if( apiConfig.apiMethod === "PUT" ) {
-                return await putMethod( apiConfig.apiUrl, apiConfig.payload );
-            } else if( apiConfig.apiMethod === "PATCH" ) {
-                return await patchMethod( apiConfig.apiUrl, apiConfig.payload );
-            } else if( apiConfig.apiMethod === "DELETE" ) {
-                return await deleteMethod( apiConfig.apiUrl, apiConfig.payload );
-            } else if( apiConfig.apiMethod === "OPTIONS" ) {
-                return await optionsMethod( apiConfig.apiUrl, apiConfig.payload );
-            } else if( apiConfig.apiMethod === "HEAD" ) {
-                return await headMethod( apiConfig.apiUrl, apiConfig.payload );
+
+    const callApiMethod = async <T,>(apiConfig: IApiConfig): Promise<AxiosResponse<T>> => {
+        try {
+            let response: AxiosResponse<T> | undefined;
+            if (apiConfig.apiMethod.toUpperCase() === "GET") {
+                response = await getMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+            } else if (apiConfig.apiMethod.toUpperCase() === "POST") {
+                response = await postMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+            } else if (apiConfig.apiMethod === "PUT") {
+                response = await putMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+            } else if (apiConfig.apiMethod === "PATCH") {
+                response = await patchMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+            } else if (apiConfig.apiMethod === "DELETE") {
+                response = await deleteMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+            } else if (apiConfig.apiMethod === "OPTIONS") {
+                response = await optionsMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+            } else if (apiConfig.apiMethod === "HEAD") {
+                response = await headMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
             }
-        } catch (error) {
-            const errorRoot = error?.response || error;
-            const status = errorRoot?.status || 500;
-            const parsedErrorMessage = errorRoot?.data?.message || errorRoot?.data?.error  || `(${errorRoot?.name}) ${errorRoot?.message ?? 'Error in API call'}: (${status})`;
-            console.error(parsedErrorMessage, error);
-    
-            return {
-                ...errorRoot?.data,
-                status,
-                error: errorRoot?.data?.error || parsedErrorMessage,
-                message: errorRoot?.data?.message || parsedErrorMessage,
+
+            if (!response) {
+                throw new Error('No response received from API call');
             }
+
+            return response;
+
+        } catch (error: any) {
+            // Handle network errors or no response
+            if (!error) {
+                const networkError = {
+                    message: 'Network error: No response received',
+                    response: { status: 500, data: { message: 'Network error occurred' } }
+                };
+                throw networkError;
+            }
+
+            // Handle axios errors
+            if (error.isAxiosError) {
+                const status = error.response?.status || 500;
+                const message = error.response?.data?.message || error.message;
+                error.response = {
+                    status,
+                    data: {
+                        message: message || `API request failed with status ${status}`,
+                        ...error.response?.data
+                    }
+                };
+                throw error;
+            }
+
+            // Handle other errors
+            const status = error?.response?.status || 500;
+            const parsedErrorMessage = error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                error?.message ||
+                'An unexpected error occurred';
+
+            console.error(`API Error (${status}):`, parsedErrorMessage, error);
+
+            // Ensure error has consistent structure
+            const formattedError = {
+                message: parsedErrorMessage,
+                response: {
+                    status,
+                    data: {
+                        message: parsedErrorMessage,
+                        ...error?.response?.data
+                    }
+                }
+            };
+
+            throw formattedError;
         }
     }
 
@@ -128,8 +200,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 export const useApi = () => {
     const context = useContext(ApiContext);
     if (!context) {
-      throw new Error('useApi must be used within an ApiProvider');
+        throw new Error('useApi must be used within an ApiProvider');
     }
     return context;
-};
-
+}; 

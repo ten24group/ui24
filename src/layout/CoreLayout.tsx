@@ -7,15 +7,12 @@ import { PrivateLayout } from './PrivateLayout/PrivateLayout';
 import { IRouteAuthType } from '../routes/types';
 import { useUi24Config } from '../core/context';
 
-export const CoreLayout = ({children, authType = "public"} : { children? : ReactNode, authType?: IRouteAuthType } ) => {
+export const CoreLayout = ({ children, authType = "public" }: { children?: ReactNode, authType?: IRouteAuthType }) => {
     const { selectConfig } = useUi24Config()
-    const layouts = selectConfig( (config) => config.layouts )
-    
-    
+    const layouts = selectConfig((config) => config.layouts)
+
     // Determine which layout to use based on route type
-    const getLayoutComponent = (
-        type: IRouteAuthType
-    ) => {
+    const getLayoutComponent = (type: IRouteAuthType) => {
         switch (type) {
             case "auth":
                 return layouts?.authLayout || AuthLayout;
@@ -28,7 +25,8 @@ export const CoreLayout = ({children, authType = "public"} : { children? : React
         }
     };
 
-  const WrapperLayout = getLayoutComponent(authType);
+    const WrapperLayout = getLayoutComponent(authType);
+
     return <Layout style={{ minHeight: '100vh' }}>
         <AppContextProvider>
             <ThemeProvider>

@@ -8,3 +8,4 @@ export * from "./core";
 export * from "./forms/Form";
 export * from "./table/Table";
 export * from "./detail/Details";
+export * from "./core";
