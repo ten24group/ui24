@@ -18,6 +18,7 @@ interface IFormatConfig {
 
 export type IUi24Config = {
     baseURL: string;
+    appURLPrefix?: string;
     appLogo: string;
     uiConfig: {
         auth: IConfigResolver<any>,

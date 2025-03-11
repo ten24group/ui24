@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { CheckboxProps } from 'antd';
 import { Button, Checkbox } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useCoreNavigator } from '../../routes/Navigation';
 import { usePageConfig } from '../../core';
 import { useApi } from '../../core/context';
 import { Link } from '../../core/common';
@@ -13,7 +13,7 @@ export const LoginPage = () => {
 };
 
 const LoginForm = () => {
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
 
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/login");
