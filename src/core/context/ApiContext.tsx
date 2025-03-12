@@ -60,7 +60,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     notifyError('Your session has expired. Please log in again.');
                 } else if (error.response?.status === 403) {
                     notifyError('Your session has expired. Please log in again.');
-                } else if (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token")) {
+                } else if (error.response?.status === 500 && error.response.data?.details?.message?.includes?.("Invalid ID-Token")) {
                     notifyError('Your session is invalid. Please log in again.');
                 }
 
@@ -157,7 +157,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             // Handle axios errors
             if (error.isAxiosError) {
                 const status = error.response?.status || 500;
-                const message = error.response?.data?.message || error.message;
+                const message = error.response?.data?.details?.message || error.response?.data?.message || error.response?.message || error.message;
                 error.response = {
                     status,
                     data: {
@@ -169,9 +169,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             }
 
             // Handle other errors
-            const status = error?.response?.status || 500;
-            const parsedErrorMessage = error?.response?.data?.message ||
-                error?.response?.data?.error ||
+            const response = error?.response || error;
+
+            const status = response?.status || 500;
+            const parsedErrorMessage = response?.data?.details?.message || response?.data?.message || response?.message ||
+                response?.data?.error ||
                 error?.message ||
                 'An unexpected error occurred';
 
@@ -184,7 +186,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     status,
                     data: {
                         message: parsedErrorMessage,
-                        ...error?.response?.data
+                        ...response?.data
                     }
                 }
             };
@@ -206,4 +208,5 @@ export const useApi = () => {
         throw new Error('useApi must be used within an ApiProvider');
     }
     return context;
-}; 
+};
+
