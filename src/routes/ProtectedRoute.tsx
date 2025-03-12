@@ -1,5 +1,5 @@
 import React from 'react';
-import { CoreNavigator } from './Navigation';
+import { CoreNavigate } from './Navigation';
 import { useAuth } from '../core/context';
 
 interface IProtectedRoute {
@@ -14,15 +14,15 @@ export const ProtectedRoute: React.FC<IProtectedRoute> = ({ component: Component
   const renderComponent = (props: any) => {
     if (authType === 'auth' && isLoggedIn) {
       // User is already logged in, redirect to dashboard
-      return <CoreNavigator to="/dashboard" />;
+      return <CoreNavigate to="/dashboard" />;
     }
     if (authType === 'private' && !isLoggedIn) {
       // User is not logged in, redirect to login
-      return <CoreNavigator to="/login" />;
+      return <CoreNavigate to="/login" />;
     }
     // No restrictions, render the component
     return <Component {...props} />;
   };
 
-  return renderComponent({...rest})
+  return renderComponent({ ...rest })
 };
