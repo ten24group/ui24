@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.20](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.19...v0.1.1-alpha.20) (2025-03-10)
+
+### [0.1.1-alpha.19](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.18...v0.1.1-alpha.19) (2025-03-10)
+
+### [0.1.1-alpha.18](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.17...v0.1.1-alpha.18) (2025-02-28)
+
+
+### Bug Fixes
+
+* file upload field in forms ([4e41187](https://github.com/ten24group/ui24/commit/4e4118735ff459ea21fc8648e23a34bf7eac8d4d))
+
 ### [0.1.1-alpha.17](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.16...v0.1.1-alpha.17) (2025-02-27)
 
 ### [0.1.1-alpha.16](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.14...v0.1.1-alpha.16) (2025-01-31)
