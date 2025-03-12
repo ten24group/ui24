@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useCoreNavigator } from '../../../routes/Navigation';
 import React, { Component, ReactNode } from 'react';
 
 type ICommonLinkProps = {
@@ -9,7 +9,7 @@ type ICommonLinkProps = {
 type ILinkProps = ({ url?: string; onClick: (url?: string) => void } | { url: string; onClick?: (url?: string) => void }) & ICommonLinkProps;
 
 export function Link ({title, url, children, onClick, ...props }: ILinkProps ) {
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     e.preventDefault(); // Prevent the default anchor behavior

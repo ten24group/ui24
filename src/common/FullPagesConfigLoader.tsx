@@ -6,48 +6,50 @@ import { loadConfigs } from './utils';
 const FullPagesConfigLoaderContext = createContext<undefined>(undefined);
 
 export const FullPagesConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { selectConfig, updateConfig }  = useUi24Config()
+    const { selectConfig, updateConfig } = useUi24Config()
     const [ loader, setLoader ] = useState(false)
     const { isLoggedIn } = useAuth()
 
-    const pagesConfig = selectConfig( ( config ) => config.pagesConfig || [] )
+    const pagesConfig = selectConfig((config) => config.pagesConfig || [])
 
-    const { pages: pageConfigUrl, menu : menuConfigUrl, dashboard } = selectConfig( (config) => config.uiConfig )
+    const { pages: pageConfigUrl, menu: menuConfigUrl, dashboard } = selectConfig((config) => config.uiConfig)
     const initPageConfig = useRef(false)
 
-    useEffect( () => {
-
+    useEffect(() => {
         async function loadPagesConfig() {
-            setLoader( true )
-            
-            const resolver  = await loadConfigs(pageConfigUrl, menuConfigUrl, dashboard)
-            const { [0] : response, [1] : menuResponse, [2]: dashboardResponse } = resolver
+            setLoader(true)
+
+            const resolver = await loadConfigs(pageConfigUrl, menuConfigUrl, dashboard)
+            const { [ 0 ]: response, [ 1 ]: menuResponse, [ 2 ]: dashboardResponse } = resolver
 
             const configPayload = {
-                'pagesConfig': {...response, "dashboard": dashboardResponse} || {},
+                'pagesConfig': {
+                    ...(response ?? {}),
+                    "dashboard": dashboardResponse
+                },
                 'menuItems': menuResponse || []
             }
 
-            updateConfig( configPayload )
-            
-            setLoader( false )
+            updateConfig(configPayload)
+
+            setLoader(false)
         }
 
-        if( !initPageConfig.current && isLoggedIn ) {
+        if (!initPageConfig.current && isLoggedIn) {
             initPageConfig.current = true
-            if( pagesConfig.length === 0 ) {
+            if (pagesConfig.length === 0) {
                 loadPagesConfig()
             }
         }
-    }, [isLoggedIn] )
+    }, [ isLoggedIn ])
 
-    
+
 
     return (
         <FullPagesConfigLoaderContext.Provider value={undefined}>
-            <Spin spinning={loader} style={{ paddingTop: '25%', display: 'flex',justifyContent: 'center', alignContent: 'center'}}>
+            <Spin spinning={loader} style={{ paddingTop: '25%', display: 'flex', justifyContent: 'center', alignContent: 'center' }}>
                 {children}
             </Spin>
         </FullPagesConfigLoaderContext.Provider>
-      );
+    );
 }
