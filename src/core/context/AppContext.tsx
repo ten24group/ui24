@@ -1,5 +1,5 @@
 import React, { ReactNode, createContext, useContext, useState } from 'react';
-import { notification, App } from 'antd';
+import { App } from 'antd';
 
 interface AppContext {
     notifyError: (message: string) => void;
@@ -11,9 +11,8 @@ interface AppContext {
 const AppContext = createContext<AppContext>(null);
 
 export function AppContextProvider({ children }: { children?: ReactNode }) {
-    const [ api, contextHolder ] = notification.useNotification();
 
-    const { message: messageHandler } = App.useApp();
+    const { message: messageHandler, modal: modalHandler, notification: notificationHandler } = App.useApp();
 
 
     const notifySuccess = (message: string) => {
@@ -39,12 +38,7 @@ export function AppContextProvider({ children }: { children?: ReactNode }) {
         messageHandler.loading(message)
     }
 
-
-
     return <AppContext.Provider value={{ notifySuccess, notifyError, notifyWarning, notifyInfo, notifyLoading }}>
-        <>
-            {contextHolder}
-        </>
         {children}
     </AppContext.Provider>
 }

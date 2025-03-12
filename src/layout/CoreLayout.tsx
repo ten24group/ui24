@@ -1,6 +1,5 @@
 import React, { ReactNode } from 'react';
 import { Layout } from 'antd';
-import { AppContextProvider, ThemeProvider } from '../core/context';
 import { AuthLayout } from './AuthLayout/AuthLayout';
 import { PublicLayout } from './PublicLayout/PublicLayout';
 import { PrivateLayout } from './PrivateLayout/PrivateLayout';
