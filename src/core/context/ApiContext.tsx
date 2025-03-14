@@ -157,7 +157,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             // Handle axios errors
             if (error.isAxiosError) {
                 const status = error.response?.status || 500;
-                const message = error.response?.data?.message || error.message;
+                const message = error.data?.details?.message || error.details?.message || error.response?.data?.message || error.message;
                 error.response = {
                     status,
                     data: {
@@ -167,10 +167,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 };
                 throw error;
             }
-
             // Handle other errors
             const status = error?.response?.status || 500;
-            const parsedErrorMessage = error?.response?.data?.message ||
+            const parsedErrorMessage = error.data?.details?.message ||
+                error?.details?.message ||
+                error?.response?.data?.message ||
                 error?.response?.data?.error ||
                 error?.message ||
                 'An unexpected error occurred';
