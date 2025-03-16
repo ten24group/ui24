@@ -2,6 +2,7 @@ import { RequestSigner, SignRequestOptions, useRequestSigner } from "./signer";
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { AwsCredentialIdentity } from "@smithy/types";
 import { IAuthProvider } from "../interface";
+import { jwtDecode } from 'jwt-decode';
 
 type API_AUTH_MODE = 'JWT' | 'AWS_IAM';
 
@@ -129,6 +130,14 @@ class Authenticator implements IAuthProvider {
 
     processToken = ( response: any): boolean => {
         if(response.data && response.data.IdToken) {
+            // verify token and check claims to see is user is authorized for this app
+            const decodedToken = jwtDecode(response.data.IdToken);
+            // check is cognito:groups includes any of the groups in AUTH_ADMIN_GROUPS  
+            const isAuthorized = !decodedToken["cognito:groups"] || (process.env.AUTH_ADMIN_GROUPS && decodedToken["cognito:groups"].some((group: string) => process.env.AUTH_ADMIN_GROUPS.split(',').includes(group)));
+            if(!isAuthorized){
+                // not authorized for this app, throw error
+                throw new Error('You are not authorized to access this application');
+            }
             this.setToken(response.data.IdToken);
             return true
         }
