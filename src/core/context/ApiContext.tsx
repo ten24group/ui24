@@ -18,9 +18,9 @@ interface IApiContext {
 
 const ApiContext = createContext<IApiContext | undefined>(undefined);
 
-const tryRefreshingToken = async (baseURL: string, currentToken: string) => {
+const tryRefreshingToken = async (baseURL: string, refreshToken: string) => {
     const refreshResponse = await axios.create({ baseURL }).post('/mauth/refreshToken', {
-        refreshToken: currentToken
+        refreshToken
     });
     return refreshResponse;
 }
@@ -29,7 +29,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const { selectConfig, config } = useUi24Config()
     const { notifyError } = useAppContext()
 
-    const { requestHeaders, processToken, logout, removeToken, getToken } = useAuth();
+    const { requestHeaders, processToken, logout, getRefreshToken } = useAuth();
 
     //create axios instance
     const axiosInstance = axios.create();
@@ -73,10 +73,10 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
 
                 // Attempt to refresh token if we have one
-                const currentToken = getToken();
-                if (currentToken) {
+                const currentRefreshToken = getRefreshToken();
+                if (currentRefreshToken) {
                     try {
-                        const refreshResponse = await tryRefreshingToken(axiosInstance.defaults.baseURL, currentToken);
+                        const refreshResponse = await tryRefreshingToken(axiosInstance.defaults.baseURL, currentRefreshToken);
 
                         if (refreshResponse.data?.IdToken) {
                             processToken(refreshResponse);

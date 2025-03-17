@@ -50,7 +50,19 @@ class Authenticator implements IAuthProvider {
     };
 
     public getToken() {
-        return sessionStorage.getItem(AUTH_TOKEN_CACHE_KEY);
+        const tokenData = this.getCachedTokenData();
+        if (tokenData) {
+            return tokenData.IdToken;
+        }
+        return null;
+    };
+
+    public getRefreshToken() {
+        const tokenData = this.getCachedTokenData();
+        if (tokenData) {
+            return tokenData.RefreshToken;
+        }
+        return null;
     };
 
     public isLoggedIn() {
@@ -59,7 +71,7 @@ class Authenticator implements IAuthProvider {
 
     removeToken = () => {
         this.removeCredentials();
-        return sessionStorage.removeItem(AUTH_TOKEN_CACHE_KEY);
+        sessionStorage.removeItem(AUTH_TOKEN_CACHE_KEY);
     };
 
     public setCredentials = (credentials: AwsCredentialIdentity) => {
@@ -127,9 +139,39 @@ class Authenticator implements IAuthProvider {
         return credentials;
     };
 
+
+    public isValidTokenData(tokenData: any) {
+        const timeDiff = tokenData.Expiration
+            ? (new Date(tokenData.Expiration)).getTime() - Date.now()
+            : 1; // if there's no expiration time then it's valid
+        return timeDiff > 0;
+    };
+
+    public getCachedTokenData() {
+        const tokenData = sessionStorage.getItem(AUTH_TOKEN_CACHE_KEY);
+
+        let parsed = tokenData ? JSON.parse(tokenData) : null;
+
+        if (!!parsed && !this.isValidTokenData(parsed)) {
+            this.removeToken();
+            return null;
+        }
+
+        return parsed;
+    }
+
     processToken = (response: any): boolean => {
+        /*
+              {
+                "AccessToken": "x.x.x-x",
+                "ExpiresIn": 3600,
+                "IdToken": "x.x.x-x-x",
+                "RefreshToken": "x.x.x-x-x",
+                "TokenType": "Bearer"
+            }
+        */
         if (response.data && response.data.IdToken) {
-            this.setToken(response.data.IdToken);
+            this.setToken(JSON.stringify(response.data));
             return true
         }
         return false
