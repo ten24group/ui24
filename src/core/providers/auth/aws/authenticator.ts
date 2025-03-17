@@ -7,75 +7,75 @@ type API_AUTH_MODE = 'JWT' | 'AWS_IAM';
 
 export const useAWSAuthenticator = (
     options: {
-        apiAuthMode?: API_AUTH_MODE ,
-        axiosInstance?: AxiosInstance, 
+        apiAuthMode?: API_AUTH_MODE,
+        axiosInstance?: AxiosInstance,
         requestSigner?: RequestSigner,
         awsTempCredentialsApiEndPoint?: string,
     }
-) =>  {
+) => {
 
-    const { 
-        requestSigner = useRequestSigner({}), 
+    const {
+        requestSigner = useRequestSigner({}),
         axiosInstance = axios.create({ baseURL: process.env.REACT_APP_API_URL }),
         apiAuthMode = process.env.API_AUTH_MODE?.toUpperCase?.() as API_AUTH_MODE || 'JWT',
         awsTempCredentialsApiEndPoint = process.env.AWS_TEMP_CREDENTIALS_API_ENDPOINT,
     } = options;
-    
+
     return new Authenticator(
-        requestSigner, 
+        requestSigner,
         axiosInstance,
         apiAuthMode,
         awsTempCredentialsApiEndPoint
     );
 }
 
+const AUTH_TOKEN_CACHE_KEY = "cache_authToken";
+const TEMP_AWS_CREDENTIALS_CACHE_KEY = "cache_tmpAwsCredentials";
 class Authenticator implements IAuthProvider {
 
-    private readonly AUTH_TOKEN_CACHE_KEY = "cache_authToken";
-    private readonly TEMP_AWS_CREDENTIALS_CACHE_KEY = "cache_tmpAwsCredentials";
 
     constructor(
         private readonly awsSigner: RequestSigner,
         private readonly axiosInstance: AxiosInstance,
         private readonly API_AUTH_MODE: API_AUTH_MODE,
         private readonly AWS_TEMP_CREDENTIALS_API_ENDPOINT: string,
-    ){}
+    ) { }
 
-    public getApiAuthMode(){
+    public getApiAuthMode() {
         return this.API_AUTH_MODE;
     };
 
-    public setToken(token: string | null){
-        sessionStorage.setItem(this.AUTH_TOKEN_CACHE_KEY, token);
+    public setToken(token: string | null) {
+        sessionStorage.setItem(AUTH_TOKEN_CACHE_KEY, token);
     };
 
-    public getToken(){
-        return sessionStorage.getItem(this.AUTH_TOKEN_CACHE_KEY);
+    public getToken() {
+        return sessionStorage.getItem(AUTH_TOKEN_CACHE_KEY);
     };
 
-    public isLoggedIn(){
+    public isLoggedIn() {
         return !!this.getToken();
     };
-    
+
     removeToken = () => {
         this.removeCredentials();
-        return sessionStorage.removeItem(this.AUTH_TOKEN_CACHE_KEY);
+        return sessionStorage.removeItem(AUTH_TOKEN_CACHE_KEY);
     };
 
     public setCredentials = (credentials: AwsCredentialIdentity) => {
-        sessionStorage.setItem(this.TEMP_AWS_CREDENTIALS_CACHE_KEY, JSON.stringify(credentials));
+        sessionStorage.setItem(TEMP_AWS_CREDENTIALS_CACHE_KEY, JSON.stringify(credentials));
     };
 
-    public removeCredentials(){
-        return sessionStorage.removeItem(this.TEMP_AWS_CREDENTIALS_CACHE_KEY);
+    public removeCredentials() {
+        return sessionStorage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
     };
 
-    public getCachedCredentials(){
-        const cached = sessionStorage.getItem(this.TEMP_AWS_CREDENTIALS_CACHE_KEY);
+    public getCachedCredentials() {
+        const cached = sessionStorage.getItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
 
         let parsed = cached ? JSON.parse(cached) : null;
 
-        if( !!parsed && !this.isValidCredentials(parsed)){
+        if (!!parsed && !this.isValidCredentials(parsed)) {
             this.removeCredentials();
             return null;
         }
@@ -83,15 +83,15 @@ class Authenticator implements IAuthProvider {
         return parsed;
     };
 
-    public isValidCredentials(credentials: any){
-        const timeDiff = credentials.expiration 
-                        ? (new Date(credentials.expiration)).getTime() - Date.now()
-                        : 1; // if there's no expiration time then it's valid
+    public isValidCredentials(credentials: any) {
+        const timeDiff = credentials.expiration
+            ? (new Date(credentials.expiration)).getTime() - Date.now()
+            : 1; // if there's no expiration time then it's valid
         return timeDiff > 0;
     };
 
-    public async getNewTempAwsCredentials(){
-        const response = await this.axiosInstance.post(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT+'/', {
+    public async getNewTempAwsCredentials() {
+        const response = await this.axiosInstance.post(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT + '/', {
             idToken: this.getToken()
         });
 
@@ -104,8 +104,8 @@ class Authenticator implements IAuthProvider {
 
         if (!credentials) {
 
-            const result  = await this.getNewTempAwsCredentials();
-            
+            const result = await this.getNewTempAwsCredentials();
+
             credentials = result?.data?.Credentials;
 
             // format the keys to be compatible with aws-sdk
@@ -127,8 +127,8 @@ class Authenticator implements IAuthProvider {
         return credentials;
     };
 
-    processToken = ( response: any): boolean => {
-        if(response.data && response.data.IdToken) {
+    processToken = (response: any): boolean => {
+        if (response.data && response.data.IdToken) {
             this.setToken(response.data.IdToken);
             return true
         }
@@ -136,18 +136,17 @@ class Authenticator implements IAuthProvider {
     }
 
     requestHeaders = async (config: InternalAxiosRequestConfig<any>) => {
-        
-        if(!this.isLoggedIn()){
+        if (!this.isLoggedIn()) {
             //console.warn("Not logged in: can't set auth on request", config);
             return;
         }
 
-        if(this.getApiAuthMode() === 'JWT'){
-            const token = this.getToken(); 
+        if (this.getApiAuthMode() === 'JWT') {
+            const token = this.getToken();
             if (token) {
-                config.headers['Authorization'] = `Bearer ${token}`;
+                config.headers[ 'Authorization' ] = `Bearer ${token}`;
             }
-        } else if(this.getApiAuthMode() === 'AWS_IAM'){
+        } else if (this.getApiAuthMode() === 'AWS_IAM') {
 
             const requestMethod = config.method.toUpperCase();
 
@@ -159,16 +158,16 @@ class Authenticator implements IAuthProvider {
                 baseUrl: config.baseURL,
             }
 
-            if( ['POST', 'PUT', 'PATCH'].includes(requestMethod) ){
+            if ([ 'POST', 'PUT', 'PATCH' ].includes(requestMethod)) {
                 options.data = config.data;
-            } else if( ['GET', 'OPTIONS', 'HEAD', 'DELETE'].includes(requestMethod) ){
+            } else if ([ 'GET', 'OPTIONS', 'HEAD', 'DELETE' ].includes(requestMethod)) {
                 options.data = config.params;
             }
 
             const signedHeaders = await this.awsSigner.signedHeaders(options);
 
-            Object.entries(signedHeaders).forEach(([key, value]) => {
-                config.headers[key] = value;
+            Object.entries(signedHeaders).forEach(([ key, value ]) => {
+                config.headers[ key ] = value;
             });
         }
     };

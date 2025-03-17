@@ -18,11 +18,18 @@ interface IApiContext {
 
 const ApiContext = createContext<IApiContext | undefined>(undefined);
 
+const tryRefreshingToken = async (baseURL: string, currentToken: string) => {
+    const refreshResponse = await axios.create({ baseURL }).post('/mauth/refreshToken', {
+        refreshToken: currentToken
+    });
+    return refreshResponse;
+}
+
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
     const { notifyError } = useAppContext()
 
-    const { requestHeaders, processToken, logout, getToken } = useAuth();
+    const { requestHeaders, processToken, logout, removeToken, getToken } = useAuth();
 
     //create axios instance
     const axiosInstance = axios.create();
@@ -47,13 +54,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         async (response) => {
             processToken(response)
             return response;
-        }, async (error) => {
+        },
+        async (error) => {
             const originalRequest = error.config;
 
             // Handle session expiration
             if (error.response?.status === 401 ||
                 error.response?.status === 403 ||
-                (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token"))) {
+                (error.response?.status === 500 && error.response.data?.details?.message?.includes?.("Invalid ID-Token"))) {
 
                 // Show appropriate message based on error type
                 if (error.response?.status === 401) {
@@ -68,9 +76,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const currentToken = getToken();
                 if (currentToken) {
                     try {
-                        const refreshResponse = await axiosInstance.post('/mauth/refreshToken', {
-                            refreshToken: currentToken
-                        });
+                        const refreshResponse = await tryRefreshingToken(axiosInstance.defaults.baseURL, currentToken);
 
                         if (refreshResponse.data?.IdToken) {
                             processToken(refreshResponse);
