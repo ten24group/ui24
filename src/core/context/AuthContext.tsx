@@ -2,11 +2,13 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useUi24Config } from './UI24Context';
 import { IAuthProvider, LocalStorageAuthProvider, useAWSAuthenticator } from '../providers';
 
-type IAuthContext  = IAuthProvider &  {
+type IAuthContext = IAuthProvider & {
   isLoggedIn: boolean;
   login: (newToken: string) => void;
   logout: () => void;
-  processToken: (request: any) => boolean
+  processToken: (request: any) => boolean;
+  getToken: () => string | null;
+  getRefreshToken: () => string | null;
 }
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
@@ -31,13 +33,13 @@ const getProvider = (provider: string): IAuthProvider => {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { selectConfig } = useUi24Config();
-  const authProvider = getProvider( selectConfig( (config) => "aws" ) );
-  const [isLoggedIn, setIsLoggedIn] = useState(authProvider.getToken() ? true : false);
+  const authProvider = getProvider(selectConfig((config) => "aws"));
+  const [ isLoggedIn, setIsLoggedIn ] = useState(authProvider.getToken() ? true : false);
 
   const processToken = (request: any): boolean => {
-    
+
     const validToken = authProvider.processToken(request)
-    if( validToken) {
+    if (validToken) {
       !isLoggedIn && setIsLoggedIn(true);
     }
     return true
@@ -54,7 +56,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ processToken, isLoggedIn, getToken: authProvider.getToken, login, logout, setToken: authProvider.setToken, requestHeaders: authProvider.requestHeaders, removeToken: authProvider.removeToken }}>
+    <AuthContext.Provider value={{
+      processToken,
+      isLoggedIn,
+      login,
+      logout,
+      getToken: authProvider.getToken,
+      setToken: authProvider.setToken,
+      removeToken: authProvider.removeToken,
+      requestHeaders: authProvider.requestHeaders,
+      getRefreshToken: authProvider.getRefreshToken,
+    }}>
       {children}
     </AuthContext.Provider>
   );

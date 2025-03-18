@@ -25,7 +25,17 @@ const RegistrationForm = () => {
     if( response.status === 200 ) {
       const message = response.data.message ?? "Registration Successful!";
       notifySuccess(message);
-      navigate('/verification');
+      if (!response.data?.UserConfirmed && response.data?.CodeDeliveryDetails) {
+        navigate('/verification', { 
+          state: { 
+            email: payload.email,
+            codeDeliveryDetails: response.data.CodeDeliveryDetails,
+            message: `Verification code sent to ${response.data.CodeDeliveryDetails.Destination}`
+          } 
+        });
+      } else {
+        navigate('/login');
+      }
     } else if( response?.error ) {
       notifyError(response?.error)
     }

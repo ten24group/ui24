@@ -22,7 +22,7 @@ interface IPropertiesConfig {
         properties?: Array<IPropertiesConfig>
     },
 
-    openInModal ?: any,
+    openInModal?: any,
 }
 
 export interface IDetailApiConfig {
@@ -35,29 +35,29 @@ export interface IDetailsConfig extends IDetailApiConfig {
     propertiesConfig: Array<IPropertiesConfig>;
 }
 
-const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers } : IDetailsConfig ) => {
-    const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>( propertiesConfig )
+const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers }: IDetailsConfig) => {
+    const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
     const { callApiMethod } = useApi();
-    const [dataLoaded, setDataLoaded] = useState(false);
+    const [ dataLoaded, setDataLoaded ] = useState(false);
     const { formatDate, formatBoolean } = useFormat()
 
     const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
         let initialValue = itemData;
 
-        if(item?.type === "map"){
-            initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => { 
-                acc[prop.column] = valueFormatter(prop, itemData?.[prop.column]);
+        if (item?.type === "map") {
+            initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
+                acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
                 return acc;
             }, {});
 
-        } else if(item?.type === "list"){
-            initialValue = itemData?.map( it => valueFormatter(item.items as any, it) ) ?? [];
-        } else if([ 'date', 'datetime', 'time' ].includes(item?.fieldType?.toLocaleLowerCase())){
+        } else if (item?.type === "list") {
+            initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
+        } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType?.toLocaleLowerCase())) {
             // formate the date value using uiConfig's date-time-formats
             initialValue = formatDate(initialValue, item.fieldType?.toLocaleLowerCase() as any);
-        } else if (['boolean', 'switch', 'toggle'].includes(item?.fieldType?.toLocaleLowerCase())){
+        } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType?.toLocaleLowerCase())) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
         }
@@ -65,15 +65,15 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
         return initialValue;
     }
 
-    useEffect( () => {
+    useEffect(() => {
         const fetchRecordInfo = async () => {
             const identifier = identifiers || dynamicID;
-            const response: any = await callApiMethod( { ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` } );
-            if( response.status === 200 ) {
-                const detailResponse = response.data[detailApiConfig.responseKey]
-                
-                const formatted = recordInfo.map( item => { 
-                    const formatted = valueFormatter(item, detailResponse[item.column]);
+            const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` });
+            if (response.status === 200) {
+                const detailResponse = response.data[ detailApiConfig.responseKey ]
+
+                const formatted = recordInfo.map(item => {
+                    const formatted = valueFormatter(item, detailResponse[ item.column ]);
                     return { ...item, initialValue: formatted }
                 });
 
@@ -82,145 +82,159 @@ const Details: React.FC = ({ pageTitle, propertiesConfig, detailApiConfig, ident
             setDataLoaded(true);
         }
 
-        if( detailApiConfig ) 
+        if (detailApiConfig)
             fetchRecordInfo();
-    }, [] )
+    }, [])
 
-    const makeDescriptionCard = ( options: { name: string, layout: DescriptionsProps['layout'], data: any[] } ) => {
+    const makeDescriptionCard = (options: { name: string, layout: DescriptionsProps[ 'layout' ], data: any[] }) => {
         const { name, data, layout } = options;
         return <>
-            <Descriptions 
-                title={ name } 
-                layout={layout} 
+            <Descriptions
+                title={name}
+                layout={layout}
                 items={
 
-                data.filter( item => !item.hidden )
-                    .map( ( item: IPropertiesConfig, index : number ) => {
+                    data.filter(item => !item.hidden)
+                        .map((item: IPropertiesConfig, index: number) => {
 
-                if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
-                    return {
-                        key: index,
-                        label: item.label,
-                        children:  <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
-                    }
-                } 
-                
-                if ( item.fieldType.toLocaleLowerCase() === 'image' ){
-                    return {
-                        key: index,
-                        label: item.label,
-                        children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
-                    }
-                } 
+                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType.toLocaleLowerCase())) {
+                                return {
+                                    key: index,
+                                    label: item.label,
+                                    children: <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
+                                }
+                            }
 
-                if(item.type === 'list' && item.fieldType !== 'multi-select'){
+                            if (item.fieldType.toLocaleLowerCase() === 'image') {
+                                return {
+                                    key: index,
+                                    label: item.label,
+                                    children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
+                                }
+                            }
 
-                    return {
-                        key: index,
-                        label: item.label,
-                        children: <List
-                            itemLayout="horizontal"
-                            dataSource={item.initialValue as unknown as any[]}
-                            renderItem={(item, index) => (
-                                <List.Item>
-                                    <pre>
-                                        <code>
-                                            {JSON.stringify(item, null, 2)}
-                                        </code>
-                                    </pre>
-                                    
-                                    {makeDescriptionCard({ name: item.label +" - "+ index, layout: 'vertical', data: item })}
-                                </List.Item>
-                            )}
-                        />
-                    }
-                }
+                            if (item.type === 'list' && item.fieldType !== 'multi-select') {
 
-                return {
-                    key: index,
-                    label: item.label,
-                    children: item.initialValue
-                }
-                
-            })} /> 
-        
+                                return {
+                                    key: index,
+                                    label: item.label,
+                                    children: <List
+                                        itemLayout="horizontal"
+                                        dataSource={item.initialValue as unknown as any[]}
+                                        renderItem={(item, index) => (
+                                            <List.Item>
+                                                <pre>
+                                                    <code>
+                                                        {JSON.stringify(item, null, 2)}
+                                                    </code>
+                                                </pre>
+
+                                                {makeDescriptionCard({ name: item.label + " - " + index, layout: 'vertical', data: item })}
+                                            </List.Item>
+                                        )}
+                                    />
+                                }
+                            }
+
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: item.initialValue
+                            }
+
+                        })} />
+
         </>
     }
 
-    return <>  
-    <Spin spinning={!dataLoaded}>
-        <Descriptions title={ pageTitle } layout='vertical' items={
-            recordInfo
-            .filter( item => !item.hidden )
-            .map( ( item: IPropertiesConfig, index : number ) => {
+    return <>
+        <Spin spinning={!dataLoaded}>
+            <Descriptions title={pageTitle} layout='vertical' items={
+                recordInfo
+                    .filter(item => !item.hidden)
+                    .map((item: IPropertiesConfig, index: number) => {
 
-            if( ['rich-text', 'wysiwyg'].includes( item.fieldType.toLocaleLowerCase() ) ){
+                        if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType.toLocaleLowerCase())) {
 
-                return {
-                    key: index,
-                    label: item.label,
-                    children:  <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
-                }
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
+                            }
 
-            } 
-            
-            if ( item.fieldType.toLocaleLowerCase() === 'image' ){
+                        }
 
-                return {
-                    key: index,
-                    label: item.label,
-                    children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
-                }
-            } 
+                        if (item.fieldType.toLocaleLowerCase() === 'image') {
 
-            if ( item.fieldType.toLocaleLowerCase() === 'color' ){
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
+                            }
+                        }
 
-                return {
-                    key: index,
-                    label: item.label,
-                    children: <CustomColorPicker value={item.initialValue} disabled />
-                }
-            } 
+                        if (item.fieldType.toLocaleLowerCase() === 'color') {
 
-            if(item.type === 'list' && item.fieldType !== 'multi-select'){
-                return {
-                    key: index,
-                    label: item.label,
-                    children: <List
-                        itemLayout="horizontal"
-                        dataSource={item.initialValue as unknown as any[]}
-                        renderItem={(item, index) => (
-                            <List.Item>
-                                <pre>
-                                    <code>
-                                        {JSON.stringify(item, null, 2)}
-                                    </code>
-                                </pre>
-                            </List.Item>
-                        )}
-                    />
-                }
-            }
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: <CustomColorPicker value={item.initialValue} disabled />
+                            }
+                        }
 
-            if(item.openInModal){
-                return {
-                    key: index,
-                    label: item.label,
-                    children: <OpenInModal {...item.openInModal} primaryIndex={item.initialValue} >{item.initialValue}</OpenInModal>
-                }
-            }
+                        if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: <List
+                                    itemLayout="horizontal"
+                                    dataSource={item.initialValue as unknown as any[]}
+                                    renderItem={(item, index) => (
+                                        <List.Item>
+                                            <pre>
+                                                <code>
+                                                    {JSON.stringify(item, null, 2)}
+                                                </code>
+                                            </pre>
+                                        </List.Item>
+                                    )}
+                                />
+                            }
+                        }
 
-            return {
-                key: index,
-                label: item.label,
-                children: item.initialValue
-            }
-            
-        })} /> 
+                        if (item.type === 'map' && item.fieldType == 'text') {
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: (
+                                    <pre>
+                                        <code>
+                                            {JSON.stringify(item.initialValue ?? {}, null, 2)}
+                                        </code>
+                                    </pre>
+                                )
+                            }
+                        }
 
-        {/* {makeDescriptionCard({ name: pageTitle, layout: 'vertical', data: recordInfo })} */}
-    </Spin>
+                        if (item.openInModal) {
+                            return {
+                                key: index,
+                                label: item.label,
+                                children: <OpenInModal {...item.openInModal} primaryIndex={item.initialValue} >{item.initialValue}</OpenInModal>
+                            }
+                        }
+
+                        return {
+                            key: index,
+                            label: item.label,
+                            children: item.initialValue
+                        }
+
+                    })} />
+
+            {/* {makeDescriptionCard({ name: pageTitle, layout: 'vertical', data: recordInfo })} */}
+        </Spin>
     </>
-    
+
 }
 export { Details }
