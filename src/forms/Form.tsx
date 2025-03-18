@@ -66,6 +66,11 @@ export function Form({
       const recordData = (detailApiConfig && (identifiersToUse) !== "") ? await fetchRecordInfo() : {};
 
       const itemValueFormatter = (item: IFormField, itemValue: any) => {
+
+        if (!itemValue) {
+          return itemValue;
+        }
+
         const { name, fieldType, type } = item;
 
         if (type === "map") {
@@ -91,6 +96,7 @@ export function Form({
         } else if (fieldType === "color") {
           itemValue = itemValue ?? "#FFA500";
         }
+
         return itemValue;
       }
 
