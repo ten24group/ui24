@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.1.1-alpha.23](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.22...v0.1.1-alpha.23) (2025-03-18)
+
+
+### Bug Fixes
+
+* hard error on detail page, and component formatting ([3487fc6](https://github.com/ten24group/ui24/commit/3487fc6b5091f492c34cc8e4cb140d19fd7f5c75))
+* hard error on detail page, and component formatting ([099ed77](https://github.com/ten24group/ui24/commit/099ed77cc28e599978afe43cb06962a521d11896))
+* hard-error in forms ([c84d82c](https://github.com/ten24group/ui24/commit/c84d82ca911e23c0cb192dad3027cf0f0c75a9ad))
+* recursive loop on trying to refresh token ([b978198](https://github.com/ten24group/ui24/commit/b97819880422a9b55b20eb900c6a3d2a41c32fba))
+
 ### [0.1.1-alpha.22](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.21...v0.1.1-alpha.22) (2025-03-14)
 
 ### [0.1.1-alpha.21](https://github.com/ten24group/ui24/compare/v0.1.1-alpha.20...v0.1.1-alpha.21) (2025-03-12)
