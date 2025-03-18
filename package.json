@@ -1,6 +1,6 @@
 {
   "name": "@ten24group/ui24",
-  "version": "0.1.1-alpha.21",
+  "version": "0.1.1-alpha.22",
   "description": "Admin UI package for fw24 projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -70,6 +70,7 @@
     "react-editor-js": "^2.1.0",
     "react-router-dom": "^6.30.0",
     "remove": "^0.1.5",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "jwt-decode": "^4.0.0"
   }
 }
