@@ -10,7 +10,8 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [loader, setLoader] = useState(false);
     const { callApiMethod } = useApi();
     const { login, logout, isLoggedIn } = useAuth();
-    const initConfig = useRef(false);
+    const initAuthConfig = useRef(false);
+    const initPageConfig = useRef(false);
 
     // Get all config URLs at once
     const { auth: authConfigUrl } = selectConfig(config => config.uiConfig);
@@ -18,10 +19,11 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const authConfig = selectConfig(config => config.auth?.verifyToken);
     const pagesConfig = selectConfig(config => config.pagesConfig || []);
 
+    // Load auth config only once at startup
     useEffect(() => {
-        async function loadAllConfigs() {
-            if (initConfig.current) return;
-            initConfig.current = true;
+        async function loadAuthConfig() {
+            if (initAuthConfig.current) return;
+            initAuthConfig.current = true;
             setLoader(true);
 
             try {
@@ -44,36 +46,53 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                     });
                     
                     if (validate.status === 200) {
-                        validate?.data?.token ? login(validate.data.token) : logout();
+                        const data = validate.data as { token?: string };
+                        if (data?.token) {
+                            login(data.token);
+                        } else {
+                            logout();
+                        }
                     }
                 }
-
-                // Load page configs if logged in and configs not loaded
-                if (isLoggedIn && pagesConfig.length === 0) {
-                    const [pagesResponse, menuResponse, dashboardResponse] = await loadConfigs(
-                        pageConfigUrl,
-                        menuConfigUrl,
-                        dashboard
-                    );
-
-                    updateConfig({
-                        'pagesConfig': {
-                            ...(pagesResponse ?? {}),
-                            "dashboard": dashboardResponse
-                        },
-                        'menuItems': menuResponse || []
-                    });
-                }
             } catch (error) {
-                console.error('Error loading configs:', error);
-                // Handle error appropriately
+                console.error('Error loading auth config:', error);
             } finally {
                 setLoader(false);
             }
         }
 
-        loadAllConfigs();
-    }, [isLoggedIn]); // Only dependency is isLoggedIn
+        loadAuthConfig();
+    }, []); // Run only once at startup
+
+    // Load page configs whenever login state changes
+    useEffect(() => {
+        async function loadPageConfigs() {
+            if (!isLoggedIn || pagesConfig.length > 0) return;
+            setLoader(true);
+
+            try {
+                const [pagesResponse, menuResponse, dashboardResponse] = await loadConfigs(
+                    pageConfigUrl,
+                    menuConfigUrl,
+                    dashboard
+                );
+
+                updateConfig({
+                    'pagesConfig': {
+                        ...(pagesResponse ?? {}),
+                        "dashboard": dashboardResponse
+                    },
+                    'menuItems': menuResponse || []
+                });
+            } catch (error) {
+                console.error('Error loading page configs:', error);
+            } finally {
+                setLoader(false);
+            }
+        }
+
+        loadPageConfigs();
+    }, [isLoggedIn, pagesConfig.length]); // Reload when login state changes
 
     return (
         <ConfigLoaderContext.Provider value={undefined}>

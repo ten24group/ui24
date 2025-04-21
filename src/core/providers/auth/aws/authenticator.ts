@@ -159,7 +159,7 @@ class Authenticator implements IAuthProvider {
     public async getCredentials(): Promise<AwsCredentialIdentity> {
         try {
             let credentials = await this.getCachedCredentials();
-            if (!credentials) {
+            if (!credentials || true) {
                 try {
                     const result = await this.getNewTempAwsCredentials();
                     if (!result?.data?.Credentials) {
@@ -167,9 +167,13 @@ class Authenticator implements IAuthProvider {
                     }
                     credentials = result.data.Credentials;
                 } catch (e) {
-                    const errorMessage = e.message || 'Unknown error';
-                    const responseError = e.response?.data?.message || 'No response received';
-                    throw new Error(`Unauthorized:Failed to get AWS credentials: ${errorMessage}.`);
+                    console.error(`Unauthorized:Failed to get AWS credentials: ${e}.`);
+                    return {
+                        accessKeyId: '',
+                        secretAccessKey: '',
+                        sessionToken: '',
+                        expiration: new Date()
+                    };
                 }
 
                 // format the keys to be compatible with aws-sdk
