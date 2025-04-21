@@ -159,7 +159,7 @@ class Authenticator implements IAuthProvider {
     public async getCredentials(): Promise<AwsCredentialIdentity> {
         try {
             let credentials = await this.getCachedCredentials();
-            if (!credentials || true) {
+            if (!credentials) {
                 try {
                     const result = await this.getNewTempAwsCredentials();
                     if (!result?.data?.Credentials) {
