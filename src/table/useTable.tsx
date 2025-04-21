@@ -69,7 +69,6 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
     const payload = {
       cursor: currentPageCursor,
       limit: recordPerPage,
-      debug: true,
       ...getFilterPayload({...appliedFilters}, apiConfig.apiMethod),
     };
     setIsLoading(true);

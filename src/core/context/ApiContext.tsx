@@ -56,39 +56,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return response;
         },
         async (error) => {
-            const originalRequest = error.config;
-
             // Handle session expiration
             if (error.response?.status === 401 ||
                 error.response?.status === 403 ||
                 (error.response?.status === 500 && error.response.data?.details?.message?.includes?.("Invalid ID-Token"))) {
 
-                // Show appropriate message based on error type
-                if (error.response?.status === 401) {
-                    notifyError('Your session has expired. Please log in again.');
-                } else if (error.response?.status === 403) {
-                    notifyError('Your session has expired. Please log in again.');
-                } else if (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token")) {
-                    notifyError('Your session is invalid. Please log in again.');
-                }
-
-                // Attempt to refresh token if we have one
-                const currentRefreshToken = getRefreshToken();
-                if (currentRefreshToken) {
-                    try {
-                        const refreshResponse = await tryRefreshingToken(axiosInstance.defaults.baseURL, currentRefreshToken);
-
-                        if (refreshResponse.data?.IdToken) {
-                            processToken(refreshResponse);
-                            // Retry the original request
-                            return axiosInstance(originalRequest);
-                        }
-                    } catch (refreshError) {
-                        console.error('Token refresh failed:', refreshError);
-                    }
-                }
-
-                // If refresh failed or no token, logout
+                notifyError('Your session is invalid. Please log in again.');
                 logout();
             }
 

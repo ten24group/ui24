@@ -12,6 +12,7 @@ export const useAWSAuthenticator = (
         axiosInstance?: AxiosInstance,
         requestSigner?: RequestSigner,
         awsTempCredentialsApiEndPoint?: string,
+        refreshTokenApiEndPoint?: string,
     }
 ) => {
 
@@ -19,14 +20,16 @@ export const useAWSAuthenticator = (
         requestSigner = useRequestSigner({}),
         axiosInstance = axios.create({ baseURL: process.env.REACT_APP_API_URL }),
         apiAuthMode = process.env.API_AUTH_MODE?.toUpperCase?.() as API_AUTH_MODE || 'JWT',
-        awsTempCredentialsApiEndPoint = process.env.AWS_TEMP_CREDENTIALS_API_ENDPOINT,
+        awsTempCredentialsApiEndPoint = process.env.AWS_TEMP_CREDENTIALS_API_ENDPOINT || '/mauth/getCredentials',
+        refreshTokenApiEndPoint = process.env.REFRESH_TOKEN_API_ENDPOINT || '/mauth/refreshToken',
     } = options;
 
     return new Authenticator(
         requestSigner,
         axiosInstance,
         apiAuthMode,
-        awsTempCredentialsApiEndPoint
+        awsTempCredentialsApiEndPoint,
+        refreshTokenApiEndPoint
     );
 }
 
@@ -40,6 +43,7 @@ class Authenticator implements IAuthProvider {
         private readonly axiosInstance: AxiosInstance,
         private readonly API_AUTH_MODE: API_AUTH_MODE,
         private readonly AWS_TEMP_CREDENTIALS_API_ENDPOINT: string,
+        private readonly REFRESH_TOKEN_API_ENDPOINT: string,
     ) { }
 
     public getApiAuthMode() {
@@ -83,17 +87,49 @@ class Authenticator implements IAuthProvider {
         return sessionStorage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
     };
 
-    public getCachedCredentials() {
-        const cached = sessionStorage.getItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
+    public async getCachedCredentials() {
+        try {
+            const cached = sessionStorage.getItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
+            if (!cached) {
+                console.log('No cached credentials found');
+                return null;
+            }
 
-        let parsed = cached ? JSON.parse(cached) : null;
+            let parsed = null;
+            try {
+                parsed = JSON.parse(cached);
+            } catch (e) {
+                console.error('Failed to parse cached credentials:', e);
+                this.removeCredentials();
+                return null;
+            }
 
-        if (!!parsed && !this.isValidCredentials(parsed)) {
+            if (!parsed) {
+                console.log('Credentials invalid or expired, attempting to refresh token');
+                // try to refresh the credentials 
+                try {
+                    const response = await this.refreshIdToken();
+                    console.log('refresh id token response:', response);
+                    if (response?.data) {
+                        this.setToken(JSON.stringify(response.data));
+                    } else {
+                        console.warn('No data in refresh token response');
+                    }
+                } catch (error) {
+                    console.error('Failed to refresh token:', error);
+                    // unable to refresh the token, throw 401 error
+                    throw new Error('Unauthorized: Failed to refresh token');
+                }
+                this.removeCredentials();
+                return null;
+            }
+
+            return parsed;
+        } catch (error) {
+            console.error('Error in getCachedCredentials:', error);
             this.removeCredentials();
             return null;
         }
-
-        return parsed;
     };
 
     public isValidCredentials(credentials: any) {
@@ -111,54 +147,79 @@ class Authenticator implements IAuthProvider {
         return response;
     };
 
+    public async refreshIdToken() {
+        console.log('refreshing id token');
+        const response = await this.axiosInstance.post(this.REFRESH_TOKEN_API_ENDPOINT + '/', {
+            refreshToken: this.getRefreshToken()
+        });
+
+        return response;
+    }
+
     public async getCredentials(): Promise<AwsCredentialIdentity> {
+        try {
+            let credentials = await this.getCachedCredentials();
+            if (!credentials) {
+                try {
+                    const result = await this.getNewTempAwsCredentials();
+                    if (!result?.data?.Credentials) {
+                        throw new Error('Unauthorized: No credentials returned from AWS credentials endpoint');
+                    }
+                    credentials = result.data.Credentials;
+                } catch (e) {
+                    const errorMessage = e.message || 'Unknown error';
+                    const responseError = e.response?.data?.message || 'No response received';
+                    throw new Error(`Unauthorized:Failed to get AWS credentials: ${errorMessage}.`);
+                }
 
-        let credentials = this.getCachedCredentials();
+                // format the keys to be compatible with aws-sdk
+                credentials = {
+                    accessKeyId: credentials.AccessKeyId,
+                    secretAccessKey: credentials.SecretKey,
+                    sessionToken: credentials.SessionToken,
+                    expiration: credentials.Expiration
+                };
 
-        if (!credentials) {
+                this.setCredentials(credentials);
+            }
 
-            const result = await this.getNewTempAwsCredentials();
-
-            credentials = result?.data?.Credentials;
-
-            // format the keys to be compatible with aws-sdk
-            // the API returns incompatible keys
-            // {"AccessKeyId":"__REDACTED__",
-            // "Expiration":"2024-05-07T14:11:53.000Z",
-            // "SecretKey":"__REDACTED__",
-            // "SessionToken":"__REDACTED__"}
-            credentials = {
-                accessKeyId: credentials.AccessKeyId,
-                secretAccessKey: credentials.SecretKey,
-                sessionToken: credentials.SessionToken,
-                expiration: credentials.Expiration
-            };
-
-            this.setCredentials(credentials);
+            return credentials;
+        } catch (e) {
+            console.error('Error in getCredentials:', e);
+            throw e;
         }
-
-        return credentials;
     };
 
 
     public isValidTokenData(tokenData: any) {
-        const timeDiff = tokenData.Expiration
-            ? (new Date(tokenData.Expiration)).getTime() - Date.now()
-            : 1; // if there's no expiration time then it's valid
-        return timeDiff > 0;
+        // TODO: check if token is valid
+        return true;
     };
 
     public getCachedTokenData() {
-        const tokenData = sessionStorage.getItem(AUTH_TOKEN_CACHE_KEY);
+        try {
+            const tokenData = sessionStorage.getItem(AUTH_TOKEN_CACHE_KEY);
+            if (!tokenData) return null;
 
-        let parsed = tokenData ? JSON.parse(tokenData) : null;
+            let parsed = null;
+            try {
+                parsed = JSON.parse(tokenData);
+            } catch (e) {
+                console.error('Failed to parse cached token data:', e);
+                this.removeToken();
+                return null;
+            }
 
-        if (!!parsed && !this.isValidTokenData(parsed)) {
-            this.removeToken();
+            if (!!parsed && !this.isValidTokenData(parsed)) {
+                this.removeToken();
+                return null;
+            }
+
+            return parsed;
+        } catch (e) {
+            console.error('Error accessing token data:', e);
             return null;
         }
-
-        return parsed;
     }
 
     processToken = (response: any): boolean => {
