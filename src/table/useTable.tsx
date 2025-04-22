@@ -87,7 +87,8 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
         formattingColumns.forEach((property) => {
           if([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())){
             // formate the date value using uiConfig's date-time-formats
-            record[property.dataIndex] = formatDate(record[property.dataIndex], property.fieldType?.toLocaleLowerCase() as any);
+            const itemValue = record[property.dataIndex].toString().startsWith('0') ? new Date(parseInt(record[property.dataIndex])).toISOString() : record[property.dataIndex];
+            record[property.dataIndex] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
           } else if (['boolean', 'switch', 'toggle'].includes(property.fieldType?.toLocaleLowerCase())){
             // format the boolean value using uiConfig's boolean-formats
             record[property.dataIndex] = formatBoolean(record[property.dataIndex]);
