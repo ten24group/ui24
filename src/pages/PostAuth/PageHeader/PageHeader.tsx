@@ -7,7 +7,7 @@ import { Link } from "../../../core/common";
 import { OpenInModal } from "../../../modal/Modal";
 import { useParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-
+import { v4 as uuidv4 } from 'uuid';
 interface IBreadcrumbs {
     title: string;
     url?: string;
@@ -27,7 +27,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : 
 
     const LocalBreadcrumbs = () => breadcrumbs.length ? <Breadcrumb items={ breadcrumbs.map( ( item ) => {
         return item.url ? <Breadcrumb.Item><Link title={ item.title } url={ item.url } /></Breadcrumb.Item> : <Breadcrumb.Item>{ item.title }</Breadcrumb.Item>
-    })} /> : <React.Fragment></React.Fragment>
+    })} /> : <React.Fragment key={`breadcrumb-${uuidv4()}`}></React.Fragment>
 
     const PageActions = Array.isArray(pageHeaderActions) ? <React.Fragment>{ pageHeaderActions.map( (item, index) => {
         return <Button type="primary" key={"actionButton" + index }> 

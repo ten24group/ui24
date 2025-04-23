@@ -18,13 +18,6 @@ interface IApiContext {
 
 const ApiContext = createContext<IApiContext | undefined>(undefined);
 
-const tryRefreshingToken = async (baseURL: string, refreshToken: string) => {
-    const refreshResponse = await axios.create({ baseURL }).post('/mauth/refreshToken', {
-        refreshToken
-    });
-    return refreshResponse;
-}
-
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
     const { notifyError } = useAppContext()
@@ -56,43 +49,27 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return response;
         },
         async (error) => {
-            const originalRequest = error.config;
-
             // Handle session expiration
             if (error.response?.status === 401 ||
                 error.response?.status === 403 ||
-                (error.response?.status === 500 && error.response.data?.details?.message?.includes?.("Invalid ID-Token"))) {
-
-                // Show appropriate message based on error type
-                if (error.response?.status === 401) {
-                    notifyError('Your session has expired. Please log in again.');
-                } else if (error.response?.status === 403) {
-                    notifyError('Your session has expired. Please log in again.');
-                } else if (error.response?.status === 500 && error.response.data?.message?.includes?.("Invalid ID-Token")) {
-                    notifyError('Your session is invalid. Please log in again.');
-                }
-
-                // Attempt to refresh token if we have one
-                const currentRefreshToken = getRefreshToken();
-                if (currentRefreshToken) {
-                    try {
-                        const refreshResponse = await tryRefreshingToken(axiosInstance.defaults.baseURL, currentRefreshToken);
-
-                        if (refreshResponse.data?.IdToken) {
-                            processToken(refreshResponse);
-                            // Retry the original request
-                            return axiosInstance(originalRequest);
-                        }
-                    } catch (refreshError) {
-                        console.error('Token refresh failed:', refreshError);
-                    }
-                }
-
-                // If refresh failed or no token, logout
+                error.message?.includes?.("Resolved credential object is not valid") ||
+                (error.response?.status === 500 &&
+                    (error.response.data?.details?.message?.includes?.("Invalid ID-Token")
+                        || error.response.data?.message?.includes?.("Invalid ID-Token")
+                    )
+                )
+            ) {
+                notifyError('Your session is invalid. Please log in again.');
                 logout();
+                return {
+                    status: 401,
+                    data: {
+                        message: 'Your session is invalid. Please log in again.'
+                    }
+                };
             }
 
-            return Promise.reject(error.response)
+            return Promise.reject(error)
         }
     );
 
@@ -160,29 +137,16 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 throw networkError;
             }
 
-            // Handle axios errors
-            if (error.isAxiosError) {
-                const status = error.response?.status || 500;
-                const message = error.data?.details?.message || error.details?.message || error.response?.data?.message || error.message;
-                error.response = {
-                    status,
-                    data: {
-                        message: message || `API request failed with status ${status}`,
-                        ...error.response?.data
-                    }
-                };
-                throw error;
-            }
             // Handle other errors
             const status = error?.response?.status || 500;
-            const parsedErrorMessage = error.data?.details?.message ||
-                error?.details?.message ||
+            const parsedErrorMessage = error.response?.data?.details?.message ||
                 error?.response?.data?.message ||
-                error?.response?.data?.error ||
+                error?.response?.details?.message ||
+                error?.details?.message ||
+                error.data?.details?.message ||
                 error?.message ||
+                error?.response?.data?.error ||
                 'An unexpected error occurred';
-
-            console.error(`API Error (${status}):`, parsedErrorMessage, error);
 
             // Ensure error has consistent structure
             const formattedError = {
