@@ -6,14 +6,12 @@ import { IRoute, IRoutes } from './types';
 import { defaultRoutes } from './DefaultRoutes';
 import { CoreLayout } from '../layout';
 import { useUi24Config } from '../core/context';
-import { AuthLoader } from '../common/AuthLoader';
-import { FullPagesConfigLoader } from '../common/FullPagesConfigLoader';
+import { ConfigLoader } from '../common/ConfigLoader';
 
 export type IAppRouter = { customRoutes?: IRoutes }
 
 export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
-    const { selectConfig } = useUi24Config()
-    const { auth: authConfigUrl } = selectConfig( (config) => config.uiConfig );
+    const { selectConfig } = useUi24Config();
   
     // Merge custom routes with default routes, giving precedence to custom ones
     const mergedRoutes = [...customRoutes, ...defaultRoutes ].reduce((acc: any, route: IRoute, index:number ) => {
@@ -30,20 +28,15 @@ export const AppRouter = ({ customRoutes = [] } : IAppRouter ) => {
       } /> </React.Fragment>;
       return acc;
     }, {});
-
-    const renderChildWithLoader = ( children: ReactNode) => {
-      if( typeof authConfigUrl === 'string' ) {
-        return <AuthLoader>{children}</AuthLoader>
-      }
-      return children
-  }
   
     return (
       <AntdApp>
         <BrowserRouter>
-          { renderChildWithLoader(<FullPagesConfigLoader><Routes>
-            {Object.values(mergedRoutes)}
-          </Routes></FullPagesConfigLoader>) }
+          <ConfigLoader>
+            <Routes>
+              {Object.values(mergedRoutes)}
+            </Routes>
+          </ConfigLoader>
         </BrowserRouter>
       </AntdApp>
     );
