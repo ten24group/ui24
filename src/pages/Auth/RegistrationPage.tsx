@@ -5,7 +5,7 @@ import { useApi } from '../../core/context';
 import { Link } from '../../core/common';
 import { useAppContext } from '../../core/context/AppContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
-
+import { Button } from 'antd';
 export const RegistrationPage = () => {
   return (
     <RegistrationForm />
@@ -17,6 +17,7 @@ const RegistrationForm = () => {
 
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/signup");
+  const { propertiesConfig:verifyPropertiesConfig } = usePageConfig("/verify");
   const { callApiMethod } = useApi();
 
   const onFinish = async (payload: any) => {
@@ -41,13 +42,25 @@ const RegistrationForm = () => {
     }
   }
 
+  const handleVerification = (e) => {
+      navigate('/verification');
+  };
+
   return <>{ propertiesConfig && <AuthForm
             onSubmit={onFinish}
             propertiesConfig={ propertiesConfig }
-            formButtons={ ["submit" ]} 
+            formButtons={[]} 
         >
+            <Button
+                type="primary"
+                htmlType="submit"
+                style={{ width: '100%', marginBottom: 10 }}
+            >
+                Create Account
+            </Button>
             <div className="PreAuthLoginActions" style={{display: 'flex' }}>
                 <Link title="Back to login?" url='/login' />
+                {verifyPropertiesConfig?.length && <Link className="verificationlink" title="Verify Account?" onClick={handleVerification} />}
             </div>
         </AuthForm>
     }</>
