@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { LoginPage, ForgotPasswordPage, ResetPasswordPage, DynamicPage, PostAuthPage, RegistrationPage, VerifyRegistrationPage } from '../pages';
+import { AuthCallbackPage } from '../pages/Auth/AuthCallbackPage';
 import { IRoutes } from './types';
 import { useAuth } from '../core/context';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,7 @@ export const defaultRoutes: IRoutes = [
   { path: "/forgot-password", element: <ForgotPasswordPage />, authType: "auth"},
   { path: "/reset-password", element: <ResetPasswordPage />, authType: "auth" },
   { path: "/set-new-password", element: <SetNewPasswordPage />, authType: "auth" },
+  { path: "/auth/callback", element: <AuthCallbackPage />, authType: "auth" },
   { path: "/", element: <AppNavigator />, authType: "private" },
   { path: "/:dynamicPage", element : <DynamicPage />, authType: "private" },
   { path: "/:dynamicPage/:dynamicID", element : <DynamicPage />, authType: "private" },

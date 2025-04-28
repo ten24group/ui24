@@ -5,7 +5,7 @@ import { Link } from '../../core/common';
 import { useAppContext } from '../../core/context/AppContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { useNavigate, useLocation } from 'react-router-dom';
-
+import { Button } from 'antd';
 export const VerifyRegistrationPage = () => {
   const location = useLocation();
   const { email, codeDeliveryDetails, message } = location.state || {};
@@ -54,9 +54,17 @@ const VerifyRegistrationForm = ({
         <AuthForm
           onSubmit={onFinish}
           propertiesConfig={propertiesConfig}
-          formButtons={["submit"]}
+          formButtons={[]}
           message={verificationMessage}
         >
+          <Button
+              type="primary"
+              htmlType="submit"
+              style={{ width: '100%', marginBottom: 10 }}
+          >
+              Verify
+          </Button>
+
           <div className="PreAuthLoginActions" style={{ display: 'flex' }}>
             <Link title="Back to login?" url="/login" />
           </div>

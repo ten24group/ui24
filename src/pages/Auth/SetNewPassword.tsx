@@ -5,6 +5,7 @@ import { AuthForm } from '../../forms/Layout/AuthForm';
 import { useAppContext } from '../../core/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from '../../core/common';
+import { Button } from 'antd';
 
 export const SetNewPasswordPage = () => {
   return (
@@ -58,9 +59,17 @@ export const SetNewPasswordForm = () => {
     return <>{ propertiesConfig && <AuthForm
             onSubmit={onFinish}
             propertiesConfig={propertiesConfig}
-            formButtons={["submit"]}
+            formButtons={[]}
         >
-            <div className="PreAuthLoginActions" style={{display: 'flex', justifyContent: 'center', marginTop: '1rem'}}>
+            <Button
+                type="primary"
+                htmlType="submit"
+                style={{ width: '100%', marginBottom: 10 }}
+            >
+                Set New Password
+            </Button>
+
+            <div className="PreAuthLoginActions">
                 <Link title="Back to login?" url='/login' />
             </div>
         </AuthForm>
