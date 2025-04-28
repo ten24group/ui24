@@ -110,7 +110,7 @@ const LoginForm = () => {
     { forgotPasswordPropertiesConfig?.length &&
       <div className="PreAuthLoginActions">
           <Checkbox onChange={onChange}>Remember Me</Checkbox>
-          <Link className="forgotPassword" title="Forgot Password ?" url='/forgot-password' />
+          <Link className="forgotPassword" title="Forgot Password?" url='/forgot-password' />
       </div>
     }
 
@@ -164,15 +164,6 @@ const LoginForm = () => {
             onClick = {handleRegister}
         > 
           Create Account 
-        </Button>
-      }
-      { verifyPropertiesConfig?.length &&  <Button 
-            type = "dashed"
-            size = "middle"
-            style = {{ width: "48%", margin:"1%" }}
-            onClick = {handleVerification}
-        > 
-          Verify Account 
         </Button>
       }
     </div>

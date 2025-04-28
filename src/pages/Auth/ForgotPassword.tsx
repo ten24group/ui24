@@ -36,20 +36,19 @@ export const ForgotPasswordForm = () => {
     return <>{ propertiesConfig && <AuthForm
             onSubmit={onFinish}
             propertiesConfig={ propertiesConfig }
-            formButtons={ ["forgotPassword" ]} 
+            formButtons={[]} 
         >
-            <div className="PreAuthLoginActions" style={{display: 'flex' }}>
+            <Button
+                type="primary"
+                htmlType="submit"
+                style={{ width: '100%', marginBottom: 10 }}
+            >
+                Reset Password
+            </Button>
+
+            <div className="PreAuthLoginActions">
                 <Link title="Back to login?" url='/login' />
-            </div>
-            <div className="PreAuthLoginActions" style={{display: 'flex' }}>
-                <Button 
-                    type = "dashed"
-                    size = "middle"
-                    style = {{ width: "99%", margin:"1%" }}
-                    onClick = {handleResetPassword}
-                > 
-                    Has verification code? Reset password.
-                </Button>
+                <Link className="verificationlink" title="Has verification code?" onClick={handleResetPassword} />
             </div>
         </AuthForm>
     }</>
