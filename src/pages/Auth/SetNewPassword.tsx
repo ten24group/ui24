@@ -69,7 +69,7 @@ export const SetNewPasswordForm = () => {
                 Set New Password
             </Button>
 
-            <div className="PreAuthLoginActions" style={{display: 'flex', justifyContent: 'center', marginTop: '1rem'}}>
+            <div className="PreAuthLoginActions">
                 <Link title="Back to login?" url='/login' />
             </div>
         </AuthForm>
