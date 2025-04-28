@@ -34,3 +34,10 @@
     background-color: #e2e3e5;
     border-color: #d6d8db;
 }
+
+.AuthCallbackPage {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 20vh;
+}
