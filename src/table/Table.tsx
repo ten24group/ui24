@@ -9,11 +9,13 @@ export const Table = ({
   records = [], //not using as of now
   apiConfig,
   paginationType = "default",
+  routeParams,
 }: ITableConfig) => {
   
   const { recordIdentifierKey, columns, listRecords, isLoading, Pagination, DisplayAppliedFilters } = useTable({
     propertiesConfig,
-    apiConfig
+    apiConfig,
+    routeParams
   });
 
   return (

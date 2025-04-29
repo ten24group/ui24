@@ -1,4 +1,4 @@
-import { AppstoreOutlined, MailOutlined, SettingOutlined, PoweroffOutlined, PlusCircleOutlined, EditOutlined, DeleteOutlined, CopyOutlined, EyeOutlined, SearchOutlined } from '@ant-design/icons';
+import { AppstoreOutlined, MailOutlined, SettingOutlined, PoweroffOutlined, PlusCircleOutlined, EditOutlined, DeleteOutlined, CopyOutlined, EyeOutlined, SearchOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons';
 import React from 'react';
 
 
@@ -12,7 +12,9 @@ const IconConfig = {
     "delete": <DeleteOutlined />,
     "copy": <CopyOutlined />,
     "plus": <PlusCircleOutlined />,
-    "search": <SearchOutlined />
+    "search": <SearchOutlined />,
+    "export": <ExportOutlined />,
+    "import": <ImportOutlined />
 }
 
 export const Icon = ( {iconName } : { iconName: string } ) : React.ReactNode => {

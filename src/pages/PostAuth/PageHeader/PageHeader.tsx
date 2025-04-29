@@ -1,15 +1,16 @@
 import React from "react";
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
 import "./PageHeader.css";
-import { Breadcrumb, Button } from "antd";
+import { Breadcrumb, Button, Dropdown } from "antd";
 import { IPageAction } from "../../../table/type";
 import { Link } from "../../../core/common";
+import { Icon } from "../../../core/common/Icons/Icons";
 import { OpenInModal } from "../../../modal/Modal";
-import { useParams } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { v4 as uuidv4 } from 'uuid';
+import { DownOutlined } from '@ant-design/icons';
+
 interface IBreadcrumbs {
-    title: string;
+    label: string;
     url?: string;
 }
 
@@ -19,28 +20,92 @@ export interface IPageHeader {
     breadcrumbs?: Array<IBreadcrumbs>;
     pageTitle?: string;
     pageHeaderActions?: IPageActions;
+    routeParams?: Record<string, string>;
 }
 
-export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions } : IPageHeader ) => {
-    const { dynamicID } = useParams()
+export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
+    
+    const renderAction = (item: IPageAction, index: number) => {
+        if (item.type === 'dropdown' && item.items) {
+            const dropdownItems = item.items.map((dropItem, dropIndex) => {
+                let url = dropItem.url;
+                // Replace parameters in the URL using routeParams passed from DynamicPage
+                Object.entries(routeParams).forEach(([key, value]) => {
+                    if (value) {
+                        url = url.replace(`:${key}`, value);
+                    }
+                });
+                return {
+                    key: `${dropItem.label}-${url}-${dropIndex}`,
+                    label: (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {dropItem.icon ? <Icon iconName={dropItem.icon} /> : null}
+                            {dropItem.label}
+                        </span>
+                    ),
+                    onClick: () => navigate(url)
+                };
+            });
 
-    const LocalBreadcrumbs = () => breadcrumbs.length ? <Breadcrumb items={ breadcrumbs.map( ( item ) => {
-        return item.url ? <Breadcrumb.Item><Link title={ item.title } url={ item.url } /></Breadcrumb.Item> : <Breadcrumb.Item>{ item.title }</Breadcrumb.Item>
-    })} /> : <React.Fragment key={`breadcrumb-${uuidv4()}`}></React.Fragment>
+            return (
+                <Dropdown 
+                    key={`dropdown-${item.label}-${index}`} 
+                    menu={{ items: dropdownItems }}
+                >
+                    <Button>
+                        {item.label} <DownOutlined />
+                    </Button>
+                </Dropdown>
+            );
+        }
 
-    const PageActions = Array.isArray(pageHeaderActions) ? <React.Fragment>{ pageHeaderActions.map( (item, index) => {
-        return <Button type="primary" key={"actionButton" + index }> 
-            { item.openInModal && item.modalConfig 
-                ? <OpenInModal onSuccessCallback={(response) => {
-                    navigate( item.modalConfig.submitSuccessRedirect )
-                  }} {...item.modalConfig} primaryIndex={dynamicID}>{item.label}</OpenInModal>
-                : <Link title={ item.label } url={ item.url } /> 
+        let url = item.url || '';
+        // Replace parameters in the URL using routeParams
+        Object.entries(routeParams).forEach(([key, value]) => {
+            if (value) {
+                url = url.replace(`:${key}`, value);
             }
-        </Button>
-    }) }</React.Fragment>: pageHeaderActions;
+        });
 
-    return <div className="PageHeader">
-        <AntPageHeader className="site-page-header" title={ pageTitle } breadcrumb={ LocalBreadcrumbs() } extra = { PageActions } />
-    </div>
-}
+        return (
+            <Button type="primary" key={`action-${item.label}-${index}`}>
+                {item.openInModal && item.modalConfig ? (
+                    <OpenInModal 
+                        onSuccessCallback={(response) => {
+                            navigate(item.modalConfig.submitSuccessRedirect)
+                        }} 
+                        {...item.modalConfig} 
+                        primaryIndex={routeParams.id}
+                    >
+                        {item.label}
+                    </OpenInModal>
+                ) : (
+                    <Link title={item.label} url={url} />
+                )}
+            </Button>
+        );
+    };
+
+    const PageActions = Array.isArray(pageHeaderActions) 
+        ? <React.Fragment>{pageHeaderActions.map(renderAction)}</React.Fragment>
+        : pageHeaderActions;
+
+    return (
+        <div className="PageHeader">
+            <AntPageHeader 
+                className="site-page-header" 
+                title={pageTitle} 
+                breadcrumb={{ items: breadcrumbs.map((item, index) => ({
+                    key: `${item.label}-${item.url || ''}-${index}`,
+                    title: item.url ? (
+                        <Link title={item.label} url={item.url} />
+                    ) : (
+                        item.label
+                    )
+                }))}}
+                extra={PageActions} 
+            />
+        </div>
+    );
+};

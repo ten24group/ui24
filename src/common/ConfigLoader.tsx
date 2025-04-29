@@ -5,13 +5,25 @@ import { loadConfigs } from './utils';
 
 const ConfigLoaderContext = createContext<undefined>(undefined);
 
+// Track ongoing requests to prevent duplicates
+const pendingRequests = new Map<string, Promise<any>>();
+
+const dedupeRequest = async (url: string, loadFn: () => Promise<any>) => {
+    if (!pendingRequests.has(url)) {
+        pendingRequests.set(url, loadFn().finally(() => {
+            pendingRequests.delete(url);
+        }));
+    }
+    return pendingRequests.get(url);
+};
+
 export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, updateConfig } = useUi24Config();
     const [loader, setLoader] = useState(false);
     const { callApiMethod } = useApi();
     const { login, logout, isLoggedIn } = useAuth();
-    const initAuthConfig = useRef(false);
-    const initPageConfig = useRef(false);
+    const configLoadedRef = useRef(false);
+    const authConfigLoadedRef = useRef(false);
 
     // Get all config URLs at once
     const { auth: authConfigUrl } = selectConfig(config => config.uiConfig);
@@ -19,40 +31,22 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const authConfig = selectConfig(config => config.auth?.verifyToken);
     const pagesConfig = selectConfig(config => config.pagesConfig || []);
 
-    // Load auth config only once at startup
+    // Load auth config separately as it's needed for the login page
     useEffect(() => {
         async function loadAuthConfig() {
-            if (initAuthConfig.current) return;
-            initAuthConfig.current = true;
+            if (authConfigLoadedRef.current) return;
             setLoader(true);
 
             try {
-                // Load auth config first if URL is provided
                 if (typeof authConfigUrl === 'string') {
-                    const [authResponse] = await loadConfigs(authConfigUrl);
+                    const authResponse = await dedupeRequest(authConfigUrl, () => loadConfigs(authConfigUrl));
                     updateConfig({
                         'uiConfig': {
                             ...selectConfig(config => config.uiConfig),
-                            auth: authResponse
+                            auth: authResponse[0]
                         }
                     });
-                }
-
-                // Verify token if needed
-                if (authConfig && isLoggedIn) {
-                    const validate = await callApiMethod({
-                        apiUrl: authConfig.apiConfig.apiUrl,
-                        apiMethod: authConfig.apiConfig.apiMethod
-                    });
-                    
-                    if (validate.status === 200) {
-                        const data = validate.data as { token?: string };
-                        if (data?.token) {
-                            login(data.token);
-                        } else {
-                            logout();
-                        }
-                    }
+                    authConfigLoadedRef.current = true;
                 }
             } catch (error) {
                 console.error('Error loading auth config:', error);
@@ -62,20 +56,45 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         loadAuthConfig();
-    }, []); // Run only once at startup
+    }, []); // Load auth config on mount
 
-    // Load page configs whenever login state changes
+    // Load other configs after login
     useEffect(() => {
-        async function loadPageConfigs() {
-            if (!isLoggedIn || pagesConfig.length > 0) return;
+        async function loadAppConfigs() {
+            if (!isLoggedIn || configLoadedRef.current || pagesConfig.length > 0) return;
             setLoader(true);
 
             try {
-                const [pagesResponse, menuResponse, dashboardResponse] = await loadConfigs(
-                    pageConfigUrl,
-                    menuConfigUrl,
-                    dashboard
-                );
+                // Verify token if needed
+                if (authConfig) {
+                    try {
+                        const validate = await callApiMethod({
+                            apiUrl: authConfig.apiConfig.apiUrl,
+                            apiMethod: authConfig.apiConfig.apiMethod
+                        });
+                        
+                        if (validate.status === 200) {
+                            const data = validate.data as { token?: string };
+                            if (data?.token) {
+                                login(data.token);
+                            } else {
+                                logout();
+                                return; // Don't load other configs if auth failed
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Token verification failed:', error);
+                        logout();
+                        return; // Don't load other configs if auth failed
+                    }
+                }
+
+                // Load all other configs in parallel
+                const [pagesResponse, menuResponse, dashboardResponse] = await Promise.all([
+                    dedupeRequest(pageConfigUrl, () => loadConfigs(pageConfigUrl)),
+                    dedupeRequest(menuConfigUrl, () => loadConfigs(menuConfigUrl)),
+                    dedupeRequest(dashboard, () => loadConfigs(dashboard))
+                ]).then(responses => responses.map(r => r[0]));
 
                 updateConfig({
                     'pagesConfig': {
@@ -84,15 +103,17 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                     },
                     'menuItems': menuResponse || []
                 });
+
+                configLoadedRef.current = true;
             } catch (error) {
-                console.error('Error loading page configs:', error);
+                console.error('Error loading configs:', error);
             } finally {
                 setLoader(false);
             }
         }
 
-        loadPageConfigs();
-    }, [isLoggedIn, pagesConfig.length]); // Reload when login state changes
+        loadAppConfigs();
+    }, [isLoggedIn]); // Only depend on login state
 
     return (
         <ConfigLoaderContext.Provider value={undefined}>
