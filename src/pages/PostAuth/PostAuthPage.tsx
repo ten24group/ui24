@@ -20,6 +20,7 @@ export interface IRenderFromPageType extends IPageHeader {
     listPageConfig?: ITableConfig;
     detailsPageConfig?: IDetailsConfig;
     accordionsPageConfig?: Record<string, IRenderFromPageType>;
+    routeParams?: Record<string, string>;
 }
 
 export interface IPostAuthPage extends IRenderFromPageType {
@@ -39,10 +40,10 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAut
         </div>
 }
 
-export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig, identifiers}: IRenderFromPageType ) => {
+export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig, identifiers, routeParams}: IRenderFromPageType ) => {
     
     switch( pageType ) {
-        case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} key={`list-${uuidv4()}`} /> </Card>;
+        case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} routeParams={routeParams} key={`list-${uuidv4()}`} /> </Card>;
         case "form": return <Card style={ cardStyle } > <Form {...formPageConfig} identifiers={identifiers} key={`form-${uuidv4()}`} /> </Card>;
         case "details": return <Card style={ cardStyle } > <Details {...{...detailsPageConfig, identifiers}} key={`details-${uuidv4()}`}/> </Card>;
         case "accordion": return <Accordion accordionsPageConfig={ accordionsPageConfig} />;

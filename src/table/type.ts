@@ -7,6 +7,7 @@ export interface ITableConfig {
   apiConfig: IApiConfig;
   records?: Array<any>;
   paginationType?: ITablePagination;
+  routeParams?: Record<string, string>;
 }
 
 export interface ITablePropertiesConfig {
@@ -18,11 +19,19 @@ export interface ITablePropertiesConfig {
   isIdentifier?: boolean;
   fieldType?: string;
 }
-export type IPageAction = {
-  url: string;
+
+export interface IDropdownItem {
   label: string;
-  icon: string;
-  htmlType: string;
+  url: string;
+  icon?: string;
+}
+
+export type IPageAction = {
+  url?: string;
+  label: string;
+  icon?: string;
+  type?: 'button' | 'dropdown';
+  items?: IDropdownItem[];
   openInModal?: boolean;
   modalConfig?: IModalConfig;
 };
@@ -30,6 +39,7 @@ export type IPageAction = {
 export interface IActionIndexValue {
   [key: string]: Array<IPageAction>;
 }
+
 export interface IRecord {
   [key: string]: string;
 }

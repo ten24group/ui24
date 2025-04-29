@@ -23,7 +23,7 @@ export const ResetPasswordForm = () => {
         const response: any = await callApiMethod({...apiConfig, payload});
 
         if( response.status === 200 ) {
-            notifySuccess(response?.message || response?.data?.message);
+            notifySuccess(response?.message || response?.data?.message || 'Password reset successful');
             navigate('/login');
         } else {
             notifyError(response?.message || response?.error)
