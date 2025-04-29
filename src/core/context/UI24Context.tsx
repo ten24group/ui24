@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext } from 'react';
+import React, { createContext, useState, useContext, useMemo, useCallback } from 'react';
 import { IApiConfig } from './ApiContext';
 import { ThemeConfig as IAntThemeConfig } from 'antd';
 
@@ -61,7 +61,6 @@ interface IUi24Context {
 const Ui24Context = createContext<IUi24Context>(null);
 
 const Ui24ConfigProvider = ({ children, initConfig }) => {
-
     const defaultFormatConfig: IFormatConfig = {
       date: "YYYY-MM-DD",
       time: "hh:mm A",
@@ -75,25 +74,34 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
     // Use initConfig as the initial state
     const [config, setConfig] = useState<IUi24Config>({ formatConfig: defaultFormatConfig, ...initConfig});
 
-    // Function to update config data
-    const updateConfig = (newConfig: Partial<IUi24Config>) => {
-        setConfig({ ...config, ...newConfig });
-    }
+    // Memoize the update function
+    const updateConfig = useCallback((newConfig: Partial<IUi24Config>) => {
+        setConfig(prevConfig => ({ ...prevConfig, ...newConfig }));
+    }, []);
 
-    // Function to select specific property from config
-    const selectConfig = <T extends keyof IUi24Config>(selector: (config: IUi24Config) => T): IUi24Config[T] => {
+    // Memoize the selector function
+    const selectConfig = useCallback(<T extends keyof IUi24Config>(selector: (config: IUi24Config) => T): IUi24Config[T] => {
       return selector(config);
-    };
+    }, [config]);
 
-    const getPageConfig = ( pageName: string ) => {
+    // Memoize the page config getter
+    const getPageConfig = useCallback(( pageName: string ) => {
       if( config?.pagesConfig && Object.keys(config?.pagesConfig).length > 0 ) {
         return config?.pagesConfig[pageName]
       }
-    }
+    }, [config?.pagesConfig]);
 
-    return <Ui24Context.Provider value={{ config, updateConfig, selectConfig, getPageConfig }}>
-        { children }
-        </Ui24Context.Provider>
+    // Memoize the context value
+    const contextValue = useMemo(() => ({
+      config,
+      updateConfig,
+      selectConfig,
+      getPageConfig
+    }), [config, updateConfig, selectConfig, getPageConfig]);
+
+    return <Ui24Context.Provider value={contextValue}>
+        {children}
+    </Ui24Context.Provider>
 }
 
 export const useUi24Config = () => {

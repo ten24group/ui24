@@ -6,6 +6,8 @@ export { DynamicPage } from "./DynamicPage/DynamicPage"
 
 //Pre Login Pages
 export { LoginPage } from "./Auth/LoginPage"
+export { OTPLoginPage } from './Auth/OTPLoginPage'
+export { OTPVerifyPage } from './Auth/OTPVerifyPage'
 export { ForgotPasswordPage } from './Auth/ForgotPassword'
 export { ResetPasswordPage } from './Auth/ResetPassword'
 export { RegistrationPage } from './Auth/RegistrationPage'

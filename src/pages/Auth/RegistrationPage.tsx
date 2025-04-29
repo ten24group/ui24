@@ -58,7 +58,7 @@ const RegistrationForm = () => {
             >
                 Create Account
             </Button>
-            <div className="PreAuthLoginActions" style={{display: 'flex' }}>
+            <div className="PreAuthLoginActions">
                 <Link title="Back to login?" url='/login' />
                 {verifyPropertiesConfig?.length && <Link className="verificationlink" title="Verify Account?" onClick={handleVerification} />}
             </div>

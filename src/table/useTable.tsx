@@ -12,9 +12,16 @@ import { useFormat } from "../core/hooks";
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: IApiConfig;
+  routeParams?: Record<string, string>;
 }
 
 const recordPerPage = 10;
+
+// Utility to replace URL parameters with values
+const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
+  const result = url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
+  return result;
+};
 
 const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
   if( apiMethod === "GET" ) {
@@ -32,7 +39,6 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
       }
     }
     return transformedFilters;
-
   }
 
   return {
@@ -40,8 +46,7 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
   };
 }
 
-export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
-  
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const identifierColumns = propertiesConfig.filter( property => property.isIdentifier );
   const formattingColumns = propertiesConfig.filter( property => 
@@ -52,73 +57,115 @@ export const useTable = ({ propertiesConfig, apiConfig }: IuseTable) => {
   const [listRecords, setListRecords] = React.useState([]);
   const [isLoading, setIsLoading] = React.useState(false);
   const [currentPage, setCurrentPage] = React.useState(0);
-  const [pageCursor, setPageCursor] = React.useState<Record<number, string>>(
-    {}
-  );
+  const [pageCursor, setPageCursor] = React.useState<Record<number, string>>({});
   const [isLastPage, setIsLastPage] = React.useState(false);
-  const [ appliedFilters, setAppliedFilters] = React.useState<Record<string, any>>({});
+  const [appliedFilters, setAppliedFilters] = React.useState<Record<string, any>>({});
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
+  
+  // Track if we've made the initial API call
+  const hasInitialLoad = React.useRef(false);
+  // Track the last API call parameters to prevent duplicate calls
+  const lastCallParams = React.useRef({
+    url: '',
+    filters: {},
+    page: 0,
+    cursor: ''
+  });
 
   //call API get records
-  const getRecords = async (
+  const getRecords = React.useCallback(async (
     pageNumber: number = 1,
     currentPageCursor: string = ""
   ) => {
+    const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
+    const currentFilters = {...appliedFilters};
+    
+    // Check if this is a duplicate call
+    const callSignature = JSON.stringify({ 
+      url: apiUrl, 
+      filters: currentFilters,
+      page: pageNumber,
+      cursor: currentPageCursor
+    });
+    const lastCallSignature = JSON.stringify(lastCallParams.current);
+    if (callSignature === lastCallSignature) {
+      return;
+    }
+    
+    // Update last call parameters
+    lastCallParams.current = {
+      url: apiUrl,
+      filters: currentFilters,
+      page: pageNumber,
+      cursor: currentPageCursor
+    };
+
     const payload = {
       cursor: currentPageCursor,
       limit: recordPerPage,
-      ...getFilterPayload({...appliedFilters}, apiConfig.apiMethod),
+      ...getFilterPayload(currentFilters, apiConfig.apiMethod),
     };
+
     setIsLoading(true);
-    const response: any = await callApiMethod({
-      ...apiConfig,
-      payload: payload,
-    });
 
-    setIsLoading(false);
-
-    if (response?.status === 200) {
-
-      const records = response.data[apiConfig.responseKey];
-
-      records.forEach((record: any) => {
-        formattingColumns.forEach((property) => {
-          if([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())){
-            // formate the date value using uiConfig's date-time-formats
-            const itemValue = record[property.dataIndex].toString().startsWith('0') ? new Date(parseInt(record[property.dataIndex])).toISOString() : record[property.dataIndex];
-            record[property.dataIndex] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
-          } else if (['boolean', 'switch', 'toggle'].includes(property.fieldType?.toLocaleLowerCase())){
-            // format the boolean value using uiConfig's boolean-formats
-            record[property.dataIndex] = formatBoolean(record[property.dataIndex]);
-          }
-        })
-
-        // make sure all the identifiers are captured for each records
-        const identifiers = identifierColumns.map( column => {
-          return { [column.dataIndex] : record[column.dataIndex] };
-        });
-        record[recordIdentifierKey] = JSON.stringify(identifiers);
+    try {
+      const response: any = await callApiMethod({
+        ...apiConfig,
+        apiUrl,
+        payload: payload,
       });
 
-      setListRecords(records);
+      if (response?.status === 200) {
+        const records = response.data[apiConfig.responseKey];
 
-      setCurrentPage(pageNumber === 1 ? 1 : pageNumber);
+        records.forEach((record: any) => {
+          formattingColumns.forEach((property) => {
+            if([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())){
+              const itemValue = record[property.dataIndex].toString().startsWith('0') ? 
+                new Date(parseInt(record[property.dataIndex])).toISOString() : 
+                record[property.dataIndex];
+              record[property.dataIndex] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
+            } else if (['boolean', 'switch', 'toggle'].includes(property.fieldType?.toLocaleLowerCase())){
+              record[property.dataIndex] = formatBoolean(record[property.dataIndex]);
+            }
+          });
 
-      setPageCursor({ ...pageCursor, [pageNumber + 1]: response.data?.cursor });
+          const identifiers = identifierColumns.map( column => ({
+            [column.dataIndex] : record[column.dataIndex]
+          }));
+          record[recordIdentifierKey] = JSON.stringify(identifiers);
+        });
 
-      setIsLastPage(response.data?.cursor === null);
-
-    } else {
-
-      notifyError(response?.error);
+        setListRecords(records);
+        setCurrentPage(pageNumber);
+        setPageCursor(prev => ({ ...prev, [pageNumber + 1]: response.data?.cursor }));
+        setIsLastPage(response.data?.cursor === null);
+      } else {
+        notifyError(response?.error);
+      }
+    } catch (error) {
+      notifyError('Failed to fetch records');
+      console.error('Error fetching records:', error);
+    } finally {
+      setIsLoading(false);
     }
-  };  
+  }, [apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns]);
 
-  useEffect(() => {
-    getRecords();
-  }, [ appliedFilters ]);
+  React.useEffect(() => {
+    if (!hasInitialLoad.current && apiConfig.apiUrl) {
+      hasInitialLoad.current = true;
+      getRecords();
+    }
+  }, [getRecords]);
+
+  // Handle filter changes separately
+  React.useEffect(() => {
+    if (hasInitialLoad.current && Object.keys(appliedFilters).length > 0) {
+      getRecords();
+    }
+  }, [appliedFilters, getRecords]);
 
   const getColumnNameByKey = ( dataIndex: string ) => {
     return columns.find((column) => column.dataIndex === dataIndex)?.title;

@@ -23,6 +23,7 @@ const LoginForm = () => {
   const propertiesConfig = pageConfig.propertiesConfig;
   const apiConfig = pageConfig.apiConfig;
   const socialConfig = (authConfig as any)?.socialConfig || undefined;
+  const signInMethods = (authConfig as any)?.signInMethods || ['EMAIL_PASSWORD'];
   const [ loader, setLoader ] = useState<boolean>( false )
   const { callApiMethod } = useApi();
   const {propertiesConfig:signupPropertiesConfig} = usePageConfig("/signup");
@@ -76,11 +77,12 @@ const LoginForm = () => {
   const handleRegister = (e) => {
       navigate('/registration');
   };
-  const handleVerification = (e) => {
-      navigate('/verification');
-  };
 
-  const handleSocialSignIn = async (provider: string) => {
+  const handleOTPLogin = (e) => {
+    navigate('/otp-login');
+};
+
+const handleSocialSignIn = async (provider: string) => {
     setLoader(true);
     try {
       const response = await callApiMethod({
@@ -127,7 +129,7 @@ const LoginForm = () => {
 
     {/* Divider and social login buttons below Log In button */}
     {socialProviders.length > 0 && (
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 10 }}>
         <Divider>or</Divider>
         {socialProviders.map((sp) => (
           <Button
@@ -155,17 +157,22 @@ const LoginForm = () => {
       </div>
     )}
 
-    <div className="PreAuthLoginActions">
-      {signupPropertiesConfig?.length &&
-        <Button 
-            type = "default"
-            size = "middle"
-            style = {{ width: "48%", margin:"1%" }}
-            onClick = {handleRegister}
-        > 
-          Create Account 
-        </Button>
-      }
-    </div>
+    {/* OTP based login */}
+    {signInMethods.includes('EMAIL_OTP') &&
+      <div className="PreAuthLoginActions" style={{ marginBottom: 10 }}>
+        <div className="one-column">
+          <Link title="OTP Login" onClick={handleOTPLogin} />
+        </div>
+      </div>
+    }
+
+    {/* New here? Create an Account */}
+    {signupPropertiesConfig?.length &&
+      <div className="PreAuthLoginActions one-column">
+        <div className="one-column">
+          <Link title="New here? Create an Account" onClick={handleRegister} />
+        </div>
+      </div>
+    }
   </AuthForm>
 }
