@@ -25,6 +25,7 @@ export interface IPageHeader {
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
+    const [openModalIndex, setOpenModalIndex] = React.useState<number | null>(null);
     
     const renderAction = (item: IPageAction, index: number) => {
         if (item.type === 'dropdown' && item.items) {
@@ -68,21 +69,30 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
             }
         });
 
+        if (item.openInModal && item.modalConfig) {
+            return (
+                <OpenInModal
+                    key={`action-${item.label}-${index}`}
+                    {...item.modalConfig}
+                    primaryIndex={routeParams.id}
+                    onSuccessCallback={(response) => {
+                        navigate(item.modalConfig.submitSuccessRedirect);
+                    }}
+                >
+                    <Button type="primary">{item.label}</Button>
+                </OpenInModal>
+            );
+        }
+
         return (
-            <Button type="primary" key={`action-${item.label}-${index}`}>
-                {item.openInModal && item.modalConfig ? (
-                    <OpenInModal 
-                        onSuccessCallback={(response) => {
-                            navigate(item.modalConfig.submitSuccessRedirect)
-                        }} 
-                        {...item.modalConfig} 
-                        primaryIndex={routeParams.id}
-                    >
-                        {item.label}
-                    </OpenInModal>
-                ) : (
-                    <Link title={item.label} url={url} />
-                )}
+            <Button
+                type="primary"
+                key={`action-${item.label}-${index}`}
+                onClick={() => {
+                    if (!item.openInModal) navigate(url);
+                }}
+            >
+                {item.label}
             </Button>
         );
     };
