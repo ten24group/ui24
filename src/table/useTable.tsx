@@ -122,6 +122,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
 
         records.forEach((record: any) => {
           formattingColumns.forEach((property) => {
+            if( record[property.dataIndex] === null || record[property.dataIndex] === undefined || record[property.dataIndex] === '' ) {
+              record[property.dataIndex] = '';
+              return;
+            }
             if([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())){
               const itemValue = record[property.dataIndex].toString().startsWith('0') ? 
                 new Date(parseInt(record[property.dataIndex])).toISOString() : 
