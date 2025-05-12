@@ -1,6 +1,6 @@
 {
   "name": "@ten24group/ui24",
-  "version": "0.1.1-alpha.28",
+  "version": "1.0.0",
   "description": "Admin UI package for fw24 projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,7 @@
     "build": "webpack --mode production",
     "start": "webpack serve --mode development --open",
     "watch": "webpack --watch",
-    "release": "npm run build && standard-version --prerelease alpha && git push --follow-tags && npm publish"
+    "release": "npm run build && standard-version && git push --follow-tags && npm publish"
   },
   "keywords": [
     "ui24",
