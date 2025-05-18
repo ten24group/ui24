@@ -9,6 +9,8 @@ import { Accordion } from './Accordion/Accordion';
 import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
+import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
+import { dashboardMockConfig } from '../../core/mock/dashboardMockConfig';
 
 export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
@@ -21,6 +23,7 @@ export interface IRenderFromPageType extends IPageHeader {
     detailsPageConfig?: IDetailsConfig;
     accordionsPageConfig?: Record<string, IRenderFromPageType>;
     routeParams?: Record<string, string>;
+    dashboardPageConfig?: IDashboardPageConfig;
 }
 
 export interface IPostAuthPage extends IRenderFromPageType {
@@ -40,14 +43,14 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAut
         </div>
 }
 
-export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig, identifiers, routeParams}: IRenderFromPageType ) => {
+export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig, identifiers, routeParams, dashboardPageConfig}: IRenderFromPageType ) => {
     
     switch( pageType ) {
         case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} routeParams={routeParams} key={`list-${uuidv4()}`} /> </Card>;
         case "form": return <Card style={ cardStyle } > <Form {...formPageConfig} identifiers={identifiers} key={`form-${uuidv4()}`} /> </Card>;
         case "details": return <Card style={ cardStyle } > <Details {...{...detailsPageConfig, identifiers}} key={`details-${uuidv4()}`}/> </Card>;
         case "accordion": return <Accordion accordionsPageConfig={ accordionsPageConfig} />;
-        case "dashboard": return <Card style={ cardStyle } >  </Card>;
+        case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig || dashboardMockConfig} />;
         default: return <>Invalid Page Type</>;
     }
 }

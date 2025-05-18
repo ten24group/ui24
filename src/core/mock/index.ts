@@ -1,3 +1,5 @@
+import { getStatWidgetMockData } from './statWidgetMock';
+
 export const mockApiResponse = ( alias : string ) => {
 
     const mockResponse = {
@@ -72,3 +74,12 @@ export const mockApiResponse = ( alias : string ) => {
         data: mockResponse[ alias ]?.data
     }
 }
+
+export const getMockData = async (apiUrl: string) => {
+  // StatWidget mocks
+  if (apiUrl.startsWith('/mock/')) {
+    // Add more routing logic here for other mocks as needed
+    return getStatWidgetMockData(apiUrl);
+  }
+  return undefined;
+};
