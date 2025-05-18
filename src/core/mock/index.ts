@@ -1,4 +1,5 @@
 import { getStatWidgetMockData } from './statWidgetMock';
+import { getChartWidgetMockData } from './chartWidgetMock';
 
 export const mockApiResponse = ( alias : string ) => {
 
@@ -76,10 +77,13 @@ export const mockApiResponse = ( alias : string ) => {
 }
 
 export const getMockData = async (apiUrl: string) => {
-  // StatWidget mocks
   if (apiUrl.startsWith('/mock/')) {
-    // Add more routing logic here for other mocks as needed
-    return getStatWidgetMockData(apiUrl);
+    if (apiUrl.startsWith('/mock/chart/')) {
+      return getChartWidgetMockData(apiUrl);
+    }
+    if (apiUrl.startsWith('/mock/stat/')) {
+      return getStatWidgetMockData(apiUrl);
+    }
   }
   return undefined;
 };

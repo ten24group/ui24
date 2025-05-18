@@ -2,16 +2,16 @@
 
 export const getStatWidgetMockData = async (apiUrl: string) => {
   switch (apiUrl) {
-    case '/mock/sales/total':
+    case '/mock/stat/sales/total':
       return {
-        value: 126560,
+        value: '$126,560',
         trend: { value: '12%', direction: 'down' },
         secondary: {
-          value: '¥12,423',
+          value: '$12,423',
           trend: { value: '11%', direction: 'up' }
         }
       };
-    case '/mock/visits/total':
+    case '/mock/stat/visits/total':
       return {
         value: 234567,
         trend: { value: '5%', direction: 'up', color: '#52c41a', label: 'WoW' },
@@ -19,12 +19,12 @@ export const getStatWidgetMockData = async (apiUrl: string) => {
           value: '1,234'
         }
       };
-    case '/mock/payments/total':
+    case '/mock/stat/payments/total':
       return {
         value: 5467234,
         trend: { value: '2%', direction: 'down', color: '#ff4d4f', label: 'WoW' }
       };
-    case '/mock/users/active':
+    case '/mock/stat/users/active':
       return {
         value: 123456,
         secondary: {
@@ -32,14 +32,14 @@ export const getStatWidgetMockData = async (apiUrl: string) => {
           trend: { value: '1%', direction: 'up', color: '#52c41a', label: 'MoM' }
         }
       };
-    case '/mock/none':
+    case '/mock/stat/none':
       return {
         value: 4323,
         secondary: {
           value: 'N/A'
         }
       };
-    case '/mock/starred':
+    case '/mock/stat/starred':
       return {
         value: 12,
         trend: { value: '8%', direction: 'up', color: '#52c41a', label: 'YoY' },
@@ -47,7 +47,7 @@ export const getStatWidgetMockData = async (apiUrl: string) => {
           value: '2,345'
         }
       };
-    case '/mock/greyscale':
+    case '/mock/stat/greyscale':
       return {
         value: 0,
         trend: { value: '15%', direction: 'up', color: '#52c41a', label: 'MoM' },

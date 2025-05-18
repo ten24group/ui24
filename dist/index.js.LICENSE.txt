@@ -5,6 +5,51 @@
 */
 
 /*!
+ * @antv/g-lite
+ * @description A core module for rendering engine implements DOM API.
+ * @version 2.2.19
+ * @date 5/9/2025, 8:18:56 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
+ * @antv/g-math
+ * @description Geometry util
+ * @version 3.0.1
+ * @date 5/9/2025, 8:18:51 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
+ * @antv/g-plugin-canvas-path-generator
+ * @description A G plugin of path generator with Canvas2D API
+ * @version 2.1.19
+ * @date 5/9/2025, 8:19:59 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
+ * @antv/g-plugin-image-loader
+ * @description A G plugin for loading image
+ * @version 2.1.22
+ * @date 5/9/2025, 8:20:25 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
+ * @antv/g-web-animations-api
+ * @description A simple implementation of Web Animations API.
+ * @version 2.1.24
+ * @date 5/9/2025, 8:20:56 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
  * Determine if an object is a Buffer
  *
  * @author   Feross Aboukhadijeh <https://feross.org>
@@ -12,6 +57,15 @@
  */
 
 /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/facebook/regenerator/blob/main/LICENSE */
+
+/**
+ * @license
+ * Lodash <https://lodash.com/>
+ * Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
 
 /**
  * @license React
