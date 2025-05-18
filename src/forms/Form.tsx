@@ -13,6 +13,22 @@ import { useApi } from '../core/context';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
+import './Form.css';
+
+// Add types for columnsConfig
+interface IColumnLayoutConfig {
+  sortOrder: number;
+  fields: string[];
+}
+interface IColumnsConfig {
+  numColumns?: number;
+  columns: IColumnLayoutConfig[];
+}
+
+// Extend IForm to accept columnsConfig
+interface IFormWithColumnsConfig extends IForm {
+  columnsConfig?: IColumnsConfig;
+}
 
 export function Form({
   formConfig = { name: "customForm-" + uuidv4() },
@@ -28,7 +44,8 @@ export function Form({
   buttonLoader = false,
   identifiers,
   useDynamicIdFromParams = true,
-}: IForm) {
+  columnsConfig,
+}: IFormWithColumnsConfig) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
 
@@ -179,6 +196,39 @@ export function Form({
 
   }, [ dataLoadedFromView ])
 
+  // Determine columns to render
+  let columns: IFormField[][] = [];
+  if (columnsConfig && columnsConfig.columns && columnsConfig.columns.length > 0) {
+    // Sort columns by sortOrder
+    columns = columnsConfig.columns
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(col =>
+        col.fields
+          .map(fieldKey => formPropertiesConfig.find(f => f.name === fieldKey))
+          .filter(item => item) as IFormField[]
+      );
+  } else {
+    // Fallback: single column with all fields
+    columns = [formPropertiesConfig];
+  }
+
+  const renderFormField = (item: IFormField, index: number) => (
+    <React.Fragment key={"fe" + index}>
+      <FormField {...item} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
+        if (newValue.index !== undefined && typeof newValue.value === "object") {
+          const currentValue = form.getFieldValue(newValue.name) || [];
+          form.setFieldsValue({ [newValue.name]: [
+            ...currentValue.slice(0, newValue.index),
+            { ...currentValue[newValue.index], ...newValue.value },
+            ...currentValue.slice(newValue.index + 1)
+          ] })
+        } else {
+          form.setFieldsValue({ [newValue.name]: newValue.value })
+        }
+      }} />
+    </React.Fragment>
+  );
+
   return <Spin spinning={!dataLoadedFromView}>
     {dataLoadedFromView && <AntForm
       form={form}
@@ -187,28 +237,37 @@ export function Form({
       onFinish={onFinish}
       disabled={loader}
     >
-
-      {formPropertiesConfig.map(
-        (item: IFormField, index: number) => {
-          return <React.Fragment key={"fe" + index}>
-            <FormField {...item} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
-
-              if (newValue.index !== undefined && typeof newValue.value === "object") {
-                const currentValue = form.getFieldValue(newValue.name) || [];
-                form.setFieldsValue({ [ newValue.name ]: [ ...currentValue.slice(0, newValue.index), { ...currentValue[ newValue.index ], ...newValue.value }, ...currentValue.slice(newValue.index + 1) ] })
-              } else {
-                form.setFieldsValue({ [ newValue.name ]: newValue.value })
-              }
-
-            }} />
-          </React.Fragment>
-        })
-      }
-
+      {columns.length > 1 ? (
+        <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start', width: '100%', paddingBottom: 32 }}>
+          {columns.map((columnItems, colIdx) => (
+            <div
+              key={colIdx}
+              className="form-column"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                maxWidth: 600,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                background: '#fff',
+                padding: 24,
+                borderRadius: 12,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                border: '1px solid #f0f0f0',
+              }}
+            >
+              {columnItems.map(renderFormField)}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ maxWidth: 600 }}>
+          {columns[0].map(renderFormField)}
+        </div>
+      )}
       {children}
-
       {formButtons.length > 0 && <div style={{ display: "flex" }}><CreateButtons formButtons={formButtons} loader={btnLoader} /></div>}
-
     </AntForm>
     }
   </Spin>
