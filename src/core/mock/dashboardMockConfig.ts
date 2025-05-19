@@ -112,7 +112,7 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                 },
                 icon: {
                     name: 'ThunderboltFilled',
-                    size: 48,
+                    size: 80,
                     greyscale: true
                 }
             }

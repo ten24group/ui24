@@ -14,6 +14,8 @@ export interface IChartConfig {
   data: IChartDataPoint[];
   xField?: string;
   yField?: string;
+  xAxisLabel?: string;
+  yAxisLabel?: string;
   seriesField?: string;
   color?: string | string[];
   smooth?: boolean;
@@ -33,6 +35,7 @@ export interface IChartConfig {
   radius?: number;
   innerRadius?: number;
   label?: any;
+  height?: number;
 }
 
 export interface IChartWidgetProps {
@@ -44,32 +47,7 @@ export interface IChartWidgetProps {
     responseKey?: string;
     headers?: Record<string, string>;
   };
-  options?: {
-    type?: ChartType;
-    xField?: string;
-    yField?: string;
-    seriesField?: string;
-    color?: string | string[];
-    smooth?: boolean;
-    areaStyle?: {
-      fillOpacity?: number;
-    };
-    point?: {
-      size?: number;
-      shape?: string;
-    };
-    legend?: boolean | object;
-    tooltip?: boolean;
-    animation?: boolean;
-    xAxisLabel?: string;
-    yAxisLabel?: string;
-    // Pie-specific
-    angleField?: string;
-    colorField?: string;
-    radius?: number;
-    innerRadius?: number;
-    label?: any;
-  };
+  options?: Partial<IChartConfig>;
 }
 
 const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
@@ -80,7 +58,8 @@ const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
   point: {
     size: 4,
     shape: 'circle'
-  }
+  },
+  height: 300,
 };
 
 export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options }) => {
@@ -129,26 +108,6 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     }
   }
 
-  const chartConfig: IChartConfig = {
-    type: options?.type || 'line',
-    data: chartData,
-    xField: options.xField,
-    yField: options.yField,
-    seriesField: options.seriesField,
-    color: options?.color,
-    smooth: options?.smooth ?? DEFAULT_CHART_CONFIG.smooth,
-    areaStyle: options?.areaStyle,
-    point: options?.point ?? DEFAULT_CHART_CONFIG.point,
-    legend: options?.legend ?? true,
-    tooltip: options?.tooltip ?? true,
-    animation: options?.animation ?? DEFAULT_CHART_CONFIG.animation,
-    angleField: options?.angleField,
-    colorField: options?.colorField,
-    radius: options?.radius,
-    innerRadius: options?.innerRadius,
-    label: options?.label,
-  };
-
   const axisLabels = {
     xAxis: {
       title: { text: options.xAxisLabel || options.xField, style: { fontWeight: 500 } },
@@ -158,42 +117,42 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     },
   };
 
-  // Only include seriesField if defined
-  const commonProps: any = {
+  const chartConfig: any = {
     data: chartData,
     color: options?.color,
     animation: options?.animation ?? DEFAULT_CHART_CONFIG.animation,
+    height: options?.height ?? DEFAULT_CHART_CONFIG.height,
   };
   if (options.type !== 'pie') {
-    commonProps.xField = options.xField;
-    commonProps.yField = options.yField;
-    commonProps.smooth = options?.smooth ?? DEFAULT_CHART_CONFIG.smooth;
-    commonProps.point = options?.point ?? DEFAULT_CHART_CONFIG.point;
-    commonProps.xAxis = axisLabels.xAxis;
-    commonProps.yAxis = axisLabels.yAxis;
+    chartConfig.xField = options.xField;
+    chartConfig.yField = options.yField;
+    chartConfig.smooth = options?.smooth ?? DEFAULT_CHART_CONFIG.smooth;
+    chartConfig.point = options?.point ?? DEFAULT_CHART_CONFIG.point;
+    chartConfig.xAxis = axisLabels.xAxis;
+    chartConfig.yAxis = axisLabels.yAxis;
     if (options.seriesField) {
-      commonProps.seriesField = options.seriesField;
+      chartConfig.seriesField = options.seriesField;
     }
     if (typeof options.legend !== 'undefined') {
-      commonProps.legend = options.legend;
+      chartConfig.legend = options.legend;
     }
     if (typeof options.tooltip !== 'undefined') {
-      commonProps.tooltip = options.tooltip;
+      chartConfig.tooltip = options.tooltip;
     }
   } else {
     // Pie-specific props
-    commonProps.angleField = options.angleField;
-    commonProps.colorField = options.colorField;
-    if (typeof options.radius === 'number') commonProps.radius = options.radius;
-    if (typeof options.innerRadius === 'number') commonProps.innerRadius = options.innerRadius;
+    chartConfig.angleField = options.angleField;
+    chartConfig.colorField = options.colorField;
+    if (typeof options.radius === 'number') chartConfig.radius = options.radius;
+    if (typeof options.innerRadius === 'number') chartConfig.innerRadius = options.innerRadius;
     if (typeof options.legend !== 'undefined') {
-      commonProps.legend = options.legend;
+      chartConfig.legend = options.legend;
     }
     if (typeof options.tooltip !== 'undefined') {
-      commonProps.tooltip = options.tooltip;
+      chartConfig.tooltip = options.tooltip;
     }
     if (options.label) {
-      commonProps.label = options.label;
+      chartConfig.label = options.label;
     }
   }
 
@@ -202,22 +161,22 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     if (error) return <div className="chart-widget-error">{error}</div>;
     if (!chartData.length) return <div className="chart-widget-empty">No data available</div>;
 
-    switch (chartConfig.type) {
+    switch (options?.type) {
       case 'line':
-        return <Line {...(commonProps as LineConfig)} />;
+        return <Line {...(chartConfig as LineConfig)} />;
       case 'bar':
-        return <Column {...(commonProps as ColumnConfig)} />;
+        return <Column {...(chartConfig as ColumnConfig)} />;
       case 'area':
         return <Area 
-          {...(commonProps as AreaConfig)} 
+          {...(chartConfig as AreaConfig)} 
           area={{ 
             style: options?.areaStyle 
           }} 
         />;
       case 'pie':
-        return <Pie {...(commonProps as PieConfig)} />;
+        return <Pie {...(chartConfig as PieConfig)} />;
       default:
-        return <Line {...(commonProps as LineConfig)} />;
+        return <Line {...(chartConfig as LineConfig)} />;
     }
   };
 
