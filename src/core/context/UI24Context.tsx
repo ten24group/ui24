@@ -21,6 +21,7 @@ export type IUi24Config = {
     baseURL: string;
     appURLPrefix?: string;
     appLogo: string;
+    companyName?: string;
     uiConfig: {
         auth: IConfigResolver<any>,
         menu: IConfigResolver<any>,
@@ -73,8 +74,11 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
       timezone: 'America/New_York'
     }
     
-    // Use initConfig as the initial state
-    const [config, setConfig] = useState<IUi24Config>({ formatConfig: defaultFormatConfig, ...initConfig});
+    // Use initConfig as the initial state, but deep-merge formatConfig
+    const [config, setConfig] = useState<IUi24Config>({
+      ...initConfig,
+      formatConfig: { ...defaultFormatConfig, ...(initConfig?.formatConfig || {}) }
+    });
 
     // Memoize the update function
     const updateConfig = useCallback((newConfig: Partial<IUi24Config>) => {

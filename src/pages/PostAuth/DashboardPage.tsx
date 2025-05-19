@@ -95,16 +95,18 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
 
 export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> = ({ dashboardConfig }) => {
   const { selectConfig } = useUi24Config();
-  const formatConfigTz = selectConfig(config => config.formatConfig?.timezone);
-  const resolvedDashboardTz = dashboardConfig.timezone || formatConfigTz;
+  const formatConfigTz = selectConfig(config => {
+    return config.formatConfig?.timezone;
+  });
+  const resolvedDashboardTz = dashboardConfig?.timezone || formatConfigTz;
 
-  const [dashboardTimePeriod, setDashboardTimePeriod] = React.useState(() => getInitialTimePeriod(dashboardConfig.defaultTimePeriod, resolvedDashboardTz));
+  const [dashboardTimePeriod, setDashboardTimePeriod] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
   // Per-widget time period state (keyed by widget index)
   const [widgetTimePeriods, setWidgetTimePeriods] = React.useState<Record<number, { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }>>(() => {
     const initial: Record<number, { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }> = {};
-    dashboardConfig.widgets.forEach((widget, idx) => {
+    dashboardConfig?.widgets?.forEach((widget, idx) => {
       if (widget.type === 'chart' && widget.showTimePeriodSelector && widget.defaultTimePeriod) {
-        const widgetTz = widget.timezone || dashboardConfig.timezone || formatConfigTz;
+        const widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
         initial[idx] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
       }
     });
@@ -117,7 +119,7 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
 
   return (
     <>
-      {dashboardConfig.showTimePeriodSelector && (
+      {dashboardConfig?.showTimePeriodSelector && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
           <TimePeriodSelector value={dashboardTimePeriod} onChange={setDashboardTimePeriod} timezone={resolvedDashboardTz} />
         </div>
@@ -130,16 +132,16 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
           alignItems: 'stretch',
         }}
       >
-        {dashboardConfig.widgets.map((widget, idx) => {
+        {dashboardConfig?.widgets?.map((widget, idx) => {
           // Per-widget time period state
           let widgetTimePeriod;
           let widgetTz;
           if ((widget.type === 'chart' || widget.type === 'stat') && 'defaultTimePeriod' in widget) {
-            widgetTz = widget.timezone || dashboardConfig.timezone || formatConfigTz;
+            widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
             widgetTimePeriod = widgetTimePeriods[idx] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
           } else {
             widgetTimePeriod = widgetTimePeriods[idx];
-            widgetTz = dashboardConfig.timezone || formatConfigTz;
+            widgetTz = dashboardConfig?.timezone || formatConfigTz;
           }
           const setWidgetTimePeriod = (val: { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }) =>
             setWidgetTimePeriods(prev => ({ ...prev, [idx]: val }));
@@ -153,7 +155,7 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
                 onChange: setWidgetTimePeriod,
                 timezone: widgetTz,
               };
-            } else if (dashboardConfig.showTimePeriodSelector) {
+            } else if (dashboardConfig?.showTimePeriodSelector) {
               chartDashboardTimePeriod = dashboardTimePeriod;
             }
           }

@@ -10,7 +10,6 @@ import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
-import { dashboardMockConfig } from '../../core/mock/dashboardMockConfig';
 
 export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
@@ -32,6 +31,7 @@ export interface IPostAuthPage extends IRenderFromPageType {
 }
 
 export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAuthPage ) => {
+
     return <div style={{ paddingTop: "1%"}}>
             <div className = "PostAuthContainer" >
                 { CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />}
@@ -50,7 +50,7 @@ export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, 
         case "form": return <Card style={ cardStyle } > <Form {...formPageConfig} identifiers={identifiers} key={`form-${uuidv4()}`} /> </Card>;
         case "details": return <Card style={ cardStyle } > <Details {...{...detailsPageConfig, identifiers}} key={`details-${uuidv4()}`}/> </Card>;
         case "accordion": return <Accordion accordionsPageConfig={ accordionsPageConfig} />;
-        case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig || dashboardMockConfig} />;
+        case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
         default: return <>Invalid Page Type</>;
     }
 }
