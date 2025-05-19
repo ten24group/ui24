@@ -3,6 +3,7 @@
 import React, { ReactNode } from 'react';
 import { Layout } from 'antd';
 import { Header } from '../../pages';
+import { useUi24Config } from '../../core/context';
 
 const { Content, Footer, Sider } = Layout;
 
@@ -11,6 +12,9 @@ interface IChildren{
 }
 
 export const PrivateLayout: React.FC<IChildren> = ({ children }) => {
+
+  const { selectConfig } = useUi24Config();
+  const companyName = selectConfig( config => config.companyName || 'Ten24' );
 
   return (
     <>
@@ -21,7 +25,7 @@ export const PrivateLayout: React.FC<IChildren> = ({ children }) => {
         </Content>
       </Layout>
       <Footer style={{ textAlign: 'center' }}>
-        Ten24 ©{new Date().getFullYear()}
+        {companyName} © {new Date().getFullYear()}
       </Footer>
     </>
   );

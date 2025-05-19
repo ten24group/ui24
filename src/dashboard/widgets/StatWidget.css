@@ -1,0 +1,83 @@
+/* StatWidget styles */
+
+.stat-widget-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  padding: 12px 20px 20px 20px;
+  min-height: 120px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-widget-header {
+  font-size: 16px;
+  color: #888;
+  margin-top: 0;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  z-index: 2;
+}
+
+.stat-widget-title {
+  padding-left: 4px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.stat-widget-value-row {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--stat-widget-value-color, #222);
+  display: flex;
+  align-items: center;
+  z-index: 2;
+}
+
+.stat-widget-secondary {
+  border-top: 1px solid #f0f0f0;
+  margin-top: 16px;
+  padding-top: 8px;
+  font-size: 15px;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+}
+
+.stat-widget-bg-icon {
+  position: absolute;
+  top: 12px;
+  right: 20px;
+  z-index: 1;
+  opacity: 0.25;
+  pointer-events: none;
+  user-select: none;
+  line-height: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.stat-widget-trend-arrow {
+  color: var(--stat-widget-trend-color, #52c41a);
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+}
+
+.stat-widget-trend-label {
+  margin-left: 4px;
+  font-size: 12px;
+  color: #888;
+} 
