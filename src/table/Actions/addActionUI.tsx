@@ -26,14 +26,10 @@ export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, ge
     //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
     //if the actions array is empty, then do not include the key in the object
     const actionIndexValue: IActionIndexValue = propertiesConfig
-      .map((item, index) => {
-        return {
-          [item.dataIndex]: item.actions,
-        };
-      })
-      .filter((item) => Object.values(item)?.length > 0)
-      ?.reduce((acc: IActionIndexValue, item) => {
-        return { ...acc, ...item };
+      .filter(item => Array.isArray(item.actions) && item.actions.length > 0)
+      .reduce((acc: IActionIndexValue, item) => {
+        acc[item.dataIndex] = item.actions;
+        return acc;
       }, {});
   
     //check if actionIndexValue has any keys, if yes, then add a column for actions

@@ -3,6 +3,8 @@
 import type { IDashboardPageConfig } from '../../pages/PostAuth/DashboardPage';
 
 export const dashboardMockConfig: IDashboardPageConfig = {
+    showTimePeriodSelector: true,
+    defaultTimePeriod: { period: 'week' },
     widgets: [
         {
             type: 'stat' as const,
@@ -13,14 +15,14 @@ export const dashboardMockConfig: IDashboardPageConfig = {
             options: {
                 color: '#1890ff',
                 trend: {
-                    label: 'vs last week',
+                    label: 'vs last month',
                     upColor: '#00b96b',
                     downColor: '#d4380d'
                 },
                 secondary: {
                     label: 'Daily sales',
                     trend: {
-                        label: 'vs yesterday',
+                        label: 'YoY',
                         upColor: '#52c41a',
                         downColor: '#faad14'
                     }
@@ -135,7 +137,9 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                     size: 4,
                     shape: 'circle'
                 }
-            }
+            },
+            showTimePeriodSelector: false,
+            defaultTimePeriod: { period: 'year' }
         },
         {
             type: 'chart' as const,
@@ -226,6 +230,7 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                     responseKey: 'items',
                 },
                 propertiesConfig: [
+                    { name: 'Post Id', dataIndex: 'postId', fieldType: 'text', isIdentifier: true, hidden: true },
                     { name: 'Title', dataIndex: 'title', fieldType: 'text', isFilterable: false },
                     { name: 'Published Date', dataIndex: 'publishedDate', fieldType: 'datetime', isFilterable: false }
                 ]

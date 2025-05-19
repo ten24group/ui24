@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Line, Bar, Area, Column, Pie, LineConfig, BarConfig, AreaConfig, ColumnConfig, PieConfig } from '@ant-design/plots';
 import './ChartWidget.css';
 import { useApi } from '../../core/context';
+import { TimePeriodSelector, TimePeriodSelectorProps } from './TimePeriodSelector';
 
 export type ChartType = 'line' | 'bar' | 'area' | 'pie';
 
@@ -48,6 +49,7 @@ export interface IChartWidgetProps {
     headers?: Record<string, string>;
   };
   options?: Partial<IChartConfig>;
+  timePeriodSelectorProps?: TimePeriodSelectorProps;
 }
 
 const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
@@ -62,11 +64,27 @@ const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
   height: 300,
 };
 
-export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options }) => {
+export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options, timePeriodSelectorProps }) => {
   const [chartData, setChartData] = useState<IChartDataPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { callApiMethod } = useApi();
+
+  // Compute effective payload with time period if present
+  const effectivePayload = React.useMemo(() => {
+    let basePayload = dataConfig?.payload || {};
+    if (timePeriodSelectorProps && timePeriodSelectorProps.value?.range) {
+      const [start, end] = timePeriodSelectorProps.value.range;
+      // Use the timezone of the start/end Dayjs objects
+      return {
+        ...basePayload,
+        startDate: start.format('YYYY-MM-DDTHH:mm:ss'),
+        endDate: end.format('YYYY-MM-DDTHH:mm:ss'),
+        period: timePeriodSelectorProps.value.period,
+      };
+    }
+    return basePayload;
+  }, [dataConfig?.payload, timePeriodSelectorProps]);
 
   useEffect(() => {
     let isMounted = true;
@@ -82,7 +100,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
         const response = await callApiMethod({
           apiUrl: dataConfig.apiUrl,
           apiMethod,
-          payload: dataConfig.payload,
+          payload: effectivePayload,
           responseKey: dataConfig.responseKey,
           headers: dataConfig.headers,
         });
@@ -96,7 +114,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     };
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, callApiMethod]);
+  }, [dataConfig, callApiMethod, effectivePayload]);
 
   if (options?.type !== 'pie' && (!options?.xField || !options?.yField)) {
     return <div className="chart-widget-error">Missing required xField or yField configuration</div>;
@@ -182,8 +200,13 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
 
   return (
     <div className="chart-widget-card">
-      <div className="chart-widget-header">
+      <div className="chart-widget-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span className="chart-widget-title">{title}</span>
+        {timePeriodSelectorProps && typeof timePeriodSelectorProps.onChange === 'function' && (
+          <div style={{ marginLeft: 'auto' }}>
+            <TimePeriodSelector {...timePeriodSelectorProps} />
+          </div>
+        )}
       </div>
       <div className="chart-widget-content">
         {renderChart()}

@@ -13,7 +13,8 @@ interface IFormatConfig {
   boolean?: {
       true: string; // YES, TRUE, ACTIVE
       false: string; // NO, FALSE, INACTIVE
-  }
+  };
+  timezone?: string; // e.g. 'America/New_York'
 }
 
 export type IUi24Config = {
@@ -68,7 +69,8 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
       boolean: {
         true: "YES",
         false: "NO"
-      }
+      },
+      timezone: 'America/New_York'
     }
     
     // Use initConfig as the initial state

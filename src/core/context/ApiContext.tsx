@@ -104,6 +104,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const callApiMethod = async <T,>(apiConfig: IApiConfig): Promise<AxiosResponse<T>> => {
+        console.log('apiConfig', apiConfig);
         // Universal mock support: if apiUrl starts with /mock/, return mock data
         if (apiConfig.apiUrl.startsWith('/mock/')) {
             const mockData = await getMockData(apiConfig.apiUrl);
