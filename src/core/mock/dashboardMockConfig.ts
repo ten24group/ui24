@@ -150,6 +150,7 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                 yAxisLabel: 'Count',
                 seriesField: 'metric',
                 color: '#722ed1',
+                height: 200,
             }
         },
         {
@@ -167,7 +168,8 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                 color: '#52c41a',
                 areaStyle: {
                     fillOpacity: 0.3
-                }
+                },
+                height: 200,
             }
         },
         {
@@ -184,6 +186,7 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                 seriesField: 'metric',
                 color: ['#1890ff', '#52c41a'],
                 smooth: true,
+                height: 200,
             }
         },
         {
@@ -209,6 +212,23 @@ export const dashboardMockConfig: IDashboardPageConfig = {
                     rowPadding: 5,
                   },
                 },
+                height: 200,
+            }
+        },
+        {
+            type: 'list' as const,
+            title: 'Recent Posts',
+            colSpan: 2,
+            options: {
+                apiConfig: {
+                    apiUrl: '/mock/list/recent-posts',
+                    apiMethod: 'GET',
+                    responseKey: 'items',
+                },
+                propertiesConfig: [
+                    { name: 'Title', dataIndex: 'title', fieldType: 'text', isFilterable: false },
+                    { name: 'Published Date', dataIndex: 'publishedDate', fieldType: 'datetime', isFilterable: false }
+                ]
             }
         }
     ]

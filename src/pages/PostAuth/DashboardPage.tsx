@@ -2,6 +2,7 @@ import React from 'react';
 import { WidgetRenderer } from '../../dashboard/WidgetRenderer';
 import { IStatWidgetProps } from '../../dashboard/widgets/StatWidget';
 import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
+import { IListWidgetProps } from '../../dashboard/widgets/ListWidget';
 
 export type IDashboardWidgetConfig =
   | ({
@@ -18,6 +19,14 @@ export type IDashboardWidgetConfig =
       title?: string;
       dataConfig?: IChartWidgetProps['dataConfig'];
       options?: IChartWidgetProps['options'];
+      colSpan?: number;
+      maxWidth?: number | string;
+      width?: number | string;
+    })
+  | ({
+      type: 'list';
+      title?: string;
+      options?: Partial<IListWidgetProps>;
       colSpan?: number;
       maxWidth?: number | string;
       width?: number | string;
