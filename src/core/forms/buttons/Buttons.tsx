@@ -81,9 +81,9 @@ export const CreateButtons = ({ formButtons, loader = false } : ICreateButtons )
     return <React.Fragment>
         { formButtons.map( (buttonConfig, index: number ) => {
             if( typeof buttonConfig === "string" ) {
-                return  <div key={"bt" + index} style={ {marginLeft: "1%"}}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset" ) ) }</div>
+                return  <div key={"bt" + index} style={ {marginRight: "10px"}}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset" ) ) }</div>
             } else {
-                return <div key={"bt" + index} style={ {marginLeft: "1%"}}>{ renderButton( buttonConfig ) }</div>
+                return <div key={"bt" + index} style={ {marginRight: "10px"}}>{ renderButton( buttonConfig ) }</div>
             }
         })}
     </React.Fragment>

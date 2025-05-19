@@ -1,0 +1,33 @@
+.details-fixed-block {
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 12px;
+  height: 220px;
+  overflow: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+}
+
+.details-field-container {
+  overflow-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.details-field-label {
+  color: #999;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.details-image {
+  max-width: 200px;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  display: block;
+  margin: 0 0 8px 0;
+} 

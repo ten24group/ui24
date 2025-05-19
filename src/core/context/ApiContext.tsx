@@ -3,6 +3,7 @@ import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { useAuth } from './AuthContext';
 import { useUi24Config } from './UI24Context';
 import { useAppContext } from './AppContext';
+import { getMockData } from '../mock';
 
 export interface IApiConfig {
     apiUrl: string;
@@ -103,6 +104,17 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const callApiMethod = async <T,>(apiConfig: IApiConfig): Promise<AxiosResponse<T>> => {
+        // Universal mock support: if apiUrl starts with /mock/, return mock data
+        if (apiConfig.apiUrl.startsWith('/mock/')) {
+            const mockData = await getMockData(apiConfig.apiUrl);
+            return {
+                status: 200,
+                statusText: 'OK',
+                data: mockData,
+                headers: { 'x-mock-response': 'true' },
+                config: {},
+            } as unknown as AxiosResponse<T>;
+        }
         try {
             let response: AxiosResponse<T> | undefined;
             if (apiConfig.apiMethod.toUpperCase() === "GET") {

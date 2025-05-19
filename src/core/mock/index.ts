@@ -1,3 +1,7 @@
+import { getStatWidgetMockData } from './statWidgetMock';
+import { getChartWidgetMockData } from './chartWidgetMock';
+import { getListWidgetMockData } from './listWidgetMock';
+
 export const mockApiResponse = ( alias : string ) => {
 
     const mockResponse = {
@@ -72,3 +76,18 @@ export const mockApiResponse = ( alias : string ) => {
         data: mockResponse[ alias ]?.data
     }
 }
+
+export const getMockData = async (apiUrl: string) => {
+  if (apiUrl.startsWith('/mock/')) {
+    if (apiUrl.startsWith('/mock/chart/')) {
+      return getChartWidgetMockData(apiUrl);
+    }
+    if (apiUrl.startsWith('/mock/stat/')) {
+      return getStatWidgetMockData(apiUrl);
+    }
+    if (apiUrl.startsWith('/mock/list/')) {
+      return getListWidgetMockData(apiUrl);
+    }
+  }
+  return undefined;
+};
