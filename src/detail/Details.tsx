@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Descriptions, DescriptionsProps, List, Spin } from 'antd';
 import { useApi, IApiConfig } from '../core/context';
-import { useParams } from "react-router-dom"
+import { useParams, useLocation } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 //import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
 import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';
+import { replaceUrlParams } from '../table/useTable';
 
 interface IPropertiesConfig {
     label: string;
@@ -63,6 +64,13 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     const { callApiMethod } = useApi();
     const [ dataLoaded, setDataLoaded ] = useState(false);
     const { formatDate, formatBoolean } = useFormat()
+    const location = useLocation();
+    const params = useParams();
+    const searchParams = new URLSearchParams(location.search);
+    let backUrl = searchParams.get('backUrl');
+    if (backUrl) {
+        backUrl = replaceUrlParams(backUrl, params);
+    }
 
     const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
         let initialValue = itemData;
@@ -138,7 +146,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 }
                             }
 
-                            if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                            if (item.type === 'list') {
 
                                 return {
                                     key: index,
@@ -246,7 +254,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     </div>
                                 );
                             }
-                            if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                            if (item.type === 'list') {
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>

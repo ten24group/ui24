@@ -6,7 +6,7 @@ import { IPageAction } from "../../../table/type";
 import { Link } from "../../../core/common";
 import { Icon } from "../../../core/common/Icons/Icons";
 import { OpenInModal } from "../../../modal/Modal";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { DownOutlined } from '@ant-design/icons';
 
 interface IBreadcrumbs {
@@ -25,6 +25,7 @@ export interface IPageHeader {
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [openModalIndex, setOpenModalIndex] = React.useState<number | null>(null);
     
     const renderAction = (item: IPageAction, index: number) => {
@@ -81,6 +82,29 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                 >
                     <Button type="primary">{item.label}</Button>
                 </OpenInModal>
+            );
+        }
+
+        // Special handling for Back button
+        if (item.label === 'Back') {
+            return (
+                <Button
+                    type="primary"
+                    key={`action-${item.label}-${index}`}
+                    onClick={() => {
+                        const searchParams = new URLSearchParams(location.search);
+                        const backUrl = searchParams.get('backUrl');
+                        if (backUrl) {
+                            navigate(backUrl);
+                        } else if (url) {
+                            navigate(url);
+                        } else {
+                            navigate(-1);
+                        }
+                    }}
+                >
+                    {item.label}
+                </Button>
             );
         }
 

@@ -18,7 +18,7 @@ interface IuseTable {
 const recordPerPage = 10;
 
 // Utility to replace URL parameters with values
-const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
+export const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
   const result = url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
   return result;
 };

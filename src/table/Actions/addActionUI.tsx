@@ -5,6 +5,7 @@ import { OpenInModal } from "../../modal/Modal";
 import { Icon, Link } from "../../core/common";
 import { Space } from 'antd';
 import { useAppContext } from "../../core/context";
+import { replaceUrlParams } from '../useTable';
 
 export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void) => {
 
@@ -55,7 +56,7 @@ export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, ge
             <div style={{ display: "flex", justifyContent: "end" }}>
               <Space size="middle" align="end">
                 {recordActions?.map((item: IPageAction, index) => {
-                  return <ListPageAction getRecordsCallback={ getRecordsCallback } key={index} item={item} primaryIndexValue={ primaryIndexValue }/>;
+                  return <ListPageAction getRecordsCallback={ getRecordsCallback } key={index} item={item} primaryIndexValue={ primaryIndexValue } record={record}/>;
                 })}
               </Space>
             </div>
@@ -67,24 +68,30 @@ export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, ge
     return columns
   }
 
-const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback } : { item: IPageAction, primaryIndexValue: string, getRecordsCallback: () => void }) => {
-  
+const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback, record = {}, routeParams = {} } : { item: IPageAction, primaryIndexValue: string, getRecordsCallback: () => void, record?: any, routeParams?: Record<string, string> }) => {
   const { notifySuccess } = useAppContext()
 
   return <Fragment >
-  {item.openInModal ? (
-    <OpenInModal
-      onSuccessCallback={(response) => {
-        notifySuccess("Deleted Successfully")
-        getRecordsCallback()
-      }}
-      primaryIndex={primaryIndexValue}
-      {...item.modalConfig}
-    ><Icon iconName={"delete"} /></OpenInModal>
-  ) : (
-    <Link url={item.url + "/" + primaryIndexValue}>
-      <Icon iconName={item.icon} />
-    </Link>
-  )}{" "}
-</Fragment>
+    {item.openInModal ? (
+      <OpenInModal
+        onSuccessCallback={(response) => {
+          notifySuccess("Deleted Successfully")
+          getRecordsCallback()
+        }}
+        primaryIndex={primaryIndexValue}
+        {...item.modalConfig}
+      ><Icon iconName={"delete"} /></OpenInModal>
+    ) : (
+      <Link
+        url={
+          item.url + '/' + primaryIndexValue +
+          ((item as any).backUrl
+            ? `?backUrl=${encodeURIComponent(replaceUrlParams((item as any).backUrl, { ...routeParams, ...record }))}`
+            : '')
+        }
+      >
+        <Icon iconName={item.icon} />
+      </Link>
+    )}{" "}
+  </Fragment>
 }
