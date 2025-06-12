@@ -8,9 +8,9 @@ import { Link } from '../../core/common';
 import { Button } from 'antd';
 
 export const ResetPasswordPage = () => {
-  return (
-    <ResetPasswordForm />
-  );
+    return (
+        <ResetPasswordForm />
+    );
 };
 
 export const ResetPasswordForm = () => {
@@ -20,39 +20,43 @@ export const ResetPasswordForm = () => {
     const { callApiMethod } = useApi();
 
     const onFinish = async (payload: any) => {
-        const response: any = await callApiMethod({...apiConfig, payload});
+        try {
+            const response: any = await callApiMethod({ ...apiConfig, payload });
 
-        if( response.status === 200 ) {
-            notifySuccess(response?.message || response?.data?.message || 'Password reset successful');
-            navigate('/login');
-        } else {
-            notifyError(response?.message || response?.error)
+            if (response.status === 200) {
+                notifySuccess(response?.message || response?.data?.message || 'Password reset successful');
+                navigate('/login');
+            } else {
+                notifyError(response?.message || response?.error || 'Failed to reset password');
+            }
+        } catch (error: any) {
+            notifyError(error?.message || 'An error occurred while resetting password');
         }
     }
     const handleForgotPassword = () => {
         navigate('/forgot-password');
     }
 
-    return <>{ propertiesConfig && <AuthForm
-            onSubmit={onFinish}
-            propertiesConfig={ propertiesConfig }
-            formButtons={ []} 
-        >
-            
-            <Button
-                type="primary"
-                htmlType="submit"
-                style={{ width: '100%', marginBottom: 10 }}
-            >
-                Reset Password
-            </Button>
+    return <>{propertiesConfig && <AuthForm
+        onSubmit={onFinish}
+        propertiesConfig={propertiesConfig}
+        formButtons={[]}
+    >
 
-            <div className="PreAuthLoginActions">
-                <Link title="Back to login?" url='/login' />
-                <Link className="verificationlink" title="Request new verification code?" onClick={handleForgotPassword} />
-            </div>
-            
-        </AuthForm>
+        <Button
+            type="primary"
+            htmlType="submit"
+            style={{ width: '100%', marginBottom: 10 }}
+        >
+            Reset Password
+        </Button>
+
+        <div className="PreAuthLoginActions">
+            <Link title="Back to login?" url='/login' />
+            <Link className="verificationlink" title="Request new verification code?" onClick={handleForgotPassword} />
+        </div>
+
+    </AuthForm>
     }</>
 
 }
