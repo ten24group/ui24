@@ -8,9 +8,9 @@ import { Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 
 export const ForgotPasswordPage = () => {
-  return (
-    <ForgotPasswordForm />
-  );
+    return (
+        <ForgotPasswordForm />
+    );
 };
 
 export const ForgotPasswordForm = () => {
@@ -20,12 +20,16 @@ export const ForgotPasswordForm = () => {
     const { callApiMethod } = useApi();
 
     const onFinish = async (payload: any) => {
-        const response: any = await callApiMethod({...apiConfig, payload});
-        if( response.status === 200 ) {
-            notifySuccess(response?.message || response?.data?.message || 'Password reset email sent');
-            handleResetPassword();
-        } else {
-            notifyError(response?.message || response?.error)
+        try {
+            const response: any = await callApiMethod({ ...apiConfig, payload });
+            if (response.status === 200) {
+                notifySuccess(response?.message || response?.data?.message || 'Password reset email sent');
+                handleResetPassword();
+            } else {
+                notifyError(response?.message || response?.error)
+            }
+        } catch (error: any) {
+            notifyError(error?.message || 'An unexpected error occurred');
         }
     }
 
@@ -33,23 +37,23 @@ export const ForgotPasswordForm = () => {
         navigate('/reset-password');
     };
 
-    return <>{ propertiesConfig && <AuthForm
-            onSubmit={onFinish}
-            propertiesConfig={ propertiesConfig }
-            formButtons={[]} 
+    return <>{propertiesConfig && <AuthForm
+        onSubmit={onFinish}
+        propertiesConfig={propertiesConfig}
+        formButtons={[]}
+    >
+        <Button
+            type="primary"
+            htmlType="submit"
+            style={{ width: '100%', marginBottom: 10 }}
         >
-            <Button
-                type="primary"
-                htmlType="submit"
-                style={{ width: '100%', marginBottom: 10 }}
-            >
-                Reset Password
-            </Button>
+            Reset Password
+        </Button>
 
-            <div className="PreAuthLoginActions">
-                <Link title="Back to login?" url='/login' />
-                <Link className="verificationlink" title="Has verification code?" onClick={handleResetPassword} />
-            </div>
-        </AuthForm>
+        <div className="PreAuthLoginActions">
+            <Link title="Back to login?" url='/login' />
+            <Link className="verificationlink" title="Has verification code?" onClick={handleResetPassword} />
+        </div>
+    </AuthForm>
     }</>
 }

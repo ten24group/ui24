@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Descriptions, DescriptionsProps, List, Spin } from 'antd';
-import { useApi, IApiConfig } from '../core/context';
+import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 //import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
@@ -51,7 +51,7 @@ export interface IDetailsConfig extends IDetailApiConfig {
 function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
     const cols: T[][] = Array.from({ length: numCols }, () => []);
     arr.forEach((item, idx) => {
-        cols[idx % numCols].push(item);
+        cols[ idx % numCols ].push(item);
     });
     return cols;
 }
@@ -60,6 +60,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
+    const { notifyError } = useAppContext();
     const { callApiMethod } = useApi();
     const [ dataLoaded, setDataLoaded ] = useState(false);
     const { formatDate, formatBoolean } = useFormat()
@@ -93,18 +94,23 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     useEffect(() => {
         const fetchRecordInfo = async () => {
             const identifier = identifiers || dynamicID;
-            const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` });
-            if (response.status === 200) {
-                const detailResponse = response.data[ detailApiConfig.responseKey ]
 
-                const formatted = recordInfo.map(item => {
-                    const formatted = valueFormatter(item, detailResponse[ item.column ]);
-                    return { ...item, initialValue: formatted }
-                });
+            try {
+                const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` });
+                if (response.status === 200) {
+                    const detailResponse = response.data[ detailApiConfig.responseKey ]
 
-                setRecordInfo(formatted)
+                    const formatted = recordInfo.map(item => {
+                        const formatted = valueFormatter(item, detailResponse[ item.column ]);
+                        return { ...item, initialValue: formatted }
+                    });
+
+                    setRecordInfo(formatted)
+                }
+                setDataLoaded(true);
+            } catch (error: any) {
+                notifyError(error?.message || 'An unexpected error occurred');
             }
-            setDataLoaded(true);
         }
 
         if (detailApiConfig)
@@ -277,7 +283,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
                                             <dl style={{ margin: 0, padding: 0 }}>
-                                                {Object.entries(objValue).map(([k, v]) => (
+                                                {Object.entries(objValue).map(([ k, v ]) => (
                                                     <React.Fragment key={k}>
                                                         <dt style={{ fontWeight: 500, color: '#555', float: 'left', clear: 'left', minWidth: 120 }}>{k}:</dt>
                                                         <dd style={{ marginLeft: 130, marginBottom: 8 }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>

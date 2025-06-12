@@ -133,16 +133,18 @@ export function Form({
     }
 
     const fetchRecordInfo = async () => {
+      try {
+        const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifiersToUse}` });
 
-      const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifiersToUse}` });
-
-      if (response.status === 200) {
-        const detailResponse = response.data[ detailApiConfig.responseKey ];
-        return detailResponse;
-      } else {
-        notifyError(response?.error)
+        if (response.status === 200) {
+          const detailResponse = response.data[ detailApiConfig.responseKey ];
+          return detailResponse;
+        } else {
+          notifyError(response.message || response.error || 'An unexpected error occurred');
+        }
+      } catch (error: any) {
+        notifyError(error?.message || 'An unexpected error occurred');
       }
-
     }
 
     loadAndFormatData();
@@ -153,26 +155,30 @@ export function Form({
       setLoader(true)
       setBtnLoader(true)
       const formattedApiUrl = identifiersToUse !== "" && identifiersToUse ? apiConfig.apiUrl + `/${identifiersToUse}` : apiConfig.apiUrl
+      try {
+        const response: any = await callApiMethod({
+          ...apiConfig,
+          apiUrl: formattedApiUrl,
+          payload: values
+        });
 
-      const response: any = await callApiMethod({
-        ...apiConfig,
-        apiUrl: formattedApiUrl,
-        payload: values
-      });
-
-      if (response.status === 200) {
-        notifySuccess("Saved Successfully")
-        if (submitSuccessRedirect !== "") {
-          //redirect to the page
-          navigate(submitSuccessRedirect)
+        if (response.status === 200) {
+          notifySuccess("Saved Successfully")
+          if (submitSuccessRedirect !== "") {
+            //redirect to the page
+            navigate(submitSuccessRedirect)
+          }
+          onSubmitSuccessCallback && onSubmitSuccessCallback(response)
+        } else if (response.status >= 400 || response.status <= 500) {
+          const errorMessage = response.message || response.error.message || response.error;
+          notifyError(errorMessage)
         }
-        onSubmitSuccessCallback && onSubmitSuccessCallback(response)
-      } else if (response.status >= 400 || response.status <= 500) {
-        const errorMessage = response.message || response.error.message || response.error;
-        notifyError(errorMessage)
+      } catch (error: any) {
+        notifyError(error?.message || 'An unexpected error occurred');
+      } finally {
+        setBtnLoader(false)
+        setLoader(false)
       }
-      setBtnLoader(false)
-      setLoader(false)
     }
 
     //call when defined
@@ -209,7 +215,7 @@ export function Form({
       );
   } else {
     // Fallback: single column with all fields
-    columns = [formPropertiesConfig];
+    columns = [ formPropertiesConfig ];
   }
 
   const renderFormField = (item: IFormField, index: number) => (
@@ -217,13 +223,15 @@ export function Form({
       <FormField {...item} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
         if (newValue.index !== undefined && typeof newValue.value === "object") {
           const currentValue = form.getFieldValue(newValue.name) || [];
-          form.setFieldsValue({ [newValue.name]: [
-            ...currentValue.slice(0, newValue.index),
-            { ...currentValue[newValue.index], ...newValue.value },
-            ...currentValue.slice(newValue.index + 1)
-          ] })
+          form.setFieldsValue({
+            [ newValue.name ]: [
+              ...currentValue.slice(0, newValue.index),
+              { ...currentValue[ newValue.index ], ...newValue.value },
+              ...currentValue.slice(newValue.index + 1)
+            ]
+          })
         } else {
-          form.setFieldsValue({ [newValue.name]: newValue.value })
+          form.setFieldsValue({ [ newValue.name ]: newValue.value })
         }
       }} />
     </React.Fragment>
@@ -263,7 +271,7 @@ export function Form({
         </div>
       ) : (
         <div style={{ maxWidth: 600 }}>
-          {columns[0].map(renderFormField)}
+          {columns[ 0 ].map(renderFormField)}
         </div>
       )}
       {children}

@@ -50,18 +50,23 @@ export const Modal = ({
 
   const confirmApiAction = async () => {
     const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
-    const response: any = await callApiMethod({
-      ...apiConfig,
-      apiUrl: formattedApiUrl
-    });
+    
+    try{
+      const response: any = await callApiMethod({
+        ...apiConfig,
+        apiUrl: formattedApiUrl
+      });
 
-    if (response.status === 200) {
-      onSuccessCallback && onSuccessCallback(response)
-    } else if (response.status === 400 || response.status === 500) {
-      notifyError(response?.error)
+      if (response.status === 200) {
+        onSuccessCallback && onSuccessCallback(response)
+      } else if (response.status === 400 || response.status === 500) {
+        notifyError(response?.error)
+      }
+
+      onConfirmCallback && onConfirmCallback()
+    } catch (error: any) {
+      notifyError(error?.message || 'An unexpected error occurred');
     }
-
-    onConfirmCallback && onConfirmCallback()
   }
 
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
