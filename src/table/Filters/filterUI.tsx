@@ -11,68 +11,104 @@ interface IColumnFilterProps {
 }
 
 export const filterUI = (
-  { dataIndex, title, fieldType }: IColumnFilterProps, applyFilters: Function
+  { dataIndex, title, fieldType }: IColumnFilterProps, applyFilters: Function, removeFilter: Function, getAppliedFilterForColumn: Function
 ) => {
-  const nonTextualTypes = [ 'number', 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle' ];
-  const isTextColumn = fieldType ? !nonTextualTypes.includes(fieldType.toLowerCase()) : true;
-  const defaultOperator = isTextColumn ? 'contains' : 'eq';
 
-  const [ filterOperator, setFilterOperator ] = React.useState<string>(defaultOperator);
-  const [ filterValue, setFilterValue ] = React.useState<string>("");
-  const [ filterEndValue, setFilterEndValue ] = React.useState<string>("");
-  const [ filterInList, setFilterInList ] = React.useState<Array<string>>([]);
-  const [ errors, setErrors ] = React.useState<Record<string, string>>({})
-  const isListFilter = filterOperator === "in" || filterOperator === "nin"
-  const isBetweenFilter = filterOperator === "bt"
-  const isFilterValueRequired = filterOperator !== "isEmpty" && filterOperator !== "isNull" && filterOperator !== "in" && filterOperator !== "nin"
-  const hideFilterValue = filterOperator === "isEmpty" || filterOperator === "isNull"
-  const [ showAdvanced, setShowAdvanced ] = React.useState<boolean>(false);
+  const FilterDropdownComponent = ({ close, confirm }) => {
+    const nonTextualTypes = [ 'number', 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle' ];
+    const isTextColumn = fieldType ? !nonTextualTypes.includes(fieldType.toLowerCase()) : true;
+    const defaultOperator = isTextColumn ? 'contains' : 'eq';
 
-  const resetState = () => {
-    setFilterOperator(defaultOperator);
-    setFilterEndValue("");
-    setFilterInList([]);
-    setErrors({});
-    setFilterValue("");
-  }
+    const [ filterOperator, setFilterOperator ] = React.useState<string>(defaultOperator);
+    const [ filterValue, setFilterValue ] = React.useState<string>("");
+    const [ filterEndValue, setFilterEndValue ] = React.useState<string>("");
+    const [ filterInList, setFilterInList ] = React.useState<Array<string>>([]);
+    const [ errors, setErrors ] = React.useState<Record<string, string>>({})
+    const isListFilter = filterOperator === "in" || filterOperator === "nin"
+    const isBetweenFilter = filterOperator === "bt"
+    const isFilterValueRequired = filterOperator !== "isEmpty" && filterOperator !== "isNull" && filterOperator !== "in" && filterOperator !== "nin"
+    const hideFilterValue = filterOperator === "isEmpty" || filterOperator === "isNull"
+    const [ showAdvanced, setShowAdvanced ] = React.useState<boolean>(false);
+    const [ isFilterActive, setIsFilterActive ] = React.useState<boolean>(false);
 
-  const applyFilter = (close: Function) => {
-    //run validations
-    if (filterOperator === "") {
-      setErrors({ filterOperator: "Please select filter operator" })
-    } else if ((isBetweenFilter && (filterValue === "" || filterEndValue === "")) || (isListFilter && filterInList.length === 0) || (isFilterValueRequired && filterValue === "")) {
-      setErrors({ filterValue: "Please enter value", filterEndValue: "Please enter value" })
-    } else {
-      //apply filter
-      applyFilters(dataIndex, filterOperator, isBetweenFilter ? [ filterValue, filterEndValue ] : isListFilter ? filterInList : filterValue)
-      resetState()
-      close()
-    }
-  }
-
-  const handleAddToList = () => {
-    if (filterValue !== "") {
-      setFilterInList([ ...filterInList, filterValue ])
+    const handleOperatorChange = (newOperator: string) => {
+      //on change of filter operator reset the values
       setFilterValue("");
+      setFilterEndValue("");
+      setFilterInList([]);
       setErrors({});
-    } else {
-      setErrors({ filterValue: "Please enter value" })
+      setFilterOperator(newOperator);
     }
 
-  }
+    React.useEffect(() => {
+      const appliedFilterForColumn = getAppliedFilterForColumn(dataIndex);
+      if (Object.keys(appliedFilterForColumn).length > 0) {
+        setIsFilterActive(true);
+        const operator = Object.keys(appliedFilterForColumn)[ 0 ];
+        const value = appliedFilterForColumn[ operator ];
+        setFilterOperator(operator);
+        if (Array.isArray(value)) {
+          // Use operator directly, not the state variable 'isBetweenFilter' which might be stale
+          if (operator === 'bt') {
+            setFilterValue(value[ 0 ]);
+            setFilterEndValue(value[ 1 ]);
+          } else {
+            setFilterInList(value);
+          }
+        } else {
+          setFilterValue(value);
+        }
+      }
+    }, []);
 
-  const handleRemoveFromList = (index: number) => {
-    const list = filterInList.filter((item, idx) => idx !== index)
-    setFilterInList([ ...list ]);
-  }
+    const resetState = () => {
+      setFilterOperator(defaultOperator);
+      setFilterEndValue("");
+      setFilterInList([]);
+      setErrors({});
+      setFilterValue("");
+      setIsFilterActive(false);
+    }
 
-  return {
-    filterDropdown: ({
-      setSelectedKeys,
-      selectedKeys,
-      confirm,
-      close,
-    }) => (
+    const applyFilter = (closeFn: Function) => {
+      //run validations
+      if (filterOperator === "") {
+        setErrors({ filterOperator: "Please select filter operator" })
+      } else if ((isBetweenFilter && (filterValue === "" || filterEndValue === "")) || (isListFilter && filterInList.length === 0) || (isFilterValueRequired && filterValue === "")) {
+        setErrors({ filterValue: "Please enter value", filterEndValue: "Please enter value" })
+      } else {
+        //apply filter
+        applyFilters(dataIndex, filterOperator, isBetweenFilter ? [ filterValue, filterEndValue ] : isListFilter ? filterInList : filterValue)
+        resetState()
+        closeFn()
+      }
+    }
+
+    const clearFilter = (closeFn: Function) => {
+      removeFilter(dataIndex);
+      resetState();
+      closeFn();
+    }
+
+
+    const handleAddToList = () => {
+      if (filterValue !== "") {
+        setFilterInList([ ...filterInList, filterValue ])
+        setFilterValue("");
+        setErrors({});
+      } else {
+        setErrors({ filterValue: "Please enter value" })
+      }
+
+    }
+
+    const handleRemoveFromList = (index: number) => {
+      const list = filterInList.filter((item, idx) => idx !== index)
+      setFilterInList([ ...list ]);
+    }
+
+
+    return (
       <div style={{ padding: 8, display: "flex", flexDirection: "column" }} onKeyDown={(e) => e.stopPropagation()}>
         <div >
           <div style={{ display: "flex" }}>
@@ -108,6 +144,7 @@ export const filterUI = (
           <Space>
             <Button type="primary" onClick={() => applyFilter(close)} size="small" style={{ width: 90 }} > Apply </Button>
             <Button onClick={() => resetState()} size="small" style={{ width: 90 }}> Reset </Button>
+            {isFilterActive && <Button danger onClick={() => clearFilter(close)} size="small" style={{ width: 90 }}> Clear </Button>}
             <Button type="link" size="small" onClick={() => {
               resetState()
               close();
@@ -127,14 +164,24 @@ export const filterUI = (
             <Space size={[ "small", 4 ]} wrap style={{ display: "inline-grid", gridTemplateColumns: "auto auto auto" }}>
               {filterOperators.map((item, index) => {
                 return (
-                  <Button key={index} type={filterOperator === item.value ? "primary" : "default"} size="middle" onClick={() => setFilterOperator(item.value)}>{item.label}</Button>
+                  <Button key={index} type={filterOperator === item.value ? "primary" : "default"} size="middle" onClick={() => handleOperatorChange(item.value)}>{item.label}</Button>
                 )
               })}
             </Space>
           </div>}
         </div>
       </div>
-    ),
+    )
+
+  }
+
+  return {
+    filterDropdown: ({
+      setSelectedKeys,
+      selectedKeys,
+      confirm,
+      close,
+    }) => <FilterDropdownComponent confirm={confirm} close={close} />,
     filterIcon: (filtered: boolean) => (
       <FilterFilled style={{ color: filtered ? "#1677ff" : undefined }} />
     ),

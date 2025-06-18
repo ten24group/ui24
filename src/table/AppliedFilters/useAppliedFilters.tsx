@@ -3,32 +3,29 @@ import { Tag } from 'antd';
 import { getFilterOperatorByValue } from "../Filters/filterOperators";
 
 export const useAppliedFilters = ({
-    appliedFilters,
-    setAppliedFilters,
-    getColumnNameByKey
+  appliedFilters,
+  setAppliedFilters,
+  getColumnNameByKey
 }) => {
-    //Filter Methods
-  const applyFilters = ( column: string, filterOperator: string, value: string | Array<string>) => {
-    //append the column value to the appliedFilters object if already exists for another filterOperator
+  //Filter Methods
+  const applyFilters = (column: string, filterOperator: string, value: string | Array<string>) => {
     //if the column value does not exist in appliedFilters object, add it as a new key
     setAppliedFilters({
       ...appliedFilters,
-      [column]: {
-        ...appliedFilters[column],
-        [filterOperator]: value
+      [ column ]: {
+        [ filterOperator ]: value
       }
     })
   }
 
-  const removeFilter = ( column: string, filterOperator: string ) => {
-    //remove the filterOperator from the column key
-    //if no filterOperator is left, remove the column key from appliedFilters object
-    if( appliedFilters[column] && appliedFilters[column][filterOperator] ) {
-      delete appliedFilters[column][filterOperator];
-      if( Object.keys(appliedFilters[column]).length === 0 ) {
-        delete appliedFilters[column];
+  const removeFilter = (column: string, filterOperator: string) => {
+    //find the column and remove the filter
+    if (appliedFilters[ column ] && appliedFilters[ column ][ filterOperator ]) {
+      delete appliedFilters[ column ][ filterOperator ];
+      if (Object.keys(appliedFilters[ column ]).length === 0) {
+        delete appliedFilters[ column ];
       }
-      setAppliedFilters({...appliedFilters})
+      setAppliedFilters({ ...appliedFilters })
     }
   }
 
@@ -43,13 +40,15 @@ export const useAppliedFilters = ({
     return (
       <Fragment>
         {Object.keys(appliedFilters).map((key) => {
-          return Object.keys(appliedFilters[key]).map((operator) => {
+          return Object.keys(appliedFilters[ key ]).map((operator) => {
+            const handleClose = (e) => {
+              e.preventDefault();
+              removeFilter(key, operator);
+            }
+
             return (
-              <Tag key={key} color="blue" closable onClose={(e)=>{
-                e.preventDefault();
-                removeFilter(key, operator);
-              }}>
-                { getColumnNameByKey(key) } : { getFilterOperatorByValue(operator) } : {JSON.stringify(appliedFilters[key][operator])}
+              <Tag key={key} color="blue" closable onClose={handleClose}>
+                {getColumnNameByKey(key)} : {getFilterOperatorByValue(operator)} : {JSON.stringify(appliedFilters[ key ][ operator ])}
               </Tag>
             );
           });

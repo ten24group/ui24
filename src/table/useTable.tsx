@@ -199,6 +199,18 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     return columns.find((column) => column.dataIndex === dataIndex)?.title;
   }
 
+  const removeFilter = (column: string) => {
+    if (appliedFilters[ column ]) {
+      const newFilters = { ...appliedFilters };
+      delete newFilters[ column ];
+      setAppliedFilters(newFilters);
+    }
+  }
+
+  const getAppliedFilterForColumn = (column: string) => {
+    return appliedFilters[ column ] || {};
+  }
+
   //Filters
   const { applyFilters, DisplayAppliedFilters } = useAppliedFilters({
     appliedFilters,
@@ -227,7 +239,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   );
 
   //add action UI and filter UI
-  const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters)
+  const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn)
     .map(column => {
 
       let renderer = column.render;
