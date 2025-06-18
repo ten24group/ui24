@@ -45,5 +45,6 @@ export const useAppliedSorts = ({ sort, setSort, getColumnNameByKey }: IUseAppli
     DisplayAppliedSorts,
     clearAllSorts,
     hasActiveSorts,
+    activeSortsCount: sort.length
   };
 }; 

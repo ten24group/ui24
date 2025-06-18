@@ -68,6 +68,7 @@ export const useAppliedFilters = ({
     applyFilters,
     DisplayAppliedFilters,
     clearAllFilters,
-    hasActiveFilters
+    hasActiveFilters,
+    activeFiltersCount: Object.keys(appliedFilters).length
   }
 }

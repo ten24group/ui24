@@ -1,6 +1,6 @@
 import React from "react";
-import { Table as AntTable, Spin, Button, Dropdown, Checkbox, Tooltip } from "antd";
-import { ReloadOutlined, SettingOutlined, FilterOutlined } from '@ant-design/icons';
+import { Table as AntTable, Spin, Button, Dropdown, Checkbox, Tooltip, Badge } from "antd";
+import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -23,13 +23,18 @@ export const Table = ({
     onSearch,
     handleTableChange,
     hasActiveFilters,
+    activeFiltersCount,
     clearAllFilters,
     DisplayAppliedSorts,
     clearAllSorts,
     hasActiveSorts,
+    activeSortsCount,
     visibleColumns,
     setVisibleColumns,
-    getRecords
+    handleRefresh,
+    handleReload,
+    selectableColumns,
+    searchQuery
   } = useTable({
     propertiesConfig,
     apiConfig,
@@ -45,7 +50,7 @@ export const Table = ({
     return Pagination;
   };
 
-  const columnOptions = propertiesConfig.map(p => ({ label: p.name, value: p.dataIndex }));
+  const columnOptions = selectableColumns.map(p => ({ label: p.name, value: p.dataIndex }));
 
   const columnsDropdownMenu = {
     items: [
@@ -68,20 +73,25 @@ export const Table = ({
   return (
     <React.Fragment>
       <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: 1, marginRight: '16px' }}>
-          {apiConfig.useSearch && <Search onSearch={onSearch} />}
+        <div style={{ flex: 1 }}>
+          {apiConfig.useSearch && <Search onSearch={onSearch} value={searchQuery} />}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <Tooltip title="Refresh Data">
-            <Button icon={<ReloadOutlined />} onClick={() => getRecords(1, "")} />
+        <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
+          <Tooltip title="Reset View">
+            <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
+          </Tooltip>
+          <Tooltip title="Reload Data">
+            <Button icon={<SyncOutlined />} onClick={handleReload} />
           </Tooltip>
           <Tooltip title="Columns">
             <Dropdown menu={columnsDropdownMenu} trigger={[ 'click' ]}>
               <Button icon={<SettingOutlined />} />
             </Dropdown>
           </Tooltip>
-          <Tooltip title="Filters">
-            <Button icon={<FilterOutlined />} onClick={() => setShowFilters(!showFilters)} />
+          <Tooltip title="Active Filters & Sorts">
+            <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
+              <Button icon={<FilterOutlined />} onClick={() => setShowFilters(!showFilters)} />
+            </Badge>
           </Tooltip>
         </div>
       </div>
@@ -106,6 +116,11 @@ export const Table = ({
                   </Button>
                 </div>
               }
+            </div>
+          )}
+          {(!hasActiveFilters && !hasActiveSorts) && (
+            <div>
+              active filters and sorts will be displayed here!
             </div>
           )}
         </div>

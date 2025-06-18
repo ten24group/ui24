@@ -69,6 +69,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
   const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(propertiesConfig.map(p => p.dataIndex));
   const [ facetResults, setFacetResults ] = React.useState<Record<string, Record<string, number>>>({});
+  const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
@@ -157,9 +158,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
         payload.attributes = attributes.join(',');
       }
 
-      const facetableColumns = propertiesConfig.filter(p => p.isFacetable).map(p => p.dataIndex);
-      if (facetableColumns.length > 0) {
-        payload.facets = facetableColumns.join(',');
+      if (facetedColumns.length > 0) {
+        payload.facets = facetedColumns.join(',');
       }
 
       delete payload.cursor;
@@ -225,20 +225,28 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     } finally {
       setIsLoading(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, sort, callApiMethod, notifyError, formatDate, formatBoolean, visibleColumns, propertiesConfig ]);
+  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, sort, callApiMethod, notifyError, formatDate, formatBoolean, visibleColumns, facetedColumns ]);
+
+  const handleRefresh = React.useCallback(() => {
+    // Resets everything and re-fetches
+    setAppliedFilters({});
+    setSort([]);
+    setSearchQuery('');
+    setCurrentPage(1);
+    setPageCursor({});
+    lastCallParams.current = { url: '', filters: {}, page: 0, cursor: '', q: '', sort: '', attributes: '' };
+    getRecords(1, "");
+  }, [ getRecords ]);
+
+  const handleReload = React.useCallback(() => {
+    // Fetches the current view again
+    lastCallParams.current = { url: '', filters: {}, page: 0, cursor: '', q: '', sort: '', attributes: '' };
+    getRecords(currentPage, pageCursor[ currentPage ] || "");
+  }, [ getRecords, currentPage, pageCursor ]);
 
   React.useEffect(() => {
-    getRecords();
-  }, [ apiConfig.apiUrl ]);
-
-  // Handle filter changes separately
-  React.useEffect(() => {
-    if (hasInitialLoad.current) {
-      getRecords(1, "");
-    } else {
-      hasInitialLoad.current = true;
-    }
-  }, [ appliedFilters, searchQuery, sort ]);
+    getRecords(1, "");
+  }, [ appliedFilters, searchQuery, sort, facetedColumns, apiConfig.apiUrl ]);
 
   const getColumnNameByKey = (dataIndex: string) => {
     return propertiesConfig.find((column) => column.dataIndex === dataIndex)?.name;
@@ -257,14 +265,22 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   }
 
   //Filters
-  const { applyFilters, DisplayAppliedFilters, clearAllFilters, hasActiveFilters } = useAppliedFilters({
+  const { applyFilters, DisplayAppliedFilters, clearAllFilters, hasActiveFilters, activeFiltersCount } = useAppliedFilters({
     appliedFilters,
     setAppliedFilters,
     getColumnNameByKey
   });
 
+  const toggleFacetedColumn = (dataIndex: string) => {
+    setFacetedColumns(prev =>
+      prev.includes(dataIndex)
+        ? prev.filter(d => d !== dataIndex)
+        : [ ...prev, dataIndex ]
+    );
+  };
+
   //Sorts
-  const { DisplayAppliedSorts, clearAllSorts, hasActiveSorts } = useAppliedSorts({
+  const { DisplayAppliedSorts, clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
     sort,
     setSort,
     getColumnNameByKey
@@ -290,8 +306,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     />
   );
 
+  const selectableColumns = React.useMemo(() => propertiesConfig.filter(p => !p.isIdentifier), [ propertiesConfig ]);
+
   //add action UI and filter UI
-  const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn, facetResults)
+  const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn, facetResults, facetedColumns, toggleFacetedColumn)
     .map((column, index) => {
 
       let renderer = column.render;
@@ -344,12 +362,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     onSearch,
     handleTableChange,
     hasActiveFilters,
+    activeFiltersCount,
     clearAllFilters,
     DisplayAppliedSorts,
     clearAllSorts,
     hasActiveSorts,
+    activeSortsCount,
     visibleColumns,
     setVisibleColumns,
-    getRecords
+    handleRefresh,
+    handleReload,
+    selectableColumns,
+    facetedColumns,
+    toggleFacetedColumn,
+    searchQuery
   };
 };

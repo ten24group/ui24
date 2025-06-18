@@ -1,34 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Input } from 'antd';
 
 const { Search: AntSearch } = Input;
 
 interface ISearchProps {
   onSearch: (value: string) => void;
+  value: string;
 }
 
-export const Search: React.FC<ISearchProps> = ({ onSearch }) => {
+export const Search = ({ onSearch, value }: ISearchProps) => {
+  const [ searchTerm, setSearchTerm ] = useState(value);
 
-  const handleSearch = (value: string) => {
-    onSearch(value);
+  useEffect(() => {
+    setSearchTerm(value);
+  }, [ value ]);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Also trigger search on clear
-    if (e.target.value === '') {
-      onSearch('');
-    }
+  const onSearchPress = () => {
+    onSearch(searchTerm);
   };
 
   return (
     <div style={{ marginBottom: 16 }}>
       <AntSearch
         placeholder="Search..."
-        onSearch={handleSearch}
+        value={searchTerm}
+        onChange={handleSearch}
+        onSearch={onSearchPress}
         enterButton
         size="middle"
         allowClear
-        onChange={handleChange}
       />
     </div>
   );

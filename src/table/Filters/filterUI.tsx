@@ -1,5 +1,5 @@
 import { FilterFilled } from '@ant-design/icons';
-import { Input, Button, Space, Tag, Alert, Checkbox } from 'antd';
+import { Input, Button, Space, Tag, Alert, Checkbox, Switch } from 'antd';
 import { Icon } from '../../core/common';
 import React from 'react';
 import { filterOperators } from './filterOperators';
@@ -11,7 +11,13 @@ interface IColumnFilterProps {
 }
 
 export const filterUI = (
-  { dataIndex, title, fieldType }: IColumnFilterProps, applyFilters: Function, removeFilter: Function, getAppliedFilterForColumn: Function, facetResults: Record<string, Record<string, number>>
+  { dataIndex, title, fieldType }: IColumnFilterProps,
+  applyFilters: Function,
+  removeFilter: Function,
+  getAppliedFilterForColumn: Function,
+  facetResults: Record<string, Record<string, number>>,
+  facetedColumns: string[],
+  toggleFacetedColumn: (dataIndex: string) => void
 ) => {
 
   const FilterDropdownComponent = ({ close, confirm }) => {
@@ -32,6 +38,7 @@ export const filterUI = (
     const [ isFilterActive, setIsFilterActive ] = React.useState<boolean>(false);
     const columnFacets = facetResults?.[ dataIndex ] ?? {};
     const hasFacets = Object.keys(columnFacets).length > 0;
+    const isFacetEnabled = facetedColumns.includes(dataIndex);
     const appliedFilterForColumn = getAppliedFilterForColumn(dataIndex);
     const appliedInFilterValues = (appliedFilterForColumn.in || []) as string[];
 
@@ -114,7 +121,16 @@ export const filterUI = (
 
     return (
       <div style={{ padding: 8, display: "flex", flexDirection: "column" }} onKeyDown={(e) => e.stopPropagation()}>
-        {hasFacets && (
+        <div style={{ marginBottom: 8 }}>
+          <Switch
+            checked={isFacetEnabled}
+            onChange={() => toggleFacetedColumn(dataIndex)}
+            size="small"
+          />
+          <span style={{ marginLeft: 8 }}>Show value counts</span>
+        </div>
+
+        {isFacetEnabled && hasFacets && (
           <div style={{ marginBottom: '10px' }}>
             <h4>{title}</h4>
             <Checkbox.Group
