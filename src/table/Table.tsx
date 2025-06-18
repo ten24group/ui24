@@ -1,5 +1,5 @@
 import React from "react";
-import { Table as AntTable, Spin } from "antd";
+import { Table as AntTable, Spin, Button } from "antd";
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -12,11 +12,32 @@ export const Table = ({
   routeParams,
 }: ITableConfig) => {
 
-  const { recordIdentifierKey, columns, listRecords, isLoading, Pagination, DisplayAppliedFilters, onSearch } = useTable({
+  const {
+    recordIdentifierKey,
+    columns,
+    listRecords,
+    isLoading,
+    Pagination,
+    DisplayAppliedFilters,
+    onSearch,
+    handleTableChange,
+    hasActiveFilters,
+    clearAllFilters,
+    DisplayAppliedSorts,
+    clearAllSorts,
+    hasActiveSorts
+  } = useTable({
     propertiesConfig,
     apiConfig,
     routeParams
   });
+
+  const renderPagination = () => {
+    if (typeof Pagination === 'function') {
+      return React.createElement(Pagination);
+    }
+    return Pagination;
+  };
 
   return (
     <React.Fragment>
@@ -25,9 +46,26 @@ export const Table = ({
           <div style={{ width: '100%' }}>
             <Search onSearch={onSearch} />
           </div>
-          <div style={{ marginTop: '10px' }}>
-            <DisplayAppliedFilters />
-          </div>
+          {(hasActiveFilters || hasActiveSorts) && (
+            <div style={{ marginTop: '10px' }}>
+              {hasActiveFilters &&
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <DisplayAppliedFilters />
+                  <Button type="link" size="small" onClick={clearAllFilters} style={{ padding: 0, height: 'auto' }}>
+                    Clear Filters
+                  </Button>
+                </div>
+              }
+              {hasActiveSorts &&
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <DisplayAppliedSorts />
+                  <Button type="link" size="small" onClick={clearAllSorts} style={{ padding: 0, height: 'auto' }}>
+                    Clear Sorts
+                  </Button>
+                </div>
+              }
+            </div>
+          )}
         </div>
       )}
       <AntTable
@@ -44,9 +82,10 @@ export const Table = ({
           ),
           spinning: isLoading,
         }}
+        onChange={handleTableChange}
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-        {Pagination}
+        {renderPagination()}
       </div>
     </React.Fragment>
   );

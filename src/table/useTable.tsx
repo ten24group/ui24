@@ -2,6 +2,7 @@ import React, { Fragment, useEffect, Key } from "react";
 import { ITablePropertiesConfig } from "./type";
 import { IApiConfig, useApi } from "../core/context";
 import { Pagination as AntPagination } from "antd";
+import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
 import { useAppContext } from "../core/context/AppContext";
@@ -9,6 +10,8 @@ import { addFilterUI } from "./Filters/addFilterUI";
 import { usePagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useFormat } from "../core/hooks";
+import { FilterFilled } from "@ant-design/icons";
+import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -63,6 +66,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>({});
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
   const [ totalRecords, setTotalRecords ] = React.useState(0);
+  const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
@@ -75,11 +79,25 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     filters: {},
     page: 0,
     cursor: '',
-    q: ''
+    q: '',
+    sort: ''
   });
 
   const onSearch = (value: string) => {
     setSearchQuery(value);
+  }
+
+  const handleTableChange = (pagination: any, filters: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
+    const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
+    setSort(newSorters.filter(s => s.order)); // Only keep sorts with an active order
+  };
+
+  const getSortString = () => {
+    if (!sort.length) return '';
+    return sort
+      .map(s => s.field && s.order ? `${s.field}:${s.order === 'ascend' ? 'asc' : 'desc'}` : null)
+      .filter(Boolean)
+      .join(',');
   }
 
   //call API get records
@@ -90,6 +108,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
     const currentFilters = { ...appliedFilters };
     const isSearchActive = apiConfig.useSearch;
+    const sortString = getSortString();
 
     // Check if this is a duplicate call
     const callSignature = JSON.stringify({
@@ -97,7 +116,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       filters: currentFilters,
       page: pageNumber,
       cursor: currentPageCursor,
-      q: searchQuery
+      q: searchQuery,
+      sort: sortString
     });
     const lastCallSignature = JSON.stringify(lastCallParams.current);
     if (callSignature === lastCallSignature) {
@@ -110,7 +130,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       filters: currentFilters,
       page: pageNumber,
       cursor: currentPageCursor,
-      q: searchQuery
+      q: searchQuery,
+      sort: sortString,
     };
 
     const payload: any = {
@@ -121,6 +142,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       payload.q = searchQuery;
       payload.page = pageNumber;
       payload.hitsPerPage = recordPerPage;
+      if (sortString) {
+        payload.sort = sortString;
+      }
       delete payload.cursor;
       delete payload.limit;
     } else {
@@ -180,7 +204,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     } finally {
       setIsLoading(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, callApiMethod, notifyError, formatDate, formatBoolean ]);
+  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, sort, callApiMethod, notifyError, formatDate, formatBoolean ]);
 
   React.useEffect(() => {
     getRecords();
@@ -193,10 +217,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     } else {
       hasInitialLoad.current = true;
     }
-  }, [ appliedFilters, searchQuery ]);
+  }, [ appliedFilters, searchQuery, sort ]);
 
   const getColumnNameByKey = (dataIndex: string) => {
-    return columns.find((column) => column.dataIndex === dataIndex)?.title;
+    return propertiesConfig.find((column) => column.dataIndex === dataIndex)?.name;
   }
 
   const removeFilter = (column: string) => {
@@ -212,9 +236,16 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   }
 
   //Filters
-  const { applyFilters, DisplayAppliedFilters } = useAppliedFilters({
+  const { applyFilters, DisplayAppliedFilters, clearAllFilters, hasActiveFilters } = useAppliedFilters({
     appliedFilters,
     setAppliedFilters,
+    getColumnNameByKey
+  });
+
+  //Sorts
+  const { DisplayAppliedSorts, clearAllSorts, hasActiveSorts } = useAppliedSorts({
+    sort,
+    setSort,
     getColumnNameByKey
   });
 
@@ -240,9 +271,16 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
 
   //add action UI and filter UI
   const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn)
-    .map(column => {
+    .map((column, index) => {
 
       let renderer = column.render;
+
+      if (column.key === 'action') {
+        // ignore sorter, filters and rest of stuff for action column
+        return {
+          ...column,
+        }
+      }
 
       if (column.fieldType === 'color') {
         renderer = (text: string, record: any) => {
@@ -257,9 +295,37 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
         }
       }
 
-      return { ...column, render: renderer }
+      const hasActiveFilter = !!appliedFilters[ column.dataIndex ];
+      const columnTitle = propertiesConfig.find(p => p.dataIndex === column.dataIndex)?.name || column.dataIndex;
+      const sortOrder = sort.find(s => s.field === column.dataIndex)?.order;
+
+      return {
+        ...column,
+        title: columnTitle,
+        render: renderer,
+        // Assign a priority to each column for multi-sort
+        sorter: apiConfig.useSearch ? { multiple: index + 1 } : undefined,
+        sortOrder: sortOrder,
+        filterIcon: (filtered: boolean) => (
+          <FilterFilled style={{ color: hasActiveFilter ? "#1677ff" : undefined }} />
+        ),
+      }
 
     });
 
-  return { recordIdentifierKey, columns, listRecords, isLoading, Pagination: isSearchActive ? <NumericalPagination /> : CursorPagination, DisplayAppliedFilters, onSearch };
+  return {
+    recordIdentifierKey,
+    columns,
+    listRecords,
+    isLoading,
+    Pagination: isSearchActive ? <NumericalPagination /> : CursorPagination,
+    DisplayAppliedFilters,
+    onSearch,
+    handleTableChange,
+    hasActiveFilters,
+    clearAllFilters,
+    DisplayAppliedSorts,
+    clearAllSorts,
+    hasActiveSorts
+  };
 };

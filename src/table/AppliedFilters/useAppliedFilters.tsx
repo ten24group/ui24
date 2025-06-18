@@ -1,5 +1,5 @@
 import React, { Fragment } from "react";
-import { Tag } from 'antd';
+import { Tag, Button } from 'antd';
 import { getFilterOperatorByValue } from "../Filters/filterOperators";
 
 export const useAppliedFilters = ({
@@ -21,13 +21,20 @@ export const useAppliedFilters = ({
   const removeFilter = (column: string, filterOperator: string) => {
     //find the column and remove the filter
     if (appliedFilters[ column ] && appliedFilters[ column ][ filterOperator ]) {
-      delete appliedFilters[ column ][ filterOperator ];
-      if (Object.keys(appliedFilters[ column ]).length === 0) {
-        delete appliedFilters[ column ];
+      const newFilters = { ...appliedFilters };
+      delete newFilters[ column ][ filterOperator ];
+      if (Object.keys(newFilters[ column ]).length === 0) {
+        delete newFilters[ column ];
       }
-      setAppliedFilters({ ...appliedFilters })
+      setAppliedFilters(newFilters)
     }
   }
+
+  const clearAllFilters = () => {
+    setAppliedFilters({});
+  };
+
+  const hasActiveFilters = Object.keys(appliedFilters).length > 0;
 
   /**
    * Applied Filters UI
@@ -39,7 +46,7 @@ export const useAppliedFilters = ({
   const DisplayAppliedFilters = () => {
     return (
       <Fragment>
-        {Object.keys(appliedFilters).map((key) => {
+        {hasActiveFilters && Object.keys(appliedFilters).map((key) => {
           return Object.keys(appliedFilters[ key ]).map((operator) => {
             const handleClose = (e) => {
               e.preventDefault();
@@ -47,7 +54,7 @@ export const useAppliedFilters = ({
             }
 
             return (
-              <Tag key={key} color="blue" closable onClose={handleClose}>
+              <Tag key={`${key}-${operator}`} color="blue" closable onClose={handleClose}>
                 {getColumnNameByKey(key)} : {getFilterOperatorByValue(operator)} : {JSON.stringify(appliedFilters[ key ][ operator ])}
               </Tag>
             );
@@ -59,6 +66,8 @@ export const useAppliedFilters = ({
 
   return {
     applyFilters,
-    DisplayAppliedFilters
+    DisplayAppliedFilters,
+    clearAllFilters,
+    hasActiveFilters
   }
 }
