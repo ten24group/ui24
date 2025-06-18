@@ -14,6 +14,7 @@ export const Search: React.FC<ISearchProps> = ({ onSearch }) => {
         placeholder="Search..."
         onSearch={onSearch}
         enterButton
+        size="large"
       />
     </div>
   );

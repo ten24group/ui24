@@ -10,6 +10,7 @@ export interface IApiConfig {
     apiMethod: string;
     payload?: any;
     responseKey?: string;
+    useSearch?: boolean;
     headers?: Record<string, string>;
 }
 

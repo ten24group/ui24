@@ -1,6 +1,7 @@
 import React, { Fragment, useEffect, Key } from "react";
 import { ITablePropertiesConfig } from "./type";
 import { IApiConfig, useApi } from "../core/context";
+import { Pagination as AntPagination } from "antd";
 
 import { addActionUI } from "./Actions/addActionUI";
 import { useAppContext } from "../core/context/AppContext";
@@ -48,11 +49,11 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
 
 export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
-  const identifierColumns = propertiesConfig.filter(property => property.isIdentifier);
-  const formattingColumns = propertiesConfig.filter(property =>
+  const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
+  const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
     [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle' ]
       .includes(property.fieldType?.toLocaleLowerCase())
-  );
+  ), [ propertiesConfig ]);
 
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
@@ -61,6 +62,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   const [ isLastPage, setIsLastPage ] = React.useState(false);
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>({});
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
+  const [ totalRecords, setTotalRecords ] = React.useState(0);
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
@@ -87,6 +89,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   ) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
     const currentFilters = { ...appliedFilters };
+    const isSearchActive = apiConfig.useSearch;
 
     // Check if this is a duplicate call
     const callSignature = JSON.stringify({
@@ -110,12 +113,20 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       q: searchQuery
     };
 
-    const payload = {
-      cursor: currentPageCursor,
-      limit: recordPerPage,
-      q: searchQuery,
+    const payload: any = {
       ...getFilterPayload(currentFilters, apiConfig.apiMethod),
     };
+
+    if (isSearchActive) {
+      payload.q = searchQuery;
+      payload.page = pageNumber;
+      payload.hitsPerPage = recordPerPage;
+      delete payload.cursor;
+      delete payload.limit;
+    } else {
+      payload.cursor = currentPageCursor;
+      payload.limit = recordPerPage;
+    }
 
     setIsLoading(true);
 
@@ -127,7 +138,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       });
 
       if (response?.status === 200) {
-        const records = response.data[ apiConfig.responseKey ];
+        const isSearchActive = apiConfig.useSearch;
+        const records = isSearchActive ? response.data.items : response.data[ apiConfig.responseKey ];
 
         records.forEach((record: any) => {
           formattingColumns.forEach((property) => {
@@ -153,8 +165,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
 
         setListRecords(records);
         setCurrentPage(pageNumber);
-        setPageCursor(prev => ({ ...prev, [ pageNumber + 1 ]: response.data?.cursor }));
-        setIsLastPage(response.data?.cursor === null);
+        if (isSearchActive) {
+          setTotalRecords(response.data.total);
+        } else {
+          setPageCursor(prev => ({ ...prev, [ pageNumber + 1 ]: response.data?.cursor }));
+          setIsLastPage(response.data?.cursor === null);
+        }
       } else {
         notifyError(response?.error);
       }
@@ -164,21 +180,20 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     } finally {
       setIsLoading(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery ]);
+  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, callApiMethod, notifyError, formatDate, formatBoolean ]);
 
   React.useEffect(() => {
-    if (!hasInitialLoad.current && apiConfig.apiUrl) {
-      hasInitialLoad.current = true;
-      getRecords();
-    }
-  }, [ getRecords ]);
+    getRecords();
+  }, [ apiConfig.apiUrl ]);
 
   // Handle filter changes separately
   React.useEffect(() => {
     if (hasInitialLoad.current) {
-      getRecords();
+      getRecords(1, "");
+    } else {
+      hasInitialLoad.current = true;
     }
-  }, [ appliedFilters, getRecords, searchQuery ]);
+  }, [ appliedFilters, searchQuery ]);
 
   const getColumnNameByKey = (dataIndex: string) => {
     return columns.find((column) => column.dataIndex === dataIndex)?.title;
@@ -191,13 +206,25 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     getColumnNameByKey
   });
 
+  const isSearchActive = apiConfig.useSearch;
+
   //Pagination
-  const { Pagination } = usePagination({
+  const { Pagination: CursorPagination } = usePagination({
     pageCursor,
     getRecords,
     currentPage,
     isLastPage
   });
+
+  const NumericalPagination = () => (
+    <AntPagination
+      current={currentPage}
+      total={totalRecords}
+      pageSize={recordPerPage}
+      onChange={(page) => getRecords(page)}
+      showSizeChanger={false}
+    />
+  );
 
   //add action UI and filter UI
   const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters)
@@ -222,5 +249,5 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
 
     });
 
-  return { recordIdentifierKey, columns, listRecords, isLoading, Pagination, DisplayAppliedFilters, onSearch };
+  return { recordIdentifierKey, columns, listRecords, isLoading, Pagination: isSearchActive ? <NumericalPagination /> : CursorPagination, DisplayAppliedFilters, onSearch };
 };

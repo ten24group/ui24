@@ -20,10 +20,14 @@ export const Table = ({
 
   return (
     <React.Fragment>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Search onSearch={onSearch} />
-        <DisplayAppliedFilters />
-      </div>
+      {apiConfig.useSearch && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <div style={{ width: '100%' }}>
+            <Search onSearch={onSearch} />
+          </div>
+          <DisplayAppliedFilters />
+        </div>
+      )}
       <AntTable
         scroll={{ x: true }}
         columns={columns}
@@ -39,7 +43,9 @@ export const Table = ({
           spinning: isLoading,
         }}
       />
-      {Pagination}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+        {Pagination}
+      </div>
     </React.Fragment>
   );
 };
