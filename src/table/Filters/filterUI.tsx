@@ -1,5 +1,5 @@
 import { FilterFilled } from '@ant-design/icons';
-import { Input, Button, Space, Tag, Alert } from 'antd';
+import { Input, Button, Space, Tag, Alert, Checkbox } from 'antd';
 import { Icon } from '../../core/common';
 import React from 'react';
 import { filterOperators } from './filterOperators';
@@ -11,7 +11,7 @@ interface IColumnFilterProps {
 }
 
 export const filterUI = (
-  { dataIndex, title, fieldType }: IColumnFilterProps, applyFilters: Function, removeFilter: Function, getAppliedFilterForColumn: Function
+  { dataIndex, title, fieldType }: IColumnFilterProps, applyFilters: Function, removeFilter: Function, getAppliedFilterForColumn: Function, facetResults: Record<string, Record<string, number>>
 ) => {
 
   const FilterDropdownComponent = ({ close, confirm }) => {
@@ -30,6 +30,10 @@ export const filterUI = (
     const hideFilterValue = filterOperator === "isEmpty" || filterOperator === "isNull"
     const [ showAdvanced, setShowAdvanced ] = React.useState<boolean>(false);
     const [ isFilterActive, setIsFilterActive ] = React.useState<boolean>(false);
+    const columnFacets = facetResults?.[ dataIndex ] ?? {};
+    const hasFacets = Object.keys(columnFacets).length > 0;
+    const appliedFilterForColumn = getAppliedFilterForColumn(dataIndex);
+    const appliedInFilterValues = (appliedFilterForColumn.in || []) as string[];
 
     const handleOperatorChange = (newOperator: string) => {
       //on change of filter operator reset the values
@@ -110,6 +114,23 @@ export const filterUI = (
 
     return (
       <div style={{ padding: 8, display: "flex", flexDirection: "column" }} onKeyDown={(e) => e.stopPropagation()}>
+        {hasFacets && (
+          <div style={{ marginBottom: '10px' }}>
+            <h4>{title}</h4>
+            <Checkbox.Group
+              style={{ display: 'flex', flexDirection: 'column' }}
+              onChange={(values) => applyFilters(dataIndex, 'in', values)}
+              value={appliedInFilterValues}
+            >
+              {Object.entries(columnFacets).map(([ value, count ]) => (
+                <Checkbox key={value} value={value}>
+                  {value} ({count})
+                </Checkbox>
+              ))}
+            </Checkbox.Group>
+            <hr style={{ margin: '10px 0' }} />
+          </div>
+        )}
         <div >
           <div style={{ display: "flex" }}>
             {!hideFilterValue && <Input placeholder={`${title}`} value={filterValue}

@@ -26,7 +26,7 @@ export const Search: React.FC<ISearchProps> = ({ onSearch }) => {
         placeholder="Search..."
         onSearch={handleSearch}
         enterButton
-        size="large"
+        size="middle"
         allowClear
         onChange={handleChange}
       />

@@ -67,6 +67,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
   const [ totalRecords, setTotalRecords ] = React.useState(0);
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
+  const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(propertiesConfig.map(p => p.dataIndex));
+  const [ facetResults, setFacetResults ] = React.useState<Record<string, Record<string, number>>>({});
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
@@ -80,7 +82,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     page: 0,
     cursor: '',
     q: '',
-    sort: ''
+    sort: '',
+    attributes: ''
   });
 
   const onSearch = (value: string) => {
@@ -117,7 +120,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       page: pageNumber,
       cursor: currentPageCursor,
       q: searchQuery,
-      sort: sortString
+      sort: sortString,
+      attributes: visibleColumns.join(','),
     });
     const lastCallSignature = JSON.stringify(lastCallParams.current);
     if (callSignature === lastCallSignature) {
@@ -132,6 +136,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       cursor: currentPageCursor,
       q: searchQuery,
       sort: sortString,
+      attributes: visibleColumns.join(','),
     };
 
     const payload: any = {
@@ -145,6 +150,18 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       if (sortString) {
         payload.sort = sortString;
       }
+      //Always fetch identifier columns
+      const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
+      const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
+      if (attributes.length > 0) {
+        payload.attributes = attributes.join(',');
+      }
+
+      const facetableColumns = propertiesConfig.filter(p => p.isFacetable).map(p => p.dataIndex);
+      if (facetableColumns.length > 0) {
+        payload.facets = facetableColumns.join(',');
+      }
+
       delete payload.cursor;
       delete payload.limit;
     } else {
@@ -164,6 +181,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       if (response?.status === 200) {
         const isSearchActive = apiConfig.useSearch;
         const records = isSearchActive ? response.data.items : response.data[ apiConfig.responseKey ];
+
+        if (isSearchActive && response.data.facets) {
+          setFacetResults(response.data.facets);
+        }
 
         records.forEach((record: any) => {
           formattingColumns.forEach((property) => {
@@ -204,7 +225,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     } finally {
       setIsLoading(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, sort, callApiMethod, notifyError, formatDate, formatBoolean ]);
+  }, [ apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns, searchQuery, sort, callApiMethod, notifyError, formatDate, formatBoolean, visibleColumns, propertiesConfig ]);
 
   React.useEffect(() => {
     getRecords();
@@ -270,7 +291,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   );
 
   //add action UI and filter UI
-  const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn)
+  const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn, facetResults)
     .map((column, index) => {
 
       let renderer = column.render;
@@ -311,7 +332,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
         ),
       }
 
-    });
+    }).filter(c => c.key === 'action' || visibleColumns.includes(c.dataIndex));
 
   return {
     recordIdentifierKey,
@@ -326,6 +347,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     clearAllFilters,
     DisplayAppliedSorts,
     clearAllSorts,
-    hasActiveSorts
+    hasActiveSorts,
+    visibleColumns,
+    setVisibleColumns,
+    getRecords
   };
 };
