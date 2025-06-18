@@ -21,11 +21,13 @@ export const Table = ({
   return (
     <React.Fragment>
       {apiConfig.useSearch && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ marginBottom: '16px' }}>
           <div style={{ width: '100%' }}>
             <Search onSearch={onSearch} />
           </div>
-          <DisplayAppliedFilters />
+          <div style={{ marginTop: '10px' }}>
+            <DisplayAppliedFilters />
+          </div>
         </div>
       )}
       <AntTable
