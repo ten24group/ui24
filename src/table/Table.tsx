@@ -1,10 +1,11 @@
 import React from "react";
-import { Table as AntTable, Spin, Button, Dropdown, Checkbox, Tooltip, Badge } from "antd";
-import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined, ColumnWidthOutlined, EyeOutlined, NodeExpandOutlined, ClearOutlined } from '@ant-design/icons';
+import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge } from "antd";
+import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
+import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import './Table.css';
 
 export const Table = ({
@@ -31,11 +32,8 @@ export const Table = ({
     clearAllSorts,
     hasActiveSorts,
     activeSortsCount,
-    visibleColumns,
-    setVisibleColumns,
     handleRefresh,
     handleReload,
-    selectableColumns,
     searchQuery,
     columnSettings,
     handleColumnSettingsChange,
@@ -78,40 +76,21 @@ export const Table = ({
           </Tooltip>
           <Tooltip title="View Applied Filters & Sorts">
             <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
-              <Button icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
+              <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
             </Badge>
           </Tooltip>
         </div>
       </div>
 
       {showFilters && (
-        <div style={{ marginBottom: '10px', padding: '10px', border: '1px solid #d9d9d9', borderRadius: '4px' }}>
-          {(hasActiveFilters || hasActiveSorts) && (
-            <div>
-              {hasActiveFilters &&
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: hasActiveSorts ? '10px' : '0' }}>
-                  <DisplayAppliedFilters />
-                  <Button type="link" size="small" onClick={clearAllFilters} style={{ padding: 0, height: 'auto' }}>
-                    Clear Filters
-                  </Button>
-                </div>
-              }
-              {hasActiveSorts &&
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <DisplayAppliedSorts />
-                  <Button type="link" size="small" onClick={clearAllSorts} style={{ padding: 0, height: 'auto' }}>
-                    Clear Sorts
-                  </Button>
-                </div>
-              }
-            </div>
-          )}
-          {(!hasActiveFilters && !hasActiveSorts) && (
-            <div>
-              active filters and sorts will be displayed here!
-            </div>
-          )}
-        </div>
+        <AppliedFiltersDisplay
+          hasActiveFilters={hasActiveFilters}
+          hasActiveSorts={hasActiveSorts}
+          DisplayAppliedFilters={DisplayAppliedFilters}
+          clearAllFilters={clearAllFilters}
+          DisplayAppliedSorts={DisplayAppliedSorts}
+          clearAllSorts={clearAllSorts}
+        />
       )}
 
       <AntTable

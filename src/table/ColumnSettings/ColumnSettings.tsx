@@ -126,7 +126,7 @@ export const ColumnSettings: React.FC<ColumnSettingsProps> = ({ columns, onColum
           indeterminate={someColumnsChecked}
           onChange={handleSelectAll}
         >
-          Column Display
+          All Columns
         </Checkbox>
         <Button type="link" onClick={onReset}>Reset</Button>
       </div>
