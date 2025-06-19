@@ -16,7 +16,11 @@ export const Search = ({ onSearch, value }: ISearchProps) => {
   }, [ value ]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+    const { value } = e.target;
+    setSearchTerm(value);
+    if (value === '') {
+      onSearch(value);
+    }
   };
 
   const onSearchPress = () => {
@@ -24,7 +28,7 @@ export const Search = ({ onSearch, value }: ISearchProps) => {
   };
 
   return (
-    <div style={{ marginBottom: 16 }}>
+    <div style={{ display: 'flex', alignItems: 'center' }}>
       <AntSearch
         placeholder="Search..."
         value={searchTerm}

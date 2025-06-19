@@ -1,0 +1,14 @@
+.table-toolbar {
+  align-items: center; 
+  display: flex;
+  height: 32px;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.table-toolbar .ant-input-search-button {
+  height: 32px;
+}
+
+.table-toolbar > .ant-btn {
+  height: 32px;
+} 

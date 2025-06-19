@@ -84,7 +84,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     cursor: '',
     q: '',
     sort: '',
-    attributes: ''
+    attributes: '',
+    facetedColumns: '',
   });
 
   const onSearch = (value: string) => {
@@ -123,6 +124,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       q: searchQuery,
       sort: sortString,
       attributes: visibleColumns.join(','),
+      facetedColumns: facetedColumns.join(','),
     });
     const lastCallSignature = JSON.stringify(lastCallParams.current);
     if (callSignature === lastCallSignature) {
@@ -138,6 +140,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       q: searchQuery,
       sort: sortString,
       attributes: visibleColumns.join(','),
+      facetedColumns: facetedColumns.join(','),
     };
 
     const payload: any = {
@@ -234,13 +237,13 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     setSearchQuery('');
     setCurrentPage(1);
     setPageCursor({});
-    lastCallParams.current = { url: '', filters: {}, page: 0, cursor: '', q: '', sort: '', attributes: '' };
+    lastCallParams.current = { url: '', filters: {}, page: 0, cursor: '', q: '', sort: '', attributes: '', facetedColumns: '' };
     getRecords(1, "");
   }, [ getRecords ]);
 
   const handleReload = React.useCallback(() => {
     // Fetches the current view again
-    lastCallParams.current = { url: '', filters: {}, page: 0, cursor: '', q: '', sort: '', attributes: '' };
+    lastCallParams.current = { url: '', filters: {}, page: 0, cursor: '', q: '', sort: '', attributes: '', facetedColumns: '' };
     getRecords(currentPage, pageCursor[ currentPage ] || "");
   }, [ getRecords, currentPage, pageCursor ]);
 

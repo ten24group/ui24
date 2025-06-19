@@ -1,9 +1,10 @@
 import React from "react";
 import { Table as AntTable, Spin, Button, Dropdown, Checkbox, Tooltip, Badge } from "antd";
-import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined, ColumnWidthOutlined, EyeOutlined, NodeExpandOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
+import './Table.css';
 
 export const Table = ({
   propertiesConfig,
@@ -72,25 +73,22 @@ export const Table = ({
 
   return (
     <React.Fragment>
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center' }}>
+      <div className="table-toolbar">
         <div style={{ flex: 1 }}>
           {apiConfig.useSearch && <Search onSearch={onSearch} value={searchQuery} />}
         </div>
-        <div style={{ display: 'flex', gap: '8px', marginLeft: '16px' }}>
-          <Tooltip title="Reset View">
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Tooltip title="Refresh Data">
             <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
           </Tooltip>
-          <Tooltip title="Reload Data">
-            <Button icon={<SyncOutlined />} onClick={handleReload} />
-          </Tooltip>
-          <Tooltip title="Columns">
+          <Tooltip title="Show/Hide Columns">
             <Dropdown menu={columnsDropdownMenu} trigger={[ 'click' ]}>
-              <Button icon={<SettingOutlined />} />
+              <Button icon={<ColumnWidthOutlined />} />
             </Dropdown>
           </Tooltip>
-          <Tooltip title="Active Filters & Sorts">
+          <Tooltip title="View Applied Filters & Sorts">
             <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
-              <Button icon={<FilterOutlined />} onClick={() => setShowFilters(!showFilters)} />
+              <Button icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
             </Badge>
           </Tooltip>
         </div>
