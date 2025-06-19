@@ -68,6 +68,15 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   const [ totalRecords, setTotalRecords ] = React.useState(0);
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
   const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(propertiesConfig.map(p => p.dataIndex));
+  const [ columnSettings, setColumnSettings ] = React.useState(
+    propertiesConfig.map(p => ({
+      key: p.dataIndex,
+      title: p.name,
+      visible: !p.hidden,
+      fixed: p.actions ? 'right' : undefined,
+      isIdentifier: p.isIdentifier,
+    }))
+  );
   const [ facetResults, setFacetResults ] = React.useState<Record<string, Record<string, number>>>({});
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
   const { callApiMethod } = useApi();
@@ -311,6 +320,22 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
 
   const selectableColumns = React.useMemo(() => propertiesConfig.filter(p => !p.isIdentifier), [ propertiesConfig ]);
 
+  const handleColumnSettingsChange = (newSettings) => {
+    setColumnSettings(newSettings);
+    setVisibleColumns(newSettings.filter(c => c.visible).map(c => c.key));
+  };
+
+  const resetColumnSettings = () => {
+    const defaultSettings = propertiesConfig.map(p => ({
+      key: p.dataIndex,
+      title: p.name,
+      visible: !p.hidden,
+      fixed: p.actions ? 'right' : undefined,
+      isIdentifier: p.isIdentifier,
+    }));
+    handleColumnSettingsChange(defaultSettings);
+  };
+
   //add action UI and filter UI
   const columns = addFilterUI(addActionUI(propertiesConfig, getRecords), applyFilters, removeFilter, getAppliedFilterForColumn, facetResults, facetedColumns, toggleFacetedColumn)
     .map((column, index) => {
@@ -340,11 +365,13 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
       const hasActiveFilter = !!appliedFilters[ column.dataIndex ];
       const columnTitle = propertiesConfig.find(p => p.dataIndex === column.dataIndex)?.name || column.dataIndex;
       const sortOrder = sort.find(s => s.field === column.dataIndex)?.order;
+      const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
 
       return {
         ...column,
         title: columnTitle,
         render: renderer,
+        fixed: columnSetting?.fixed,
         // Assign a priority to each column for multi-sort
         sorter: apiConfig.useSearch ? { multiple: index + 1 } : undefined,
         sortOrder: sortOrder,
@@ -353,11 +380,47 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
         ),
       }
 
-    }).filter(c => c.key === 'action' || visibleColumns.includes(c.dataIndex));
+    }).filter(c => c.key === 'action' || columnSettings.find(s => s.key === c.dataIndex)?.visible)
+    .sort((a, b) => {
+      const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
+      const bIndex = columnSettings.findIndex(s => s.key === b.dataIndex);
+      if (a.key === 'action') return 1; // action column always last
+      if (b.key === 'action') return -1;
+      return aIndex - bIndex;
+    });
+
+  const pinnedLeftColumns = columns
+    .filter(c => columnSettings.find(s => s.key === c.dataIndex)?.fixed === 'left')
+    .sort((a, b) => {
+      const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
+      const bIndex = columnSettings.findIndex(s => s.key === b.dataIndex);
+      return aIndex - bIndex;
+    });
+
+  const pinnedRightColumns = columns
+    .filter(c => c.key === 'action' || columnSettings.find(s => s.key === c.dataIndex)?.fixed === 'right')
+    .sort((a, b) => {
+      const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
+      const bIndex = columnSettings.findIndex(s => s.key === b.dataIndex);
+      if (a.key === 'action') return 1;
+      if (b.key === 'action') return -1;
+      return aIndex - bIndex;
+    });
+
+  const normalColumns = columns
+    .filter(c => !columnSettings.find(s => s.key === c.dataIndex)?.fixed)
+    .sort((a, b) => {
+      const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
+      const bIndex = columnSettings.findIndex(s => s.key === b.dataIndex);
+      return aIndex - bIndex;
+    })
+    .filter(c => c.key !== 'action' && columnSettings.find(s => s.key === c.dataIndex)?.visible);
+
+  const finalColumns = [ ...pinnedLeftColumns, ...normalColumns, ...pinnedRightColumns ];
 
   return {
     recordIdentifierKey,
-    columns,
+    columns: finalColumns,
     listRecords,
     isLoading,
     Pagination: isSearchActive ? <NumericalPagination /> : CursorPagination,
@@ -373,6 +436,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     activeSortsCount,
     visibleColumns,
     setVisibleColumns,
+    columnSettings,
+    handleColumnSettingsChange,
+    resetColumnSettings,
     handleRefresh,
     handleReload,
     selectableColumns,

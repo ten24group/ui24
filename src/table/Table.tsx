@@ -4,6 +4,7 @@ import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined, ColumnWi
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
+import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import './Table.css';
 
 export const Table = ({
@@ -35,7 +36,10 @@ export const Table = ({
     handleRefresh,
     handleReload,
     selectableColumns,
-    searchQuery
+    searchQuery,
+    columnSettings,
+    handleColumnSettingsChange,
+    resetColumnSettings,
   } = useTable({
     propertiesConfig,
     apiConfig,
@@ -51,26 +55,6 @@ export const Table = ({
     return Pagination;
   };
 
-  const columnOptions = selectableColumns.map(p => ({ label: p.name, value: p.dataIndex }));
-
-  const columnsDropdownMenu = {
-    items: [
-      {
-        label: (
-          <div style={{ padding: '8px' }}>
-            <Checkbox.Group
-              options={columnOptions}
-              value={visibleColumns}
-              onChange={(values) => setVisibleColumns(values as string[])}
-              style={{ display: 'flex', flexDirection: 'column' }}
-            />
-          </div>
-        ),
-        key: '1',
-      },
-    ],
-  };
-
   return (
     <React.Fragment>
       <div className="table-toolbar">
@@ -84,8 +68,11 @@ export const Table = ({
           <Tooltip title="Refresh Data">
             <Button icon={<ReloadOutlined />} onClick={handleReload} />
           </Tooltip>
-          <Tooltip title="Show/Hide Columns">
-            <Dropdown menu={columnsDropdownMenu} trigger={[ 'click' ]}>
+          <Tooltip title="Column Settings">
+            <Dropdown
+              overlay={<ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />}
+              trigger={[ 'click' ]}
+            >
               <Button icon={<ColumnWidthOutlined />} />
             </Dropdown>
           </Tooltip>
