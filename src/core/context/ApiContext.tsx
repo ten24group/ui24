@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useState, useRef } from 'react';
 import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { useAuth } from './AuthContext';
 import { useUi24Config } from './UI24Context';
@@ -23,8 +23,21 @@ const ApiContext = createContext<IApiContext | undefined>(undefined);
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
     const { notifyError } = useAppContext()
+    const { requestHeaders, processToken, logout, refreshToken } = useAuth();
+    const [ isRefreshing, setIsRefreshing ] = useState(false);
+    const failedQueue = useRef<any[]>([]);
 
-    const { requestHeaders, processToken, logout, getRefreshToken } = useAuth();
+    const processQueue = (error: any, token: string | null = null) => {
+        failedQueue.current.forEach(prom => {
+            if (error) {
+                prom.reject(error);
+            } else {
+                prom.resolve(token);
+            }
+        });
+
+        failedQueue.current = [];
+    };
 
     //create axios instance
     const axiosInstance = axios.create();
@@ -46,25 +59,53 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     );
 
     axiosInstance.interceptors.response.use(
-        async (response) => {
+        (response) => {
             processToken(response)
             return response;
         },
         async (error) => {
-            // Handle session expiration
-            if (error.response?.status === 401 ||
-                error.response?.status === 403 ||
-                error.message?.includes?.("Resolved credential object is not valid") ||
-                (error.response?.status === 500 &&
-                    (error.response.data?.details?.message?.includes?.("Invalid ID-Token")
-                        || error.response.data?.message?.includes?.("Invalid ID-Token")
-                    )
-                )
-            ) {
-                // Flag for centralized handling in callApiMethod's catch block
-                error.isSessionError = true;
+            const originalRequest = error.config;
+            const status = error.response?.status;
+
+            if (status === 401 && !originalRequest._retry) {
+                if (isRefreshing) {
+                    return new Promise(function (resolve, reject) {
+                        failedQueue.current.push({ resolve, reject });
+                    }).then(token => {
+                        // The request interceptor will add the new token
+                        return axiosInstance(originalRequest);
+                    }).catch(err => {
+                        return Promise.reject(err);
+                    });
+                }
+
+                originalRequest._retry = true;
+                setIsRefreshing(true);
+
+                try {
+                    const newToken = await refreshToken();
+                    if (newToken) {
+                        processQueue(null, newToken);
+                        return axiosInstance(originalRequest);
+                    } else {
+                        // if refresh token is invalid, logout user
+                        const refreshError = new Error("Session expired. Please log in again.");
+                        processQueue(refreshError, null);
+                        notifyError(refreshError.message);
+                        logout();
+                        return Promise.reject(refreshError);
+                    }
+                } catch (e: any) {
+                    processQueue(e, null);
+                    notifyError(e.message || 'Your session is invalid. Please log in again.');
+                    logout();
+                    return Promise.reject(e);
+                } finally {
+                    setIsRefreshing(false);
+                }
             }
 
+            // For other errors, just reject
             return Promise.reject(error);
         }
     );
@@ -135,13 +176,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return response;
 
         } catch (error: any) {
-            if (error.isSessionError) {
-                notifyError('Your session is invalid. Please log in again.');
-                logout();
-                // Return a promise that never resolves to prevent downstream error handling.
-                // The logout redirect will unmount the component, so this is safe.
-                return new Promise(() => { });
-            }
+            // The interceptor now handles 401/403, so we only need to handle other errors here.
 
             // Handle network errors or other errors where response is not available
             if (!error.response) {

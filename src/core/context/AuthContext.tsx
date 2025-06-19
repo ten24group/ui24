@@ -66,6 +66,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       removeToken: authProvider.removeToken,
       requestHeaders: authProvider.requestHeaders,
       getRefreshToken: authProvider.getRefreshToken,
+      refreshToken: authProvider.refreshToken,
     }}>
       {children}
     </AuthContext.Provider>

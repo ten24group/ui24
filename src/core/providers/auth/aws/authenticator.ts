@@ -156,6 +156,30 @@ class Authenticator implements IAuthProvider {
         return response;
     }
 
+    public refreshToken = async (): Promise<string | null> => {
+        try {
+            const response = await this.refreshIdToken();
+            if (response.data && response.data.IdToken) {
+                this.setToken(JSON.stringify(response.data));
+
+                // If using IAM auth, we must also refresh the temporary credentials
+                if (this.getApiAuthMode() === 'AWS_IAM') {
+                    console.log("IAM mode detected, refreshing temporary credentials after token refresh.");
+                    // Clear old credentials and fetch new ones
+                    this.removeCredentials();
+                    await this.getCredentials();
+                }
+
+                return response.data.IdToken;
+            }
+            return null;
+        } catch (error) {
+            console.error('Failed to refresh AWS token:', error);
+            this.removeToken();
+            return null;
+        }
+    }
+
     public async getCredentials(): Promise<AwsCredentialIdentity> {
         try {
             let credentials = await this.getCachedCredentials();
