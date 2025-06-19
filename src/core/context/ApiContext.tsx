@@ -61,17 +61,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     )
                 )
             ) {
-                notifyError('Your session is invalid. Please log in again.');
-                logout();
-                return {
-                    status: 401,
-                    data: {
-                        message: 'Your session is invalid. Please log in again.'
-                    }
-                };
+                // Flag for centralized handling in callApiMethod's catch block
+                error.isSessionError = true;
             }
 
-            return Promise.reject(error)
+            return Promise.reject(error);
         }
     );
 
@@ -141,38 +135,42 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             return response;
 
         } catch (error: any) {
-            // Handle network errors or no response
-            if (!error) {
+            if (error.isSessionError) {
+                notifyError('Your session is invalid. Please log in again.');
+                logout();
+                // Return a promise that never resolves to prevent downstream error handling.
+                // The logout redirect will unmount the component, so this is safe.
+                return new Promise(() => { });
+            }
+
+            // Handle network errors or other errors where response is not available
+            if (!error.response) {
                 const networkError = {
-                    message: 'Network error: No response received',
-                    response: { status: 500, data: { message: 'Network error occurred' } }
+                    message: error.message || 'Network error: No response received',
+                    response: { status: 503, data: { message: 'Service Unavailable' } }
                 };
                 throw networkError;
             }
 
-            // Handle other errors
-            const status = error?.response?.status || 500;
-            const parsedErrorMessage = error.response?.data?.details?.message ||
-                error?.response?.data?.message ||
-                error?.response?.details?.message ||
-                error?.details?.message ||
-                error.data?.details?.message ||
-                error?.message ||
-                error?.response?.data?.error ||
+            // For all other API errors, normalize the error object.
+            const status = error.response.status;
+            const responseData = error.response.data;
+            const parsedErrorMessage = responseData?.details?.message ||
+                responseData?.message ||
+                responseData?.error ||
+                error.message ||
                 'An unexpected error occurred';
 
-            // Ensure error has consistent structure
             const formattedError = {
                 message: parsedErrorMessage,
                 response: {
                     status,
                     data: {
                         message: parsedErrorMessage,
-                        ...error?.response?.data
+                        ...responseData
                     }
                 }
             };
-
             throw formattedError;
         }
     }

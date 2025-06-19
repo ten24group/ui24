@@ -1,6 +1,6 @@
 import React from "react";
 import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge } from "antd";
-import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -68,10 +68,12 @@ export const Table = ({
           </Tooltip>
           <Tooltip title="Column Settings">
             <Dropdown
-              overlay={<ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />}
+              popupRender={() => (
+                <ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />
+              )}
               trigger={[ 'click' ]}
             >
-              <Button icon={<ColumnWidthOutlined />} />
+              <Button icon={<SettingOutlined />} />
             </Dropdown>
           </Tooltip>
           <Tooltip title="View Applied Filters & Sorts">
