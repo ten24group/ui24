@@ -1,6 +1,6 @@
 import React from "react";
 import { Table as AntTable, Spin, Button, Dropdown, Checkbox, Tooltip, Badge } from "antd";
-import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined, ColumnWidthOutlined, EyeOutlined, NodeExpandOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SyncOutlined, SettingOutlined, FilterOutlined, ColumnWidthOutlined, EyeOutlined, NodeExpandOutlined, ClearOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -78,8 +78,11 @@ export const Table = ({
           {apiConfig.useSearch && <Search onSearch={onSearch} value={searchQuery} />}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          <Tooltip title="Reset">
+            <Button icon={<ClearOutlined />} onClick={handleRefresh} />
+          </Tooltip>
           <Tooltip title="Refresh Data">
-            <Button icon={<ReloadOutlined />} onClick={handleRefresh} />
+            <Button icon={<ReloadOutlined />} onClick={handleReload} />
           </Tooltip>
           <Tooltip title="Show/Hide Columns">
             <Dropdown menu={columnsDropdownMenu} trigger={[ 'click' ]}>
