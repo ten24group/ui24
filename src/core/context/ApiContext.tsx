@@ -67,7 +67,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const originalRequest = error.config;
             const status = error.response?.status;
 
-            if (status === 401 && !originalRequest._retry) {
+            if ((status === 401 || status === 403) && !originalRequest._retry) {
                 if (isRefreshing) {
                     return new Promise(function (resolve, reject) {
                         failedQueue.current.push({ resolve, reject });

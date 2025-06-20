@@ -18,17 +18,17 @@ const LoginForm = () => {
 
   const { notifySuccess, notifyError } = useAppContext();
   const { selectConfig } = useUi24Config();
-  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth['/login'] ? config.uiConfig.auth['/login'] : undefined);
+  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth[ '/login' ] ? config.uiConfig.auth[ '/login' ] : undefined);
   const pageConfig = usePageConfig("/login");
   const propertiesConfig = pageConfig.propertiesConfig;
   const apiConfig = pageConfig.apiConfig;
   const socialConfig = (authConfig as any)?.socialConfig || undefined;
-  const signInMethods = (authConfig as any)?.signInMethods || ['EMAIL_PASSWORD'];
-  const [ loader, setLoader ] = useState<boolean>( false )
+  const signInMethods = (authConfig as any)?.signInMethods || [ 'EMAIL_PASSWORD' ];
+  const [ loader, setLoader ] = useState<boolean>(false)
   const { callApiMethod } = useApi();
-  const {propertiesConfig:signupPropertiesConfig} = usePageConfig("/signup");
-  const {propertiesConfig:verifyPropertiesConfig} = usePageConfig("/verify");
-  const {propertiesConfig:forgotPasswordPropertiesConfig} = usePageConfig("/forgot-password");
+  const { propertiesConfig: signupPropertiesConfig } = usePageConfig("/signup");
+  const { propertiesConfig: verifyPropertiesConfig } = usePageConfig("/verify");
+  const { propertiesConfig: forgotPasswordPropertiesConfig } = usePageConfig("/forgot-password");
 
   // Social login providers from auth config
   const socialProviders = socialConfig?.providers || [];
@@ -45,7 +45,7 @@ const LoginForm = () => {
   const onFinish = async (payload: any) => {
     setLoader(true)
     try {
-      const response: any = await callApiMethod({...apiConfig, payload });
+      const response: any = await callApiMethod({ ...apiConfig, payload });
 
       if (response.status === 200) {
         if (response.data?.challengeName === 'NEW_PASSWORD_REQUIRED') {
@@ -59,7 +59,8 @@ const LoginForm = () => {
           return;
         }
         notifySuccess("Login Successful!");
-        navigate('/dashboard');
+        // After login, navigate to root so AppNavigator can handle redirect
+        navigate('/');
       } else if (response?.error) {
         notifyError(response?.error)
       }
@@ -70,19 +71,19 @@ const LoginForm = () => {
     }
   }
 
-  const onChange: CheckboxProps['onChange'] = (e) => {
-      //TODO: Remember Me    
+  const onChange: CheckboxProps[ 'onChange' ] = (e) => {
+    //TODO: Remember Me    
   };
 
   const handleRegister = (e) => {
-      navigate('/registration');
+    navigate('/registration');
   };
 
   const handleOTPLogin = (e) => {
     navigate('/otp-login');
-};
+  };
 
-const handleSocialSignIn = async (provider: string) => {
+  const handleSocialSignIn = async (provider: string) => {
     setLoader(true);
     try {
       const response = await callApiMethod({
@@ -90,8 +91,8 @@ const handleSocialSignIn = async (provider: string) => {
         apiMethod: 'POST',
         payload: { redirectUri: socialRedirectUri }
       });
-      if (response.status === 200 && (response.data as any)?.[provider]?.authorizationUrl) {
-        window.location.href = (response.data as any)[provider].authorizationUrl;
+      if (response.status === 200 && (response.data as any)?.[ provider ]?.authorizationUrl) {
+        window.location.href = (response.data as any)[ provider ].authorizationUrl;
       } else {
         notifyError(`${provider} sign-in is not available.`);
       }
@@ -104,15 +105,15 @@ const handleSocialSignIn = async (provider: string) => {
 
   return <AuthForm
     onSubmit={onFinish}
-    propertiesConfig={ propertiesConfig }
+    propertiesConfig={propertiesConfig}
     formButtons={[]}
-    disabled={ loader }
-    buttonLoader={ loader }
+    disabled={loader}
+    buttonLoader={loader}
   >
-    { forgotPasswordPropertiesConfig?.length &&
+    {forgotPasswordPropertiesConfig?.length &&
       <div className="PreAuthLoginActions">
-          <Checkbox onChange={onChange}>Remember Me</Checkbox>
-          <Link className="forgotPassword" title="Forgot Password?" url='/forgot-password' />
+        <Checkbox onChange={onChange}>Remember Me</Checkbox>
+        <Link className="forgotPassword" title="Forgot Password?" url='/forgot-password' />
       </div>
     }
 
@@ -140,10 +141,10 @@ const handleSocialSignIn = async (provider: string) => {
               <span style={{ display: 'inline-flex', alignItems: 'center', marginRight: 8 }}>
                 <svg width="20" height="20" viewBox="0 0 48 48">
                   <g>
-                    <path fill="#4285F4" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.3-5.7 7-11.3 7-6.6 0-12-5.4-12-12s5.4-12 12-12c2.8 0 5.4.9 7.5 2.6l6.3-6.3C34.1 5.1 29.3 3 24 3 12.9 3 4 11.9 4 23s8.9 20 20 20c11 0 20-8.9 20-20 0-1.3-.1-2.7-.4-4z"/>
-                    <path fill="#34A853" d="M6.3 14.7l6.6 4.8C14.5 16.1 18.9 13 24 13c2.8 0 5.4.9 7.5 2.6l6.3-6.3C34.1 5.1 29.3 3 24 3c-7.1 0-13.1 3.7-16.7 9.3z"/>
-                    <path fill="#FBBC05" d="M24 43c5.3 0 10.1-1.8 13.8-4.9l-6.4-5.2C29.5 34.7 26.9 35.5 24 35.5c-5.6 0-10.3-3.8-12-9H6.3C8.9 38.1 15.9 43 24 43z"/>
-                    <path fill="#EA4335" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.1 3-3.7 5.5-7.3 6.5l6.4 5.2C40.2 37.1 44 30.9 44 24c0-1.3-.1-2.7-.4-4z"/>
+                    <path fill="#4285F4" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.6 4.3-5.7 7-11.3 7-6.6 0-12-5.4-12-12s5.4-12 12-12c2.8 0 5.4.9 7.5 2.6l6.3-6.3C34.1 5.1 29.3 3 24 3 12.9 3 4 11.9 4 23s8.9 20 20 20c11 0 20-8.9 20-20 0-1.3-.1-2.7-.4-4z" />
+                    <path fill="#34A853" d="M6.3 14.7l6.6 4.8C14.5 16.1 18.9 13 24 13c2.8 0 5.4.9 7.5 2.6l6.3-6.3C34.1 5.1 29.3 3 24 3c-7.1 0-13.1 3.7-16.7 9.3z" />
+                    <path fill="#FBBC05" d="M24 43c5.3 0 10.1-1.8 13.8-4.9l-6.4-5.2C29.5 34.7 26.9 35.5 24 35.5c-5.6 0-10.3-3.8-12-9H6.3C8.9 38.1 15.9 43 24 43z" />
+                    <path fill="#EA4335" d="M43.6 20.5h-1.9V20H24v8h11.3c-1.1 3-3.7 5.5-7.3 6.5l6.4 5.2C40.2 37.1 44 30.9 44 24c0-1.3-.1-2.7-.4-4z" />
                   </g>
                 </svg>
               </span>

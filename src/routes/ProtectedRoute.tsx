@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { CoreNavigate } from './Navigation';
 import { useAuth } from '../core/context';
 
@@ -10,19 +11,20 @@ interface IProtectedRoute {
 
 export const ProtectedRoute: React.FC<IProtectedRoute> = ({ component: Component, authType = "public", ...rest }) => {
   const { isLoggedIn } = useAuth();
+  const location = useLocation();
 
   const renderComponent = (props: any) => {
-    if (authType === 'auth' && isLoggedIn) {
-      // User is already logged in, redirect to dashboard
-      return <CoreNavigate to="/dashboard" />;
-    }
     if (authType === 'private' && !isLoggedIn) {
-      // User is not logged in, redirect to login
+      // Save the path the user was trying to access
+      sessionStorage.setItem('preLoginPath', location.pathname);
+      // and redirect them to the login page.
       return <CoreNavigate to="/login" />;
     }
-    // No restrictions, render the component
+
+    // For auth routes (login, auth callback), let the page render so it can handle the flow
+    // For public routes, also render directly
     return <Component {...props} />;
   };
 
-  return renderComponent({ ...rest })
+  return renderComponent({ ...rest });
 };
