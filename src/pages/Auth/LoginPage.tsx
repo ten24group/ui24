@@ -6,6 +6,7 @@ import { usePageConfig } from '../../core';
 import { useApi } from '../../core/context';
 import { Link } from '../../core/common';
 import { useAppContext } from '../../core/context/AppContext';
+import { useAuth } from '../../core/context/AuthContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { useUi24Config } from '../../core/context';
 
@@ -17,6 +18,7 @@ const LoginForm = () => {
   const navigate = useCoreNavigator();
 
   const { notifySuccess, notifyError } = useAppContext();
+  const { rememberMe, setRememberMe } = useAuth();
   const { selectConfig } = useUi24Config();
   const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth[ '/login' ] ? config.uiConfig.auth[ '/login' ] : undefined);
   const pageConfig = usePageConfig("/login");
@@ -72,7 +74,7 @@ const LoginForm = () => {
   }
 
   const onChange: CheckboxProps[ 'onChange' ] = (e) => {
-    //TODO: Remember Me    
+    setRememberMe(e.target.checked);
   };
 
   const handleRegister = (e) => {
@@ -97,6 +99,7 @@ const LoginForm = () => {
         notifyError(`${provider} sign-in is not available.`);
       }
     } catch (e) {
+      console.error(e);
       notifyError(`Failed to initiate ${provider} sign-in.`);
     } finally {
       setLoader(false);
@@ -112,7 +115,7 @@ const LoginForm = () => {
   >
     {forgotPasswordPropertiesConfig?.length &&
       <div className="PreAuthLoginActions">
-        <Checkbox onChange={onChange}>Remember Me</Checkbox>
+        <Checkbox onChange={onChange} checked={rememberMe}>Remember Me</Checkbox>
         <Link className="forgotPassword" title="Forgot Password?" url='/forgot-password' />
       </div>
     }

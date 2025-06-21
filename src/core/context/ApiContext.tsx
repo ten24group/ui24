@@ -24,9 +24,8 @@ const ApiContext = createContext<IApiContext | undefined>(undefined);
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
     const { notifyError } = useAppContext()
-    const { requestHeaders, processToken, logout, refreshToken } = useAuth();
-    const [ isRefreshing, setIsRefreshing ] = useState(false);
-    const failedQueue = useRef<any[]>([]);
+    const auth = useAuth();
+
     // Track ongoing requests to prevent duplicates (e.g., due to StrictMode double mount)
     const ongoingRequestsRef = useRef<Map<string, Promise<AxiosResponse<any>>>>(new Map());
 
@@ -43,85 +42,56 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         });
     };
 
-    const processQueue = (error: any, token: string | null = null) => {
-        failedQueue.current.forEach(prom => {
-            if (error) {
-                prom.reject(error);
-            } else {
-                prom.resolve(token);
-            }
-        });
-
-        failedQueue.current = [];
-    };
-
     //create axios instance
     const axiosInstance = axios.create();
     //set base url
     axiosInstance.defaults.baseURL = selectConfig(config => config.baseURL)
 
-    //setup interceptors
+    // Authentication interceptors
+    let refreshPromise: Promise<void> | null = null;
     axiosInstance.interceptors.request.use(
         async (config: InternalAxiosRequestConfig) => {
-            if (!config.headers.hasContentType()) {
-                config.headers.setContentType('application/json');
+            const headers = config.headers as Record<string, any>;
+            if (!headers[ 'Content-Type' ] && !headers[ 'content-type' ]) {
+                headers[ 'Content-Type' ] = 'application/json';
             }
-            await requestHeaders(config);
-            return config;
+            // Attach auth headers or signatures
+            return await auth.authenticateRequest(config);
         },
-        (error) => {
-            return Promise.reject(error)
-        }
+        (error) => Promise.reject(error)
     );
 
     axiosInstance.interceptors.response.use(
         (response) => {
-            processToken(response)
+            // Process any new tokens or credentials
+            auth.processResponse?.(response as any);
             return response;
         },
         async (error) => {
-            const originalRequest = error.config;
-            const status = error.response?.status;
+            const orig = error.config;
 
-            if ((status === 401 || status === 403) && !originalRequest._retry) {
-                if (isRefreshing) {
-                    return new Promise(function (resolve, reject) {
-                        failedQueue.current.push({ resolve, reject });
-                    }).then(token => {
-                        // The request interceptor will add the new token
-                        return axiosInstance(originalRequest);
-                    }).catch(err => {
-                        return Promise.reject(err);
-                    });
+            const shouldRetry = auth.shouldRefreshAuth(error, orig)
+
+            if (shouldRetry && (orig._retryCount || 0) === 0) {
+                orig._retryCount = (orig._retryCount || 0) + 1;
+                if (!refreshPromise) {
+                    refreshPromise = auth.refreshAuth()
+                        .catch((err: any) => { auth.logout(); throw err; })
+                        .finally(() => { refreshPromise = null; });
                 }
-
-                originalRequest._retry = true;
-                setIsRefreshing(true);
-
                 try {
-                    const newToken = await refreshToken();
-                    if (newToken) {
-                        processQueue(null, newToken);
-                        return axiosInstance(originalRequest);
-                    } else {
-                        // if refresh token is invalid, logout user
-                        const refreshError = new Error("Session expired. Please log in again.");
-                        processQueue(refreshError, null);
-                        notifyError(refreshError.message);
-                        logout();
-                        return Promise.reject(refreshError);
-                    }
-                } catch (e: any) {
-                    processQueue(e, null);
-                    notifyError(e.message || 'Your session is invalid. Please log in again.');
-                    logout();
-                    return Promise.reject(e);
-                } finally {
-                    setIsRefreshing(false);
+                    await refreshPromise;
+                    // Retry original request with fresh auth
+                    const newConfig = await auth.authenticateRequest(orig);
+                    return axiosInstance(newConfig);
+                } catch (refreshError) {
+                    // On refresh failure, logout has already been called by the auth provider.
+                    // The state change will trigger a redirect. We should not propagate
+                    // the error further, as the original request is now irrelevant.
+                    // We return a new, non-rejecting promise to prevent uncaught promise errors.
+                    return new Promise(() => { });
                 }
             }
-
-            // For other errors, just reject
             return Promise.reject(error);
         }
     );
