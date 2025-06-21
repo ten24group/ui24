@@ -88,6 +88,13 @@ export const useTableData = ({
       ...getFilterPayload(appliedFilters, apiConfig.apiMethod),
     };
 
+    // shared payload for both search and list APIs
+    const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
+    const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
+    if (attributes.length > 0) {
+      payload.attributes = attributes.join(',');
+    }
+
     if (isSearchActive) {
       payload.q = searchQuery;
       payload.page = pageNumber;
@@ -95,17 +102,12 @@ export const useTableData = ({
       if (sortString) {
         payload.sort = sortString;
       }
-      const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
-      const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
-      if (attributes.length > 0) {
-        payload.attributes = attributes.join(',');
-      }
       if (facetedColumns.length > 0) {
         payload.facets = facetedColumns.join(',');
       }
     } else {
       payload.cursor = currentPageCursor;
-      payload.limit = recordPerPage;
+      payload.count = recordPerPage;
     }
 
     setIsLoading(true);
