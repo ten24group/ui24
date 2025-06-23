@@ -150,7 +150,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     handleColumnSettingsChange(defaultSettings);
   };
 
-  const columns = addFilterUI(addActionUI(propertiesConfig, handleReload), applyFilters, (col) => setAppliedFilters(f => { const newF = { ...f }; delete newF[ col ]; return newF; }), getAppliedFilterForColumn, facetResults, facetedColumns, toggleFacetedColumn)
+  const columns = addFilterUI(
+    addActionUI(propertiesConfig, handleReload),
+    applyFilters,
+    (col) => setAppliedFilters(f => {
+      const newF = { ...f };
+      delete newF[ col ]; return newF;
+    }),
+    getAppliedFilterForColumn,
+    facetResults,
+    facetedColumns,
+    toggleFacetedColumn,
+    !!apiConfig.useSearch
+  )
     .map((column, index) => {
       if (column.key === 'action') return column;
 
