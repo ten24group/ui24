@@ -9,42 +9,45 @@ import { useUi24Config } from '../../core/context';
 
 export type DefaultTimePeriod = {
   period: TimePeriod;
-  range?: [string, string]; // ISO strings
+  range?: [ string, string ]; // ISO strings
 };
 
-export type IDashboardWidgetConfig =
-  | ({
+export type IDashboardWidgetConfig = {
+  colSpan?: number;
+  maxWidth?: number | string;
+  width?: number | string;
+} & (
+    | {
       type: 'stat';
       title?: string;
-      dataConfig?: IStatWidgetProps['dataConfig'];
-      options?: IStatWidgetProps['options'];
-      colSpan?: number;
-      maxWidth?: number | string;
-      width?: number | string;
+      dataConfig?: IStatWidgetProps[ 'dataConfig' ];
+      options?: IStatWidgetProps[ 'options' ];
       showTimePeriodSelector?: boolean;
       defaultTimePeriod?: DefaultTimePeriod;
       timezone?: string;
-    })
-  | ({
+    }
+    | {
       type: 'chart';
       title?: string;
-      dataConfig?: IChartWidgetProps['dataConfig'];
-      options?: IChartWidgetProps['options'];
-      colSpan?: number;
-      maxWidth?: number | string;
-      width?: number | string;
+      dataConfig?: IChartWidgetProps[ 'dataConfig' ];
+      options?: IChartWidgetProps[ 'options' ];
       showTimePeriodSelector?: boolean;
       defaultTimePeriod?: DefaultTimePeriod;
       timezone?: string;
-    })
-  | ({
+    }
+    | {
       type: 'list';
       title?: string;
       options?: Partial<IListWidgetProps>;
-      colSpan?: number;
-      maxWidth?: number | string;
-      width?: number | string;
-    });
+    }
+    | {
+      type: 'actions';
+      title?: string;
+      options?: {
+        actions: Array<{ label: string; url: string }>;
+      };
+    }
+  );
 
 export interface IDashboardPageConfig {
   widgets: IDashboardWidgetConfig[];
@@ -61,27 +64,27 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
     if (defaultTimePeriod.period === 'custom' && defaultTimePeriod.range) {
       return {
         period: 'custom' as TimePeriod,
-        range: [dayjsTz(defaultTimePeriod.range[0]), dayjsTz(defaultTimePeriod.range[1])] as [dayjs.Dayjs, dayjs.Dayjs],
+        range: [ dayjsTz(defaultTimePeriod.range[ 0 ]), dayjsTz(defaultTimePeriod.range[ 1 ]) ] as [ dayjs.Dayjs, dayjs.Dayjs ],
       };
     }
     // Use period to compute range
     const now = dayjsTz();
-    let range: [dayjs.Dayjs, dayjs.Dayjs];
+    let range: [ dayjs.Dayjs, dayjs.Dayjs ];
     switch (defaultTimePeriod.period) {
       case 'today':
-        range = [now.startOf('day'), now.endOf('day')];
+        range = [ now.startOf('day'), now.endOf('day') ];
         break;
       case 'week':
-        range = [now.startOf('week'), now.endOf('week')];
+        range = [ now.startOf('week'), now.endOf('week') ];
         break;
       case 'month':
-        range = [now.startOf('month'), now.endOf('month')];
+        range = [ now.startOf('month'), now.endOf('month') ];
         break;
       case 'year':
-        range = [now.startOf('year'), now.endOf('year')];
+        range = [ now.startOf('year'), now.endOf('year') ];
         break;
       default:
-        range = [now.startOf('month'), now.endOf('month')];
+        range = [ now.startOf('month'), now.endOf('month') ];
     }
     return { period: defaultTimePeriod.period, range };
   }
@@ -89,7 +92,7 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
   const now = dayjsTz();
   return {
     period: 'month' as TimePeriod,
-    range: [now.startOf('month'), now.endOf('month')] as [dayjs.Dayjs, dayjs.Dayjs],
+    range: [ now.startOf('month'), now.endOf('month') ] as [ dayjs.Dayjs, dayjs.Dayjs ],
   };
 }
 
@@ -100,14 +103,14 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
   });
   const resolvedDashboardTz = dashboardConfig?.timezone || formatConfigTz;
 
-  const [dashboardTimePeriod, setDashboardTimePeriod] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
+  const [ dashboardTimePeriod, setDashboardTimePeriod ] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
   // Per-widget time period state (keyed by widget index)
-  const [widgetTimePeriods, setWidgetTimePeriods] = React.useState<Record<number, { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }>>(() => {
-    const initial: Record<number, { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }> = {};
+  const [ widgetTimePeriods, setWidgetTimePeriods ] = React.useState<Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }>>(() => {
+    const initial: Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }> = {};
     dashboardConfig?.widgets?.forEach((widget, idx) => {
       if (widget.type === 'chart' && widget.showTimePeriodSelector && widget.defaultTimePeriod) {
         const widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
-        initial[idx] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
+        initial[ idx ] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
       }
     });
     return initial;
@@ -138,13 +141,13 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
           let widgetTz;
           if ((widget.type === 'chart' || widget.type === 'stat') && 'defaultTimePeriod' in widget) {
             widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
-            widgetTimePeriod = widgetTimePeriods[idx] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
+            widgetTimePeriod = widgetTimePeriods[ idx ] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
           } else {
-            widgetTimePeriod = widgetTimePeriods[idx];
+            widgetTimePeriod = widgetTimePeriods[ idx ];
             widgetTz = dashboardConfig?.timezone || formatConfigTz;
           }
-          const setWidgetTimePeriod = (val: { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }) =>
-            setWidgetTimePeriods(prev => ({ ...prev, [idx]: val }));
+          const setWidgetTimePeriod = (val: { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }) =>
+            setWidgetTimePeriods(prev => ({ ...prev, [ idx ]: val }));
 
           let timePeriodSelectorProps = undefined;
           let chartDashboardTimePeriod = undefined;
