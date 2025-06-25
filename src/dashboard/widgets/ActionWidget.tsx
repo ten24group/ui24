@@ -55,27 +55,26 @@ export const ActionWidget: React.FC<IActionWidgetProps> = ({ title, subtitle, ac
         const accentRgb = hexToRgb(accentColor);
 
         return (
-          <div
+          <Link
             key={idx}
+            url={action.url}
             className="action-widget-tile"
             style={{
               '--accent-color': accentColor,
               '--accent-rgb': accentRgb
             } as React.CSSProperties}
           >
-            <Link url={action.url} className="action-widget-link">
-              <div className="action-widget-tile-content">
-                <div className="action-widget-icon">
-                  <Icon iconName={iconName} />
-                </div>
-                <div className="action-widget-label">{action.label}</div>
-                {action.description && (
-                  <div className="action-widget-description">{action.description}</div>
-                )}
-                <div className="action-widget-arrow">→</div>
+            <div className="action-widget-tile-content">
+              <div className="action-widget-icon">
+                <Icon iconName={iconName} />
               </div>
-            </Link>
-          </div>
+              <div className="action-widget-label">{action.label}</div>
+              {action.description && (
+                <div className="action-widget-description">{action.description}</div>
+              )}
+              <div className="action-widget-arrow">→</div>
+            </div>
+          </Link>
         );
       })}
     </div>
