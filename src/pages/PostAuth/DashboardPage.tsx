@@ -6,6 +6,9 @@ import { IListWidgetProps } from '../../dashboard/widgets/ListWidget';
 import { TimePeriodSelector, TimePeriod } from '../../dashboard/widgets/TimePeriodSelector';
 import dayjs from 'dayjs';
 import { useUi24Config } from '../../core/context';
+import { IDetailsConfig } from '../../detail/Details';
+import { IForm } from '../../core/forms/formConfig';
+import { IModalConfig } from '../../modal/Modal';
 
 export type DefaultTimePeriod = {
   period: TimePeriod;
@@ -45,6 +48,82 @@ export type IDashboardWidgetConfig = {
       title?: string;
       options?: {
         actions: Array<{ label: string; url: string }>;
+      };
+    }
+    | {
+      type: 'detail';
+      title?: string;
+      options?: IDetailsConfig & {
+        layout?: 'horizontal' | 'vertical';
+        maxFields?: number;
+      };
+    }
+    | {
+      type: 'form';
+      title?: string;
+      options?: IForm & {
+        compact?: boolean;
+        submitButtonText?: string;
+      };
+    }
+    | {
+      type: 'modal';
+      title?: string;
+      options?: {
+        triggers: Array<{
+          label: string;
+          icon?: string;
+          modalConfig: IModalConfig;
+          buttonType?: 'primary' | 'default' | 'dashed' | 'text';
+          color?: string;
+        }>;
+        layout?: 'grid' | 'list';
+      };
+    }
+    | {
+      type: 'progress';
+      title?: string;
+      options?: {
+        progressType: 'circle' | 'line' | 'dashboard';
+        value: number;
+        total?: number;
+        status?: 'normal' | 'exception' | 'active' | 'success';
+        showPercent?: boolean;
+        strokeColor?: string;
+        label?: string;
+        description?: string;
+      };
+    }
+    | {
+      type: 'control';
+      title?: string;
+      options?: {
+        controls: Array<{
+          label: string;
+          type: 'toggle' | 'button' | 'select' | 'slider';
+          value?: any;
+          options?: Array<{ label: string; value: any }>;
+          onChange?: (value: any) => void;
+          disabled?: boolean;
+        }>;
+        layout?: 'vertical' | 'horizontal';
+      };
+    }
+    | {
+      type: 'timeline';
+      title?: string;
+      options?: {
+        events: Array<{
+          timestamp: string;
+          title: string;
+          description?: string;
+          type?: 'info' | 'success' | 'warning' | 'error';
+          icon?: string;
+          color?: string;
+        }>;
+        mode?: 'left' | 'alternate' | 'right';
+        reverse?: boolean;
+        maxEvents?: number;
       };
     }
   );
