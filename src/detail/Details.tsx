@@ -14,7 +14,6 @@ interface IPropertiesConfig {
     hidden?: boolean;
     initialValue: string;
     fieldType?: string;
-    timezone?: string;
 
     // for list and map fields
     type?: string;
@@ -78,18 +77,12 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
         } else if (item?.type === "list") {
             initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
         } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType?.toLocaleLowerCase())) {
-           
             // formate the date value using uiConfig's date-time-formats
             if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
-                initialValue = new Date(parseInt(initialValue)).toISOString();
+                initialValue = formatDate(new Date(parseInt(initialValue)).toISOString(), item.fieldType?.toLocaleLowerCase() as any);
+            } else {
+                initialValue = formatDate(initialValue, item.fieldType?.toLocaleLowerCase() as any);
             }
-
-            initialValue = formatDate(
-                initialValue,
-                item.fieldType?.toLocaleLowerCase() as any,
-                item.timezone
-            );
-            
         } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType?.toLocaleLowerCase())) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
