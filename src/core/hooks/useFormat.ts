@@ -12,9 +12,9 @@ export const useFormat = () => {
      * @param {string} type - The format-type to use.
      * @returns {string} The formatted date.
      */
-    const formatDate = (date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' ): string => {
+    const formatDate = (date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
         const formatString = formatConfig?.[type];
-        return date ? dayjsCustom(date).format(formatString) : '';
+        return date ? dayjsCustom.tz(date, timezone).format(formatString) : '';
     }
 
     /**
