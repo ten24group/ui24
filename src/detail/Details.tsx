@@ -3,7 +3,6 @@ import { Descriptions, DescriptionsProps, List, Spin } from 'antd';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
-//import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
 import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';

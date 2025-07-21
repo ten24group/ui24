@@ -17,6 +17,7 @@ export interface ITablePropertiesConfig {
   hidden?: boolean;
   isFilterable?: boolean;
   isIdentifier?: boolean;
+  isSortable?: boolean;
   fieldType?: string;
 }
 
@@ -37,9 +38,9 @@ export type IPageAction = {
 };
 
 export interface IActionIndexValue {
-  [key: string]: Array<IPageAction>;
+  [ key: string ]: Array<IPageAction>;
 }
 
 export interface IRecord {
-  [key: string]: string;
+  [ key: string ]: string;
 }

@@ -8,21 +8,21 @@ type ICommonLinkProps = {
 
 type ILinkProps = ({ url?: string; onClick: (url?: string) => void } | { url: string; onClick?: (url?: string) => void }) & ICommonLinkProps;
 
-export function Link ({title, url, children, onClick, ...props }: ILinkProps ) {
+export function Link({ title, url, children, onClick, ...props }: ILinkProps) {
   const navigate = useCoreNavigator();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
     e.preventDefault(); // Prevent the default anchor behavior
-    if( onClick ) {
+    if (onClick) {
       onClick(url)
     }
 
-    if( url ) {
+    if (url) {
       navigate(url);
     }
   };
 
-  return <a onClick={ handleClick }  {...props} >
-      { title !== "" ? title : "" } { children !== undefined ? children : "" }
-    </a>
+  return <a onClick={handleClick}  {...props} >
+    {title} {children}
+  </a>
 }
