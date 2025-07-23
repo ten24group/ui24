@@ -5,9 +5,11 @@ import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
+import { substituteUrlParams } from '../core/utils';
 import './Details.css';
 
 interface IPropertiesConfig {
+    name?: string; // Property path (supports dot notation for nested objects)
     label: string;
     column: string;
     hidden?: boolean;
@@ -44,7 +46,17 @@ export interface IDetailsConfig extends IDetailApiConfig {
     identifiers?: any;
     propertiesConfig: Array<IPropertiesConfig>;
     columnsConfig?: IColumnsConfig;
+    routeParams?: Record<string, string>;
 }
+
+// Helper function to get nested property value using dot notation
+const getNestedValue = (obj: any, path: string): any => {
+    if (!path || !obj) return undefined;
+    
+    return path.split('.').reduce((current, key) => {
+        return current && current[key] !== undefined ? current[key] : undefined;
+    }, obj);
+};
 
 // Helper to split array into N columns (vertical stacks)
 function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
@@ -55,7 +67,7 @@ function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
     return cols;
 }
 
-const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers, columnsConfig }) => {
+const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers, columnsConfig, routeParams = {} }) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
@@ -93,20 +105,32 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     useEffect(() => {
         const fetchRecordInfo = async () => {
             const identifier = identifiers || dynamicID;
+            let apiUrl = detailApiConfig.apiUrl;
+            
+            // Use the clean utility function for URL parameter substitution
+            apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
 
             try {
-                const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` });
+                const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
+
                 if (response.status === 200) {
-                    const detailResponse = response.data[ detailApiConfig.responseKey ]
+                    
+                    const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
 
                     const formatted = recordInfo.map(item => {
-                        const formatted = valueFormatter(item, detailResponse[ item.column ]);
+                        // Use getNestedValue to handle dot notation in property names (e.g., "indexInfo.uid")
+                        // Use item.name for the property path, fall back to item.column for backward compatibility
+                        const propertyPath = item.name || item.column;
+                        const nestedValue = getNestedValue(detailResponse, propertyPath);
+                        const formatted = valueFormatter(item, nestedValue);
                         return { ...item, initialValue: formatted }
                     });
 
                     setRecordInfo(formatted)
                 }
+
                 setDataLoaded(true);
+                
             } catch (error: any) {
                 notifyError(error?.message || 'An unexpected error occurred');
             }
@@ -230,7 +254,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         <div className="details-fixed-block">
-                                            {value ? value : <span>—</span>}
+                                            {value ? (typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)) : <span>—</span>}
                                         </div>
                                     </div>
                                 );
@@ -318,7 +342,11 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                         {value !== undefined && value !== null && value !== '' ? (
                                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (
                                                 <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
-                                            ) : value
+                                            ) : typeof value === 'object' ? (
+                                                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
+                                                    <code>{JSON.stringify(value, null, 2)}</code>
+                                                </pre>
+                                            ) : String(value)
                                         ) : <span>—</span>}
                                     </div>
                                 </div>

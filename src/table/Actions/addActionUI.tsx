@@ -6,6 +6,16 @@ import { Icon, Link } from "../../core/common";
 import { Space } from 'antd';
 import { useAppContext } from "../../core/context";
 
+// Utility to replace URL parameters with values
+const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
+  return url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
+};
+
+// Check if URL has placeholder parameters
+const hasUrlPlaceholders = (url: string): boolean => {
+  return /:(\w+)/.test(url);
+};
+
 export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void) => {
 
   const columns: TableProps<any>[ "columns" ] = propertiesConfig
@@ -45,19 +55,31 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         //create a list of values from the record object based on the keys in actionIndexValue for every action added
         let primaryIndexValue: Array<string> | string = [];
         let recordActions: Array<IPageAction> = [];
+        
         for (let key in record) {
           if (key in actionIndexValue && actionIndexValue[ key ]) {
             primaryIndexValue.push(record[ key ]);
             recordActions = actionIndexValue[ key ];
           }
         }
+        
+        // If no actions found through record matching, find the first configured action set
+        if (recordActions.length === 0) {
+          for (let key in actionIndexValue) {
+            if (actionIndexValue[key]) {
+              recordActions = actionIndexValue[key];
+              break;
+            }
+          }
+        }
+        
         primaryIndexValue = primaryIndexValue.join("|");
 
         return (
           <div style={{ display: "flex", justifyContent: "end" }}>
             <Space size="middle" align="end">
               {recordActions?.map((item: IPageAction, index) => {
-                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} primaryIndexValue={primaryIndexValue} />;
+                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} record={record} primaryIndexValue={primaryIndexValue} />;
               })}
             </Space>
           </div>
@@ -69,9 +91,25 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   return columns
 }
 
-const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback }: { item: IPageAction, primaryIndexValue: string, getRecordsCallback: () => void }) => {
+const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback }: { 
+  item: IPageAction, 
+  record: IRecord, 
+  primaryIndexValue: string,
+  getRecordsCallback: () => void 
+}) => {
 
   const { notifySuccess } = useAppContext()
+
+  // Determine the action URL based on whether it has placeholders
+  let actionUrl = item.url || '';
+  
+  if (hasUrlPlaceholders(actionUrl)) {
+    // New approach: Use parameter substitution for URLs with placeholders
+    actionUrl = replaceUrlParams(actionUrl, record);
+  } else {
+    // Legacy approach: Append primaryIndexValue for URLs without placeholders
+    actionUrl = primaryIndexValue ? `${actionUrl}/${primaryIndexValue}` : actionUrl;
+  }
 
   return <Fragment >
     {item.openInModal ? (
@@ -84,7 +122,7 @@ const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback }: { item:
         {...item.modalConfig}
       ><Icon iconName={"delete"} /></OpenInModal>
     ) : (
-      <Link url={item.url + "/" + primaryIndexValue}>
+      <Link url={actionUrl}>
         <Icon iconName={item.icon} />
       </Link>
     )}{" "}

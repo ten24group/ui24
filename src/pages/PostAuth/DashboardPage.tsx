@@ -3,6 +3,7 @@ import { WidgetRenderer } from '../../dashboard/WidgetRenderer';
 import { IStatWidgetProps } from '../../dashboard/widgets/StatWidget';
 import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
 import { IListWidgetProps } from '../../dashboard/widgets/ListWidget';
+import { IDescriptionWidgetProps } from '../../dashboard/widgets/DescriptionWidget';
 import { TimePeriodSelector, TimePeriod } from '../../dashboard/widgets/TimePeriodSelector';
 import dayjs from 'dayjs';
 import { useUi24Config } from '../../core/context';
@@ -118,7 +119,6 @@ export type IDashboardWidgetConfig = {
           title: string;
           description?: string;
           type?: 'info' | 'success' | 'warning' | 'error';
-          icon?: string;
           color?: string;
         }>;
         mode?: 'left' | 'alternate' | 'right';
@@ -126,7 +126,13 @@ export type IDashboardWidgetConfig = {
         maxEvents?: number;
       };
     }
-  );
+    | {
+      type: 'description';
+      title?: string;
+      dataConfig?: IDescriptionWidgetProps['dataConfig'];
+      options?: IDescriptionWidgetProps['options'];
+    }
+);
 
 export interface IDashboardPageConfig {
   widgets: IDashboardWidgetConfig[];

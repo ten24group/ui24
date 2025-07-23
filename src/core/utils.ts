@@ -59,3 +59,56 @@ export function isValidJson(str) {
   return true;
 }
 
+export const formatValue = (value: number | string | undefined, formatter?: (value: number | string) => string): string => {
+  if (value === undefined || value === null) return '';
+  return formatter ? formatter(value) : String(value);
+};
+
+export const truncateText = (text: string, maxLength: number = 100): string => {
+  if (!text || text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
+};
+
+/**
+ * Substitutes URL parameters in a URL string with values from routeParams or fallback identifier
+ * @param url - The URL with parameters like "/api/users/:id" or "/system/search/indices/:entityName"
+ * @param routeParams - Object containing parameter values from route matching (e.g., {entityName: "syncStatus"})
+ * @param fallbackIdentifier - Fallback value to use if parameter not found in routeParams
+ * @returns URL with parameters substituted
+ */
+export const substituteUrlParams = (
+  url: string, 
+  routeParams: Record<string, string> = {}, 
+  fallbackIdentifier?: string | number
+): string => {
+  // Check if we have route parameters or an identifier to work with
+  const hasRouteParams = routeParams && Object.keys(routeParams).length > 0;
+  
+  if (!hasRouteParams && !fallbackIdentifier) {
+    return url; // No substitution possible
+  }
+
+  // Check if URL has placeholders (like :entityName, :id, etc.)
+  if (/:(\w+)/.test(url)) {
+    // Use parameter substitution for URLs with placeholders
+    return url.replace(/:(\w+)/g, (match, param) => {
+      // First try to get the parameter from routeParams
+      if (routeParams[param] !== undefined) {
+        return routeParams[param];
+      }
+      // Fallback to using the identifier (if available)
+      if (fallbackIdentifier !== undefined) {
+        return String(fallbackIdentifier);
+      }
+      // If no value found, keep the placeholder (will likely cause an error)
+      console.warn(`No value found for URL parameter ${param}`);
+      return match;
+    });
+  } else if (fallbackIdentifier !== undefined) {
+    // Legacy behavior: append identifier to URL (only if we have an identifier)
+    return `${url}/${fallbackIdentifier}`;
+  }
+
+  return url;
+};
+

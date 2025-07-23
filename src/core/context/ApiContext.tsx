@@ -166,11 +166,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (method === 'GET') {
                     response = await getMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
                 } else if (method === 'POST') {
-                    response = await postMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    response = await postMethod(apiConfig.apiUrl, apiConfig.payload ?? {}, apiConfig.headers);
                 } else if (method === 'PUT') {
                     response = await putMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
                 } else if (method === 'PATCH') {
-                    response = await patchMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    response = await patchMethod(apiConfig.apiUrl, apiConfig.payload ?? {}, apiConfig.headers);
                 } else if (method === 'DELETE') {
                     response = await deleteMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
                 } else if (method === 'OPTIONS') {

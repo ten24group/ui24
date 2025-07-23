@@ -8,7 +8,7 @@ import { IModalConfig } from '../../../modal/Modal';
 
 import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
 
-export type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image";
+export type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image" | "json";
 
 
 interface IFormField {
@@ -82,6 +82,10 @@ const MakeFormItem = ({
             {fieldType === "date" && <DatePicker format={formatConfig.date} />}
             {fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
             {fieldType === "time" && <TimePicker format={formatConfig.time} />}
+
+            {fieldType === "json" && (<>
+                <TextArea rows={20} placeholder={placeholder} />
+            </>)}
 
             {fieldType === "file" &&
                 <FileUploader

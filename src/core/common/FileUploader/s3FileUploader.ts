@@ -33,7 +33,6 @@ export type S3FileUploaderOptions = {
 
 export const s3FileUploader = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod }: IS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions) => {
   console.log('s3FileUploader', { fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod });
-  debugger;
   const signedUrlPayload = {
     fileName: file.name,
     contentType: file.type,

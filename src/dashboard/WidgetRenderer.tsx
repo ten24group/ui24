@@ -9,6 +9,7 @@ import { ModalWidget } from './widgets/ModalWidget';
 import { ProgressWidget } from './widgets/ProgressWidget';
 import { ControlWidget } from './widgets/ControlWidget';
 import { TimelineWidget } from './widgets/TimelineWidget';
+import { DescriptionWidget } from './widgets/DescriptionWidget';
 import { IDashboardWidgetConfig } from '../pages/PostAuth/DashboardPage';
 import { TimePeriodSelectorProps } from './widgets/TimePeriodSelector';
 
@@ -59,6 +60,9 @@ export const WidgetRenderer: React.FC<{
     case 'timeline': {
       const { events = [], mode = 'left', reverse = false, maxEvents = 10 } = widget.options || {};
       return <TimelineWidget title={widget.title} events={events} mode={mode} reverse={reverse} maxEvents={maxEvents} />;
+    }
+    case 'description': {
+      return <DescriptionWidget title={widget.title} {...widget} />;
     }
     default:
       return <div>Unknown widget type</div>;
