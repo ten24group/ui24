@@ -18,6 +18,7 @@ interface IFormField {
     placeholder: string; //placeholder text
     prefixIcon?: ReactNode; //prefix icon as a react component
     fieldType?: IFormFieldType; //field type
+    timezone?: string;
     options?: IFieldOptions; //options for select, radio, checkbox
     addNewOption?: IModalConfig; //add new option for select, multi-select
     label: string;
