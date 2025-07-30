@@ -3,7 +3,7 @@ import { Descriptions, DescriptionsProps, List, Spin } from 'antd';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
-import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { substituteUrlParams } from '../core/utils';
 import './Details.css';
@@ -254,7 +254,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         <div className="details-fixed-block">
-                                            {value ? (typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)) : <span>—</span>}
+                                            {value ? (typeof value === 'object' ? <JsonDescription data={value} /> : String(value)) : <span>—</span>}
                                         </div>
                                     </div>
                                 );
@@ -280,18 +280,12 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         {Array.isArray(value) && value.length > 0 ? (
-                                            <ul style={{ paddingLeft: 20, margin: 0 }}>
-                                                {value.map((listItem, listIdx) => (
-                                                    <li key={listIdx} style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                                                        {typeof listItem === 'object' ? JSON.stringify(listItem) : String(listItem)}
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                            <JsonDescription data={value} />
                                         ) : <span>—</span>}
                                     </div>
                                 );
                             }
-                            if (item.type === 'map') {
+                            if (item.type === 'map' || item.fieldType === 'json') {
                                 let objValue = value;
                                 if (typeof value === 'string') {
                                     try {
@@ -305,14 +299,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
-                                            <dl style={{ margin: 0, padding: 0 }}>
-                                                {Object.entries(objValue).map(([ k, v ]) => (
-                                                    <React.Fragment key={k}>
-                                                        <dt style={{ fontWeight: 500, color: '#555', float: 'left', clear: 'left', minWidth: 120 }}>{k}:</dt>
-                                                        <dd style={{ marginLeft: 130, marginBottom: 8 }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
-                                                    </React.Fragment>
-                                                ))}
-                                            </dl>
+                                            <JsonDescription data={objValue} />
                                         </div>
                                     );
                                 } else {
@@ -343,9 +330,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (
                                                 <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
                                             ) : typeof value === 'object' ? (
-                                                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0 }}>
-                                                    <code>{JSON.stringify(value, null, 2)}</code>
-                                                </pre>
+                                                <JsonDescription data={value} />
                                             ) : String(value)
                                         ) : <span>—</span>}
                                     </div>

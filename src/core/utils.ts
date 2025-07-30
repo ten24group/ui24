@@ -112,3 +112,10 @@ export const substituteUrlParams = (
   return url;
 };
 
+export const formatKey = (key: string): string => {
+  if (typeof key !== 'string') return '';
+  // Convert camelCase or snake_case to a readable format
+  const result = key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ');
+  return result.charAt(0).toUpperCase() + result.slice(1);
+};
+
