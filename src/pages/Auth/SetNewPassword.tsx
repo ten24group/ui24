@@ -8,9 +8,9 @@ import { Link } from '../../core/common';
 import { Button } from 'antd';
 
 export const SetNewPasswordPage = () => {
-  return (
-    <SetNewPasswordForm />
-  );
+    return (
+        <SetNewPasswordForm />
+    );
 };
 
 export const SetNewPasswordForm = () => {
@@ -33,12 +33,11 @@ export const SetNewPasswordForm = () => {
                 session
             };
 
-            const response: any = await callApiMethod({...apiConfig, payload: requestPayload});
+            const response: any = await callApiMethod({ ...apiConfig, payload: requestPayload });
 
             if (response.status === 200) {
                 notifySuccess('Password updated successfully');
-                // After successful password change, redirect to the main application
-                // The response should contain the authentication tokens
+                // After password reset, navigate to root so AppNavigator can handle redirect
                 navigate('/');
             } else {
                 notifyError(response?.message || response?.error || 'Failed to update password');
@@ -56,22 +55,22 @@ export const SetNewPasswordForm = () => {
         return null;
     }
 
-    return <>{ propertiesConfig && <AuthForm
-            onSubmit={onFinish}
-            propertiesConfig={propertiesConfig}
-            formButtons={[]}
+    return <>{propertiesConfig && <AuthForm
+        onSubmit={onFinish}
+        propertiesConfig={propertiesConfig}
+        formButtons={[]}
+    >
+        <Button
+            type="primary"
+            htmlType="submit"
+            style={{ width: '100%', marginBottom: 10 }}
         >
-            <Button
-                type="primary"
-                htmlType="submit"
-                style={{ width: '100%', marginBottom: 10 }}
-            >
-                Set New Password
-            </Button>
+            Set New Password
+        </Button>
 
-            <div className="PreAuthLoginActions">
-                <Link title="Back to login?" url='/login' />
-            </div>
-        </AuthForm>
+        <div className="PreAuthLoginActions">
+            <Link title="Back to login?" url='/login' />
+        </div>
+    </AuthForm>
     }</>
 }; 

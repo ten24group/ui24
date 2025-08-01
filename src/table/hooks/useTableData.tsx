@@ -66,7 +66,7 @@ export const useTableData = ({
 
   const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
   const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
-    [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle' ]
+    [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle', 'json' ]
       .includes(property.fieldType?.toLocaleLowerCase())
   ), [ propertiesConfig ]);
 
@@ -88,6 +88,13 @@ export const useTableData = ({
       ...getFilterPayload(appliedFilters, apiConfig.apiMethod),
     };
 
+    // shared payload for both search and list APIs
+    const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
+    const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
+    if (attributes.length > 0) {
+      payload.attributes = attributes.join(',');
+    }
+
     if (isSearchActive) {
       payload.q = searchQuery;
       payload.page = pageNumber;
@@ -95,17 +102,12 @@ export const useTableData = ({
       if (sortString) {
         payload.sort = sortString;
       }
-      const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
-      const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
-      if (attributes.length > 0) {
-        payload.attributes = attributes.join(',');
-      }
       if (facetedColumns.length > 0) {
         payload.facets = facetedColumns.join(',');
       }
     } else {
       payload.cursor = currentPageCursor;
-      payload.limit = recordPerPage;
+      payload.count = recordPerPage;
     }
 
     setIsLoading(true);
@@ -118,13 +120,15 @@ export const useTableData = ({
       });
 
       if (response?.status === 200) {
-        const records = isSearchActive ? response.data.items : response.data[ apiConfig.responseKey ];
+        const records = isSearchActive ? response.data.items
+          : apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
 
         if (isSearchActive && response.data.facets) {
           setFacetResults(response.data.facets);
         }
 
         records.forEach((record: any) => {
+
           formattingColumns.forEach((property) => {
             if (record[ property.dataIndex ] === null || record[ property.dataIndex ] === undefined || record[ property.dataIndex ] === '') {
               record[ property.dataIndex ] = '';
@@ -137,12 +141,16 @@ export const useTableData = ({
               record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
             } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
               record[ property.dataIndex ] = formatBoolean(record[ property.dataIndex ]);
+            } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
+              const itemValue = record[ property.dataIndex ];
+              record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
             }
           });
 
           const identifiers = identifierColumns.map(column => ({
             [ column.dataIndex ]: record[ column.dataIndex ]
           }));
+
           record[ recordIdentifierKey ] = JSON.stringify(identifiers);
         });
 
@@ -163,6 +171,18 @@ export const useTableData = ({
     } catch (error) {
       notifyError('Failed to fetch records');
       console.error('Error fetching records:', error);
+      // Log additional error details for debugging
+      if (error && typeof error === 'object') {
+        console.error('Error details:', {
+          message: error.message || 'Unknown error',
+          response: error.response ? {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data
+          } : 'No response',
+          request: error.request ? 'Request made but no response received' : 'No request made'
+        });
+      }
     } finally {
       setIsLoading(false);
     }

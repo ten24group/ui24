@@ -17,7 +17,8 @@ export const filterUI = (
   getAppliedFilterForColumn: Function,
   facetResults: Record<string, Record<string, number>>,
   facetedColumns: string[],
-  toggleFacetedColumn: (dataIndex: string) => void
+  toggleFacetedColumn: (dataIndex: string) => void,
+  enableFacetFilters: boolean = false
 ) => {
 
   const FilterDropdownComponent = ({ close, confirm }) => {
@@ -127,14 +128,16 @@ export const filterUI = (
       <div style={{ padding: '12px', width: '320px' }} onKeyDown={(e) => e.stopPropagation()}>
         <Space direction="vertical" style={{ width: '100%' }}>
 
-          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-            <span>Show value counts</span>
-            <Switch
-              checked={isFacetEnabled}
-              onChange={() => toggleFacetedColumn(dataIndex)}
-              size="small"
-            />
-          </Space>
+          {enableFacetFilters && (
+            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+              <span>Show value counts</span>
+              <Switch
+                checked={isFacetEnabled}
+                onChange={() => toggleFacetedColumn(dataIndex)}
+                size="small"
+              />
+            </Space>
+          )}
 
           {isFacetEnabled && hasFacets && <Divider style={{ margin: '4px 0' }} />}
 

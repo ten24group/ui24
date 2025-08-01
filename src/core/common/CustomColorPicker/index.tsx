@@ -1,16 +1,16 @@
 import React, { Component, ReactNode } from 'react';
 import { ColorPicker } from 'antd';
-import { ColorPickerProps } from 'antd/lib';
-import { Color } from 'antd/lib/color-picker';
+import { ColorPickerProps } from 'antd';
+import { Color } from 'antd/es/color-picker';
 
-export type IColorPickerProps = ColorPickerProps & { onChange?: ( hex: string )=>void };
+export type IColorPickerProps = ColorPickerProps & { onChange?: (hex: string) => void };
 
-export function CustomColorPicker (props: IColorPickerProps ){
+export function CustomColorPicker(props: IColorPickerProps) {
 
-  const{ onChange, ...restProps } = props;
-  
+  const { onChange, ...restProps } = props;
+
   const _onChange = (value: Color, hex: string) => {
-    onChange && typeof onChange === 'function' && onChange(hex);  
+    onChange && typeof onChange === 'function' && onChange(hex);
   }
 
   return <ColorPicker {...restProps} onChange={_onChange} />

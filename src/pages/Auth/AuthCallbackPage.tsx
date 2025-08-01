@@ -11,13 +11,13 @@ export const AuthCallbackPage = () => {
   const { callApiMethod } = useApi();
   const { notifyError, notifySuccess } = useAppContext();
   const { selectConfig } = useUi24Config();
-  const { login, isLoggedIn } = useAuth();
-  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth['/login'] ? config.uiConfig.auth['/login'] : {});
+  const { isLoggedIn, processToken } = useAuth();
+  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth[ '/login' ] ? config.uiConfig.auth[ '/login' ] : {});
   const socialConfig = (authConfig as any).socialConfig || {};
   const completeSignInUrl = socialConfig.completeSignInUrl || '/mauth/completeSocialSignIn';
   const redirectUri = socialConfig.redirectUri || (window.location.origin + '/auth/callback');
   const providers = socialConfig.providers || [];
-  const [loginInProgress, setLoginInProgress] = useState(false);
+  const [ loginInProgress, setLoginInProgress ] = useState(false);
   const handledRef = useRef(false);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export const AuthCallbackPage = () => {
     const code = params.get('code');
     let provider = params.get('provider');
     if (!provider) {
-      provider = providers[0].provider;
+      provider = providers[ 0 ].provider;
     }
 
     // Prevent double handling in dev mode
@@ -40,6 +40,13 @@ export const AuthCallbackPage = () => {
       notifyError(errorDescription.replace('PreSignUp failed with error', '') || 'Social login failed');
       navigate('/login');
     } else if (code && provider) {
+      // Prevent double handling using sessionStorage (persists across StrictMode re-mounts)
+      const callbackKey = `oauth_callback_handled_${code}`;
+      const alreadyHandled = sessionStorage.getItem(callbackKey);
+      if (alreadyHandled) {
+        return;
+      }
+      sessionStorage.setItem(callbackKey, 'true');
       callApiMethod({
         apiUrl: completeSignInUrl,
         apiMethod: 'POST',
@@ -47,8 +54,12 @@ export const AuthCallbackPage = () => {
       }).then(response => {
         const data = response.data as any;
         if (response.status === 200 && data?.AccessToken) {
-          setLoginInProgress(true); // Wait for isLoggedIn to update
+          // Clean up the sessionStorage flag after successful auth
+          sessionStorage.removeItem(callbackKey);
+          setLoginInProgress(true);
+          processToken(response);
           notifySuccess('Login successful!');
+          navigate('/');
         } else {
           notifyError(data?.message || 'Social login failed');
           navigate('/login');
@@ -62,13 +73,8 @@ export const AuthCallbackPage = () => {
       notifyError('No code or provider found in callback');
       navigate('/login');
     }
-  }, [location, callApiMethod, notifyError, notifySuccess, navigate, completeSignInUrl, redirectUri, providers, login]);
+  }, [ location, callApiMethod, notifyError, notifySuccess, navigate, completeSignInUrl, redirectUri, providers, processToken ]);
 
-  useEffect(() => {
-    if (loginInProgress && isLoggedIn) {
-      navigate('/dashboard');
-    }
-  }, [loginInProgress, isLoggedIn, navigate]);
 
   if (!providers || providers.length === 0) {
     return <div className='AuthCallbackPage'>Loading social login configuration...</div>;

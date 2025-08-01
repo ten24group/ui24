@@ -13,6 +13,7 @@ import { useApi } from '../core/context';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
+import { substituteUrlParams } from '../core/utils';
 import './Form.css';
 
 // Add types for columnsConfig
@@ -28,6 +29,7 @@ interface IColumnsConfig {
 // Extend IForm to accept columnsConfig
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
+  routeParams?: Record<string, string>;
 }
 
 export function Form({
@@ -45,6 +47,7 @@ export function Form({
   identifiers,
   useDynamicIdFromParams = true,
   columnsConfig,
+  routeParams = {},
 }: IFormWithColumnsConfig) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
@@ -53,7 +56,7 @@ export function Form({
   const { dynamicID = "" } = useParams()
 
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>(convertColumnsConfigForFormField(propertiesConfig))
-  const [ dataLoadedFromView, setDataLoadedFromView ] = useState((identifiers || (useDynamicIdFromParams && dynamicID)) ? false : true)
+  const [ dataLoadedFromView, setDataLoadedFromView ] = useState((identifiers || (useDynamicIdFromParams && dynamicID) || Object.keys(routeParams).length > 0) ? false : true)
   const { callApiMethod } = useApi();
   const [ loader, setLoader ] = useState<boolean>(false)
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
@@ -79,9 +82,11 @@ export function Form({
 
     const loadAndFormatData = async () => {
       setLoader(true)
-      // if the page has api-config and record identifier etch the record and update the form-fields with initial values.
-      const recordData = (detailApiConfig && (identifiersToUse) !== "") ? await fetchRecordInfo() : {};
 
+      // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
+      const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
+      const recordData = shouldFetchRecord ? await fetchRecordInfo() : {};
+      
       const itemValueFormatter = (item: IFormField, itemValue: any) => {
 
         if (!itemValue) {
@@ -113,6 +118,8 @@ export function Form({
           itemValue = itemValue;
         } else if (fieldType === "color") {
           itemValue = itemValue ?? "#FFA500";
+        } else if (fieldType === "json") {
+          itemValue = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
         }
 
         return itemValue;
@@ -134,10 +141,15 @@ export function Form({
 
     const fetchRecordInfo = async () => {
       try {
-        const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifiersToUse}` });
+        let apiUrl = detailApiConfig.apiUrl;
+        
+        // Use the clean utility function for URL parameter substitution
+        apiUrl = substituteUrlParams(apiUrl, routeParams, identifiersToUse);
+        
+        const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
 
         if (response.status === 200) {
-          const detailResponse = response.data[ detailApiConfig.responseKey ];
+          const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
           return detailResponse;
         } else {
           notifyError(response.message || response.error || 'An unexpected error occurred');
@@ -154,19 +166,34 @@ export function Form({
     if (apiConfig) {
       setLoader(true)
       setBtnLoader(true)
-      const formattedApiUrl = identifiersToUse !== "" && identifiersToUse ? apiConfig.apiUrl + `/${identifiersToUse}` : apiConfig.apiUrl
+      
+      // Use the clean utility function for URL parameter substitution
+      const formattedApiUrl = substituteUrlParams(apiConfig.apiUrl, routeParams, identifiersToUse);
+
+      // if the form has a json field, then we need to change it into an object before sending it to the api
+      const formattedValues = formPropertiesConfig.reduce((acc, item) => {
+        if (item.fieldType === "json") {
+          acc[ item.name ] = JSON.parse(values[ item.name ]);
+        } else {
+          acc[ item.name ] = values[ item.name ];
+        }
+        return acc;
+      }, {});
+      
       try {
         const response: any = await callApiMethod({
           ...apiConfig,
           apiUrl: formattedApiUrl,
-          payload: values
+          payload: formattedValues
         });
 
         if (response.status === 200) {
           notifySuccess("Saved Successfully")
           if (submitSuccessRedirect !== "") {
             //redirect to the page
-            navigate(submitSuccessRedirect)
+            // replace placeholders with the actual values
+            let formattedSubmitSuccessRedirect = substituteUrlParams(submitSuccessRedirect, routeParams, identifiersToUse);
+            navigate(formattedSubmitSuccessRedirect)
           }
           onSubmitSuccessCallback && onSubmitSuccessCallback(response)
         } else if (response.status >= 400 || response.status <= 500) {

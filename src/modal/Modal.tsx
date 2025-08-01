@@ -11,7 +11,7 @@ import { IDetailsConfig } from '../detail/Details';
 
 interface IConfirmModal {
   title: string;
-  content: string;
+  content?: string;
 }
 type IModalType = "confirm" | "list" | "form" | "custom" | "details"
 

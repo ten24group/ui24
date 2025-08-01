@@ -25,7 +25,7 @@ function interpolateTemplate(label: IAttributesTemplate, option: any) {
     let interpolatedLabel = template;
     composite.forEach((attribute) => {
         const regex = new RegExp(`{${attribute}}`, "g");
-        interpolatedLabel = interpolatedLabel.replace(regex, option[attribute]);
+        interpolatedLabel = interpolatedLabel.replace(regex, option[ attribute ]);
     });
     return interpolatedLabel;
 }
@@ -65,93 +65,93 @@ interface IOptionSelector {
     value?: string,
 }
 
-export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange, value } : IOptionSelector ) => {
+export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange, value }: IOptionSelector) => {
 
     const { callApiMethod } = useApi()
-    const [open, setOpen] = useState(false);
+    const [ open, setOpen ] = useState(false);
     const [ disabled, setDisabled ] = useState<boolean>(false)
 
-    const [ fieldOptions, setFieldOptions ] = useState(Array.isArray(options) ? options: [])
+    const [ fieldOptions, setFieldOptions ] = useState(Array.isArray(options) ? options : [])
     const fetchFieldOptions = async (config: IFieldOptionsAPIConfig): Promise<Array<IOptions>> => {
         setDisabled(true)
         // TODO: add support for query, pagination, fetching template-attributes etc
-        const response = await callApiMethod( { ...config } );
+        const response = await callApiMethod({ ...config });
         setDisabled(false)
 
-        if( response.status === 200 ) {
+        if (response.status === 200) {
             let formattedOptions: Array<any>;
-            const options = response.data[config.responseKey] as Array<any>;
-            
-            if( !config.optionMapping ) {
+            const options = response.data[ config.responseKey ] as Array<any>;
+
+            if (!config.optionMapping) {
 
                 formattedOptions = options;
             } else {
 
-                formattedOptions = options.map( (option) => {
+                formattedOptions = options.map((option) => {
                     return {
-                        label: typeof config.optionMapping.label === 'string' 
-                            ? option[config.optionMapping.label] 
+                        label: typeof config.optionMapping.label === 'string'
+                            ? option[ config.optionMapping.label ]
                             : interpolateTemplate(config.optionMapping.label, option),
-                        value: typeof config.optionMapping.value === 'string' 
-                            ? option[config.optionMapping.value] 
+                        value: typeof config.optionMapping.value === 'string'
+                            ? option[ config.optionMapping.value ]
                             : interpolateTemplate(config.optionMapping.value, option),
                     }
                 });
             }
 
             // sort options by label
-            return formattedOptions?.sort( (a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()) )
+            return formattedOptions?.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
         }
-        
+
         // TODO: handle error
-    
+
         return [];
     }
 
     const fetchOptions = async () => {
-        if( ['select', 'multi-select', 'checkbox', 'radio'].includes(fieldType.toLocaleLowerCase()) && typeof options === 'object' && isFieldOptionsAPIConfig(options) ){
+        if ([ 'select', 'multi-select', 'checkbox', 'radio' ].includes(fieldType.toLocaleLowerCase()) && typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
             const apiOptions = await fetchFieldOptions(options as IFieldOptionsAPIConfig)
-            if( apiOptions.length > 0 ) {
-                setFieldOptions( apiOptions )
+            if (apiOptions.length > 0) {
+                setFieldOptions(apiOptions)
             }
         }
     }
 
-    useEffect( () => {
+    useEffect(() => {
         fetchOptions()
-    }, [options] )
+    }, [ options ])
 
     const enableAddNewOption = () => {
 
         return (menu) => (
             <>
-              {menu}
-              <Divider style={{ margin: '8px 0' }} />
-              <Space style={{ padding: '0 8px 4px' }}>
-                <OpenInModal 
-                    onOpenCallback={ () => setOpen(false) } 
-                    onSuccessCallback={ (response) => { fetchOptions() } } 
-                    {...addNewOption} 
-                    useDynamicIdFromParams={false}
-                > 
-                    <PlusOutlined/> Add Record 
-                </OpenInModal>
-              </Space>
+                {menu}
+                <Divider style={{ margin: '8px 0' }} />
+                <Space style={{ padding: '0 8px 4px' }}>
+                    <OpenInModal
+                        onOpenCallback={() => setOpen(false)}
+                        onSuccessCallback={(response) => { fetchOptions() }}
+                        {...addNewOption}
+                        useDynamicIdFromParams={false}
+                    >
+                        <PlusOutlined /> Add Record
+                    </OpenInModal>
+                </Space>
             </>
         )
     }
 
     return <>
-    { fieldType === "checkbox" && <Checkbox.Group value={ [value] } options={ fieldOptions } />}
-    { fieldType === "radio" && <Radio.Group value={ [value] } options={ fieldOptions } />}
-    { fieldType === "select" && <AntSelect value={value} disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
+        {fieldType === "checkbox" && <Checkbox.Group value={[ value ]} options={fieldOptions} />}
+        {fieldType === "radio" && <Radio.Group value={[ value ]} options={fieldOptions} />}
+        {fieldType === "select" && <AntSelect value={value} disabled={disabled} onOpenChange={(visible) => setOpen(visible)} open={open} options={fieldOptions} popupRender={
             addNewOption ? enableAddNewOption() : undefined
-        } onChange={ (value) => {
+        } onChange={(value) => {
             onOptionChange(value)
-        }} /> }
-    { fieldType === "multi-select" && <AntSelect value={value }  disabled={ disabled } onDropdownVisibleChange={(visible) => setOpen(visible)} open={open} options={ fieldOptions } dropdownRender={
+        }} />}
+        {fieldType === "multi-select" && <AntSelect value={value} disabled={disabled} onOpenChange={(visible) => setOpen(visible)} open={open} options={fieldOptions} popupRender={
             addNewOption ? enableAddNewOption() : undefined
-        } onChange={ (value) => {
+        } onChange={(value) => {
             onOptionChange(value)
         }} mode='multiple' />}
     </>

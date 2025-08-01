@@ -1,0 +1,68 @@
+.timeline-widget-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 20px 24px;
+  min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.timeline-widget-header {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.timeline-widget-content {
+  flex: 1;
+  overflow: auto;
+}
+
+.timeline-event {
+  margin-bottom: 4px;
+}
+
+.timeline-event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.timeline-event-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+  flex: 1;
+}
+
+.timeline-event-time {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.timeline-event-description {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
+.timeline-widget-content .ant-timeline {
+  margin-top: 8px;
+}
+
+.timeline-widget-content .ant-timeline-item-content {
+  min-height: auto;
+  margin-bottom: 16px;
+} 

@@ -1,15 +1,15 @@
 import axios, { AxiosProgressEvent, AxiosResponse } from "axios";
 import { useApi } from "../../context";
-export type GetSignedUploadUrlAPIConfig  = {
+export type GetSignedUploadUrlAPIConfig = {
   apiUrl: string;
   apiMethod: 'GET' | 'POST';
 };
 
 export type GetSignedUploadURLResponse = {
-    fileName: string,
-    expiresIn: number,
-    contentType: string,
-    signedUploadURL: string,
+  fileName: string,
+  expiresIn: number,
+  contentType: string,
+  signedUploadURL: string,
 };
 
 export type IS3FileUploaderOptions = {
@@ -18,11 +18,11 @@ export type IS3FileUploaderOptions = {
   callApiMethod?: Function
 }
 
-export type S3FileUploaderSuccessResponse = AxiosResponse<{name: string, url: string }, any>;
+export type S3FileUploaderSuccessResponse = AxiosResponse<{ name: string, url: string }, any>;
 
 export type OnErrorCallback = (error: any) => void;
-export type OnSuccessCallback = (response: S3FileUploaderSuccessResponse ) => void;
-export type OnProgressCallback = (progress: {percent: string}) => void;
+export type OnSuccessCallback = (response: S3FileUploaderSuccessResponse) => void;
+export type OnProgressCallback = (progress: { percent: string }) => void;
 
 export type S3FileUploaderOptions = {
   file: File,
@@ -31,21 +31,21 @@ export type S3FileUploaderOptions = {
   onProgress: OnProgressCallback,
 };
 
-export const s3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod}: IS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions ) => {
-
-  const signedUrlPayload = { 
-    fileName: file.name, 
+export const s3FileUploader = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod }: IS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions) => {
+  console.log('s3FileUploader', { fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod });
+  const signedUrlPayload = {
+    fileName: file.name,
     contentType: file.type,
     fileNamePrefix,
   };
-  
-  callApiMethod({
-    ...getSignedUploadUrlAPIConfig, 
-     payload: signedUrlPayload  
-  })
-  .then( async (response) => {
 
-      if(!response.status || response.status !== 200) {
+  callApiMethod({
+    ...getSignedUploadUrlAPIConfig,
+    payload: signedUrlPayload
+  })
+    .then(async (response) => {
+
+      if (!response.status || response.status !== 200) {
         throw new Error('Error getting signed upload-URL');
       }
 
@@ -53,28 +53,28 @@ export const s3FileUploader = ({fileNamePrefix, getSignedUploadUrlAPIConfig, cal
 
       // upload the image to S3
       const uploadResponse = await axios.put(
-        signedResponse.signedUploadURL, 
-        file, 
+        signedResponse.signedUploadURL,
+        file,
         {
           // Put the fileType in the headers for the upload
           headers: { 'Content-Type': file.type },
           onUploadProgress: (event: AxiosProgressEvent) => {
-            const data = { percent: Math.round((event.loaded / event.total) * 100).toFixed(2) };            
+            const data = { percent: Math.round((event.loaded / event.total) * 100).toFixed(2) };
             onProgress(data);
           }
         }
       );
-      
+
       uploadResponse.data = uploadResponse.data || {
-        uid: file['uid'],
-        url: signedResponse.signedUploadURL.split('?')[0],
+        uid: file[ 'uid' ],
+        url: signedResponse.signedUploadURL.split('?')[ 0 ],
         name: signedResponse.fileName,
       };
-      
+
       onSuccess(uploadResponse);
-  })
-  .catch((error) => {
-    console.error('Error getting signed URL', error);
-    onError(error);
-  })
+    })
+    .catch((error) => {
+      console.error('Error getting signed URL', error);
+      onError(error);
+    })
 };
