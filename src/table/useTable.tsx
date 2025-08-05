@@ -151,7 +151,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   };
 
   const columns = addFilterUI(
-    addActionUI(propertiesConfig, handleReload),
+    addActionUI(propertiesConfig, handleReload, routeParams),
     applyFilters,
     (col) => setAppliedFilters(f => {
       const newF = { ...f };

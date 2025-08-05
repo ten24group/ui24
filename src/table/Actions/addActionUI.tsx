@@ -16,7 +16,7 @@ const hasUrlPlaceholders = (url: string): boolean => {
   return /:(\w+)/.test(url);
 };
 
-export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void) => {
+export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void, routeParams: Record<string, string> = {}) => {
 
   const columns: TableProps<any>[ "columns" ] = propertiesConfig
     .filter((item: ITablePropertiesConfig) => !item?.hidden)
@@ -27,6 +27,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         key: item.dataIndex,
         fieldType: item.fieldType,
         isFilterable: item.isFilterable,
+        filterConfig: item.filterConfig, // Add this line to preserve filterConfig
       }
 
       return column;
@@ -79,7 +80,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
           <div style={{ display: "flex", justifyContent: "end" }}>
             <Space size="middle" align="end">
               {recordActions?.map((item: IPageAction, index) => {
-                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} record={record} primaryIndexValue={primaryIndexValue} />;
+                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} record={record} primaryIndexValue={primaryIndexValue} routeParams={routeParams} />;
               })}
             </Space>
           </div>
@@ -91,11 +92,12 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   return columns
 }
 
-const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback }: { 
+const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, routeParams }: { 
   item: IPageAction, 
   record: IRecord, 
   primaryIndexValue: string,
-  getRecordsCallback: () => void 
+  getRecordsCallback: () => void,
+  routeParams: Record<string, string>
 }) => {
 
   const { notifySuccess } = useAppContext()
@@ -119,6 +121,7 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback }:
           getRecordsCallback()
         }}
         primaryIndex={primaryIndexValue}
+        routeParams={routeParams}
         {...item.modalConfig}
       ><Icon iconName={"delete"} /></OpenInModal>
     ) : (
