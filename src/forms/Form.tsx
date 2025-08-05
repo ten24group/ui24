@@ -302,7 +302,7 @@ export function Form({
         </div>
       )}
       {children}
-      {formButtons.length > 0 && <div style={{ display: "flex" }}><CreateButtons formButtons={formButtons} loader={btnLoader} /></div>}
+      {formButtons.length > 0 && <div style={{ display: "flex" }}><CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} /></div>}
     </AntForm>
     }
   </Spin>

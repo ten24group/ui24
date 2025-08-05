@@ -214,7 +214,7 @@ interface IFormFieldResponse {
 }
 
 const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) => {
-    return validationRules.map(validationRule => {
+    return (validationRules ?? []).map(validationRule => {
         let antValidationRule = {}
         if (validationRule === "required") {
             antValidationRule = { ...antValidationRule, required: true }
@@ -238,7 +238,7 @@ const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) 
 export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormFieldResponse>): Array<IFormField> => {
     return columnsConfig.map(columnConfig => {
         return {
-            name: columnConfig.column,
+            name: columnConfig.column, //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
             validationRules: convertValidationRules(columnConfig.validations),
             label: columnConfig.label,
             placeholder: columnConfig.placeholder ?? columnConfig.label,

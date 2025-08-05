@@ -8,6 +8,7 @@ import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { useApi, IApiConfig } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
 import { IDetailsConfig } from '../detail/Details';
+import { substituteUrlParams } from '../core/utils';
 
 interface IConfirmModal {
   title: string;
@@ -30,6 +31,7 @@ export interface IModalConfig {
   onCancelCallback?: () => void;
   onOpenCallback?: () => void;
   submitSuccessRedirect?: string;
+  routeParams?: Record<string, string>;
 }
 
 export const Modal = ({
@@ -42,14 +44,16 @@ export const Modal = ({
   onSuccessCallback,
   button,
   onCancelCallback,
-  onConfirmCallback
+  onConfirmCallback,
+  routeParams = {}
 }: IModalConfig) => {
 
   const { notifyError } = useAppContext()
   const { callApiMethod } = useApi();
 
   const confirmApiAction = async () => {
-    const formattedApiUrl = primaryIndex !== "" ? apiConfig.apiUrl + `/${primaryIndex}` : apiConfig.apiUrl
+    // Use the clean utility function for URL parameter substitution
+    const formattedApiUrl = substituteUrlParams(apiConfig.apiUrl, routeParams, primaryIndex);
     
     try{
       const response: any = await callApiMethod({
@@ -101,10 +105,12 @@ export const Modal = ({
             modalType === "form" ? {
               ...modalPageConfig,
               onSubmitSuccessCallback: onSuccessCallback,
-              useDynamicIdFromParams: false
+              useDynamicIdFromParams: false,
+              routeParams
             } as IForm : undefined
           }
           detailsPageConfig={modalType === "details" ? modalPageConfig as IDetailsConfig : undefined}
+          routeParams={routeParams}
         />
       </AntModal>
     )

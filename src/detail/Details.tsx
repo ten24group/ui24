@@ -81,6 +81,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
 
         if (item?.type === "map") {
             initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
+                //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
                 acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
                 return acc;
             }, {});
