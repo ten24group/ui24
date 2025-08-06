@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Descriptions, DescriptionsProps, List, Spin } from 'antd';
+import { Descriptions, DescriptionsProps, List, Spin, Typography } from 'antd';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
@@ -8,6 +8,19 @@ import { OpenInModal } from '../modal/Modal';
 import { substituteUrlParams } from '../core/utils';
 import './Details.css';
 
+const { Text } = Typography;
+
+// Reusable HelpText component
+const HelpText: React.FC<{ helpText?: string }> = ({ helpText }) => {
+  if (!helpText) return null;
+  
+  return (
+    <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic', marginBottom: '8px', display: 'block' }}>
+      {helpText}
+    </Text>
+  );
+};
+
 interface IPropertiesConfig {
     name?: string; // Property path (supports dot notation for nested objects)
     label: string;
@@ -15,6 +28,7 @@ interface IPropertiesConfig {
     hidden?: boolean;
     initialValue: string;
     fieldType?: string;
+    helpText?: string;
 
     // for list and map fields
     type?: string;
@@ -98,6 +112,30 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
         } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType?.toLocaleLowerCase())) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
+        } else if (item?.fieldType?.toLocaleLowerCase() === 'number') {
+            // format number values
+            initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
+        } else if (item?.fieldType?.toLocaleLowerCase() === 'color') {
+            // format color values - keep as is for display
+            initialValue = initialValue;
+        } else if (item?.fieldType?.toLocaleLowerCase() === 'range') {
+            // format range values
+            initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
+        } else if (item?.fieldType?.toLocaleLowerCase() === 'rating') {
+            // format rating values
+            initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
+        } else if ([ 'code', 'markdown', 'json' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+            // format code/markdown/json values - keep as is for display
+            initialValue = initialValue;
+        } else if ([ 'rich-text', 'wysiwyg' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+            // format rich text values - keep as is for display
+            initialValue = initialValue;
+        } else if ([ 'file', 'image' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+            // format file/image values - keep as is for display
+            initialValue = initialValue;
+        } else if ([ 'hidden', 'custom' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+            // format hidden/custom values - keep as is for display
+            initialValue = initialValue;
         }
 
         return initialValue;
@@ -178,11 +216,11 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                         dataSource={item.initialValue as unknown as any[]}
                                         renderItem={(item, index) => (
                                             <List.Item>
-                                                <pre>
+                                                {/* <pre>
                                                     <code>
                                                         {JSON.stringify(item, null, 2)}
                                                     </code>
-                                                </pre>
+                                                </pre> */}
 
                                                 {makeDescriptionCard({ name: item.label + " - " + index, layout: 'vertical', data: item })}
                                             </List.Item>
@@ -246,14 +284,16 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
                                         {value ? <div className="details-fixed-block"><CustomBlockNoteEditor value={value as any} readOnly={true} /></div> : <span>—</span>}
                                     </div>
                                 );
                             }
-                            if ([ 'textarea' ].includes(item.fieldType?.toLocaleLowerCase?.()) || item.label.toLocaleLowerCase() === 'content') {
+                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType?.toLocaleLowerCase?.()) || item.label.toLocaleLowerCase() === 'content') {
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
                                         <div className="details-fixed-block">
                                             {value ? (typeof value === 'object' ? <JsonDescription data={value} /> : String(value)) : <span>—</span>}
                                         </div>
@@ -264,6 +304,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
                                         {value ? <img src={value} alt={item.label} className="details-image" /> : <span>—</span>}
                                     </div>
                                 );
@@ -272,7 +313,44 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
                                         {value ? <CustomColorPicker value={value} disabled /> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType?.toLocaleLowerCase?.() === 'number') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? Number(value).toLocaleString() : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType?.toLocaleLowerCase?.() === 'range') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? `${value}%` : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType?.toLocaleLowerCase?.() === 'rating') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? `${value}/5` : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType?.toLocaleLowerCase?.() === 'file') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <a href={value} target="_blank" rel="noopener noreferrer">Download File</a> : <span>—</span>}
                                     </div>
                                 );
                             }
@@ -280,6 +358,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
                                         {Array.isArray(value) && value.length > 0 ? (
                                             <JsonDescription data={value} />
                                         ) : <span>—</span>}
@@ -300,6 +379,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
+                                            <HelpText helpText={item.helpText} />
                                             <JsonDescription data={objValue} />
                                         </div>
                                     );
@@ -308,6 +388,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
+                                            <HelpText helpText={item.helpText} />
                                             <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                 <code>{value ? value : '—'}</code>
                                             </pre>
@@ -319,6 +400,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
                                         {value ? <OpenInModal {...item.openInModal} primaryIndex={value}>{value}</OpenInModal> : <span>—</span>}
                                     </div>
                                 );
@@ -326,6 +408,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                             return (
                                 <div key={index} className="details-field-container">
                                     <div className="details-field-label">{item.label}</div>
+                                    <HelpText helpText={item.helpText} />
                                     <div>
                                         {value !== undefined && value !== null && value !== '' ? (
                                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (

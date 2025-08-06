@@ -3,7 +3,7 @@ import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from 
 import type { TableProps } from "antd";
 import { OpenInModal } from "../../modal/Modal";
 import { Icon, Link } from "../../core/common";
-import { Space } from 'antd';
+import { Space, Tooltip } from 'antd';
 import { useAppContext } from "../../core/context";
 
 // Utility to replace URL parameters with values
@@ -22,7 +22,15 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
     .filter((item: ITablePropertiesConfig) => !item?.hidden)
     .map((item, index) => {
       const column = {
-        title: item.name,
+        title: item.helpText ? (
+          <Tooltip 
+            title={item.helpText}
+            placement="top"
+            overlayStyle={{ maxWidth: '300px' }}
+          >
+            <span style={{ cursor: 'help' }}>{item.name}</span>
+          </Tooltip>
+        ) : item.name,
         dataIndex: item.dataIndex,
         key: item.dataIndex,
         fieldType: item.fieldType,

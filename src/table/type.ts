@@ -19,6 +19,8 @@ export interface ITablePropertiesConfig {
   isIdentifier?: boolean;
   isSortable?: boolean;
   fieldType?: string;
+  placeholder?: string;
+  helpText?: string;
   // New filter configuration options
   filterConfig?: {
     defaultOperator?: string; // Default filter operator (e.g., 'contains', 'eq', 'in')

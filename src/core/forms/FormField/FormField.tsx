@@ -1,5 +1,5 @@
 import React, { ReactNode, useEffect } from 'react';
-import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Switch, TimePicker, Select as AntSelect } from 'antd';
+import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Switch, TimePicker, Select as AntSelect, Typography } from 'antd';
 import { OptionSelector, IFieldOptions, IOptions } from './OptionSelector';
 import { useApi, useUi24Config } from '../../context';
 import { CloseOutlined } from '@ant-design/icons';
@@ -8,7 +8,7 @@ import { IModalConfig } from '../../../modal/Modal';
 
 import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
 
-export type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image" | "json";
+export type IFormFieldType = "text" | "password" | "email" | "textarea" | "number" | "date" | "time" | "datetime" | "boolean" | "switch" | "toggle" | "select" | "multi-select" | "autocomplete" | "radio" | "checkbox" | "color" | "range" | "hidden" | "custom" | "rating" | "file" | "image" | "rich-text" | "wysiwyg" | "code" | "markdown" | "json";
 
 
 interface IFormField {
@@ -16,6 +16,7 @@ interface IFormField {
     name: string; //unique identifier, should be without spaces
     validationRules?: Array<any>; //rules matching ant design convention
     placeholder: string; //placeholder text
+    helpText?: string; //help text for the field
     prefixIcon?: ReactNode; //prefix icon as a react component
     fieldType?: IFormFieldType; //field type
     options?: IFieldOptions; //options for select, radio, checkbox
@@ -35,6 +36,18 @@ interface IFormField {
 }
 
 const { TextArea } = Input;
+const { Text } = Typography;
+
+// Reusable HelpText component
+const HelpText: React.FC<{ helpText?: string }> = ({ helpText }) => {
+  if (!helpText) return null;
+  
+  return (
+    <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic', marginTop: '-16px', marginBottom: '16px', display: 'block' }}>
+      {helpText}
+    </Text>
+  );
+};
 
 const MakeFormItem = ({
     fieldType = "text",
@@ -44,6 +57,7 @@ const MakeFormItem = ({
     label = "",
     prefixIcon,
     placeholder = "",
+    helpText,
     options = [],
     style,
     initialValue,
@@ -67,6 +81,10 @@ const MakeFormItem = ({
             {fieldType === "textarea" && <TextArea placeholder={placeholder} />}
             {fieldType === "password" && <Input.Password type={fieldType || "password"} prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "email" && <Input type={fieldType || "email"} prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "number" && <Input type="number" prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "autocomplete" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
+                setFormValue && setFormValue({ name, value: newSelections })
+            }} />}
 
             {fieldType === "checkbox" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
             {fieldType === "radio" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
@@ -78,6 +96,10 @@ const MakeFormItem = ({
             }} />}
 
             {fieldType === 'color' && <CustomColorPicker />}
+            {fieldType === 'range' && <Input type="range" placeholder={placeholder} />}
+            {fieldType === 'hidden' && <Input type="hidden" />}
+            {fieldType === 'custom' && <Input placeholder={placeholder} />}
+            {fieldType === 'rating' && <Input type="number" min={1} max={5} placeholder={placeholder} />}
 
             {fieldType === "date" && <DatePicker format={formatConfig.date} />}
             {fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
@@ -85,6 +107,12 @@ const MakeFormItem = ({
 
             {fieldType === "json" && (<>
                 <TextArea rows={20} placeholder={placeholder} />
+            </>)}
+            {fieldType === "code" && (<>
+                <TextArea rows={10} placeholder={placeholder} />
+            </>)}
+            {fieldType === "markdown" && (<>
+                <TextArea rows={15} placeholder={placeholder} />
             </>)}
 
             {fieldType === "file" &&
@@ -126,6 +154,7 @@ const MakeFormItem = ({
                 />
             }
         </Form.Item>
+        <HelpText helpText={helpText} />
     </>
 }
 
@@ -192,6 +221,7 @@ interface IFormFieldResponse {
     column: string;
     label: string;
     placeholder: string;
+    helpText?: string;
     validations: Array<IPreDefinedValidations>;
     fieldType?: IFormFieldType;
     options?: Array<IOptions>;
@@ -242,6 +272,7 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
             validationRules: convertValidationRules(columnConfig.validations),
             label: columnConfig.label,
             placeholder: columnConfig.placeholder ?? columnConfig.label,
+            helpText: columnConfig.helpText,
             fieldType: columnConfig.fieldType ?? "text",
             options: columnConfig.options ?? [],
             addNewOption: columnConfig?.addNewOption,
@@ -265,4 +296,3 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
 }
 
 export type { IFormField, IFormFieldResponse }
-
