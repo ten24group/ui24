@@ -9,13 +9,6 @@ type IAccordion = Record<string, IRenderFromPageType>
 export const Accordion = ({ accordionsPageConfig, routeParams = {} } : { accordionsPageConfig?: IAccordion, routeParams?: Record<string, string> }) => {
   const { token } = theme.useToken();
 
-  const panelStyle: React.CSSProperties = {
-    marginBottom: 24,
-    background: token.colorFillAlter,
-    borderRadius: token.borderRadiusLG,
-    border: 'none',
-  };
-
   // Add null check for accordionsPageConfig
   if (!accordionsPageConfig) {
     return <div>No accordion configuration found</div>;
@@ -29,7 +22,6 @@ export const Accordion = ({ accordionsPageConfig, routeParams = {} } : { accordi
       key: index.toString(),
       label: pageTitle || key,
       children: <RenderFromPageType {...accordion} routeParams={routeParams} />,
-      style: panelStyle,
     };
   });
 
@@ -37,9 +29,8 @@ export const Accordion = ({ accordionsPageConfig, routeParams = {} } : { accordi
     <Collapse
       bordered={false}
       defaultActiveKey={['0']}
-      size = "large"
       expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
-      style={{ background: "transparent" }}
+      style={{ background: "#8080801c",  }}
       items={ items }
     />
   );
