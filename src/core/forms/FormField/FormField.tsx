@@ -13,6 +13,8 @@ import { FieldType, PropertyType, ValidationType } from '../../types/field-types
 
 interface IFormField {
     namePrefixPath?: any[];
+    id?: string;
+    column?: string;
     name: string; //unique identifier, should be without spaces
     validationRules?: Array<any>; //rules matching ant design convention
     placeholder: string; //placeholder text

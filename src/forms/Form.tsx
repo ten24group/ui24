@@ -128,7 +128,7 @@ export function Form({
       if (recordData) {
 
         const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-          const itemValue = itemValueFormatter(item, recordData[ item.name ])
+          const itemValue = itemValueFormatter(item, recordData[ item.id || item.column || item.name ])
           return { ...item, initialValue: itemValue }
         });
 

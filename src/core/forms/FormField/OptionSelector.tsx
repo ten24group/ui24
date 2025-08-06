@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Select as AntSelect, Radio, Checkbox, Divider, Space, Button } from 'antd';
 import { useApi } from '../../context';
 import { PlusOutlined } from '@ant-design/icons';
-import { IFormFieldType } from './FormField';
+import { IFormField } from './FormField';
 import type { InputRef } from 'antd';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 /**
@@ -60,7 +60,7 @@ export type IFieldOptions = Array<IOptions> | IFieldOptionsAPIConfig;
 interface IOptionSelector {
     options: IFieldOptions
     onOptionChange?: Function,
-    fieldType: IFormFieldType,
+    fieldType: IFormField['fieldType'],
     addNewOption?: IModalConfig,
     value?: string,
 }
