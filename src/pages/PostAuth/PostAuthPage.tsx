@@ -49,7 +49,7 @@ export const RenderFromPageType = ({ pageType, cardStyle, accordionsPageConfig, 
         case "list": return <Card style={cardStyle} > <Table {...listPageConfig} routeParams={routeParams} key={`list-${uuidv4()}`} /> </Card>;
         case "form": return <Card style={cardStyle} > <Form {...formPageConfig} identifiers={identifiers} routeParams={routeParams} key={`form-${uuidv4()}`} /> </Card>;
         case "details": return <Card style={cardStyle} > <Details {...detailsPageConfig} identifiers={identifiers} routeParams={routeParams} key={`details-${uuidv4()}`} /> </Card>;
-        case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} />;
+        case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
         case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
         default: return <>Invalid Page Type</>;
     }
