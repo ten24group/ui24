@@ -4,6 +4,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig } from '../type';
 import { useFormat } from '../../core/hooks';
+import { getNestedValue } from '../../core/utils';
 
 const recordPerPage = 10;
 
@@ -130,25 +131,32 @@ export const useTableData = ({
         records.forEach((record: any) => {
 
           formattingColumns.forEach((property) => {
-            if (record[ property.dataIndex ] === null || record[ property.dataIndex ] === undefined || record[ property.dataIndex ] === '') {
+            // Use getNestedValue to handle nested data paths
+            const nestedValue = getNestedValue(record, property.dataIndex);
+            
+            if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
               record[ property.dataIndex ] = '';
               return;
             }
+            
+            // Store the nested value in the record for the table to access
+            record[ property.dataIndex ] = nestedValue;
+            
             if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              const itemValue = record[ property.dataIndex ].toString().startsWith('0') ?
-                new Date(parseInt(record[ property.dataIndex ])).toISOString() :
-                record[ property.dataIndex ];
+              const itemValue = nestedValue.toString().startsWith('0') ?
+                new Date(parseInt(nestedValue)).toISOString() :
+                nestedValue;
               record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
             } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              record[ property.dataIndex ] = formatBoolean(record[ property.dataIndex ]);
+              record[ property.dataIndex ] = formatBoolean(nestedValue);
             } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
-              const itemValue = record[ property.dataIndex ];
+              const itemValue = nestedValue;
               record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
             }
           });
 
           const identifiers = identifierColumns.map(column => ({
-            [ column.dataIndex ]: record[ column.dataIndex ]
+            [ column.dataIndex ]: getNestedValue(record, column.dataIndex)
           }));
 
           record[ recordIdentifierKey ] = JSON.stringify(identifiers);

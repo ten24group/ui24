@@ -70,6 +70,20 @@ export const truncateText = (text: string, maxLength: number = 100): string => {
 };
 
 /**
+ * Helper function to get nested property value using dot notation
+ * @param obj - The object to search in
+ * @param path - The dot-notation path (e.g., "stats.totalNbTasks")
+ * @returns The value at the nested path or undefined if not found
+ */
+export const getNestedValue = (obj: any, path: string): any => {
+  if (!path || !obj) return undefined;
+  
+  return path.split('.').reduce((current, key) => {
+    return current && current[key] !== undefined ? current[key] : undefined;
+  }, obj);
+};
+
+/**
  * Substitutes URL parameters in a URL string with values from routeParams or fallback identifier
  * @param url - The URL with parameters like "/api/users/:id" or "/system/search/indices/:entityName"
  * @param routeParams - Object containing parameter values from route matching (e.g., {entityName: "syncStatus"})

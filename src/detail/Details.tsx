@@ -5,7 +5,7 @@ import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
 import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
-import { substituteUrlParams } from '../core/utils';
+import { getNestedValue, substituteUrlParams } from '../core/utils';
 import './Details.css';
 
 const { Text } = Typography;
@@ -62,15 +62,6 @@ export interface IDetailsConfig extends IDetailApiConfig {
     columnsConfig?: IColumnsConfig;
     routeParams?: Record<string, string>;
 }
-
-// Helper function to get nested property value using dot notation
-const getNestedValue = (obj: any, path: string): any => {
-    if (!path || !obj) return undefined;
-    
-    return path.split('.').reduce((current, key) => {
-        return current && current[key] !== undefined ? current[key] : undefined;
-    }, obj);
-};
 
 // Helper to split array into N columns (vertical stacks)
 function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
