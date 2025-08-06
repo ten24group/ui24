@@ -302,8 +302,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             const value = item.initialValue;
 
                             if (item.isLink && item.linkConfig) {
-                                let linkUrl = substituteUrlParams(item.linkConfig.routePattern, routeParams);
-                                linkUrl = substituteUrlParams(linkUrl, detailResponse);
+                                const linkUrl = substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse });
                                 const displayText = item.linkConfig.displayText || value;
                                 return (
                                     <div key={index} className="details-field-container">

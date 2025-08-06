@@ -85,14 +85,14 @@ export const getNestedValue = (obj: any, path: string): any => {
 
 /**
  * Substitutes URL parameters in a URL string with values from routeParams or fallback identifier
- * @param url - The URL with parameters like "/api/users/:id" or "/system/search/indices/:entityName"
- * @param routeParams - Object containing parameter values from route matching (e.g., {entityName: "syncStatus"})
+ * @param url - The URL with parameters like "/api/users/:id" or "/system/search/indices/:entityName" or "/api/tasks?indexUid.eq=:indexInfo.uid"
+ * @param routeParams - Object containing parameter values from route matching (e.g., {entityName: "syncStatus", indexInfo: {uid: "123"}})
  * @param fallbackIdentifier - Fallback value to use if parameter not found in routeParams
  * @returns URL with parameters substituted
  */
 export const substituteUrlParams = (
   url: string, 
-  routeParams: Record<string, string> = {}, 
+  routeParams: Record<string, any> = {}, 
   fallbackIdentifier?: string | number
 ): string => {
   // Check if we have route parameters or an identifier to work with
@@ -102,18 +102,28 @@ export const substituteUrlParams = (
     return url; // No substitution possible
   }
 
-  // Check if URL has placeholders (like :entityName, :id, etc.)
-  if (/:(\w+)/.test(url)) {
+  // Check if URL has placeholders (like :entityName, :id, :indexInfo.uid, :aaa.123.frfr.4545, etc.)
+  if (/:([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/.test(url)) {
     // Use parameter substitution for URLs with placeholders
-    return url.replace(/:(\w+)/g, (match, param) => {
-      // First try to get the parameter from routeParams
+    return url.replace(/:([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g, (match, param) => {
+      // First try to get the parameter from routeParams (for simple params like :entityName)
       if (routeParams[param] !== undefined) {
-        return routeParams[param];
+        return String(routeParams[param]);
       }
+      
+      // Try to get nested value from routeParams (for nested params like :indexInfo.uid)
+      if (param.includes('.')) {
+        const nestedValue = getNestedValue(routeParams, param);
+        if (nestedValue !== undefined) {
+          return String(nestedValue);
+        }
+      }
+      
       // Fallback to using the identifier (if available)
       if (fallbackIdentifier !== undefined) {
         return String(fallbackIdentifier);
       }
+      
       // If no value found, keep the placeholder (will likely cause an error)
       console.warn(`No value found for URL parameter ${param}`);
       return match;
