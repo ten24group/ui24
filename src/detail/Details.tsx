@@ -3,7 +3,7 @@ import { Descriptions, DescriptionsProps, List, Spin, Typography } from 'antd';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
-import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import './Details.css';
@@ -41,6 +41,13 @@ interface IPropertiesConfig {
     };
 
     openInModal?: boolean;
+    
+    // for internal links
+    isLink?: boolean;
+    linkConfig?: {
+        routePattern: string;
+        displayText?: string;
+    };
 }
 
 export interface IDetailApiConfig {
@@ -92,6 +99,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
     routeParams = {} 
 }) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
+    const [ detailResponse, setDetailResponse ] = useState<any>(null)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
     const { notifyError } = useAppContext();
@@ -164,6 +172,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                 if (response.status === 200) {
                     
                     const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
+                    setDetailResponse(detailResponse)
 
                     const formatted = recordInfo.map(item => {
                         // Use getNestedValue to handle dot notation in property names (e.g., "indexInfo.uid")
@@ -291,80 +300,42 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         {columnItems.filter(item => !item.hidden).map((item: IPropertiesConfig, index: number) => {
                             // Render each field as before
                             const value = item.initialValue;
-                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType?.toLocaleLowerCase?.())) {
+
+                            if (item.isLink && item.linkConfig) {
+                                let linkUrl = substituteUrlParams(item.linkConfig.routePattern, routeParams);
+                                linkUrl = substituteUrlParams(linkUrl, detailResponse);
+                                const displayText = item.linkConfig.displayText || value;
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         <HelpText helpText={item.helpText} />
-                                        {value ? <div className="details-fixed-block"><CustomBlockNoteEditor value={value as any} readOnly={true} /></div> : <span>—</span>}
+                                        {value ? (
+                                            <Link url={linkUrl} className="details-link">
+                                                {displayText} ({value})
+                                            </Link>
+                                        ) : <span>—</span>}
                                     </div>
                                 );
                             }
-                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType?.toLocaleLowerCase?.()) || item.label === 'content') {
+
+                            if (item.openInModal) {
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         <HelpText helpText={item.helpText} />
-                                        <div className="details-fixed-block">
-                                            {value ? (typeof value === 'object' ? <JsonDescription data={value} /> : String(value)) : <span>—</span>}
-                                        </div>
+                                        {value ? <OpenInModal
+                                            modalType="details"
+                                            primaryIndex={value}
+                                            modalPageConfig={{
+                                                pageTitle: item.label,
+                                                propertiesConfig: [ item ]
+                                            }}
+                                        >{value}</OpenInModal> : <span>—_-</span>}
                                     </div>
                                 );
                             }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'image') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <img src={value} alt={item.label} className="details-image" /> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'color') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <CustomColorPicker value={value} disabled /> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'number') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div>{value !== undefined && value !== null ? Number(value).toLocaleString() : <span>—</span>}</div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'range') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div>{value !== undefined && value !== null ? `${value}%` : <span>—</span>}</div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'rating') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div>{value !== undefined && value !== null ? `${value}/5` : <span>—</span>}</div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'file') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <a href={value} target="_blank" rel="noopener noreferrer">Download File</a> : <span>—</span>}
-                                    </div>
-                                );
-                            }
+
+
                             if (item.type === 'list' && item.fieldType !== 'multi-select') {
                                 return (
                                     <div key={index} className="details-field-container">
@@ -407,22 +378,82 @@ const Details: React.FC<IDetailsComponentProps> = ({
                                     );
                                 }
                             }
-                            if (item.openInModal) {
+
+                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         <HelpText helpText={item.helpText} />
-                                        {value ? <OpenInModal 
-                                            modalType="details" 
-                                            primaryIndex={value}
-                                            modalPageConfig={{
-                                                pageTitle: item.label,
-                                                propertiesConfig: [item]
-                                            }}
-                                        >{value}</OpenInModal> : <span>—_-</span>}
+                                        {value ? <div className="details-fixed-block"><CustomBlockNoteEditor value={value as any} readOnly={true} /></div> : <span>—</span>}
                                     </div>
                                 );
                             }
+                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType) || item.label === 'content') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div className="details-fixed-block">
+                                            {value ? (typeof value === 'object' ? <JsonDescription data={value} /> : String(value)) : <span>—</span>}
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'image') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <img src={value} alt={item.label} className="details-image" /> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'color') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <CustomColorPicker value={value} disabled /> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'number') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? Number(value) : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'range') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? `${value}%` : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'rating') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? `${value}/5` : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'file') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <a href={value} target="_blank" rel="noopener noreferrer">Download File</a> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+
                             return (
                                 <div key={index} className="details-field-container">
                                     <div className="details-field-label">{item.label}</div>
