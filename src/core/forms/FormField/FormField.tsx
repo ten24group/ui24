@@ -7,8 +7,8 @@ import { CustomColorPicker } from '../../common/CustomColorPicker';
 import { IModalConfig } from '../../../modal/Modal';
 
 import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
+import { FieldType, PropertyType, ValidationType } from '../../types/field-types';
 
-export type IFormFieldType = "text" | "password" | "email" | "textarea" | "number" | "date" | "time" | "datetime" | "boolean" | "switch" | "toggle" | "select" | "multi-select" | "autocomplete" | "radio" | "checkbox" | "color" | "range" | "hidden" | "custom" | "rating" | "file" | "image" | "rich-text" | "wysiwyg" | "code" | "markdown" | "json";
 
 
 interface IFormField {
@@ -18,7 +18,7 @@ interface IFormField {
     placeholder: string; //placeholder text
     helpText?: string; //help text for the field
     prefixIcon?: ReactNode; //prefix icon as a react component
-    fieldType?: IFormFieldType; //field type
+    fieldType?: FieldType; //field type
     options?: IFieldOptions; //options for select, radio, checkbox
     addNewOption?: IModalConfig; //add new option for select, multi-select
     label: string;
@@ -27,10 +27,10 @@ interface IFormField {
     setFormValue?: Function;
 
     // for list and map fields
-    type?: string;
+    type?: PropertyType;
     properties?: Array<IFormField>
     items?: {
-        type: string,
+        type: PropertyType,
         properties?: Array<IFormField>
     }
 }
@@ -223,7 +223,7 @@ interface IFormFieldResponse {
     placeholder: string;
     helpText?: string;
     validations: Array<IPreDefinedValidations>;
-    fieldType?: IFormFieldType;
+    fieldType?: FieldType;
     options?: Array<IOptions>;
     addNewOption?: IModalConfig;
 
@@ -235,10 +235,10 @@ interface IFormFieldResponse {
     withImageCrop?: boolean;
 
     // list and map fields
-    type?: string;
+    type?: PropertyType;
     properties?: Array<IFormFieldResponse>
     items?: {
-        type: string,
+        type: PropertyType,
         properties?: Array<IFormFieldResponse>
     }
 }

@@ -21,24 +21,26 @@ const HelpText: React.FC<{ helpText?: string }> = ({ helpText }) => {
   );
 };
 
+import { FieldType, PropertyType } from '../core/types/field-types';
+
 interface IPropertiesConfig {
     name?: string; // Property path (supports dot notation for nested objects)
     label: string;
     column: string;
     hidden?: boolean;
     initialValue: string;
-    fieldType?: string;
+    fieldType?: FieldType;
     helpText?: string;
 
     // for list and map fields
-    type?: string;
-    properties?: Array<IPropertiesConfig>
+    type?: PropertyType;
+    properties?: Array<IPropertiesConfig>;
     items?: {
-        type: string,
-        properties?: Array<IPropertiesConfig>
-    },
+        type: PropertyType;
+        properties?: Array<IPropertiesConfig>;
+    };
 
-    openInModal?: any,
+    openInModal?: boolean;
 }
 
 export interface IDetailApiConfig {
@@ -57,7 +59,7 @@ interface IColumnsConfig {
 
 export interface IDetailsConfig extends IDetailApiConfig {
     pageTitle?: string;
-    identifiers?: any;
+    identifiers?: string | number | Array<string | number>;
     propertiesConfig: Array<IPropertiesConfig>;
     columnsConfig?: IColumnsConfig;
     routeParams?: Record<string, string>;
@@ -72,7 +74,23 @@ function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
     return cols;
 }
 
-const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers, columnsConfig, routeParams = {} }) => {
+interface IDetailsComponentProps extends IDetailsConfig {
+    pageTitle?: string;
+    propertiesConfig: Array<IPropertiesConfig>;
+    detailApiConfig?: IApiConfig;
+    identifiers?: string | number;
+    columnsConfig?: IColumnsConfig;
+    routeParams?: Record<string, string>;
+}
+
+const Details: React.FC<IDetailsComponentProps> = ({ 
+    pageTitle, 
+    propertiesConfig, 
+    detailApiConfig, 
+    identifiers, 
+    columnsConfig, 
+    routeParams = {} 
+}) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
@@ -93,38 +111,38 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
 
         } else if (item?.type === "list") {
             initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
-        } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
             // formate the date value using uiConfig's date-time-formats
             if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
-                initialValue = formatDate(new Date(parseInt(initialValue)).toISOString(), item.fieldType?.toLocaleLowerCase() as any);
+                initialValue = formatDate(new Date(parseInt(initialValue)).toISOString(), item.fieldType as any);
             } else {
-                initialValue = formatDate(initialValue, item.fieldType?.toLocaleLowerCase() as any);
+                initialValue = formatDate(initialValue, item.fieldType as any);
             }
-        } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType)) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
-        } else if (item?.fieldType?.toLocaleLowerCase() === 'number') {
+        } else if (item?.fieldType === 'number') {
             // format number values
             initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-        } else if (item?.fieldType?.toLocaleLowerCase() === 'color') {
+        } else if (item?.fieldType === 'color') {
             // format color values - keep as is for display
             initialValue = initialValue;
-        } else if (item?.fieldType?.toLocaleLowerCase() === 'range') {
+        } else if (item?.fieldType === 'range') {
             // format range values
             initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-        } else if (item?.fieldType?.toLocaleLowerCase() === 'rating') {
+        } else if (item?.fieldType === 'rating') {
             // format rating values
             initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-        } else if ([ 'code', 'markdown', 'json' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'code', 'markdown', 'json' ].includes(item?.fieldType)) {
             // format code/markdown/json values - keep as is for display
             initialValue = initialValue;
-        } else if ([ 'rich-text', 'wysiwyg' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'rich-text', 'wysiwyg' ].includes(item?.fieldType)) {
             // format rich text values - keep as is for display
             initialValue = initialValue;
-        } else if ([ 'file', 'image' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'file', 'image' ].includes(item?.fieldType)) {
             // format file/image values - keep as is for display
             initialValue = initialValue;
-        } else if ([ 'hidden', 'custom' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'hidden', 'custom' ].includes(item?.fieldType)) {
             // format hidden/custom values - keep as is for display
             initialValue = initialValue;
         }
@@ -170,7 +188,13 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
             fetchRecordInfo();
     }, [])
 
-    const makeDescriptionCard = (options: { name: string, layout: DescriptionsProps[ 'layout' ], data: any[] }) => {
+    interface IDescriptionCardOptions {
+        name: string;
+        layout: DescriptionsProps['layout'];
+        data: Array<{ label: string; value: string | number | boolean | null } | IPropertiesConfig>;
+    }
+
+    const makeDescriptionCard = (options: IDescriptionCardOptions) => {
         const { name, data, layout } = options;
         return <>
             <Descriptions
@@ -178,10 +202,10 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                 layout={layout}
                 items={
 
-                    data.filter(item => !item.hidden)
+                    data.filter(item => !('hidden' in item) || !item.hidden)
                         .map((item: IPropertiesConfig, index: number) => {
 
-                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType.toLocaleLowerCase())) {
+                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
                                 return {
                                     key: index,
                                     label: item.label,
@@ -189,7 +213,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 }
                             }
 
-                            if (item.fieldType.toLocaleLowerCase() === 'image') {
+                            if (item.fieldType === 'image') {
                                 return {
                                     key: index,
                                     label: item.label,
@@ -276,7 +300,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     </div>
                                 );
                             }
-                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType?.toLocaleLowerCase?.()) || item.label.toLocaleLowerCase() === 'content') {
+                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType?.toLocaleLowerCase?.()) || item.label === 'content') {
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
@@ -388,7 +412,14 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
                                         <HelpText helpText={item.helpText} />
-                                        {value ? <OpenInModal {...item.openInModal} primaryIndex={value}>{value}</OpenInModal> : <span>—</span>}
+                                        {value ? <OpenInModal 
+                                            modalType="details" 
+                                            primaryIndex={value}
+                                            modalPageConfig={{
+                                                pageTitle: item.label,
+                                                propertiesConfig: [item]
+                                            }}
+                                        >{value}</OpenInModal> : <span>—_-</span>}
                                     </div>
                                 );
                             }

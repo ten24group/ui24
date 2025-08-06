@@ -6,7 +6,12 @@ import { RenderFromPageType } from '../PostAuthPage';
 
 type IAccordion = Record<string, IRenderFromPageType>
 
-export const Accordion = ({ accordionsPageConfig, routeParams = {} } : { accordionsPageConfig?: IAccordion, routeParams?: Record<string, string> }) => {
+interface IAccordionProps {
+  accordionsPageConfig?: IAccordion;
+  routeParams?: Record<string, string>;
+}
+
+export const Accordion = ({ accordionsPageConfig, routeParams = {} }: IAccordionProps) => {
   const { token } = theme.useToken();
 
   // Add null check for accordionsPageConfig

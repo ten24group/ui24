@@ -1,4 +1,5 @@
 import { IApiConfig } from "../core/context";
+import { FieldType } from "../core/types/field-types";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
@@ -18,7 +19,7 @@ export interface ITablePropertiesConfig {
   isFilterable?: boolean;
   isIdentifier?: boolean;
   isSortable?: boolean;
-  fieldType?: string;
+  fieldType?: FieldType;
   placeholder?: string;
   helpText?: string;
   // New filter configuration options

@@ -3,11 +3,12 @@ import { Input, Button, Space, Tag, Alert, Checkbox, Switch, Divider, Select } f
 import { Icon } from '../../core/common';
 import React from 'react';
 import { filterOperators } from './filterOperators';
+import { FieldType } from '../../core/types/field-types';
 
 interface IColumnFilterProps {
   dataIndex: string
   title: string
-  fieldType: string
+  fieldType: FieldType
   filterConfig?: {
     defaultOperator?: string;
     availableOperators?: string[];

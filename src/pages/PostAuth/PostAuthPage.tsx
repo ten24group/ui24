@@ -14,7 +14,7 @@ import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
 export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
 
 export interface IRenderFromPageType extends IPageHeader {
-    identifiers?: any;
+    identifiers?: string | number;
     pageType?: IPageType;
     cardStyle?: React.CSSProperties;
     formPageConfig?: IForm;
@@ -43,7 +43,29 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuth
     </div>
 }
 
-export const RenderFromPageType = ({ pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig, identifiers, routeParams, dashboardPageConfig }: IRenderFromPageType) => {
+interface IRenderFromPageTypeProps extends IRenderFromPageType {
+  pageType?: IPageType;
+  cardStyle?: React.CSSProperties;
+  accordionsPageConfig?: Record<string, IRenderFromPageType>;
+  formPageConfig?: IForm;
+  listPageConfig?: ITableConfig;
+  detailsPageConfig?: IDetailsConfig;
+  identifiers?: string | number;
+  routeParams?: Record<string, string>;
+  dashboardPageConfig?: IDashboardPageConfig;
+}
+
+export const RenderFromPageType = ({ 
+  pageType, 
+  cardStyle, 
+  accordionsPageConfig, 
+  formPageConfig, 
+  listPageConfig, 
+  detailsPageConfig, 
+  identifiers, 
+  routeParams, 
+  dashboardPageConfig 
+}: IRenderFromPageTypeProps) => {
 
     switch (pageType) {
         case "list": return <Card style={cardStyle} > <Table {...listPageConfig} routeParams={routeParams} key={`list-${uuidv4()}`} /> </Card>;
