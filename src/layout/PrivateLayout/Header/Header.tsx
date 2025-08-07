@@ -7,8 +7,6 @@ import { Link } from '../../../core/common';
 import "./Header.css";
 import { HeaderActions } from './HeaderActions';
 import { useUi24Config } from '../../../core/context';
-import { OpenInModal } from '../../../modal/Modal';
-//import { JsonEditor } from '../../../core/common';
 
 const { Header : AntHeader } = Layout;
 
