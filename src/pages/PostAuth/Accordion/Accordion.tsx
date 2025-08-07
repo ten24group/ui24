@@ -4,10 +4,10 @@ import { Collapse, theme } from 'antd';
 import { IRenderFromPageType } from '../PostAuthPage';
 import { RenderFromPageType } from '../PostAuthPage';
 
-type IAccordion = Record<string, IRenderFromPageType>
+export type IAccordionPageConfig = Record<string, IRenderFromPageType>
 
-interface IAccordionProps {
-  accordionsPageConfig?: IAccordion;
+export interface IAccordionProps {
+  accordionsPageConfig?: IAccordionPageConfig;
   routeParams?: Record<string, string>;
 }
 

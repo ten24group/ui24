@@ -11,7 +11,7 @@ import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
 
-export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
+export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard" | "custom";
 
 export interface IRenderFromPageType extends IPageHeader {
     identifiers?: string | number;
@@ -73,6 +73,7 @@ export const RenderFromPageType = ({
         case "details": return <Card style={cardStyle} > <Details {...detailsPageConfig} identifiers={identifiers} routeParams={routeParams} key={`details-${uuidv4()}`} /> </Card>;
         case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
         case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
+        case "custom": return <>TODO: handle custom page</>;
         default: return <>Invalid Page Type</>;
     }
 }
