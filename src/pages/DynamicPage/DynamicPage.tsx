@@ -3,8 +3,6 @@ import { PostAuthPage } from '../PostAuth/PostAuthPage';
 import { useLocation } from "react-router-dom";
 import { NotFound } from '../404/NotFound';
 import { useUi24Config } from '../../core/context';
-import { OpenInModal } from '../../modal/Modal';
-import { Icon } from '../../core/common';
 import { Spin } from 'antd';
 
 // Utility to match a path against a pattern like /author/:authorId/books

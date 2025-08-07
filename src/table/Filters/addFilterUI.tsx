@@ -8,14 +8,19 @@ export const addFilterUI = (
   getAppliedFilterForColumn: Function,
   facetResults: Record<string, Record<string, number>>,
   facetedColumns: string[],
-  toggleFacetedColumn: (dataIndex: string) => void
+  toggleFacetedColumn: (dataIndex: string) => void,
+  enableFacetFilters: boolean = false
 ) => {
+
   return propertiesConfig.map((column: any) => {
     //add filters on column
     if ((column?.isFilterable === true || column?.isFilterable === undefined) && column.key !== "action") {
       return {
         ...column,
-        ...filterUI({ ...column }, applyFilters, removeFilter, getAppliedFilterForColumn, facetResults, facetedColumns, toggleFacetedColumn)
+        ...filterUI({ 
+          ...column, 
+          filterConfig: column.filterConfig 
+        }, applyFilters, removeFilter, getAppliedFilterForColumn, facetResults, facetedColumns, toggleFacetedColumn, enableFacetFilters)
       }
     }
     return column

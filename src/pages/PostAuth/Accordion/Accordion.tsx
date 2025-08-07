@@ -4,29 +4,29 @@ import { Collapse, theme } from 'antd';
 import { IRenderFromPageType } from '../PostAuthPage';
 import { RenderFromPageType } from '../PostAuthPage';
 
-type IAccordion = Record<string, IRenderFromPageType>
+export type IAccordionPageConfig = Record<string, IRenderFromPageType>
 
-export const Accordion = ({ accordionsPageConfig } : { accordionsPageConfig: IAccordion }) => {
+export interface IAccordionProps {
+  accordionsPageConfig?: IAccordionPageConfig;
+  routeParams?: Record<string, string>;
+}
+
+export const Accordion = ({ accordionsPageConfig, routeParams = {} }: IAccordionProps) => {
   const { token } = theme.useToken();
 
-  const panelStyle: React.CSSProperties = {
-    marginBottom: 24,
-    background: token.colorFillAlter,
-    borderRadius: token.borderRadiusLG,
-    border: 'none',
-  };
+  // Add null check for accordionsPageConfig
+  if (!accordionsPageConfig) {
+    return <div>No accordion configuration found</div>;
+  }
 
   //loop over accordionsPageConfig create a Collapse for every record and render the respective component using RenderFromPageType
-  let itemCount = -1;
-  const items = Object.keys(accordionsPageConfig).map((key: string) => {
+  const items = Object.keys(accordionsPageConfig).map((key: string, index: number) => {
     const accordion = accordionsPageConfig[key];
     const { pageTitle = "" } = accordion;
-    itemCount += 1;
     return {
-      itemCount,
+      key: index.toString(),
       label: pageTitle || key,
-      children: <RenderFromPageType {...accordion} />,
-      style: panelStyle,
+      children: <RenderFromPageType {...accordion} routeParams={routeParams} />,
     };
   });
 
@@ -34,9 +34,8 @@ export const Accordion = ({ accordionsPageConfig } : { accordionsPageConfig: IAc
     <Collapse
       bordered={false}
       defaultActiveKey={['0']}
-      size = "large"
       expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
-      style={{ background: "transparent" }}
+      style={{ background: "#8080801c",  }}
       items={ items }
     />
   );

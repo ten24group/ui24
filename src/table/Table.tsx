@@ -12,7 +12,6 @@ export const Table = ({
   propertiesConfig,
   records = [], //not using as of now
   apiConfig,
-  paginationType = "default",
   routeParams,
 }: ITableConfig) => {
 

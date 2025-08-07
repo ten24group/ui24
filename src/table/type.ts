@@ -1,4 +1,5 @@
 import { IApiConfig } from "../core/context";
+import { FieldType } from "../core/types/field-types";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
@@ -18,7 +19,16 @@ export interface ITablePropertiesConfig {
   isFilterable?: boolean;
   isIdentifier?: boolean;
   isSortable?: boolean;
-  fieldType?: string;
+  fieldType?: FieldType;
+  placeholder?: string;
+  helpText?: string;
+  // New filter configuration options
+  filterConfig?: {
+    defaultOperator?: string; // Default filter operator (e.g., 'contains', 'eq', 'in')
+    availableOperators?: string[]; // Restrict available operators for this column
+    predefinedOptions?: Array<{ label: string; value: string }>; // For dropdown/select filters
+    filterType?: 'text' | 'select' | 'datetime' | 'number' | 'boolean'; // Filter input type
+  };
 }
 
 export interface IDropdownItem {

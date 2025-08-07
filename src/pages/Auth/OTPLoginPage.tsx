@@ -16,10 +16,10 @@ const OTPLoginForm = () => {
   const navigate = useCoreNavigator();
   const { notifyError } = useAppContext();
   const { selectConfig } = useUi24Config();
-  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth['/login'] ? config.uiConfig.auth['/login'].authConfig : undefined);
+  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth[ '/login' ] ? config.uiConfig.auth[ '/login' ].authConfig : undefined);
   const pageConfig = usePageConfig("/otp-login");
   const propertiesConfig = pageConfig.propertiesConfig;
-  const [loader, setLoader] = useState<boolean>(false);
+  const [ loader, setLoader ] = useState<boolean>(false);
   const { callApiMethod } = useApi();
 
   if (!pageConfig || !authConfig) {
@@ -39,7 +39,7 @@ const OTPLoginForm = () => {
       });
       const challenges = response?.data?.challenges || [];
       const session = response?.data?.session;
-      if (response.status === 200 && challenges.length === 1 && challenges[0] === 'EMAIL_OTP') {
+      if (response.status === 200 && challenges.length === 1 && challenges[ 0 ] === 'EMAIL_OTP') {
         // Only EMAIL_OTP challenge, go to verify page
         navigate('/otp-login/verify', { state: { email: payload.email, session } });
       } else if (response.status === 200 && challenges.length > 1) {
@@ -58,6 +58,7 @@ const OTPLoginForm = () => {
         notifyError(response?.error || 'Unable to initiate OTP login.');
       }
     } catch (error: any) {
+      console.error('otpResp error', error);
       notifyError(error?.message || 'An error occurred during OTP login');
     } finally {
       setLoader(false);

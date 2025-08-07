@@ -1,0 +1,43 @@
+.detail-widget-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 20px 24px;
+  min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.detail-widget-header {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.detail-widget-content {
+  flex: 1;
+  overflow: auto;
+}
+
+.detail-widget-card.layout-horizontal .detail-widget-content .ant-descriptions-item {
+  padding-bottom: 8px;
+}
+
+.detail-widget-card.layout-vertical .detail-widget-content .ant-descriptions {
+  column-count: 2;
+  column-gap: 20px;
+}
+
+.detail-widget-content .ant-descriptions-item-label {
+  font-weight: 600;
+  color: #666;
+}
+
+.detail-widget-content .ant-descriptions-item-content {
+  color: #333;
+} 

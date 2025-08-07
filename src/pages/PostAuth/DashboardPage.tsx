@@ -3,48 +3,136 @@ import { WidgetRenderer } from '../../dashboard/WidgetRenderer';
 import { IStatWidgetProps } from '../../dashboard/widgets/StatWidget';
 import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
 import { IListWidgetProps } from '../../dashboard/widgets/ListWidget';
+import { IDescriptionWidgetProps } from '../../dashboard/widgets/DescriptionWidget';
 import { TimePeriodSelector, TimePeriod } from '../../dashboard/widgets/TimePeriodSelector';
 import dayjs from 'dayjs';
 import { useUi24Config } from '../../core/context';
+import { IDetailsConfig } from '../../detail/Details';
+import { IForm } from '../../core/forms/formConfig';
+import { IModalConfig } from '../../modal/Modal';
 
 export type DefaultTimePeriod = {
   period: TimePeriod;
-  range?: [string, string]; // ISO strings
+  range?: [ string, string ]; // ISO strings
 };
 
-export type IDashboardWidgetConfig =
-  | ({
+export type IDashboardWidgetConfig = {
+  colSpan?: number;
+  maxWidth?: number | string;
+  width?: number | string;
+} & (
+    | {
       type: 'stat';
       title?: string;
-      dataConfig?: IStatWidgetProps['dataConfig'];
-      options?: IStatWidgetProps['options'];
-      colSpan?: number;
-      maxWidth?: number | string;
-      width?: number | string;
+      dataConfig?: IStatWidgetProps[ 'dataConfig' ];
+      options?: IStatWidgetProps[ 'options' ];
       showTimePeriodSelector?: boolean;
       defaultTimePeriod?: DefaultTimePeriod;
       timezone?: string;
-    })
-  | ({
+    }
+    | {
       type: 'chart';
       title?: string;
-      dataConfig?: IChartWidgetProps['dataConfig'];
-      options?: IChartWidgetProps['options'];
-      colSpan?: number;
-      maxWidth?: number | string;
-      width?: number | string;
+      dataConfig?: IChartWidgetProps[ 'dataConfig' ];
+      options?: IChartWidgetProps[ 'options' ];
       showTimePeriodSelector?: boolean;
       defaultTimePeriod?: DefaultTimePeriod;
       timezone?: string;
-    })
-  | ({
+    }
+    | {
       type: 'list';
       title?: string;
       options?: Partial<IListWidgetProps>;
-      colSpan?: number;
-      maxWidth?: number | string;
-      width?: number | string;
-    });
+    }
+    | {
+      type: 'actions';
+      title?: string;
+      options?: {
+        actions: Array<{ label: string; url: string }>;
+      };
+    }
+    | {
+      type: 'detail';
+      title?: string;
+      options?: IDetailsConfig & {
+        layout?: 'horizontal' | 'vertical';
+        maxFields?: number;
+      };
+    }
+    | {
+      type: 'form';
+      title?: string;
+      options?: IForm & {
+        compact?: boolean;
+        submitButtonText?: string;
+      };
+    }
+    | {
+      type: 'modal';
+      title?: string;
+      options?: {
+        triggers: Array<{
+          label: string;
+          icon?: string;
+          modalConfig: IModalConfig;
+          buttonType?: 'primary' | 'default' | 'dashed' | 'text';
+          color?: string;
+        }>;
+        layout?: 'grid' | 'list';
+      };
+    }
+    | {
+      type: 'progress';
+      title?: string;
+      options?: {
+        progressType: 'circle' | 'line' | 'dashboard';
+        value: number;
+        total?: number;
+        status?: 'normal' | 'exception' | 'active' | 'success';
+        showPercent?: boolean;
+        strokeColor?: string;
+        label?: string;
+        description?: string;
+      };
+    }
+    | {
+      type: 'control';
+      title?: string;
+      options?: {
+        controls: Array<{
+          label: string;
+          type: 'toggle' | 'button' | 'select' | 'slider';
+          value?: any;
+          options?: Array<{ label: string; value: any }>;
+          onChange?: (value: any) => void;
+          disabled?: boolean;
+        }>;
+        layout?: 'vertical' | 'horizontal';
+      };
+    }
+    | {
+      type: 'timeline';
+      title?: string;
+      options?: {
+        events: Array<{
+          timestamp: string;
+          title: string;
+          description?: string;
+          type?: 'info' | 'success' | 'warning' | 'error';
+          color?: string;
+        }>;
+        mode?: 'left' | 'alternate' | 'right';
+        reverse?: boolean;
+        maxEvents?: number;
+      };
+    }
+    | {
+      type: 'description';
+      title?: string;
+      dataConfig?: IDescriptionWidgetProps['dataConfig'];
+      options?: IDescriptionWidgetProps['options'];
+    }
+);
 
 export interface IDashboardPageConfig {
   widgets: IDashboardWidgetConfig[];
@@ -61,27 +149,27 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
     if (defaultTimePeriod.period === 'custom' && defaultTimePeriod.range) {
       return {
         period: 'custom' as TimePeriod,
-        range: [dayjsTz(defaultTimePeriod.range[0]), dayjsTz(defaultTimePeriod.range[1])] as [dayjs.Dayjs, dayjs.Dayjs],
+        range: [ dayjsTz(defaultTimePeriod.range[ 0 ]), dayjsTz(defaultTimePeriod.range[ 1 ]) ] as [ dayjs.Dayjs, dayjs.Dayjs ],
       };
     }
     // Use period to compute range
     const now = dayjsTz();
-    let range: [dayjs.Dayjs, dayjs.Dayjs];
+    let range: [ dayjs.Dayjs, dayjs.Dayjs ];
     switch (defaultTimePeriod.period) {
       case 'today':
-        range = [now.startOf('day'), now.endOf('day')];
+        range = [ now.startOf('day'), now.endOf('day') ];
         break;
       case 'week':
-        range = [now.startOf('week'), now.endOf('week')];
+        range = [ now.startOf('week'), now.endOf('week') ];
         break;
       case 'month':
-        range = [now.startOf('month'), now.endOf('month')];
+        range = [ now.startOf('month'), now.endOf('month') ];
         break;
       case 'year':
-        range = [now.startOf('year'), now.endOf('year')];
+        range = [ now.startOf('year'), now.endOf('year') ];
         break;
       default:
-        range = [now.startOf('month'), now.endOf('month')];
+        range = [ now.startOf('month'), now.endOf('month') ];
     }
     return { period: defaultTimePeriod.period, range };
   }
@@ -89,7 +177,7 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
   const now = dayjsTz();
   return {
     period: 'month' as TimePeriod,
-    range: [now.startOf('month'), now.endOf('month')] as [dayjs.Dayjs, dayjs.Dayjs],
+    range: [ now.startOf('month'), now.endOf('month') ] as [ dayjs.Dayjs, dayjs.Dayjs ],
   };
 }
 
@@ -100,14 +188,14 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
   });
   const resolvedDashboardTz = dashboardConfig?.timezone || formatConfigTz;
 
-  const [dashboardTimePeriod, setDashboardTimePeriod] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
+  const [ dashboardTimePeriod, setDashboardTimePeriod ] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
   // Per-widget time period state (keyed by widget index)
-  const [widgetTimePeriods, setWidgetTimePeriods] = React.useState<Record<number, { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }>>(() => {
-    const initial: Record<number, { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }> = {};
+  const [ widgetTimePeriods, setWidgetTimePeriods ] = React.useState<Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }>>(() => {
+    const initial: Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }> = {};
     dashboardConfig?.widgets?.forEach((widget, idx) => {
       if (widget.type === 'chart' && widget.showTimePeriodSelector && widget.defaultTimePeriod) {
         const widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
-        initial[idx] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
+        initial[ idx ] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
       }
     });
     return initial;
@@ -138,13 +226,13 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
           let widgetTz;
           if ((widget.type === 'chart' || widget.type === 'stat') && 'defaultTimePeriod' in widget) {
             widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
-            widgetTimePeriod = widgetTimePeriods[idx] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
+            widgetTimePeriod = widgetTimePeriods[ idx ] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
           } else {
-            widgetTimePeriod = widgetTimePeriods[idx];
+            widgetTimePeriod = widgetTimePeriods[ idx ];
             widgetTz = dashboardConfig?.timezone || formatConfigTz;
           }
-          const setWidgetTimePeriod = (val: { period: TimePeriod; range: [dayjs.Dayjs, dayjs.Dayjs] }) =>
-            setWidgetTimePeriods(prev => ({ ...prev, [idx]: val }));
+          const setWidgetTimePeriod = (val: { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }) =>
+            setWidgetTimePeriods(prev => ({ ...prev, [ idx ]: val }));
 
           let timePeriodSelectorProps = undefined;
           let chartDashboardTimePeriod = undefined;

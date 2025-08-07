@@ -1,7 +1,9 @@
+import { FieldType } from "../../core/types/field-types";
+
 interface IFilterOperator {
     label: string;
     value: string;
-    fieldType?: Array<string>
+    fieldType?: Array<FieldType>;
 }
 
 export const getFilterOperatorByValue = (value: string) => {
