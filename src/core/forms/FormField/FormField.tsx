@@ -8,6 +8,8 @@ import { IModalConfig } from '../../../modal/Modal';
 
 import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
 import { FieldType, PropertyType, ValidationType } from '../../types/field-types';
+import { HelpText, LabelAndHelpText } from './components';
+import { formStyles } from './styles';
 
 
 
@@ -27,6 +29,7 @@ interface IFormField {
     style?: React.CSSProperties;
     initialValue?: any;
     setFormValue?: Function;
+    hidden?: boolean; //whether to hide this field from display
 
     // for list and map fields
     type?: PropertyType;
@@ -40,16 +43,7 @@ interface IFormField {
 const { TextArea } = Input;
 const { Text } = Typography;
 
-// Reusable HelpText component
-const HelpText: React.FC<{ helpText?: string }> = ({ helpText }) => {
-  if (!helpText) return null;
-  
-  return (
-    <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic', marginTop: '-16px', marginBottom: '16px', display: 'block' }}>
-      {helpText}
-    </Text>
-  );
-};
+
 
 const MakeFormItem = ({
     fieldType = "text",
@@ -161,6 +155,8 @@ const MakeFormItem = ({
     </>
 }
 
+
+
 const MakeFormListItem = ({
     name,
     namePrefixPath,
@@ -175,17 +171,14 @@ const MakeFormListItem = ({
         
     // For complex list items (list of objects), use the card-based approach
     return <>
-        <div style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 500, marginBottom: 4 }}>{label}</div>
-            {helpText && <div style={{ color: '#666', fontSize: '12px', marginBottom: 8 }}>{helpText}</div>}
-        </div>
+        {label && <LabelAndHelpText label={label} helpText={helpText} />}
         <Form.List
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
             initialValue={initialValue}
         >
             {(fields, { add, remove }) => {
-                return <div style={{ display: 'flex', rowGap: 8, padding: 8, borderRadius: 8, backgroundColor: "#8080801c", flexDirection: 'column' }}>
+                return <div style={formStyles.listContainer}>
                     {fields.map((field) => (
                         <Card
                             size="small"
@@ -230,20 +223,16 @@ const MakeFormMapItem = ({
     label = "",
     properties,
     setFormValue,
-    initialValue,
     helpText,
 }: IFormField) => {
     const parentFieldName = name;
     
     return <>
-        <div style={{ marginBottom: 16 }}>
-            <div style={{ fontWeight: 500, marginBottom: 4 }}>{label}</div>
-            {helpText && <div style={{ color: '#666', fontSize: '12px', marginBottom: 8 }}>{helpText}</div>}
-        </div>
+        {label && <LabelAndHelpText label={label} helpText={helpText} />}
         <Card size="small" style={{ backgroundColor: "#8080801c" }} >
-            <div style={{ display: 'flex', padding: 8, borderRadius: 8, backgroundColor: "white", flexDirection: 'column' }}>
+            <div style={formStyles.mapCardContainer}>
                 {properties?.map((property: IFormField, index: number) => (
-                    <div key={property.name || index}>
+                    <div key={property.name || index} style={formStyles.mapItemContainer}>
                         <RenderFormField 
                             {...property} 
                             namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, name ] : [ name ]}
@@ -280,7 +269,12 @@ const RenderFormField = (formField: IFormField) => {
 }
 
 export function FormField(formField: IFormField) {
-    return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
+    // Don't render hidden fields
+    if (formField.hidden) {
+        return null;
+    }
+    
+    return <div key={formField.column || formField.name || formField.id}>
         <RenderFormField {...formField} />
     </div>
 }
@@ -295,6 +289,7 @@ interface IFormFieldResponse {
     fieldType?: FieldType;
     options?: Array<IOptions>;
     addNewOption?: IModalConfig;
+    hidden?: boolean; //whether to hide this field from display
 
     //for image and file
     accept?: string;
@@ -345,6 +340,7 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
             fieldType: columnConfig.fieldType ?? "text",
             options: columnConfig.options ?? [],
             addNewOption: columnConfig?.addNewOption,
+            hidden: columnConfig.hidden,
 
             // for image and files
             accept: columnConfig.accept,

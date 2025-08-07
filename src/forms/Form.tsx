@@ -14,6 +14,9 @@ import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
 import { substituteUrlParams } from '../core/utils';
+import { FormContainer, FormColumn } from '../core/forms/FormField/components';
+import { formStyles } from '../core/forms/FormField/styles';
+import { determineColumnLayout, splitIntoColumns } from '../core/forms/shared/utils';
 import './Form.css';
 
 // Add types for columnsConfig
@@ -282,18 +285,22 @@ export function Form({
 
   // Determine columns to render
   let columns: IFormField[][] = [];
-  if (columnsConfig && columnsConfig.columns && columnsConfig.columns.length > 0) {
-    // Sort columns by sortOrder
-    columns = columnsConfig.columns
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map(col =>
-        col.fields
-          .map(fieldKey => formPropertiesConfig.find(f => f.name === fieldKey))
-          .filter(item => item) as IFormField[]
-      );
+  const items = formPropertiesConfig.filter(item => !item.hidden);
+  
+  // Special case: if we have only one item and it's a map with many properties, 
+  // create multiple columns for the nested properties
+  if (items.length === 1 && items[0].type === 'map' && items[0].properties && items[0].properties.length > 3) {
+    const nestedProperties = items[0].properties.filter(prop => !prop.hidden);
+    const nestedColumns = determineColumnLayout(nestedProperties, undefined, 2);
+    
+    // Create separate columns for each group of nested properties
+    // Don't show the main label in each column to avoid redundancy
+    columns = nestedColumns.map(columnProps => [{
+      ...items[0],
+      properties: columnProps,
+    }]);
   } else {
-    // Fallback: single column with all fields
-    columns = [ formPropertiesConfig ];
+    columns = determineColumnLayout(items, columnsConfig, 2);
   }
 
   const renderFormField = (item: IFormField, index: number) => (
@@ -340,29 +347,13 @@ export function Form({
       disabled={loader}
     >
       {columns.length > 1 ? (
-        <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start', width: '100%', paddingBottom: 32 }}>
+        <FormContainer>
           {columns.map((columnItems, colIdx) => (
-            <div
-              key={colIdx}
-              className="form-column"
-              style={{
-                flex: 1,
-                minWidth: 0,
-                maxWidth: 600,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                background: '#fff',
-                padding: 24,
-                borderRadius: 12,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                border: '1px solid #f0f0f0',
-              }}
-            >
+            <FormColumn key={colIdx}>
               {columnItems.map(renderFormField)}
-            </div>
+            </FormColumn>
           ))}
-        </div>
+        </FormContainer>
       ) : (
         <div style={{ maxWidth: 600 }}>
           {columns[ 0 ].map(renderFormField)}

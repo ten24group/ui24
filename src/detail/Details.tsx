@@ -6,20 +6,10 @@ import { useFormat } from '../core/hooks';
 import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
+import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
+import { detailsStyles } from './styles';
+import { HelpText } from '../core/forms/FormField/components';
 import './Details.css';
-
-const { Text } = Typography;
-
-// Reusable HelpText component
-const HelpText: React.FC<{ helpText?: string }> = ({ helpText }) => {
-  if (!helpText) return null;
-  
-  return (
-    <Text type="secondary" style={{ fontSize: '12px', fontStyle: 'italic', marginBottom: '8px', display: 'block' }}>
-      {helpText}
-    </Text>
-  );
-};
 
 import { FieldType, PropertyType } from '../core/types/field-types';
 
@@ -55,31 +45,12 @@ export interface IDetailApiConfig {
     detailApiConfig?: IApiConfig;
 }
 
-// Add new types for columnsConfig
-interface IColumnLayoutConfig {
-    sortOrder: number;
-    fields: string[]; // array of field keys (column names)
-}
-interface IColumnsConfig {
-    numColumns?: number;
-    columns: IColumnLayoutConfig[];
-}
-
 export interface IDetailsConfig extends IDetailApiConfig {
     pageTitle?: string;
     identifiers?: string | number | Array<string | number>;
     propertiesConfig: Array<IPropertiesConfig>;
     columnsConfig?: IColumnsConfig;
     routeParams?: Record<string, string>;
-}
-
-// Helper to split array into N columns (vertical stacks)
-function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
-    const cols: T[][] = Array.from({ length: numCols }, () => []);
-    arr.forEach((item, idx) => {
-        cols[ idx % numCols ].push(item);
-    });
-    return cols;
 }
 
 interface IDetailsComponentProps extends IDetailsConfig {
@@ -266,38 +237,16 @@ const Details: React.FC<IDetailsComponentProps> = ({
     }
 
     // Determine columns to render
-    let columns: IPropertiesConfig[][] = [];
-    if (columnsConfig && columnsConfig.columns && columnsConfig.columns.length > 0) {
-        // Sort columns by sortOrder
-        columns = columnsConfig.columns
-            .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map(col =>
-                col.fields
-                    .map(fieldKey => recordInfo.find(f => f.column === fieldKey))
-                    .filter(item => item && !item.hidden) as IPropertiesConfig[]
-            );
-    } else {
-        // Fallback: split recordInfo into columns, filtering out hidden fields
-        const items = recordInfo.filter(item => !item.hidden);
-        columns = splitIntoColumns(items, items.length >= 6 ? 3 : items.length >= 3 ? 2 : 1);
-    }
+    const items = recordInfo.filter(item => !item.hidden);
+    const columns = determineColumnLayout(items, columnsConfig, 3); // Details can have up to 3 columns
 
     return <>
         <Spin spinning={!dataLoaded}>
-            <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+            <div style={detailsStyles.container}>
                 {columns.map((columnItems, colIdx) => (
                     <div
                         key={colIdx}
-                        style={{
-                            flex: 1,
-                            minWidth: 0,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 16,
-                            background: '#fff',
-                            overflowWrap: 'break-word',
-                            wordBreak: 'break-word',
-                        }}
+                        style={detailsStyles.column}
                     >
                         {columnItems.filter(item => !item.hidden).map((item: IPropertiesConfig, index: number) => {
                             // Render each field as before
