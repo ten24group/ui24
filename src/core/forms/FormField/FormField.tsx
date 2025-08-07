@@ -168,16 +168,23 @@ const MakeFormListItem = ({
     initialValue,
     items,
     setFormValue,
+    helpText,
 }: IFormField) => {
     const parentFieldName = name;
+        
+    // For complex list items (list of objects), use the card-based approach
     return <>
+        <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 500, marginBottom: 4 }}>{label}</div>
+            {helpText && <div style={{ color: '#666', fontSize: '12px', marginBottom: 8 }}>{helpText}</div>}
+        </div>
         <Form.List
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
             initialValue={initialValue}
         >
             {(fields, { add, remove }) => {
-                return <div style={{ display: 'flex', rowGap: 16, flexDirection: 'column' }}>
+                return <div style={{ display: 'flex', rowGap: 16, padding: 8, borderRadius: 8, backgroundColor: "#8080801c", flexDirection: 'column' }}>
                     {fields.map((field) => (
                         <Card
                             size="small"
@@ -185,7 +192,8 @@ const MakeFormListItem = ({
                             key={field.key}
                             extra={<CloseOutlined onClick={() => { remove(field.name); }} />}
                         >
-                            {
+                            {/* for complex list items (list of objects) */}
+                            { items.properties && items.properties.length > 0 &&
                                 items.properties.map((property: any) => {
                                     return <MakeFormItem {...property} namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, field.name ] : [ field.name ]}
                                         setFormValue={({ name, value }) => {
@@ -193,6 +201,17 @@ const MakeFormListItem = ({
                                         }}
                                     />
                                 })
+                            }
+
+                            {/* for simple list items (like string arrays) */}
+                            { (!items.properties || items.properties.length === 0) &&
+                                <Form.Item
+                                    {...field}
+                                    name={[ field.name ]}
+                                    style={{ flex: 1, marginBottom: 0 }}
+                                >
+                                    <Input placeholder={`Enter ${label.toLowerCase()} value`} />
+                                </Form.Item>
                             }
                         </Card>
                     ))}
@@ -203,6 +222,7 @@ const MakeFormListItem = ({
         </Form.List>
     </>
 }
+
 export function FormField(formField: IFormField) {
 
     const {
