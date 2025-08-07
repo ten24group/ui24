@@ -278,7 +278,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
             );
     } else {
         // Fallback: split recordInfo into columns, filtering out hidden fields
-        columns = splitIntoColumns(recordInfo.filter(item => !item.hidden), 3);
+        const items = recordInfo.filter(item => !item.hidden);
+        columns = splitIntoColumns(items, items.length >= 6 ? 3 : items.length >= 3 ? 2 : 1);
     }
 
     return <>
