@@ -184,7 +184,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         return { ...item, initialValue: formatted }
                     });
 
-                    console.log('formatted', formatted)
                     setRecordInfo(formatted)
                 }
 

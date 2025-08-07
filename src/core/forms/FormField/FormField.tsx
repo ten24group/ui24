@@ -77,6 +77,7 @@ const MakeFormItem = ({
             label={label}
             style={style}
             initialValue={initialValue}
+            valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
         >
 
             {fieldType === "text" && <Input type={fieldType || "text"} prefix={prefixIcon} placeholder={placeholder} />}
@@ -229,6 +230,7 @@ const MakeFormMapItem = ({
     label = "",
     properties,
     setFormValue,
+    initialValue,
     helpText,
 }: IFormField) => {
     const parentFieldName = name;

@@ -278,22 +278,7 @@ export function Form({
     onSubmit && onSubmit(values)
   }
 
-
   const [ form ] = AntForm.useForm();
-
-  useEffect(() => {
-    if (dataLoadedFromView) {
-      //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
-      //this is used to set the initial values of the form
-      const initialValues = formPropertiesConfig.reduce((acc, item) => {
-        acc[ item.name ] = item.initialValue
-        return acc
-      }, {})
-
-      form.setFieldsValue(initialValues)
-    }
-
-  }, [ dataLoadedFromView ])
 
   // Determine columns to render
   let columns: IFormField[][] = [];
@@ -330,8 +315,24 @@ export function Form({
     </React.Fragment>
   );
 
+  useEffect(() => {
+    if (dataLoadedFromView) {
+      //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
+      //this is used to set the initial values of the form
+      const initialValues = formPropertiesConfig.reduce((acc, item) => {
+        acc[ item.name ] = item.initialValue
+        return acc
+      }, {})
+
+      form.setFieldsValue(initialValues)
+    }
+
+  }, [ dataLoadedFromView, formPropertiesConfig ])
+
+
   return <Spin spinning={!dataLoadedFromView}>
     {dataLoadedFromView && <AntForm
+      key={`form-${formConfig.name}`}
       form={form}
       {...formConfig}
       layout="vertical"
