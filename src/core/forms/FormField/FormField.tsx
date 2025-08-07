@@ -108,13 +108,13 @@ const MakeFormItem = ({
             {fieldType === "time" && <TimePicker format={formatConfig.time} />}
 
             {fieldType === "json" && (<>
-                <TextArea rows={20} placeholder={placeholder} />
+                <TextArea rows={8} placeholder={placeholder} />
             </>)}
             {fieldType === "code" && (<>
-                <TextArea rows={10} placeholder={placeholder} />
+                <TextArea rows={8} placeholder={placeholder} />
             </>)}
             {fieldType === "markdown" && (<>
-                <TextArea rows={15} placeholder={placeholder} />
+                <TextArea rows={8} placeholder={placeholder} />
             </>)}
 
             {fieldType === "file" &&
