@@ -178,7 +178,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     const formatted = recordInfo.map(item => {
                         // Use getNestedValue to handle dot notation in property names (e.g., "indexInfo.uid")
                         // Use item.name for the property path, fall back to item.column for backward compatibility
-                        const propertyPath = item.id || item.column;
+                        const propertyPath = item.column || item.name || item.id;
                         const nestedValue = getNestedValue(detailResponse, propertyPath);
                         const formatted = valueFormatter(item, nestedValue);
                         return { ...item, initialValue: formatted }
