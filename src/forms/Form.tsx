@@ -173,8 +173,19 @@ export function Form({
       // if the form has a json field, then we need to change it into an object before sending it to the api
       const formattedValues = formPropertiesConfig.reduce((acc, item) => {
         if (item.fieldType === "json") {
-          acc[ item.name ] = JSON.parse(values[ item.name ]);
-        } else {
+          // Only parse JSON fields, not map fields
+          try {
+            acc[ item.name ] = JSON.parse(values[ item.name ]);
+          } catch (error) {
+            console.log("JSON parsing failed for", {
+              error,
+              item: item.name,
+              value: values[ item.name ]
+            });
+            // If JSON parsing fails, keep the original value
+            acc[ item.name ] = values[ item.name ];
+          }
+        }  else {
           acc[ item.name ] = values[ item.name ];
         }
         return acc;

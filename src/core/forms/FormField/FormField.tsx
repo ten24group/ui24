@@ -184,7 +184,7 @@ const MakeFormListItem = ({
             initialValue={initialValue}
         >
             {(fields, { add, remove }) => {
-                return <div style={{ display: 'flex', rowGap: 16, padding: 8, borderRadius: 8, backgroundColor: "#8080801c", flexDirection: 'column' }}>
+                return <div style={{ display: 'flex', rowGap: 8, padding: 8, borderRadius: 8, backgroundColor: "#8080801c", flexDirection: 'column' }}>
                     {fields.map((field) => (
                         <Card
                             size="small"
@@ -223,18 +223,63 @@ const MakeFormListItem = ({
     </>
 }
 
-export function FormField(formField: IFormField) {
+const MakeFormMapItem = ({
+    name,
+    namePrefixPath,
+    label = "",
+    properties,
+    setFormValue,
+    helpText,
+}: IFormField) => {
+    const parentFieldName = name;
+    
+    return <>
+        <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 500, marginBottom: 4 }}>{label}</div>
+            {helpText && <div style={{ color: '#666', fontSize: '12px', marginBottom: 8 }}>{helpText}</div>}
+        </div>
+        <Card size="small" style={{ backgroundColor: "#8080801c" }} >
+            <div style={{ display: 'flex', padding: 8, borderRadius: 8, backgroundColor: "white", flexDirection: 'column' }}>
+                {properties?.map((property: IFormField, index: number) => (
+                    <div key={property.name || index}>
+                        <RenderFormField 
+                            {...property} 
+                            namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, name ] : [ name ]}
+                            setFormValue={({ name: propName, value }) => {
+                                setFormValue({ name: parentFieldName, value: { [ propName ]: value } })
+                            }}
+                        />
+                    </div>
+                ))}
+            </div>
+        </Card>
+    </>
+}
 
+// Unified recursive form field renderer
+const RenderFormField = (formField: IFormField) => {
     const {
         fieldType = "text",
         type,
     } = formField;
 
+    // Handle list fields
+    if (type === 'list' && ![ 'wysiwyg', 'rich-text', 'multi-select' ].includes(fieldType.toLocaleLowerCase())) {
+        return <MakeFormListItem {...formField} />
+    }
+    
+    // Handle map fields
+    if (type === 'map') {
+        return <MakeFormMapItem {...formField} />
+    }
+    
+    // Handle regular form items
+    return <MakeFormItem {...formField} />
+}
+
+export function FormField(formField: IFormField) {
     return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
-        {(type === 'list' && ![ 'wysiwyg', 'rich-text', 'multi-select' ].includes(fieldType.toLocaleLowerCase()))
-            ? <MakeFormListItem {...formField} />
-            : <MakeFormItem {...formField} />
-        }
+        <RenderFormField {...formField} />
     </div>
 }
 
