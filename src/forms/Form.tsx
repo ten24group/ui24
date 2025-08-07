@@ -128,7 +128,7 @@ export function Form({
       if (recordData) {
 
         const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-          const itemValue = itemValueFormatter(item, recordData[ item.id || item.column || item.name ])
+          const itemValue = itemValueFormatter(item, recordData[ item.column || item.name || item.id ])
           return { ...item, initialValue: itemValue }
         });
 
@@ -170,26 +170,81 @@ export function Form({
       // Use the clean utility function for URL parameter substitution
       const formattedApiUrl = substituteUrlParams(apiConfig.apiUrl, routeParams, identifiersToUse);
 
-      // if the form has a json field, then we need to change it into an object before sending it to the api
-      const formattedValues = formPropertiesConfig.reduce((acc, item) => {
-        if (item.fieldType === "json") {
-          // Only parse JSON fields, not map fields
-          try {
-            acc[ item.name ] = JSON.parse(values[ item.name ]);
-          } catch (error) {
-            console.log("JSON parsing failed for", {
-              error,
-              item: item.name,
-              value: values[ item.name ]
-            });
-            // If JSON parsing fails, keep the original value
-            acc[ item.name ] = values[ item.name ];
-          }
-        }  else {
-          acc[ item.name ] = values[ item.name ];
+      // Recursive function to parse JSON fields and convert data types in nested objects
+      const parseJsonFieldsRecursively = (obj: any, config: IFormField[]): any => {
+        if (typeof obj !== 'object' || obj === null) {
+          return obj;
         }
-        return acc;
-      }, {});
+
+        const result: any = {};
+        
+        for (const [key, value] of Object.entries(obj)) {
+          // Find the field configuration for this key
+          const fieldConfig = config.find(field => field.name === key);
+          
+          if (fieldConfig?.fieldType === "json") {
+            // Parse JSON field
+            try {
+              result[key] = JSON.parse(value as string);
+            } catch (error) {
+              console.log("JSON parsing failed for", {
+                error,
+                field: key,
+                value: value
+              });
+              // If JSON parsing fails, keep the original value
+              result[key] = value;
+            }
+          } else if (fieldConfig?.fieldType === "number") {
+            // Convert number fields
+            if (value === "" || value === null || value === undefined) {
+              result[key] = null;
+            } else {
+              const numValue = Number(value);
+              result[key] = isNaN(numValue) ? value : numValue;
+            }
+          } else if (fieldConfig?.fieldType === "date") {
+            // Convert date fields
+            if (value === "" || value === null || value === undefined) {
+              result[key] = null;
+            } else {
+              result[key] = value; // Keep as string for API compatibility
+            }
+          } else if (fieldConfig?.fieldType === "time") {
+            // Convert time fields
+            if (value === "" || value === null || value === undefined) {
+              result[key] = null;
+            } else {
+              result[key] = value; // Keep as string for API compatibility
+            }
+          } else if (fieldConfig?.fieldType === "datetime") {
+            // Convert datetime fields
+            if (value === "" || value === null || value === undefined) {
+              result[key] = null;
+            } else {
+              result[key] = value; // Keep as string for API compatibility
+            }
+          } else if (fieldConfig?.fieldType === "boolean" || fieldConfig?.fieldType === "switch" || fieldConfig?.fieldType === "toggle") {
+            // Convert boolean/switch/toggle fields
+            if (value === "" || value === null || value === undefined) {
+              result[key] = false;
+            } else {
+              result[key] = Boolean(value);
+            }
+          } else if (fieldConfig?.type === 'map' && fieldConfig.properties) {
+            // Recursively parse nested map fields
+            result[key] = parseJsonFieldsRecursively(value, fieldConfig.properties);
+          } else {
+            // Keep other fields as-is
+            result[key] = value;
+          }
+        }
+        
+        return result;
+      };
+
+      // Parse JSON fields recursively in the form values
+      const formattedValues = parseJsonFieldsRecursively(values, formPropertiesConfig);
       
       try {
         const response: any = await callApiMethod({
