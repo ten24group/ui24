@@ -1,14 +1,17 @@
 import React from 'react';
 import { Link } from '../../core/common';
 import { Icon } from '../../core/common';
+import { IModalConfig, OpenInModal } from '../../modal/Modal';
 import './ActionWidget.css';
 
 export interface IActionConfig {
   label: string;
-  url: string;
+  url?: string;
   icon?: string;
   description?: string;
   color?: string;
+  openInModal?: boolean;
+  modalConfig?: IModalConfig;
 }
 
 export interface IActionWidgetProps {
@@ -54,26 +57,49 @@ export const ActionWidget: React.FC<IActionWidgetProps> = ({ title, subtitle, ac
         const accentColor = action.color || '#1890ff';
         const accentRgb = hexToRgb(accentColor);
 
+        const tileContent = (
+          <div className="action-widget-tile-content">
+            <div className="action-widget-icon">
+              <Icon iconName={iconName} />
+            </div>
+            <div className="action-widget-label">{action.label}</div>
+            {action.description && (
+              <div className="action-widget-description">{action.description}</div>
+            )}
+            <div className="action-widget-arrow">→</div>
+          </div>
+        );
+
+        if (action.openInModal) {
+          return (
+            <OpenInModal
+              key={idx}
+              {...action.modalConfig}
+            >
+              <div
+                className="action-widget-tile"
+                style={{
+                  '--accent-color': accentColor,
+                  '--accent-rgb': accentRgb
+                } as React.CSSProperties}
+              >
+                {tileContent}
+              </div>
+            </OpenInModal>
+          );
+        }
+
         return (
           <Link
             key={idx}
-            url={action.url}
+            url={action.url || '#'}
             className="action-widget-tile"
             style={{
               '--accent-color': accentColor,
               '--accent-rgb': accentRgb
             } as React.CSSProperties}
           >
-            <div className="action-widget-tile-content">
-              <div className="action-widget-icon">
-                <Icon iconName={iconName} />
-              </div>
-              <div className="action-widget-label">{action.label}</div>
-              {action.description && (
-                <div className="action-widget-description">{action.description}</div>
-              )}
-              <div className="action-widget-arrow">→</div>
-            </div>
+            {tileContent}
           </Link>
         );
       })}
