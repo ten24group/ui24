@@ -184,7 +184,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
         title: columnSetting?.title || column.dataIndex,
         render: renderer,
         fixed: columnSetting?.fixed,
-        sorter: apiConfig.useSearch ? { multiple: index + 1 } : undefined,
+        sorter: (apiConfig.useSearch && (column.isSortable === true || column.isSortable === undefined)) ? { multiple: index + 1 } : undefined,
         sortOrder: sort.find(s => s.field === column.dataIndex)?.order,
         filterIcon: <FilterFilled style={{ color: !!appliedFilters[ column.dataIndex ] ? "#1677ff" : undefined }} />,
       }

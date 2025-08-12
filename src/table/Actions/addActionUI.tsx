@@ -35,6 +35,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         key: item.dataIndex,
         fieldType: item.fieldType,
         isFilterable: item.isFilterable,
+        isSortable: item.isSortable,
         filterConfig: item.filterConfig, // Add this line to preserve filterConfig
       }
 
