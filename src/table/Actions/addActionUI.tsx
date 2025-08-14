@@ -85,11 +85,16 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         
         primaryIndexValue = primaryIndexValue.join("|");
 
+        const finalRouteParams = {
+          ...routeParams,
+          ...record
+        }
+
         return (
           <div style={{ display: "flex", justifyContent: "end" }}>
             <Space size="middle" align="end">
               {recordActions?.map((item: IPageAction, index) => {
-                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} record={record} primaryIndexValue={primaryIndexValue} routeParams={routeParams} />;
+                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} record={record} primaryIndexValue={primaryIndexValue} routeParams={finalRouteParams} />;
               })}
             </Space>
           </div>
