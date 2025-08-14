@@ -458,6 +458,15 @@ const Details: React.FC<IDetailsComponentProps> = ({
                                                 <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
                                             ) : typeof value === 'object' ? (
                                                 <JsonDescription data={value} />
+                                            ) : typeof value === 'string' && value.length > 100 ? (
+                                                <div style={{ 
+                                                    wordWrap: 'break-word', 
+                                                    overflowWrap: 'break-word',
+                                                    whiteSpace: 'pre-wrap',
+                                                    maxWidth: '100%'
+                                                }}>
+                                                    {value}
+                                                </div>
                                             ) : String(value)
                                         ) : <span>—</span>}
                                     </div>
