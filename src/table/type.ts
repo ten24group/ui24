@@ -1,11 +1,43 @@
-import { IApiConfig } from "../core/context";
+import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType } from "../core/types/field-types";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
+/**
+ * Table configuration interface
+ * 
+ * For single endpoint (backward compatible):
+ * ```typescript
+ * {
+ *   apiConfig: {
+ *     apiUrl: "/api/posts",
+ *     apiMethod: "GET",
+ *     useSearch: true // or false
+ *   }
+ * }
+ * ```
+ * 
+ * For dual endpoints (search + database):
+ * ```typescript
+ * {
+ *   apiConfig: {
+ *     search: {
+ *       apiUrl: "/api/search/posts",
+ *       apiMethod: "GET",
+ *       responseKey: "items"
+ *     },
+ *     database: {
+ *       apiUrl: "/api/posts",
+ *       apiMethod: "GET",
+ *       responseKey: "data"
+ *     }
+ *   }
+ * }
+ * ```
+ */
 export interface ITableConfig {
   propertiesConfig: Array<ITablePropertiesConfig>;
-  apiConfig: IApiConfig;
+  apiConfig: IApiConfig | IDualApiConfig;
   records?: Array<any>;
   paginationType?: ITablePagination;
   routeParams?: Record<string, string>;

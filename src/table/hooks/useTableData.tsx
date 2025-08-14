@@ -40,6 +40,7 @@ interface IUseTableDataProps {
   facetedColumns: string[];
   propertiesConfig: ITablePropertiesConfig[];
   recordIdentifierKey: string;
+  isSearchMode: boolean;
 }
 
 export const useTableData = ({
@@ -52,6 +53,7 @@ export const useTableData = ({
   facetedColumns,
   propertiesConfig,
   recordIdentifierKey,
+  isSearchMode,
 }: IUseTableDataProps) => {
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
@@ -81,7 +83,7 @@ export const useTableData = ({
 
   const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
-    const isSearchActive = apiConfig.useSearch;
+    const isSearchActive = isSearchMode;
     const sortString = getSortString();
     const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursor[ pageNumber ] || "";
 
@@ -194,7 +196,7 @@ export const useTableData = ({
     } finally {
       setIsLoading(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey ]);
+  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode ]);
 
   return {
     listRecords,

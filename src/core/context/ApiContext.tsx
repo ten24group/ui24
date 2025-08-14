@@ -15,6 +15,12 @@ export interface IApiConfig {
     dedupe?: boolean;
 }
 
+// Separate interface for dual endpoint support (search + database)
+export interface IDualApiConfig {
+    search: IApiConfig;
+    database: IApiConfig;
+}
+
 interface IApiContext {
     callApiMethod: <T>(apiConfig: IApiConfig) => Promise<AxiosResponse<T>>;
 }
