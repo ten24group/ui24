@@ -1,6 +1,6 @@
 {
   "name": "@ten24group/ui24",
-  "version": "1.0.1",
+  "version": "1.0.2-beta.0",
   "description": "Admin UI package for fw24 projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,8 @@
     "test": "jest",
     "start": "webpack serve --mode development --open",
     "watch": "webpack --watch",
-    "release": "npm run build && standard-version && git push --follow-tags && npm publish"
+    "release": "npm run build && standard-version && git push --follow-tags && npm publish",
+    "release:BE": "npm run build && standard-version --prerelease beta && git push --follow-tags && npm publish --tag bleeding-edge"
   },
   "keywords": [
     "ui24",
