@@ -12,6 +12,8 @@ import { substituteUrlParams } from '../core/utils';
 import { useNavigate } from 'react-router-dom';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../core/common';
 
 interface IConfirmModal {
   title: string;
@@ -103,9 +105,16 @@ export const Modal = ({
         cancelText="Cancel"
         loading={loading}
       >
-        {(modalPageConfig as IConfirmModal)?.content}
-        {children}
-
+        <ErrorBoundary
+          FallbackComponent={ErrorFallback}
+          onReset={() => {
+            console.log("Modal (Confirm) ErrorBoundary Reset");
+            onCancelCallback && onCancelCallback(); // Close modal on error reset
+          }}
+        >
+          {(modalPageConfig as IConfirmModal)?.content}
+          {children}
+        </ErrorBoundary>
       </AntModal>
     )
   }
@@ -117,29 +126,37 @@ export const Modal = ({
         open={true}
         onCancel={onCancelCallback}
       >
-        <RenderFromPageType
-          cardStyle={{ marginTop: "5%" }}
-          pageType={modalType as IPageType}
-          listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
-          formPageConfig={
-            modalType === "form" ? {
-              ...modalPageConfig,
-              onSubmitSuccessCallback: onSuccessCallback,
-              useDynamicIdFromParams: false,
-              routeParams
-            } as IForm : undefined
-          }
-          detailsPageConfig={
-            modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
-          }
-          accordionsPageConfig={
-            modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
-          }
-          dashboardPageConfig={
-            modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
-          }
-          routeParams={routeParams}
-        />
+        <ErrorBoundary
+          FallbackComponent={ErrorFallback}
+          onReset={() => {
+            console.log("Modal (PageType) ErrorBoundary Reset");
+            onCancelCallback && onCancelCallback(); // Close modal on error reset
+          }}
+        >
+          <RenderFromPageType
+            cardStyle={{ marginTop: "5%" }}
+            pageType={modalType as IPageType}
+            listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
+            formPageConfig={
+              modalType === "form" ? {
+                ...modalPageConfig,
+                onSubmitSuccessCallback: onSuccessCallback,
+                useDynamicIdFromParams: false,
+                routeParams
+              } as IForm : undefined
+            }
+            detailsPageConfig={
+              modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
+            }
+            accordionsPageConfig={
+              modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
+            }
+            dashboardPageConfig={
+              modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
+            }
+            routeParams={routeParams}
+          />
+        </ErrorBoundary>
       </AntModal>
     )
   }
@@ -149,7 +166,16 @@ export const Modal = ({
       <AntModal
         footer={null}
         open={true}
-        onCancel={onCancelCallback} >{children}
+        onCancel={onCancelCallback}>
+        <ErrorBoundary
+          FallbackComponent={ErrorFallback}
+          onReset={() => {
+            console.log("Modal (Custom) ErrorBoundary Reset");
+            onCancelCallback && onCancelCallback(); // Close modal on error reset
+          }}
+        >
+          {children}
+        </ErrorBoundary>
       </AntModal>
     )
   }

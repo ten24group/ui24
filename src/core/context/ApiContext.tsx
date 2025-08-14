@@ -29,7 +29,6 @@ const ApiContext = createContext<IApiContext | undefined>(undefined);
 
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
-    const { notifyError } = useAppContext()
     const auth = useAuth();
 
     // Track ongoing requests to prevent duplicates (e.g., due to StrictMode double mount)
@@ -95,7 +94,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     // The state change will trigger a redirect. We should not propagate
                     // the error further, as the original request is now irrelevant.
                     // We return a new, non-rejecting promise to prevent uncaught promise errors.
-                    return new Promise(() => { });
+                    return Promise.reject(refreshError);
                 }
             }
             return Promise.reject(error);
@@ -132,7 +131,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const callApiMethod = async <T,>(apiConfig: IApiConfig & { dedupe?: boolean }): Promise<AxiosResponse<T>> => {
-        const method = apiConfig.apiMethod.toUpperCase();
+        const method = (apiConfig.apiMethod ?? 'GET').toUpperCase();
         // Only dedupe GET requests by default; opt-out by setting dedupe: false or opt-in for others by dedupe: true
         const shouldDedupe = apiConfig.dedupe !== false && (method === 'GET');
         // Build stable key from method, url, payload, headers
@@ -197,10 +196,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             } catch (error: any) {
                 // propagate normalized errors
                 if (!error.response) {
-                    throw {
+                    const normalizedError = {
                         message: error.message || 'Network error: No response received',
                         response: { status: 503, data: { message: 'Service Unavailable' } },
                     };
+                    return Promise.reject(normalizedError);
                 }
 
                 // For all other API errors, normalize the error object.
@@ -212,10 +212,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     || error.message
                     || 'An unexpected error occurred';
 
-                throw {
+                const normalizedError = {
                     message: parsedErrorMessage,
                     response: { status, data: { message: parsedErrorMessage, ...responseData } },
                 };
+                return Promise.reject(normalizedError);
             }
         };
 

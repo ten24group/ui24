@@ -3,12 +3,13 @@ import { Descriptions, DescriptionsProps, List, Spin, Typography } from 'antd';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
-import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link, ErrorFallback } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { detailsStyles } from './styles';
 import { HelpText } from '../core/forms/FormField/components';
+import { ErrorBoundary } from 'react-error-boundary';
 import './Details.css';
 
 import { FieldType, PropertyType } from '../core/types/field-types';
@@ -286,203 +287,285 @@ const Details: React.FC<IDetailsComponentProps> = ({
     const items = recordInfo.filter(item => !item.hidden);
     const columns = determineColumnLayout(items, columnsConfig, 3); // Details can have up to 3 columns
 
-    return <>
+    return (
+      <ErrorBoundary
+        FallbackComponent={({
+          error,
+          resetErrorBoundary,
+        }) => (
+          <ErrorFallback
+            error={new Error(`Error loading details: ${error.message}`)}
+            resetErrorBoundary={resetErrorBoundary}
+          />
+        )}
+        onReset={() => {
+          console.log("Details ErrorBoundary Reset");
+          // Potentially re-fetch data here if appropriate
+        }}
+      >
         <Spin spinning={!dataLoaded}>
-            <div style={detailsStyles.container}>
-                {columns.map((columnItems, colIdx) => (
-                    <div
-                        key={colIdx}
-                        style={detailsStyles.column}
-                    >
-                        {columnItems.filter(item => !item.hidden).map((item: IPropertiesConfig, index: number) => {
-                            // Render each field as before
-                            const value = item.initialValue;
+          <div style={detailsStyles.container}>
+            {columns.map((columnItems, colIdx) => (
+              <div key={colIdx} style={detailsStyles.column}>
+                {columnItems
+                  .filter((item) => !item.hidden)
+                  .map((item: IPropertiesConfig, index: number) => {
+                    // Render each field as before
+                    const value = item.initialValue;
 
-                            if (item.isLink && item.linkConfig) {
-                                const linkUrl = substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse });
-                                const displayText = item.linkConfig.displayText || value;
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? (
-                                            <Link url={linkUrl} className="details-link">
-                                                {displayText} ({value})
-                                            </Link>
-                                        ) : <span>—</span>}
-                                    </div>
-                                );
-                            }
+                    if (item.isLink && item.linkConfig) {
+                      const linkUrl = substituteUrlParams(
+                        item.linkConfig.routePattern,
+                        { ...routeParams, ...detailResponse }
+                      );
+                      const displayText = item.linkConfig.displayText || value;
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {value ? (
+                            <Link url={linkUrl} className="details-link">
+                              {displayText} ({value})
+                            </Link>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
 
-                            if (item.openInModal) {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <OpenInModal
-                                            modalType="details"
-                                            primaryIndex={value}
-                                            modalPageConfig={{
-                                                pageTitle: item.label,
-                                                propertiesConfig: [ item ]
-                                            }}
-                                        >{value}</OpenInModal> : <span>—_-</span>}
-                                    </div>
-                                );
-                            }
+                    if (item.openInModal) {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {value ? (
+                            <OpenInModal
+                              modalType="details"
+                              primaryIndex={value}
+                              modalPageConfig={{
+                                pageTitle: item.label,
+                                propertiesConfig: [item],
+                              }}
+                            >
+                              {value}
+                            </OpenInModal>
+                          ) : (
+                            <span>—_-</span>
+                          )}
+                        </div>
+                      );
+                    }
 
+                    if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {Array.isArray(value) && value.length > 0 ? (
+                            <JsonDescription data={value} />
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (item.type === 'map' || item.fieldType === 'json') {
+                      // Since we already deserialized JSON strings in valueFormatter,
+                      // we can directly check if it's an object
+                      if (value && typeof value === 'object' && !Array.isArray(value)) {
+                        // Show as definition list
+                        return (
+                          <div key={index} className="details-field-container">
+                            <div className="details-field-label">{item.label}</div>
+                            <HelpText helpText={item.helpText} />
+                            <JsonDescription data={value} />
+                          </div>
+                        );
+                      } else if (typeof value === 'string') {
+                        // Fallback: show as code block for non-JSON strings
+                        return (
+                          <div key={index} className="details-field-container">
+                            <div className="details-field-label">{item.label}</div>
+                            <HelpText helpText={item.helpText} />
+                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                              <code>{value ? value : '—'}</code>
+                            </pre>
+                          </div>
+                        );
+                      } else {
+                        // Show as JsonDescription for any other type
+                        return (
+                          <div key={index} className="details-field-container">
+                            <div className="details-field-label">{item.label}</div>
+                            <HelpText helpText={item.helpText} />
+                            <JsonDescription data={value} />
+                          </div>
+                        );
+                      }
+                    }
 
-                            if (item.type === 'list' && item.fieldType !== 'multi-select') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {Array.isArray(value) && value.length > 0 ? (
-                                            <JsonDescription data={value} />
-                                        ) : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.type === 'map' || item.fieldType === 'json') {
-                                // Since we already deserialized JSON strings in valueFormatter, 
-                                // we can directly check if it's an object
-                                if (value && typeof value === 'object' && !Array.isArray(value)) {
-                                    // Show as definition list
-                                    return (
-                                        <div key={index} className="details-field-container">
-                                            <div className="details-field-label">{item.label}</div>
-                                            <HelpText helpText={item.helpText} />
-                                            <JsonDescription data={value} />
-                                        </div>
-                                    );
-                                } else if (typeof value === 'string') {
-                                    // Fallback: show as code block for non-JSON strings
-                                    return (
-                                        <div key={index} className="details-field-container">
-                                            <div className="details-field-label">{item.label}</div>
-                                            <HelpText helpText={item.helpText} />
-                                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                                                <code>{value ? value : '—'}</code>
-                                            </pre>
-                                        </div>
-                                    );
-                                } else {
-                                    // Show as JsonDescription for any other type
-                                    return (
-                                        <div key={index} className="details-field-container">
-                                            <div className="details-field-label">{item.label}</div>
-                                            <HelpText helpText={item.helpText} />
-                                            <JsonDescription data={value} />
-                                        </div>
-                                    );
-                                }
-                            }
+                    if (['rich-text', 'wysiwyg'].includes(item.fieldType)) {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {value ? (
+                            <div className="details-fixed-block">
+                              <CustomBlockNoteEditor value={value as any} readOnly={true} />
+                            </div>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (
+                      ['textarea', 'code', 'markdown'].includes(item.fieldType) ||
+                      item.label === 'content'
+                    ) {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div className="details-fixed-block">
+                            {value ? (
+                              typeof value === 'object' ? (
+                                <JsonDescription data={value} />
+                              ) : (String(value))
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (item.fieldType === 'image') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {value ? (
+                            <img src={value} alt={item.label} className="details-image" />
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (item.fieldType === 'color') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {value ? (
+                            <CustomColorPicker value={value} disabled />
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    if (item.fieldType === 'number') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>
+                            {value !== undefined && value !== null ? (
+                              Number(value)
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (item.fieldType === 'range') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>
+                            {value !== undefined && value !== null ? (
+                              `${value}%`
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (item.fieldType === 'rating') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>
+                            {value !== undefined && value !== null ? (
+                              `${value}/5`
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                    if (item.fieldType === 'file') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {value ? (
+                            <a href={value} target="_blank" rel="noopener noreferrer">
+                              Download File
+                            </a>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
 
-                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <div className="details-fixed-block"><CustomBlockNoteEditor value={value as any} readOnly={true} /></div> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType) || item.label === 'content') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div className="details-fixed-block">
-                                            {value ? (typeof value === 'object' ? <JsonDescription data={value} /> : String(value)) : <span>—</span>}
-                                        </div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType === 'image') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <img src={value} alt={item.label} className="details-image" /> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType === 'color') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <CustomColorPicker value={value} disabled /> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType === 'number') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div>{value !== undefined && value !== null ? Number(value) : <span>—</span>}</div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType === 'range') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div>{value !== undefined && value !== null ? `${value}%` : <span>—</span>}</div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType === 'rating') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        <div>{value !== undefined && value !== null ? `${value}/5` : <span>—</span>}</div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType === 'file') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <HelpText helpText={item.helpText} />
-                                        {value ? <a href={value} target="_blank" rel="noopener noreferrer">Download File</a> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <div key={index} className="details-field-container">
-                                    <div className="details-field-label">{item.label}</div>
-                                    <HelpText helpText={item.helpText} />
-                                    <div>
-                                        {value !== undefined && value !== null && value !== '' ? (
-                                            typeof value === 'string' && value.match(/^https?:\/\//i) ? (
-                                                <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
-                                            ) : typeof value === 'object' ? (
-                                                <JsonDescription data={value} />
-                                            ) : typeof value === 'string' && value.length > 100 ? (
-                                                <div style={{ 
-                                                    wordWrap: 'break-word', 
-                                                    overflowWrap: 'break-word',
-                                                    whiteSpace: 'pre-wrap',
-                                                    maxWidth: '100%'
-                                                }}>
-                                                    {value}
-                                                </div>
-                                            ) : String(value)
-                                        ) : <span>—</span>}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ))}
-            </div>
+                    return (
+                      <div key={index} className="details-field-container">
+                        <div className="details-field-label">{item.label}</div>
+                        <HelpText helpText={item.helpText} />
+                        <div>
+                          {value !== undefined && value !== null && value !== '' ? (
+                            typeof value === 'string' && value.match(/^https?:\/\//i) ? (
+                              <a href={value} target="_blank" rel="noopener noreferrer">
+                                {value}
+                              </a>
+                            ) : typeof value === 'object' ? (
+                              <JsonDescription data={value} />
+                            ) : typeof value === 'string' && value.length > 100 ? (
+                              <div
+                                style={{
+                                  wordWrap: 'break-word',
+                                  overflowWrap: 'break-word',
+                                  whiteSpace: 'pre-wrap',
+                                  maxWidth: '100%',
+                                }}
+                              >
+                                {value}
+                              </div>
+                            ) : (
+                              String(value)
+                            )
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            ))}
+          </div>
         </Spin>
-    </>
+      </ErrorBoundary>
+    );
+  };
 
-}
-export { Details }
+export { Details };

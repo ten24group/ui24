@@ -17,6 +17,8 @@ import { substituteUrlParams } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { formStyles } from '../core/forms/FormField/styles';
 import { determineColumnLayout, splitIntoColumns } from '../core/forms/shared/utils';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../core/common';
 import './Form.css';
 
 // Add types for columnsConfig
@@ -343,31 +345,47 @@ export function Form({
   }, [ dataLoadedFromView, formPropertiesConfig ])
 
 
-  return <Spin spinning={!dataLoadedFromView}>
-    {dataLoadedFromView && <AntForm
-      key={`form-${formConfig.name}`}
-      form={form}
-      {...formConfig}
-      layout="vertical"
-      onFinish={onFinish}
-      disabled={loader}
-    >
-      {columns.length > 1 ? (
-        <FormContainer>
-          {columns.map((columnItems, colIdx) => (
-            <FormColumn key={colIdx}>
-              {columnItems.map(renderFormField)}
-            </FormColumn>
-          ))}
-        </FormContainer>
-      ) : (
-        <div style={{ maxWidth: 600 }}>
-          {columns[ 0 ].map(renderFormField)}
-        </div>
+  return (
+    <Spin spinning={!dataLoadedFromView}>
+      {dataLoadedFromView && (
+        <ErrorBoundary
+          FallbackComponent={ErrorFallback}
+          onReset={() => {
+            // Optional: You might want to reload data or reset form state here
+            // For now, a simple re-render by the ErrorBoundary is sufficient.
+            console.log("Form ErrorBoundary Reset");
+          }}
+        >
+          <AntForm
+            key={`form-${formConfig.name}`}
+            form={form}
+            {...formConfig}
+            layout="vertical"
+            onFinish={onFinish}
+            disabled={loader}
+          >
+            {columns.length > 1 ? (
+              <FormContainer>
+                {columns.map((columnItems, colIdx) => (
+                  <FormColumn key={colIdx}>
+                    {columnItems.map(renderFormField)}
+                  </FormColumn>
+                ))}
+              </FormContainer>
+            ) : (
+              <div style={{ maxWidth: 600 }}>
+                {columns[0].map(renderFormField)}
+              </div>
+            )}
+            {children}
+            {formButtons.length > 0 && (
+              <div style={{ display: "flex" }}>
+                <CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} />
+              </div>
+            )}
+          </AntForm>
+        </ErrorBoundary>
       )}
-      {children}
-      {formButtons.length > 0 && <div style={{ display: "flex" }}><CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} /></div>}
-    </AntForm>
-    }
-  </Spin>
-}
+    </Spin>
+  );
+};

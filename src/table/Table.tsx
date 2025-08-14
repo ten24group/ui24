@@ -6,6 +6,8 @@ import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../core/common';
 import './Table.css';
 
 export const Table = ({
@@ -56,7 +58,22 @@ export const Table = ({
   };
 
   return (
-    <React.Fragment>
+    <ErrorBoundary
+      FallbackComponent={({
+        error,
+        resetErrorBoundary,
+      }) => (
+        <ErrorFallback
+          error={new Error(`Error in table: ${error.message}`)}
+          resetErrorBoundary={resetErrorBoundary}
+        />
+      )}
+      onReset={() => {
+        console.log("Table ErrorBoundary Reset");
+        // Optionally, trigger a table data reload
+        handleReload();
+      }}
+    >
       <div className="table-toolbar">
         <div style={{ flex: 1 }}>
           {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
@@ -125,7 +142,7 @@ export const Table = ({
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
         {renderPagination()}
       </div>
-    </React.Fragment>
+    </ErrorBoundary>
   );
 };
 

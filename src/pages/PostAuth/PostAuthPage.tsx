@@ -10,6 +10,8 @@ import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../../core/common';
 
 export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard" | "custom";
 
@@ -37,7 +39,16 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuth
             {CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />}
             <div className="PageContent">
                 {children && children}
-                {!children && <RenderFromPageType {...props} />}
+                {!children && (
+                  <ErrorBoundary
+                    FallbackComponent={ErrorFallback}
+                    onReset={() => {
+                      console.log("PostAuthPage ErrorBoundary Reset");
+                    }}
+                  >
+                    <RenderFromPageType {...props} />
+                  </ErrorBoundary>
+                )}
             </div>
         </div>
     </div>

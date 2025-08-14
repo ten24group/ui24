@@ -7,6 +7,16 @@ import { defaultRoutes } from './DefaultRoutes';
 import { CoreLayout } from '../layout';
 import { useUi24Config } from '../core/context';
 import { ConfigLoader } from '../common/ConfigLoader';
+import { ErrorBoundary } from 'react-error-boundary';
+
+const ErrorFallback = ({ error }: { error: Error }) => {
+  return (
+    <div role="alert">
+      <p>Something went wrong:</p>
+      <pre style={{ color: "red" }}>{error.message}</pre>
+    </div>
+  );
+};
 
 export type IAppRouter = { customRoutes?: IRoutes }
 
@@ -31,13 +41,15 @@ export const AppRouter = ({ customRoutes = [] }: IAppRouter) => {
 
   return (
     <AntdApp>
-      <BrowserRouter>
-        <ConfigLoader>
-          <Routes>
-            {Object.values(mergedRoutes)}
-          </Routes>
-        </ConfigLoader>
-      </BrowserRouter>
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <BrowserRouter>
+          <ConfigLoader>
+            <Routes>
+              {Object.values(mergedRoutes)}
+            </Routes>
+          </ConfigLoader>
+        </BrowserRouter>
+      </ErrorBoundary>
     </AntdApp>
   );
 };
