@@ -13,7 +13,7 @@ export const detailsStyles = {
   // Column styles for details (no max width constraint)
   column: {
     flex: 1,
-    minWidth: 0,
+    minWidth: 300, // Ensure minimum width for better readability
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 16,
@@ -24,5 +24,6 @@ export const detailsStyles = {
     border: '1px solid #f0f0f0',
     overflowWrap: 'break-word' as const,
     wordBreak: 'break-word' as const,
+    maxWidth: '100%', // Ensure it doesn't overflow the container
   },
 }; 

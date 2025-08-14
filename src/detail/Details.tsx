@@ -79,8 +79,49 @@ const Details: React.FC<IDetailsComponentProps> = ({
     const [ dataLoaded, setDataLoaded ] = useState(false);
     const { formatDate, formatBoolean } = useFormat()
 
+    // Utility function to recursively deserialize JSON strings
+    const deserializeJsonStrings = (value: any): any => {
+        if (typeof value === 'string') {
+            // Check if the string looks like JSON
+            const trimmed = value.trim();
+            if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+                (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    // Recursively deserialize nested strings
+                    return deserializeJsonStrings(parsed);
+                } catch {
+                    // If parsing fails, return the original string
+                    return value;
+                }
+            }
+            return value;
+        } else if (Array.isArray(value)) {
+            return value.map(item => deserializeJsonStrings(item));
+        } else if (value && typeof value === 'object') {
+            const result: any = {};
+            for (const [key, val] of Object.entries(value)) {
+                result[key] = deserializeJsonStrings(val);
+            }
+            return result;
+        }
+        return value;
+    };
+
     const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
         let initialValue = itemData;
+
+        // First, try to deserialize any JSON strings
+        const originalValue = initialValue;
+        initialValue = deserializeJsonStrings(initialValue);
+        
+        // Debug logging for JSON deserialization
+        if (typeof originalValue === 'string' && typeof initialValue === 'object' && initialValue !== null) {
+            console.log(`Deserialized JSON for field "${item.label}":`, {
+                original: originalValue.substring(0, 100) + (originalValue.length > 100 ? '...' : ''),
+                deserialized: initialValue
+            });
+        }
 
         if (item?.type === "map") {
             initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
@@ -298,25 +339,19 @@ const Details: React.FC<IDetailsComponentProps> = ({
                                 );
                             }
                             if (item.type === 'map' || item.fieldType === 'json') {
-                                let objValue = value;
-                                if (typeof value === 'string') {
-                                    try {
-                                        objValue = JSON.parse(value);
-                                    } catch {
-                                        objValue = null;
-                                    }
-                                }
-                                if (objValue && typeof objValue === 'object') {
+                                // Since we already deserialized JSON strings in valueFormatter, 
+                                // we can directly check if it's an object
+                                if (value && typeof value === 'object' && !Array.isArray(value)) {
                                     // Show as definition list
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
                                             <HelpText helpText={item.helpText} />
-                                            <JsonDescription data={objValue} />
+                                            <JsonDescription data={value} />
                                         </div>
                                     );
-                                } else {
-                                    // Fallback: show as code block
+                                } else if (typeof value === 'string') {
+                                    // Fallback: show as code block for non-JSON strings
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
@@ -324,6 +359,15 @@ const Details: React.FC<IDetailsComponentProps> = ({
                                             <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                 <code>{value ? value : '—'}</code>
                                             </pre>
+                                        </div>
+                                    );
+                                } else {
+                                    // Show as JsonDescription for any other type
+                                    return (
+                                        <div key={index} className="details-field-container">
+                                            <div className="details-field-label">{item.label}</div>
+                                            <HelpText helpText={item.helpText} />
+                                            <JsonDescription data={value} />
                                         </div>
                                     );
                                 }
