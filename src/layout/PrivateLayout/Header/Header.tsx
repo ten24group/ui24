@@ -45,8 +45,24 @@ export const Header = () => {
     const { selectConfig, updateConfig } = useUi24Config()
     const appLogo = selectConfig( config => config.appLogo)
     const menuRecords = selectConfig( config => config.menuItems || [])
-    const menuItems = formatMenuItems( menuRecords )
-
+    
+    // Handle webpack module wrapper if needed
+    const actualMenuRecords = Array.isArray(menuRecords) ? menuRecords : (menuRecords?.default || menuRecords || []);
+    
+    // Separate primary and secondary menu items
+    const primaryMenuItems: any[] = [];
+    const secondaryMenuItems: any[] = [];
+    
+    actualMenuRecords.forEach((item: any) => {
+        if (item.key === 'group-secondary' && item.children) {
+            secondaryMenuItems.push(...item.children);
+        } else {
+            primaryMenuItems.push(item);
+        }
+    });
+    
+    const menuItems = formatMenuItems(primaryMenuItems)
+    
     const { useToken } = theme;
     const { token } = useToken();
     
@@ -66,7 +82,7 @@ export const Header = () => {
         </div>
         
         <div className="appActions">
-          <HeaderActions />
+          <HeaderActions secondaryMenuItems={secondaryMenuItems} />
         </div>
       </div>
   </AntHeader>
