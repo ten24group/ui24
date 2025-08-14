@@ -1,0 +1,56 @@
+.modal-widget-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 20px 24px;
+  min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.modal-widget-header {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.modal-widget-content {
+  flex: 1;
+}
+
+.modal-widget-card.layout-grid .modal-widget-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.modal-widget-card.layout-list .modal-widget-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-widget-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-widget-card.layout-grid .modal-widget-trigger .ant-btn {
+  width: 100%;
+  height: auto;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+}
+
+.modal-widget-card.layout-list .modal-widget-trigger .ant-btn {
+  justify-content: flex-start;
+} 

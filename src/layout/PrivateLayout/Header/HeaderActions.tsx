@@ -5,9 +5,7 @@ import { Dropdown } from 'antd';
 import { useAuth } from '../../../core/context';
 import { Icon, Link } from "../../../core/common";
 
-
 export const LogoutButton = () => {
-
   const { logout } = useAuth();
   
   const handleLogout = async () => {
@@ -15,30 +13,30 @@ export const LogoutButton = () => {
   }
 
   return <Link onClick={handleLogout} title="Logout" ><Icon iconName="logout" /></Link>
-  
 }
 
-const dropdownItems: MenuProps['items'] = [
-    // {
-    //   label: <a href="./">Profile</a>,
-    //   key: '0',
-    // },
-    // {
-    //   label: <a href="./">Settings</a>,
-    //   key: '1',
-    // },
-    // {
-    //   type: 'divider',
-    // },
+interface HeaderActionsProps {
+  secondaryMenuItems?: any[];
+}
+
+export const HeaderActions = ({ secondaryMenuItems = [] }: HeaderActionsProps) => {
+  const dropdownItems: MenuProps['items'] = [
+    // Add secondary menu items first
+    ...secondaryMenuItems.map((item, index) => ({
+      key: `secondary-${index}`,
+      label: item.url ? <Link title={item.label} url={item.url} /> : item.label,
+      icon: item.icon ? <Icon iconName={item.icon} /> : undefined,
+    })),
+    // Add divider if there are secondary items
+    ...(secondaryMenuItems.length > 0 ? [{ type: 'divider' as const }] : []),
+    // Add logout button
     {
-      key: '0',
+      key: 'logout',
       label: <LogoutButton/>,
     },
-];
-
-export const HeaderActions = () => {
+  ];
   
-    return <Dropdown menu={{ items: dropdownItems }} trigger={['click']}> 
-        <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
-      </Dropdown>
+  return <Dropdown menu={{ items: dropdownItems }} trigger={['click']}> 
+      <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
+    </Dropdown>
 }

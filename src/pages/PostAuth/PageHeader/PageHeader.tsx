@@ -8,6 +8,7 @@ import { Icon } from "../../../core/common/Icons/Icons";
 import { OpenInModal } from "../../../modal/Modal";
 import { useNavigate } from "react-router-dom";
 import { DownOutlined } from '@ant-design/icons';
+import { substituteUrlParams } from "../../../core/utils";
 
 interface IBreadcrumbs {
     label: string;
@@ -31,12 +32,8 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
         if (item.type === 'dropdown' && item.items) {
             const dropdownItems = item.items.map((dropItem, dropIndex) => {
                 let url = dropItem.url;
-                // Replace parameters in the URL using routeParams passed from DynamicPage
-                Object.entries(routeParams).forEach(([key, value]) => {
-                    if (value) {
-                        url = url.replace(`:${key}`, value);
-                    }
-                });
+                // Use substituteUrlParams for consistent placeholder handling
+                url = substituteUrlParams(url, routeParams);
                 return {
                     key: `${dropItem.label}-${url}-${dropIndex}`,
                     label: (
@@ -62,12 +59,8 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
         }
 
         let url = item.url || '';
-        // Replace parameters in the URL using routeParams
-        Object.entries(routeParams).forEach(([key, value]) => {
-            if (value) {
-                url = url.replace(`:${key}`, value);
-            }
-        });
+        // Use substituteUrlParams for consistent placeholder handling
+        url = substituteUrlParams(url, routeParams);
 
         if (item.openInModal && item.modalConfig) {
             return (
@@ -75,8 +68,11 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                     key={`action-${item.label}-${index}`}
                     {...item.modalConfig}
                     primaryIndex={routeParams.id}
+                    routeParams={routeParams}
                     onSuccessCallback={(response) => {
-                        navigate(item.modalConfig.submitSuccessRedirect);
+                        // Use substituteUrlParams for consistent placeholder handling
+                        const redirectUrl = substituteUrlParams(item.modalConfig.submitSuccessRedirect, routeParams);
+                        navigate(redirectUrl);
                     }}
                 >
                     <Button type="primary">{item.label}</Button>
@@ -106,14 +102,19 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
             <AntPageHeader 
                 className="site-page-header" 
                 title={pageTitle} 
-                breadcrumb={{ items: breadcrumbs.map((item, index) => ({
-                    key: `${item.label}-${item.url || ''}-${index}`,
-                    title: item.url ? (
-                        <Link title={item.label} url={item.url} />
-                    ) : (
-                        item.label
-                    )
-                }))}}
+                breadcrumb={{ items: breadcrumbs.map((item, index) => {
+                    // Use substituteUrlParams for consistent placeholder handling
+                    const breadcrumbUrl = substituteUrlParams(item.url, routeParams);
+                    
+                    return {
+                        key: `${item.label}-${breadcrumbUrl || ''}-${index}`,
+                        title: breadcrumbUrl ? (
+                            <Link title={item.label} url={breadcrumbUrl} />
+                        ) : (
+                            item.label
+                        )
+                    };
+                })}}
                 extra={PageActions} 
             />
         </div>

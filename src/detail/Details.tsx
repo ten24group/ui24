@@ -1,64 +1,78 @@
 import React, { useState, useEffect } from 'react';
-import { Descriptions, DescriptionsProps, List, Spin } from 'antd';
+import { Descriptions, DescriptionsProps, List, Spin, Typography } from 'antd';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
 import { useFormat } from '../core/hooks';
-//import { CustomEditorJs, EDITOR_JS_TOOLS } from '../core/common/Editorjs';
-import { CustomBlockNoteEditor, CustomColorPicker } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
+import { getNestedValue, substituteUrlParams } from '../core/utils';
+import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
+import { detailsStyles } from './styles';
+import { HelpText } from '../core/forms/FormField/components';
 import './Details.css';
 
+import { FieldType, PropertyType } from '../core/types/field-types';
+
 interface IPropertiesConfig {
+    name?: string; // Property path (supports dot notation for nested objects)
     label: string;
+    id?: string;
     column: string;
     hidden?: boolean;
     initialValue: string;
-    fieldType?: string;
+    fieldType?: FieldType;
+    helpText?: string;
     timezone?: string;
 
     // for list and map fields
-    type?: string;
-    properties?: Array<IPropertiesConfig>
+    type?: PropertyType;
+    properties?: Array<IPropertiesConfig>;
     items?: {
-        type: string,
-        properties?: Array<IPropertiesConfig>
-    },
+        type: PropertyType;
+        properties?: Array<IPropertiesConfig>;
+    };
 
-    openInModal?: any,
+    openInModal?: boolean;
+    
+    // for internal links
+    isLink?: boolean;
+    linkConfig?: {
+        routePattern: string;
+        displayText?: string;
+    };
 }
 
 export interface IDetailApiConfig {
     detailApiConfig?: IApiConfig;
 }
 
-// Add new types for columnsConfig
-interface IColumnLayoutConfig {
-    sortOrder: number;
-    fields: string[]; // array of field keys (column names)
-}
-interface IColumnsConfig {
-    numColumns?: number;
-    columns: IColumnLayoutConfig[];
-}
-
 export interface IDetailsConfig extends IDetailApiConfig {
     pageTitle?: string;
-    identifiers?: any;
+    identifiers?: string | number | Array<string | number>;
     propertiesConfig: Array<IPropertiesConfig>;
     columnsConfig?: IColumnsConfig;
+    routeParams?: Record<string, string>;
 }
 
-// Helper to split array into N columns (vertical stacks)
-function splitIntoColumns<T>(arr: T[], numCols: number): T[][] {
-    const cols: T[][] = Array.from({ length: numCols }, () => []);
-    arr.forEach((item, idx) => {
-        cols[ idx % numCols ].push(item);
-    });
-    return cols;
+interface IDetailsComponentProps extends IDetailsConfig {
+    pageTitle?: string;
+    propertiesConfig: Array<IPropertiesConfig>;
+    detailApiConfig?: IApiConfig;
+    identifiers?: string | number;
+    columnsConfig?: IColumnsConfig;
+    routeParams?: Record<string, string>;
 }
 
-const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detailApiConfig, identifiers, columnsConfig }) => {
+const Details: React.FC<IDetailsComponentProps> = ({ 
+    pageTitle, 
+    propertiesConfig, 
+    detailApiConfig, 
+    identifiers, 
+    columnsConfig, 
+    routeParams = {} 
+}) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
+    const [ detailResponse, setDetailResponse ] = useState<any>(null)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
     const { notifyError } = useAppContext();
@@ -66,19 +80,60 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     const [ dataLoaded, setDataLoaded ] = useState(false);
     const { formatDate, formatBoolean } = useFormat()
 
+    // Utility function to recursively deserialize JSON strings
+    const deserializeJsonStrings = (value: any): any => {
+        if (typeof value === 'string') {
+            // Check if the string looks like JSON
+            const trimmed = value.trim();
+            if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || 
+                (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                try {
+                    const parsed = JSON.parse(trimmed);
+                    // Recursively deserialize nested strings
+                    return deserializeJsonStrings(parsed);
+                } catch {
+                    // If parsing fails, return the original string
+                    return value;
+                }
+            }
+            return value;
+        } else if (Array.isArray(value)) {
+            return value.map(item => deserializeJsonStrings(item));
+        } else if (value && typeof value === 'object') {
+            const result: any = {};
+            for (const [key, val] of Object.entries(value)) {
+                result[key] = deserializeJsonStrings(val);
+            }
+            return result;
+        }
+        return value;
+    };
+
     const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
         let initialValue = itemData;
 
+        // First, try to deserialize any JSON strings
+        const originalValue = initialValue;
+        initialValue = deserializeJsonStrings(initialValue);
+        
+        // Debug logging for JSON deserialization
+        if (typeof originalValue === 'string' && typeof initialValue === 'object' && initialValue !== null) {
+            console.log(`Deserialized JSON for field "${item.label}":`, {
+                original: originalValue.substring(0, 100) + (originalValue.length > 100 ? '...' : ''),
+                deserialized: initialValue
+            });
+        }
+
         if (item?.type === "map") {
             initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
+                //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
                 acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
                 return acc;
             }, {});
 
         } else if (item?.type === "list") {
             initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
-        } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType?.toLocaleLowerCase())) {
-           
+        } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
             // formate the date value using uiConfig's date-time-formats
             if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
                 initialValue = new Date(parseInt(initialValue)).toISOString();
@@ -86,13 +141,36 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
 
             initialValue = formatDate(
                 initialValue,
-                item.fieldType?.toLocaleLowerCase() as any,
+                item.fieldType as 'date' | 'datetime' | 'time',
                 item.timezone
             );
-            
-        } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType?.toLocaleLowerCase())) {
+        } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType)) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
+        } else if (item?.fieldType === 'number') {
+            // format number values
+            initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
+        } else if (item?.fieldType === 'color') {
+            // format color values - keep as is for display
+            initialValue = initialValue;
+        } else if (item?.fieldType === 'range') {
+            // format range values
+            initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
+        } else if (item?.fieldType === 'rating') {
+            // format rating values
+            initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
+        } else if ([ 'code', 'markdown', 'json' ].includes(item?.fieldType)) {
+            // format code/markdown/json values - keep as is for display
+            initialValue = initialValue;
+        } else if ([ 'rich-text', 'wysiwyg' ].includes(item?.fieldType)) {
+            // format rich text values - keep as is for display
+            initialValue = initialValue;
+        } else if ([ 'file', 'image' ].includes(item?.fieldType)) {
+            // format file/image values - keep as is for display
+            initialValue = initialValue;
+        } else if ([ 'hidden', 'custom' ].includes(item?.fieldType)) {
+            // format hidden/custom values - keep as is for display
+            initialValue = initialValue;
         }
 
         return initialValue;
@@ -101,20 +179,33 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     useEffect(() => {
         const fetchRecordInfo = async () => {
             const identifier = identifiers || dynamicID;
+            let apiUrl = detailApiConfig.apiUrl;
+            
+            // Use the clean utility function for URL parameter substitution
+            apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
 
             try {
-                const response: any = await callApiMethod({ ...detailApiConfig, apiUrl: detailApiConfig.apiUrl + `/${identifier}` });
+                const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
+
                 if (response.status === 200) {
-                    const detailResponse = response.data[ detailApiConfig.responseKey ]
+                    
+                    const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
+                    setDetailResponse(detailResponse)
 
                     const formatted = recordInfo.map(item => {
-                        const formatted = valueFormatter(item, detailResponse[ item.column ]);
+                        // Use getNestedValue to handle dot notation in property names (e.g., "indexInfo.uid")
+                        // Use item.name for the property path, fall back to item.column for backward compatibility
+                        const propertyPath = item.column || item.name || item.id;
+                        const nestedValue = getNestedValue(detailResponse, propertyPath);
+                        const formatted = valueFormatter(item, nestedValue);
                         return { ...item, initialValue: formatted }
                     });
 
                     setRecordInfo(formatted)
                 }
+
                 setDataLoaded(true);
+                
             } catch (error: any) {
                 notifyError(error?.message || 'An unexpected error occurred');
             }
@@ -124,7 +215,13 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
             fetchRecordInfo();
     }, [])
 
-    const makeDescriptionCard = (options: { name: string, layout: DescriptionsProps[ 'layout' ], data: any[] }) => {
+    interface IDescriptionCardOptions {
+        name: string;
+        layout: DescriptionsProps['layout'];
+        data: Array<{ label: string; value: string | number | boolean | null } | IPropertiesConfig>;
+    }
+
+    const makeDescriptionCard = (options: IDescriptionCardOptions) => {
         const { name, data, layout } = options;
         return <>
             <Descriptions
@@ -132,10 +229,10 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                 layout={layout}
                 items={
 
-                    data.filter(item => !item.hidden)
+                    data.filter(item => !('hidden' in item) || !item.hidden)
                         .map((item: IPropertiesConfig, index: number) => {
 
-                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType.toLocaleLowerCase())) {
+                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
                                 return {
                                     key: index,
                                     label: item.label,
@@ -143,7 +240,7 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                 }
                             }
 
-                            if (item.fieldType.toLocaleLowerCase() === 'image') {
+                            if (item.fieldType === 'image') {
                                 return {
                                     key: index,
                                     label: item.label,
@@ -161,11 +258,11 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
                                         dataSource={item.initialValue as unknown as any[]}
                                         renderItem={(item, index) => (
                                             <List.Item>
-                                                <pre>
+                                                {/* <pre>
                                                     <code>
                                                         {JSON.stringify(item, null, 2)}
                                                     </code>
-                                                </pre>
+                                                </pre> */}
 
                                                 {makeDescriptionCard({ name: item.label + " - " + index, layout: 'vertical', data: item })}
                                             </List.Item>
@@ -186,147 +283,196 @@ const Details: React.FC<IDetailsConfig> = ({ pageTitle, propertiesConfig, detail
     }
 
     // Determine columns to render
-    let columns: IPropertiesConfig[][] = [];
-    if (columnsConfig && columnsConfig.columns && columnsConfig.columns.length > 0) {
-        // Sort columns by sortOrder
-        columns = columnsConfig.columns
-            .sort((a, b) => a.sortOrder - b.sortOrder)
-            .map(col =>
-                col.fields
-                    .map(fieldKey => recordInfo.find(f => f.column === fieldKey))
-                    .filter(item => item && !item.hidden) as IPropertiesConfig[]
-            );
-    } else {
-        // Fallback: split recordInfo into columns, filtering out hidden fields
-        columns = splitIntoColumns(recordInfo.filter(item => !item.hidden), 3);
-    }
+    const items = recordInfo.filter(item => !item.hidden);
+    const columns = determineColumnLayout(items, columnsConfig, 3); // Details can have up to 3 columns
 
     return <>
         <Spin spinning={!dataLoaded}>
-            <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+            <div style={detailsStyles.container}>
                 {columns.map((columnItems, colIdx) => (
                     <div
                         key={colIdx}
-                        style={{
-                            flex: 1,
-                            minWidth: 0,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: 16,
-                            background: '#fff',
-                            padding: 24,
-                            borderRadius: 12,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                            border: '1px solid #f0f0f0',
-                            overflowWrap: 'break-word',
-                            wordBreak: 'break-word',
-                        }}
+                        style={detailsStyles.column}
                     >
                         {columnItems.filter(item => !item.hidden).map((item: IPropertiesConfig, index: number) => {
                             // Render each field as before
                             const value = item.initialValue;
-                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType?.toLocaleLowerCase?.())) {
+
+                            if (item.isLink && item.linkConfig) {
+                                const linkUrl = substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse });
+                                const displayText = item.linkConfig.displayText || value;
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
-                                        {value ? <div className="details-fixed-block"><CustomBlockNoteEditor value={value as any} readOnly={true} /></div> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if ([ 'textarea' ].includes(item.fieldType?.toLocaleLowerCase?.()) || item.label.toLocaleLowerCase() === 'content') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        <div className="details-fixed-block">
-                                            {value ? value : <span>—</span>}
-                                        </div>
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'image') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        {value ? <img src={value} alt={item.label} className="details-image" /> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.fieldType?.toLocaleLowerCase?.() === 'color') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        {value ? <CustomColorPicker value={value} disabled /> : <span>—</span>}
-                                    </div>
-                                );
-                            }
-                            if (item.type === 'list' && item.fieldType !== 'multi-select') {
-                                return (
-                                    <div key={index} className="details-field-container">
-                                        <div className="details-field-label">{item.label}</div>
-                                        {Array.isArray(value) && value.length > 0 ? (
-                                            <ul style={{ paddingLeft: 20, margin: 0 }}>
-                                                {value.map((listItem, listIdx) => (
-                                                    <li key={listIdx} style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
-                                                        {typeof listItem === 'object' ? JSON.stringify(listItem) : String(listItem)}
-                                                    </li>
-                                                ))}
-                                            </ul>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? (
+                                            <Link url={linkUrl} className="details-link">
+                                                {displayText} ({value})
+                                            </Link>
                                         ) : <span>—</span>}
                                     </div>
                                 );
                             }
-                            if (item.type === 'map') {
-                                let objValue = value;
-                                if (typeof value === 'string') {
-                                    try {
-                                        objValue = JSON.parse(value);
-                                    } catch {
-                                        objValue = null;
-                                    }
-                                }
-                                if (objValue && typeof objValue === 'object') {
+
+                            if (item.openInModal) {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <OpenInModal
+                                            modalType="details"
+                                            primaryIndex={value}
+                                            modalPageConfig={{
+                                                pageTitle: item.label,
+                                                propertiesConfig: [ item ]
+                                            }}
+                                        >{value}</OpenInModal> : <span>—_-</span>}
+                                    </div>
+                                );
+                            }
+
+
+                            if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {Array.isArray(value) && value.length > 0 ? (
+                                            <JsonDescription data={value} />
+                                        ) : <span>—</span>}
+                                    </div>
+                                );
+                            }
+                            if (item.type === 'map' || item.fieldType === 'json') {
+                                // Since we already deserialized JSON strings in valueFormatter, 
+                                // we can directly check if it's an object
+                                if (value && typeof value === 'object' && !Array.isArray(value)) {
                                     // Show as definition list
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
-                                            <dl style={{ margin: 0, padding: 0 }}>
-                                                {Object.entries(objValue).map(([ k, v ]) => (
-                                                    <React.Fragment key={k}>
-                                                        <dt style={{ fontWeight: 500, color: '#555', float: 'left', clear: 'left', minWidth: 120 }}>{k}:</dt>
-                                                        <dd style={{ marginLeft: 130, marginBottom: 8 }}>{typeof v === 'object' ? JSON.stringify(v) : String(v)}</dd>
-                                                    </React.Fragment>
-                                                ))}
-                                            </dl>
+                                            <HelpText helpText={item.helpText} />
+                                            <JsonDescription data={value} />
                                         </div>
                                     );
-                                } else {
-                                    // Fallback: show as code block
+                                } else if (typeof value === 'string') {
+                                    // Fallback: show as code block for non-JSON strings
                                     return (
                                         <div key={index} className="details-field-container">
                                             <div className="details-field-label">{item.label}</div>
+                                            <HelpText helpText={item.helpText} />
                                             <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                                                 <code>{value ? value : '—'}</code>
                                             </pre>
                                         </div>
                                     );
+                                } else {
+                                    // Show as JsonDescription for any other type
+                                    return (
+                                        <div key={index} className="details-field-container">
+                                            <div className="details-field-label">{item.label}</div>
+                                            <HelpText helpText={item.helpText} />
+                                            <JsonDescription data={value} />
+                                        </div>
+                                    );
                                 }
                             }
-                            if (item.openInModal) {
+
+                            if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
                                 return (
                                     <div key={index} className="details-field-container">
                                         <div className="details-field-label">{item.label}</div>
-                                        {value ? <OpenInModal {...item.openInModal} primaryIndex={value}>{value}</OpenInModal> : <span>—</span>}
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <div className="details-fixed-block"><CustomBlockNoteEditor value={value as any} readOnly={true} /></div> : <span>—</span>}
                                     </div>
                                 );
                             }
+                            if ([ 'textarea', 'code', 'markdown' ].includes(item.fieldType) || item.label === 'content') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div className="details-fixed-block">
+                                            {value ? (typeof value === 'object' ? <JsonDescription data={value} /> : String(value)) : <span>—</span>}
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'image') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <img src={value} alt={item.label} className="details-image" /> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'color') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <CustomColorPicker value={value} disabled /> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'number') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? Number(value) : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'range') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? `${value}%` : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'rating') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        <div>{value !== undefined && value !== null ? `${value}/5` : <span>—</span>}</div>
+                                    </div>
+                                );
+                            }
+                            if (item.fieldType === 'file') {
+                                return (
+                                    <div key={index} className="details-field-container">
+                                        <div className="details-field-label">{item.label}</div>
+                                        <HelpText helpText={item.helpText} />
+                                        {value ? <a href={value} target="_blank" rel="noopener noreferrer">Download File</a> : <span>—</span>}
+                                    </div>
+                                );
+                            }
+
                             return (
                                 <div key={index} className="details-field-container">
                                     <div className="details-field-label">{item.label}</div>
+                                    <HelpText helpText={item.helpText} />
                                     <div>
                                         {value !== undefined && value !== null && value !== '' ? (
                                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (
                                                 <a href={value} target="_blank" rel="noopener noreferrer">{value}</a>
-                                            ) : value
+                                            ) : typeof value === 'object' ? (
+                                                <JsonDescription data={value} />
+                                            ) : typeof value === 'string' && value.length > 100 ? (
+                                                <div style={{ 
+                                                    wordWrap: 'break-word', 
+                                                    overflowWrap: 'break-word',
+                                                    whiteSpace: 'pre-wrap',
+                                                    maxWidth: '100%'
+                                                }}>
+                                                    {value}
+                                                </div>
+                                            ) : String(value)
                                         ) : <span>—</span>}
                                     </div>
                                 </div>

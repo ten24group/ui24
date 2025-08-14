@@ -1,5 +1,5 @@
 import React, { ReactNode, useEffect } from 'react';
-import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Switch, TimePicker, Select as AntSelect } from 'antd';
+import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Switch, TimePicker, Select as AntSelect, Typography } from 'antd';
 import { OptionSelector, IFieldOptions, IOptions } from './OptionSelector';
 import { useApi, useUi24Config } from '../../context';
 import { CloseOutlined } from '@ant-design/icons';
@@ -7,17 +7,22 @@ import { CustomColorPicker } from '../../common/CustomColorPicker';
 import { IModalConfig } from '../../../modal/Modal';
 
 import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
+import { FieldType, PropertyType, ValidationType } from '../../types/field-types';
+import { HelpText, LabelAndHelpText } from './components';
+import { formStyles } from './styles';
 
-export type IFormFieldType = "text" | "password" | "email" | "textarea" | "checkbox" | "radio" | "select" | "multi-select" | "color" | "switch" | "date" | "time" | "datetime" | "wysiwyg" | "file" | "boolean" | "toggle" | "rich-text" | "image";
 
 
 interface IFormField {
     namePrefixPath?: any[];
+    id?: string;
+    column?: string;
     name: string; //unique identifier, should be without spaces
     validationRules?: Array<any>; //rules matching ant design convention
     placeholder: string; //placeholder text
+    helpText?: string; //help text for the field
     prefixIcon?: ReactNode; //prefix icon as a react component
-    fieldType?: IFormFieldType; //field type
+    fieldType?: FieldType; //field type
     timezone?: string;
     options?: IFieldOptions; //options for select, radio, checkbox
     addNewOption?: IModalConfig; //add new option for select, multi-select
@@ -25,17 +30,21 @@ interface IFormField {
     style?: React.CSSProperties;
     initialValue?: any;
     setFormValue?: Function;
+    hidden?: boolean; //whether to hide this field from display
 
     // for list and map fields
-    type?: string;
+    type?: PropertyType;
     properties?: Array<IFormField>
     items?: {
-        type: string,
+        type: PropertyType,
         properties?: Array<IFormField>
     }
 }
 
 const { TextArea } = Input;
+const { Text } = Typography;
+
+
 
 const MakeFormItem = ({
     fieldType = "text",
@@ -45,6 +54,7 @@ const MakeFormItem = ({
     label = "",
     prefixIcon,
     placeholder = "",
+    helpText,
     options = [],
     style,
     initialValue,
@@ -62,12 +72,17 @@ const MakeFormItem = ({
             label={label}
             style={style}
             initialValue={initialValue}
+            valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
         >
 
             {fieldType === "text" && <Input type={fieldType || "text"} prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "textarea" && <TextArea placeholder={placeholder} />}
             {fieldType === "password" && <Input.Password type={fieldType || "password"} prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "email" && <Input type={fieldType || "email"} prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "number" && <Input type="number" prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "autocomplete" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
+                setFormValue && setFormValue({ name, value: newSelections })
+            }} />}
 
             {fieldType === "checkbox" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
             {fieldType === "radio" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
@@ -79,10 +94,24 @@ const MakeFormItem = ({
             }} />}
 
             {fieldType === 'color' && <CustomColorPicker />}
+            {fieldType === 'range' && <Input type="range" placeholder={placeholder} />}
+            {fieldType === 'hidden' && <Input type="hidden" />}
+            {fieldType === 'custom' && <Input placeholder={placeholder} />}
+            {fieldType === 'rating' && <Input type="number" min={1} max={5} placeholder={placeholder} />}
 
             {fieldType === "date" && <DatePicker format={formatConfig.date} />}
             {fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
             {fieldType === "time" && <TimePicker format={formatConfig.time} />}
+
+            {fieldType === "json" && (<>
+                <TextArea rows={8} placeholder={placeholder} />
+            </>)}
+            {fieldType === "code" && (<>
+                <TextArea rows={8} placeholder={placeholder} />
+            </>)}
+            {fieldType === "markdown" && (<>
+                <TextArea rows={8} placeholder={placeholder} />
+            </>)}
 
             {fieldType === "file" &&
                 <FileUploader
@@ -123,8 +152,11 @@ const MakeFormItem = ({
                 />
             }
         </Form.Item>
+        <HelpText helpText={helpText} />
     </>
 }
+
+
 
 const MakeFormListItem = ({
     name,
@@ -134,16 +166,20 @@ const MakeFormListItem = ({
     initialValue,
     items,
     setFormValue,
+    helpText,
 }: IFormField) => {
     const parentFieldName = name;
+        
+    // For complex list items (list of objects), use the card-based approach
     return <>
+        {label && <LabelAndHelpText label={label} helpText={helpText} />}
         <Form.List
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
             initialValue={initialValue}
         >
             {(fields, { add, remove }) => {
-                return <div style={{ display: 'flex', rowGap: 16, flexDirection: 'column' }}>
+                return <div style={formStyles.listContainer}>
                     {fields.map((field) => (
                         <Card
                             size="small"
@@ -151,7 +187,8 @@ const MakeFormListItem = ({
                             key={field.key}
                             extra={<CloseOutlined onClick={() => { remove(field.name); }} />}
                         >
-                            {
+                            {/* for complex list items (list of objects) */}
+                            { items.properties && items.properties.length > 0 &&
                                 items.properties.map((property: any) => {
                                     return <MakeFormItem {...property} namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, field.name ] : [ field.name ]}
                                         setFormValue={({ name, value }) => {
@@ -159,6 +196,17 @@ const MakeFormListItem = ({
                                         }}
                                     />
                                 })
+                            }
+
+                            {/* for simple list items (like string arrays) */}
+                            { (!items.properties || items.properties.length === 0) &&
+                                <Form.Item
+                                    {...field}
+                                    name={[ field.name ]}
+                                    style={{ flex: 1, marginBottom: 0 }}
+                                >
+                                    <Input placeholder={`Enter ${label.toLowerCase()} value`} />
+                                </Form.Item>
                             }
                         </Card>
                     ))}
@@ -169,18 +217,66 @@ const MakeFormListItem = ({
         </Form.List>
     </>
 }
-export function FormField(formField: IFormField) {
 
+const MakeFormMapItem = ({
+    name,
+    namePrefixPath,
+    label = "",
+    properties,
+    setFormValue,
+    helpText,
+}: IFormField) => {
+    const parentFieldName = name;
+    
+    return <>
+        {label && <LabelAndHelpText label={label} helpText={helpText} />}
+        <Card size="small" style={{ backgroundColor: "#8080801c" }} >
+            <div style={formStyles.mapCardContainer}>
+                {properties?.map((property: IFormField, index: number) => (
+                    <div key={property.name || index} style={formStyles.mapItemContainer}>
+                        <RenderFormField 
+                            {...property} 
+                            namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, name ] : [ name ]}
+                            setFormValue={({ name: propName, value }) => {
+                                setFormValue({ name: parentFieldName, value: { [ propName ]: value } })
+                            }}
+                        />
+                    </div>
+                ))}
+            </div>
+        </Card>
+    </>
+}
+
+// Unified recursive form field renderer
+const RenderFormField = (formField: IFormField) => {
     const {
         fieldType = "text",
         type,
     } = formField;
 
-    return <div style={{ marginBottom: "24px" }} key={"CustomFormFields"}>
-        {(type === 'list' && ![ 'wysiwyg', 'rich-text', 'multi-select' ].includes(fieldType.toLocaleLowerCase()))
-            ? <MakeFormListItem {...formField} />
-            : <MakeFormItem {...formField} />
-        }
+    // Handle list fields
+    if (type === 'list' && ![ 'wysiwyg', 'rich-text', 'multi-select' ].includes(fieldType.toLocaleLowerCase())) {
+        return <MakeFormListItem {...formField} />
+    }
+    
+    // Handle map fields
+    if (type === 'map') {
+        return <MakeFormMapItem {...formField} />
+    }
+    
+    // Handle regular form items
+    return <MakeFormItem {...formField} />
+}
+
+export function FormField(formField: IFormField) {
+    // Don't render hidden fields
+    if (formField.hidden) {
+        return null;
+    }
+    
+    return <div key={formField.column || formField.name || formField.id}>
+        <RenderFormField {...formField} />
     </div>
 }
 
@@ -189,10 +285,12 @@ interface IFormFieldResponse {
     column: string;
     label: string;
     placeholder: string;
+    helpText?: string;
     validations: Array<IPreDefinedValidations>;
-    fieldType?: IFormFieldType;
+    fieldType?: FieldType;
     options?: Array<IOptions>;
     addNewOption?: IModalConfig;
+    hidden?: boolean; //whether to hide this field from display
 
     //for image and file
     accept?: string;
@@ -202,16 +300,16 @@ interface IFormFieldResponse {
     withImageCrop?: boolean;
 
     // list and map fields
-    type?: string;
+    type?: PropertyType;
     properties?: Array<IFormFieldResponse>
     items?: {
-        type: string,
+        type: PropertyType,
         properties?: Array<IFormFieldResponse>
     }
 }
 
 const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) => {
-    return validationRules.map(validationRule => {
+    return (validationRules ?? []).map(validationRule => {
         let antValidationRule = {}
         if (validationRule === "required") {
             antValidationRule = { ...antValidationRule, required: true }
@@ -235,13 +333,15 @@ const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) 
 export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormFieldResponse>): Array<IFormField> => {
     return columnsConfig.map(columnConfig => {
         return {
-            name: columnConfig.column,
+            name: columnConfig.column, //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
             validationRules: convertValidationRules(columnConfig.validations),
             label: columnConfig.label,
             placeholder: columnConfig.placeholder ?? columnConfig.label,
+            helpText: columnConfig.helpText,
             fieldType: columnConfig.fieldType ?? "text",
             options: columnConfig.options ?? [],
             addNewOption: columnConfig?.addNewOption,
+            hidden: columnConfig.hidden,
 
             // for image and files
             accept: columnConfig.accept,
@@ -262,4 +362,3 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
 }
 
 export type { IFormField, IFormFieldResponse }
-

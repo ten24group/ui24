@@ -3,88 +3,145 @@ import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from 
 import type { TableProps } from "antd";
 import { OpenInModal } from "../../modal/Modal";
 import { Icon, Link } from "../../core/common";
-import { Space } from 'antd';
+import { Space, Tooltip } from 'antd';
 import { useAppContext } from "../../core/context";
 
-export const addActionUI = ( propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void) => {
+// Utility to replace URL parameters with values
+const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
+  return url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
+};
 
-    const columns: TableProps<any>["columns"] = propertiesConfig
-      .filter((item: ITablePropertiesConfig) => !item?.hidden)
-      .map((item, index) => {
-        const column = {
-          title: item.name,
-          dataIndex: item.dataIndex,
-          key: item.dataIndex,
-          fieldType: item.fieldType,
-          isFilterable: item.isFilterable,
+// Check if URL has placeholder parameters
+const hasUrlPlaceholders = (url: string): boolean => {
+  return /:(\w+)/.test(url);
+};
+
+export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void, routeParams: Record<string, string> = {}) => {
+
+  const columns: TableProps<any>[ "columns" ] = propertiesConfig
+    .filter((item: ITablePropertiesConfig) => !item?.hidden)
+    .map((item, index) => {
+      const column = {
+        title: item.helpText ? (
+          <Tooltip 
+            title={item.helpText}
+            placement="top"
+            overlayStyle={{ maxWidth: '300px' }}
+          >
+            <span style={{ cursor: 'help' }}>{item.name}</span>
+          </Tooltip>
+        ) : item.name,
+        dataIndex: item.dataIndex,
+        key: item.dataIndex,
+        fieldType: item.fieldType,
+        isFilterable: item.isFilterable,
+        isSortable: item.isSortable,
+        filterConfig: item.filterConfig, // Add this line to preserve filterConfig
+      }
+
+      return column;
+    });
+
+  //Add action column in Table
+  //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
+  //if the actions array is empty, then do not include the key in the object
+  const actionIndexValue: IActionIndexValue = propertiesConfig
+    .filter(item => Array.isArray(item.actions) && item.actions.length > 0)
+    .reduce((acc: IActionIndexValue, item) => {
+      acc[ item.dataIndex ] = item.actions;
+      return acc;
+    }, {});
+
+
+  //check if actionIndexValue has any keys, if yes, then add a column for actions
+  if (Object.keys(actionIndexValue).length > 0) {
+    columns.push({
+      title: (
+        <div style={{ display: "flex", justifyContent: "end" }}>Action</div>
+      ),
+      key: "action",
+      fixed: 'right',
+      render: (_, record: IRecord) => {
+        //create a list of values from the record object based on the keys in actionIndexValue for every action added
+        let primaryIndexValue: Array<string> | string = [];
+        let recordActions: Array<IPageAction> = [];
+        
+        for (let key in record) {
+          if (key in actionIndexValue && actionIndexValue[ key ]) {
+            primaryIndexValue.push(record[ key ]);
+            recordActions = actionIndexValue[ key ];
+          }
         }
         
-        return column;
-      });
-    
-    //Add action column in Table
-    //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
-    //if the actions array is empty, then do not include the key in the object
-    const actionIndexValue: IActionIndexValue = propertiesConfig
-      .filter(item => Array.isArray(item.actions) && item.actions.length > 0)
-      .reduce((acc: IActionIndexValue, item) => {
-        acc[item.dataIndex] = item.actions;
-        return acc;
-      }, {});
-  
-    //check if actionIndexValue has any keys, if yes, then add a column for actions
-    if (Object.keys(actionIndexValue).length > 0) {
-      columns.push({
-        title: (
-          <div style={{ display: "flex", justifyContent: "end" }}>Action</div>
-        ),
-        key: "action",
-        render: (_, record: IRecord) => {
-          //create a list of values from the record object based on the keys in actionIndexValue for every action added
-          let primaryIndexValue: Array<string> | string = [];
-          let recordActions: Array<IPageAction> = [];
-          for (let key in record) {
-            if (key in actionIndexValue && actionIndexValue[key]) {
-              primaryIndexValue.push(record[key]);
+        // If no actions found through record matching, find the first configured action set
+        if (recordActions.length === 0) {
+          for (let key in actionIndexValue) {
+            if (actionIndexValue[key]) {
               recordActions = actionIndexValue[key];
+              break;
             }
           }
-          primaryIndexValue = primaryIndexValue.join("|");
-  
-          return (
-            <div style={{ display: "flex", justifyContent: "end" }}>
-              <Space size="middle" align="end">
-                {recordActions?.map((item: IPageAction, index) => {
-                  return <ListPageAction getRecordsCallback={ getRecordsCallback } key={index} item={item} primaryIndexValue={ primaryIndexValue }/>;
-                })}
-              </Space>
-            </div>
-          );
-        },
-      });
-    }
-  
-    return columns
+        }
+        
+        primaryIndexValue = primaryIndexValue.join("|");
+
+        const finalRouteParams = {
+          ...routeParams,
+          ...record
+        }
+
+        return (
+          <div style={{ display: "flex", justifyContent: "end" }}>
+            <Space size="middle" align="end">
+              {recordActions?.map((item: IPageAction, index) => {
+                return <ListPageAction getRecordsCallback={getRecordsCallback} key={index} item={item} record={record} primaryIndexValue={primaryIndexValue} routeParams={finalRouteParams} />;
+              })}
+            </Space>
+          </div>
+        );
+      },
+    });
   }
 
-const ListPageAction = ({ item, primaryIndexValue, getRecordsCallback } : { item: IPageAction, primaryIndexValue: string, getRecordsCallback: () => void }) => {
-  
+  return columns
+}
+
+const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, routeParams }: { 
+  item: IPageAction, 
+  record: IRecord, 
+  primaryIndexValue: string,
+  getRecordsCallback: () => void,
+  routeParams: Record<string, string>
+}) => {
+
   const { notifySuccess } = useAppContext()
 
+  // Determine the action URL based on whether it has placeholders
+  let actionUrl = item.url || '';
+  
+  if (hasUrlPlaceholders(actionUrl)) {
+    // New approach: Use parameter substitution for URLs with placeholders
+    actionUrl = replaceUrlParams(actionUrl, record);
+  } else {
+    // Legacy approach: Append primaryIndexValue for URLs without placeholders
+    actionUrl = primaryIndexValue ? `${actionUrl}/${primaryIndexValue}` : actionUrl;
+  }
+
   return <Fragment >
-  {item.openInModal ? (
-    <OpenInModal
-      onSuccessCallback={(response) => {
-        notifySuccess("Deleted Successfully")
-        getRecordsCallback()
-      }}
-      primaryIndex={primaryIndexValue}
-      {...item.modalConfig}
-    ><Icon iconName={"delete"} /></OpenInModal>
-  ) : (
-    <Link url={item.url + "/" + primaryIndexValue}>
-      <Icon iconName={item.icon} />
-    </Link>
-  )}{" "}
-</Fragment>
+    {item.openInModal ? (
+      <OpenInModal
+        onSuccessCallback={(response) => {
+          notifySuccess("Deleted Successfully")
+          getRecordsCallback()
+        }}
+        primaryIndex={primaryIndexValue}
+        routeParams={routeParams}
+        {...item.modalConfig}
+      ><Icon iconName={"delete"} /></OpenInModal>
+    ) : (
+      <Link url={actionUrl}>
+        <Icon iconName={item.icon} />
+      </Link>
+    )}{" "}
+  </Fragment>
 }
