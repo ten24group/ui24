@@ -7,8 +7,8 @@
 /*!
  * @antv/g-lite
  * @description A core module for rendering engine implements DOM API.
- * @version 2.2.19
- * @date 5/9/2025, 8:18:56 AM
+ * @version 2.3.2
+ * @date 7/30/2025, 1:34:19 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -25,8 +25,8 @@
 /*!
  * @antv/g-plugin-canvas-path-generator
  * @description A G plugin of path generator with Canvas2D API
- * @version 2.1.19
- * @date 5/9/2025, 8:19:59 AM
+ * @version 2.1.22
+ * @date 7/30/2025, 1:35:25 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -34,8 +34,8 @@
 /*!
  * @antv/g-plugin-image-loader
  * @description A G plugin for loading image
- * @version 2.1.23
- * @date 5/30/2025, 2:54:46 AM
+ * @version 2.1.26
+ * @date 7/30/2025, 1:35:52 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -43,8 +43,8 @@
 /*!
  * @antv/g-web-animations-api
  * @description A simple implementation of Web Animations API.
- * @version 2.1.25
- * @date 5/23/2025, 7:01:32 AM
+ * @version 2.1.28
+ * @date 7/30/2025, 1:36:24 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -121,7 +121,7 @@
  */
 
 /**
- * react-router v7.6.2
+ * react-router v7.8.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -1752,3 +1752,5 @@
 /**![zoom-in](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNjYWNhY2EiIHZpZXdCb3g9IjY0IDY0IDg5NiA4OTYiIGZvY3VzYWJsZT0iZmFsc2UiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTYzNyA0NDNINTE5VjMwOWMwLTQuNC0zLjYtOC04LThoLTYwYy00LjQgMC04IDMuNi04IDh2MTM0SDMyNWMtNC40IDAtOCAzLjYtOCA4djYwYzAgNC40IDMuNiA4IDggOGgxMTh2MTM0YzAgNC40IDMuNiA4IDggOGg2MGM0LjQgMCA4LTMuNiA4LThWNTE5aDExOGM0LjQgMCA4LTMuNiA4LTh2LTYwYzAtNC40LTMuNi04LTgtOHptMjg0IDQyNEw3NzUgNzIxYzEyMi4xLTE0OC45IDExMy42LTM2OS41LTI2LTUwOS0xNDgtMTQ4LjEtMzg4LjQtMTQ4LjEtNTM3IDAtMTQ4LjEgMTQ4LjYtMTQ4LjEgMzg5IDAgNTM3IDEzOS41IDEzOS42IDM2MC4xIDE0OC4xIDUwOSAyNmwxNDYgMTQ2YzMuMiAyLjggOC4zIDIuOCAxMSAwbDQzLTQzYzIuOC0yLjcgMi44LTcuOCAwLTExek02OTYgNjk2Yy0xMTguOCAxMTguNy0zMTEuMiAxMTguNy00MzAgMC0xMTguNy0xMTguOC0xMTguNy0zMTEuMiAwLTQzMCAxMTguOC0xMTguNyAzMTEuMi0xMTguNyA0MzAgMCAxMTguNyAxMTguOCAxMTguNyAzMTEuMiAwIDQzMHoiIC8+PC9zdmc+) */
 
 /**![zoom-out](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNjYWNhY2EiIHZpZXdCb3g9IjY0IDY0IDg5NiA4OTYiIGZvY3VzYWJsZT0iZmFsc2UiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTYzNyA0NDNIMzI1Yy00LjQgMC04IDMuNi04IDh2NjBjMCA0LjQgMy42IDggOCA4aDMxMmM0LjQgMCA4LTMuNiA4LTh2LTYwYzAtNC40LTMuNi04LTgtOHptMjg0IDQyNEw3NzUgNzIxYzEyMi4xLTE0OC45IDExMy42LTM2OS41LTI2LTUwOS0xNDgtMTQ4LjEtMzg4LjQtMTQ4LjEtNTM3IDAtMTQ4LjEgMTQ4LjYtMTQ4LjEgMzg5IDAgNTM3IDEzOS41IDEzOS42IDM2MC4xIDE0OC4xIDUwOSAyNmwxNDYgMTQ2YzMuMiAyLjggOC4zIDIuOCAxMSAwbDQzLTQzYzIuOC0yLjcgMi44LTcuOCAwLTExek02OTYgNjk2Yy0xMTguOCAxMTguNy0zMTEuMiAxMTguNy00MzAgMC0xMTguNy0xMTguOC0xMTguNy0zMTEuMiAwLTQzMCAxMTguOC0xMTguNyAzMTEuMi0xMTguNyA0MzAgMCAxMTguNyAxMTguOCAxMTguNyAzMTEuMiAwIDQzMHoiIC8+PC9zdmc+) */
+
+//! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
