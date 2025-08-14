@@ -4,6 +4,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig } from '../type';
 import { useFormat } from '../../core/hooks';
+import { getNestedValue } from '../../core/utils';
 
 const recordPerPage = 10;
 
@@ -39,6 +40,7 @@ interface IUseTableDataProps {
   facetedColumns: string[];
   propertiesConfig: ITablePropertiesConfig[];
   recordIdentifierKey: string;
+  isSearchMode: boolean;
 }
 
 export const useTableData = ({
@@ -51,6 +53,7 @@ export const useTableData = ({
   facetedColumns,
   propertiesConfig,
   recordIdentifierKey,
+  isSearchMode,
 }: IUseTableDataProps) => {
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
@@ -66,7 +69,7 @@ export const useTableData = ({
 
   const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
   const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
-    [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle' ]
+    [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle', 'json' ]
       .includes(property.fieldType?.toLocaleLowerCase())
   ), [ propertiesConfig ]);
 
@@ -80,13 +83,20 @@ export const useTableData = ({
 
   const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
-    const isSearchActive = apiConfig.useSearch;
+    const isSearchActive = isSearchMode;
     const sortString = getSortString();
     const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursor[ pageNumber ] || "";
 
     const payload: any = {
       ...getFilterPayload(appliedFilters, apiConfig.apiMethod),
     };
+
+    // shared payload for both search and list APIs
+    const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
+    const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
+    if (attributes.length > 0) {
+      payload.attributes = attributes.join(',');
+    }
 
     if (isSearchActive) {
       payload.q = searchQuery;
@@ -95,17 +105,12 @@ export const useTableData = ({
       if (sortString) {
         payload.sort = sortString;
       }
-      const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
-      const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
-      if (attributes.length > 0) {
-        payload.attributes = attributes.join(',');
-      }
       if (facetedColumns.length > 0) {
         payload.facets = facetedColumns.join(',');
       }
     } else {
       payload.cursor = currentPageCursor;
-      payload.limit = recordPerPage;
+      payload.count = recordPerPage;
     }
 
     setIsLoading(true);
@@ -118,31 +123,44 @@ export const useTableData = ({
       });
 
       if (response?.status === 200) {
-        const records = isSearchActive ? response.data.items : response.data[ apiConfig.responseKey ];
+        const records = isSearchActive ? response.data.items
+          : apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
 
         if (isSearchActive && response.data.facets) {
           setFacetResults(response.data.facets);
         }
 
         records.forEach((record: any) => {
+
           formattingColumns.forEach((property) => {
-            if (record[ property.dataIndex ] === null || record[ property.dataIndex ] === undefined || record[ property.dataIndex ] === '') {
+            // Use getNestedValue to handle nested data paths
+            const nestedValue = getNestedValue(record, property.dataIndex);
+            
+            if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
               record[ property.dataIndex ] = '';
               return;
             }
+            
+            // Store the nested value in the record for the table to access
+            record[ property.dataIndex ] = nestedValue;
+            
             if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              const itemValue = record[ property.dataIndex ].toString().startsWith('0') ?
-                new Date(parseInt(record[ property.dataIndex ])).toISOString() :
-                record[ property.dataIndex ];
+              const itemValue = nestedValue.toString().startsWith('0') ?
+                new Date(parseInt(nestedValue)).toISOString() :
+                nestedValue;
               record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
             } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              record[ property.dataIndex ] = formatBoolean(record[ property.dataIndex ]);
+              record[ property.dataIndex ] = formatBoolean(nestedValue);
+            } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
+              const itemValue = nestedValue;
+              record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
             }
           });
 
           const identifiers = identifierColumns.map(column => ({
-            [ column.dataIndex ]: record[ column.dataIndex ]
+            [ column.dataIndex ]: getNestedValue(record, column.dataIndex)
           }));
+
           record[ recordIdentifierKey ] = JSON.stringify(identifiers);
         });
 
@@ -163,10 +181,22 @@ export const useTableData = ({
     } catch (error) {
       notifyError('Failed to fetch records');
       console.error('Error fetching records:', error);
+      // Log additional error details for debugging
+      if (error && typeof error === 'object') {
+        console.error('Error details:', {
+          message: error.message || 'Unknown error',
+          response: error.response ? {
+            status: error.response.status,
+            statusText: error.response.statusText,
+            data: error.response.data
+          } : 'No response',
+          request: error.request ? 'Request made but no response received' : 'No request made'
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey ]);
+  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode ]);
 
   return {
     listRecords,

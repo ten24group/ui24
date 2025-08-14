@@ -1,6 +1,6 @@
 import React from "react";
 import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge } from "antd";
-import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -12,7 +12,6 @@ export const Table = ({
   propertiesConfig,
   records = [], //not using as of now
   apiConfig,
-  paginationType = "default",
   routeParams,
 }: ITableConfig) => {
 
@@ -38,6 +37,9 @@ export const Table = ({
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
+    isSearchMode,
+    toggleSearchMode,
+    canToggleSearchMode,
   } = useTable({
     propertiesConfig,
     apiConfig,
@@ -57,9 +59,18 @@ export const Table = ({
     <React.Fragment>
       <div className="table-toolbar">
         <div style={{ flex: 1 }}>
-          {apiConfig.useSearch && <Search onSearch={onSearch} value={searchQuery} />}
+          {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
+          {canToggleSearchMode && (
+            <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
+              <Button 
+                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />} 
+                onClick={toggleSearchMode}
+                type={isSearchMode ? "default" : "primary"}
+              />
+            </Tooltip>
+          )}
           <Tooltip title="Reset">
             <Button icon={<ClearOutlined />} onClick={handleRefresh} />
           </Tooltip>

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { ITablePropertiesConfig } from "./type";
-import { IApiConfig } from "../core/context";
+import { IApiConfig, IDualApiConfig } from "../core/context";
 import { Pagination as AntPagination } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
@@ -14,9 +14,25 @@ import { useTableData } from "./hooks/useTableData";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
-  apiConfig: IApiConfig;
+  apiConfig: IApiConfig | IDualApiConfig;
   routeParams?: Record<string, string>;
 }
+
+// Utility functions to handle both single and dual API configurations
+const isDualApiConfig = (config: IApiConfig | IDualApiConfig): config is IDualApiConfig => {
+  return 'search' in config && 'database' in config;
+};
+
+const getCurrentApiConfig = (apiConfig: IApiConfig | IDualApiConfig, isSearchMode: boolean): IApiConfig => {
+  if (isDualApiConfig(apiConfig)) {
+    return isSearchMode ? apiConfig.search : apiConfig.database;
+  }
+  return apiConfig;
+};
+
+const canToggleSearchMode = (apiConfig: IApiConfig | IDualApiConfig): boolean => {
+  return isDualApiConfig(apiConfig);
+};
 
 export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
@@ -24,6 +40,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>({});
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
+  const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
+    if (isDualApiConfig(apiConfig)) {
+      return true; // Default to search mode for dual config
+    }
+    return apiConfig.useSearch || false;
+  });
   const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(
     propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex)
   );
@@ -49,7 +71,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     fetchRecords,
     recordPerPage
   } = useTableData({
-    apiConfig,
+    apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
     routeParams,
     appliedFilters,
     searchQuery,
@@ -58,11 +80,21 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     facetedColumns,
     propertiesConfig,
     recordIdentifierKey,
+    isSearchMode,
   });
 
   const onSearch = (value: string) => {
     setSearchQuery(value);
   }
+
+  const toggleSearchMode = React.useCallback(() => {
+    if (canToggleSearchMode(apiConfig)) {
+      setIsSearchMode(prev => !prev);
+      setSearchQuery('');
+      setAppliedFilters({});
+      setSort([]);
+    }
+  }, [apiConfig]);
 
   const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
@@ -71,14 +103,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
 
   useEffect(() => {
     fetchRecords(1);
-  }, [ appliedFilters, searchQuery, sort, facetedColumns, apiConfig.apiUrl ]);
+  }, [ appliedFilters, searchQuery, sort, facetedColumns, isSearchMode ]);
 
   const handleRefresh = React.useCallback(() => {
     setAppliedFilters({});
     setSort([]);
     setSearchQuery('');
+    if (isDualApiConfig(apiConfig)) {
+      setIsSearchMode(true); // Reset to search mode for dual config
+    } else {
+      setIsSearchMode(apiConfig.useSearch || false);
+    }
     fetchRecords(1, "");
-  }, [ fetchRecords ]);
+  }, [ fetchRecords, apiConfig ]);
 
   const handleReload = React.useCallback(() => {
     fetchRecords(currentPage, pageCursor[ currentPage ]);
@@ -150,7 +187,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     handleColumnSettingsChange(defaultSettings);
   };
 
-  const columns = addFilterUI(addActionUI(propertiesConfig, handleReload), applyFilters, (col) => setAppliedFilters(f => { const newF = { ...f }; delete newF[ col ]; return newF; }), getAppliedFilterForColumn, facetResults, facetedColumns, toggleFacetedColumn)
+  const columns = addFilterUI(
+    addActionUI(propertiesConfig, handleReload, routeParams),
+    applyFilters,
+    (col) => setAppliedFilters(f => {
+      const newF = { ...f };
+      delete newF[ col ]; return newF;
+    }),
+    getAppliedFilterForColumn,
+    facetResults,
+    facetedColumns,
+    toggleFacetedColumn,
+    !!isSearchMode
+  )
     .map((column, index) => {
       if (column.key === 'action') return column;
 
@@ -172,7 +221,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
         title: columnSetting?.title || column.dataIndex,
         render: renderer,
         fixed: columnSetting?.fixed,
-        sorter: apiConfig.useSearch ? { multiple: index + 1 } : undefined,
+        sorter: (isSearchMode && (column.isSortable === true || column.isSortable === undefined)) ? { multiple: index + 1 } : undefined,
         sortOrder: sort.find(s => s.field === column.dataIndex)?.order,
         filterIcon: <FilterFilled style={{ color: !!appliedFilters[ column.dataIndex ] ? "#1677ff" : undefined }} />,
       }
@@ -193,7 +242,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     columns,
     listRecords,
     isLoading,
-    Pagination: apiConfig.useSearch ? <NumericalPagination /> : CursorPagination,
+    Pagination: isSearchMode ? <NumericalPagination /> : CursorPagination,
     DisplayAppliedFilters,
     onSearch,
     handleTableChange,
@@ -211,5 +260,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: Iuse
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
+    isSearchMode,
+    toggleSearchMode,
+    canToggleSearchMode: canToggleSearchMode(apiConfig),
   };
 };
