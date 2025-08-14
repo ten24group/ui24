@@ -113,9 +113,15 @@ export function Form({
         if (fieldType === "datetime" || fieldType === "date" || fieldType === "time") {
           // if the value starts with 0, then it is a timestamp and we need to convert it to a date
           if (itemValue.toString().startsWith('0')) {
-            itemValue = dayjsCustom(new Date(parseInt(itemValue)).toISOString());
+            itemValue = dayjsCustom.tz(
+              new Date(parseInt(itemValue)).toISOString(),
+              item.timezone
+            );
           } else {
-            itemValue = dayjsCustom(itemValue);
+            itemValue = dayjsCustom.tz(
+              itemValue,
+              item.timezone
+            );
           }
         } else if ([ 'boolean', 'toggle', 'switch' ].includes(fieldType)) {
           itemValue = itemValue;

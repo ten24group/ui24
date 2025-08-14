@@ -22,6 +22,7 @@ interface IPropertiesConfig {
     initialValue: string;
     fieldType?: FieldType;
     helpText?: string;
+    timezone?: string;
 
     // for list and map fields
     type?: PropertyType;
@@ -135,10 +136,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
         } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
             // formate the date value using uiConfig's date-time-formats
             if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
-                initialValue = formatDate(new Date(parseInt(initialValue)).toISOString(), item.fieldType as any);
-            } else {
-                initialValue = formatDate(initialValue, item.fieldType as any);
+                initialValue = new Date(parseInt(initialValue)).toISOString();
             }
+
+            initialValue = formatDate(
+                initialValue,
+                item.fieldType as 'date' | 'datetime' | 'time',
+                item.timezone
+            );
         } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType)) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);

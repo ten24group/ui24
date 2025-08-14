@@ -8,6 +8,8 @@ dayjs.extend(dayjsUTCPlugin);
 dayjs.extend(dayjsTimezonePlugin);
 dayjs.extend(dayjsCustomParseFormat);
 
+dayjs.tz.setDefault('UTC');
+
 dayjs();
 
 export { dayjs as dayjsCustom };
