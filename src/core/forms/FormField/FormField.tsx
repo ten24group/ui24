@@ -169,7 +169,6 @@ const MakeFormListItem = ({
     helpText,
 }: IFormField) => {
     const parentFieldName = name;
-        
     // For complex list items (list of objects), use the card-based approach
     return <>
         {label && <LabelAndHelpText label={label} helpText={helpText} />}
@@ -190,9 +189,9 @@ const MakeFormListItem = ({
                             {/* for complex list items (list of objects) */}
                             { items.properties && items.properties.length > 0 &&
                                 items.properties.map((property: any) => {
-                                    return <MakeFormItem {...property} namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, field.name ] : [ field.name ]}
+                                    return <RenderFormField {...property} namePrefixPath={[ field.name ]}
                                         setFormValue={({ name, value }) => {
-                                            setFormValue({ name: parentFieldName, value: { [ name ]: value }, index: field.key })
+                                            setFormValue({ name: parentFieldName, value: { [ name ]: value }, index: field.name })
                                         }}
                                     />
                                 })
