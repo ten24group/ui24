@@ -14,6 +14,9 @@ All notable changes to this project will be documented in this file. See [standa
 ### Features
 
 * smart column layout on forms and details page ([6238639](https://github.com/ten24group/ui24/commit/6238639d7204ee7e0d4f275afb988df94ba6e323))
+### [1.0.3](https://github.com/ten24group/ui24/compare/v1.0.2...v1.0.3) (2025-07-28)
+
+### [1.0.2](https://github.com/ten24group/ui24/compare/v1.0.1...v1.0.2) (2025-06-12)
 
 
 ### Bug Fixes
@@ -32,6 +35,7 @@ All notable changes to this project will be documented in this file. See [standa
 * form not handling simple list items properly ([210e673](https://github.com/ten24group/ui24/commit/210e673c305f00446559c209f69088bea7d620e7))
 * pagination and column selection for dynamo-db based api ([0031612](https://github.com/ten24group/ui24/commit/003161260280dddafa2eee61007888b6708b2eef))
 * route placeholders ([14cfb73](https://github.com/ten24group/ui24/commit/14cfb73a72affbef4cb4896060d02dd504cc96ba))
+* errors not coming-up in the UI on some pages ([1713a3a](https://github.com/ten24group/ui24/commit/1713a3a64bd7be51f40f80719743260363ae6aec))
 
 ### [1.0.1](https://github.com/ten24group/ui24/compare/v1.0.0...v1.0.1) (2025-05-19)
 
