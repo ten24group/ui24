@@ -19,11 +19,11 @@ const OTPVerifyForm = () => {
   const { notifySuccess, notifyError } = useAppContext();
   const { callApiMethod } = useApi();
   const { selectConfig } = useUi24Config();
-  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth['/login'] ? config.uiConfig.auth['/login'].authConfig : undefined);
+  const authConfig = selectConfig(config => config.uiConfig.auth && config.uiConfig.auth[ '/login' ] ? config.uiConfig.auth[ '/login' ].authConfig : undefined);
   const pageConfig = usePageConfig("/otp-login/verify");
   const propertiesConfig = pageConfig.propertiesConfig;
-  const [loader, setLoader] = useState(false);
-  const [otp, setOtp] = useState('');
+  const [ loader, setLoader ] = useState(false);
+  const [ otp, setOtp ] = useState('');
 
   // Get email and session from navigation state
   const { email, session } = (location.state || {});
@@ -44,9 +44,10 @@ const OTPVerifyForm = () => {
       });
       if (response.status === 200) {
         notifySuccess('Login Successful!');
-        navigate('/dashboard');
+        // After login, navigate to root so AppNavigator can handle redirect
+        navigate('/');
       } else {
-        notifyError(response?.error || 'OTP verification failed.');
+        notifyError((response.data as any)?.error || 'OTP verification failed.');
       }
     } catch (error: any) {
       notifyError(error?.message || 'An error occurred during OTP verification');

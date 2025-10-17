@@ -10,11 +10,13 @@ import { ITableConfig } from '../../table/type';
 import { Details, IDetailsConfig } from '../../detail/Details';
 import { v4 as uuidv4 } from 'uuid';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../../core/common';
 
-export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard";
+export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard" | "custom";
 
 export interface IRenderFromPageType extends IPageHeader {
-    identifiers ?: any;
+    identifiers?: string | number;
     pageType?: IPageType;
     cardStyle?: React.CSSProperties;
     formPageConfig?: IForm;
@@ -30,27 +32,59 @@ export interface IPostAuthPage extends IRenderFromPageType {
     children?: React.ReactNode;
 }
 
-export const PostAuthPage = ({ CustomPageHeader, children, ...props } : IPostAuthPage ) => {
+export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuthPage) => {
 
-    return <div style={{ paddingTop: "1%"}}>
-            <div className = "PostAuthContainer" >
-                { CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />}
-                <div className="PageContent">
-                    { children && children }
-                    { !children && <RenderFromPageType {...props} />}
-                </div>
+    return <div style={{ paddingTop: "1%" }}>
+        <div className="PostAuthContainer" >
+            {CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />}
+            <div className="PageContent">
+                {children && children}
+                {!children && (
+                  <ErrorBoundary
+                    FallbackComponent={ErrorFallback}
+                    onReset={() => {
+                      console.log("PostAuthPage ErrorBoundary Reset");
+                    }}
+                  >
+                    <RenderFromPageType {...props} />
+                  </ErrorBoundary>
+                )}
             </div>
         </div>
+    </div>
 }
 
-export const RenderFromPageType = ( {pageType, cardStyle, accordionsPageConfig, formPageConfig, listPageConfig, detailsPageConfig, identifiers, routeParams, dashboardPageConfig}: IRenderFromPageType ) => {
-    
-    switch( pageType ) {
-        case "list": return <Card style={ cardStyle } > <Table {...listPageConfig} routeParams={routeParams} key={`list-${uuidv4()}`} /> </Card>;
-        case "form": return <Card style={ cardStyle } > <Form {...formPageConfig} identifiers={identifiers} key={`form-${uuidv4()}`} /> </Card>;
-        case "details": return <Card style={ cardStyle } > <Details {...{...detailsPageConfig, identifiers}} key={`details-${uuidv4()}`}/> </Card>;
-        case "accordion": return <Accordion accordionsPageConfig={ accordionsPageConfig} />;
+interface IRenderFromPageTypeProps extends IRenderFromPageType {
+  pageType?: IPageType;
+  cardStyle?: React.CSSProperties;
+  accordionsPageConfig?: Record<string, IRenderFromPageType>;
+  formPageConfig?: IForm;
+  listPageConfig?: ITableConfig;
+  detailsPageConfig?: IDetailsConfig;
+  identifiers?: string | number;
+  routeParams?: Record<string, string>;
+  dashboardPageConfig?: IDashboardPageConfig;
+}
+
+export const RenderFromPageType = ({ 
+  pageType, 
+  cardStyle, 
+  accordionsPageConfig, 
+  formPageConfig, 
+  listPageConfig, 
+  detailsPageConfig, 
+  identifiers, 
+  routeParams, 
+  dashboardPageConfig 
+}: IRenderFromPageTypeProps) => {
+
+    switch (pageType) {
+        case "list": return <Card style={cardStyle} > <Table {...listPageConfig} routeParams={routeParams} key={`list-${uuidv4()}`} /> </Card>;
+        case "form": return <Card style={cardStyle} > <Form {...formPageConfig} identifiers={identifiers} routeParams={routeParams} key={`form-${uuidv4()}`} /> </Card>;
+        case "details": return <Card style={cardStyle} > <Details {...detailsPageConfig} identifiers={identifiers} routeParams={routeParams} key={`details-${uuidv4()}`} /> </Card>;
+        case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
         case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
+        case "custom": return <>TODO: handle custom page</>;
         default: return <>Invalid Page Type</>;
     }
 }

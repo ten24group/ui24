@@ -1,0 +1,62 @@
+.control-widget-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 20px 24px;
+  min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.control-widget-header {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.control-widget-content {
+  flex: 1;
+}
+
+.control-widget-card.layout-vertical .control-widget-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.control-widget-card.layout-horizontal .control-widget-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.control-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.control-widget-card.layout-horizontal .control-item {
+  flex: 1;
+  min-width: 120px;
+}
+
+.control-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.control-item .ant-btn {
+  align-self: flex-start;
+}
+
+.control-widget-card.layout-horizontal .control-item .ant-btn {
+  width: 100%;
+} 

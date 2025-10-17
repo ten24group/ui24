@@ -1,5 +1,6 @@
 import React from 'react';
-import { App as AntdApp } from "antd";
+import { App as AntdApp, ConfigProvider } from "antd";
+import enUS from 'antd/locale/en_US';
 
 import { AppRouter, IAppRouter } from './routes/AppRouter';
 import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider } from './core/context';
@@ -17,19 +18,21 @@ type IUI24 = {
 const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
 
     return (
-        <AntdApp>
-            <Ui24ConfigProvider initConfig={ui24config}>
-                <AppContextProvider>
-                    <ThemeProvider>
-                        <AuthProvider>
-                            <ApiProvider>
-                                <AppRouter customRoutes={customRoutes} />
-                            </ApiProvider>
-                        </AuthProvider>
-                    </ThemeProvider>
-                </AppContextProvider>
-            </Ui24ConfigProvider>
-        </AntdApp>
+        <ConfigProvider locale={enUS}>
+            <AntdApp>
+                <Ui24ConfigProvider initConfig={ui24config}>
+                    <AppContextProvider>
+                        <ThemeProvider>
+                            <AuthProvider>
+                                <ApiProvider>
+                                    <AppRouter customRoutes={customRoutes} />
+                                </ApiProvider>
+                            </AuthProvider>
+                        </ThemeProvider>
+                    </AppContextProvider>
+                </Ui24ConfigProvider>
+            </AntdApp>
+        </ConfigProvider>
     )
 }
 export { UI24 };

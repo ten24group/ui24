@@ -17,6 +17,19 @@
   max-width: 100%;
 }
 
+.details-field-container > div {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+
+.details-field-container * {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
 .details-field-label {
   color: #999;
   font-weight: 500;

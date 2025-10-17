@@ -1,217 +1,267 @@
-import React, { Fragment, useEffect, Key } from "react";
+import React, { useEffect } from "react";
 import { ITablePropertiesConfig } from "./type";
-import { IApiConfig, useApi } from "../core/context";
+import { IApiConfig, IDualApiConfig } from "../core/context";
+import { Pagination as AntPagination } from "antd";
+import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
-import { useAppContext } from "../core/context/AppContext";
 import { addFilterUI } from "./Filters/addFilterUI";
 import { usePagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
-import { useFormat } from "../core/hooks";
+import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
+import { FilterFilled } from "@ant-design/icons";
+import { useTableData } from "./hooks/useTableData";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
-  apiConfig: IApiConfig;
+  apiConfig: IApiConfig | IDualApiConfig;
   routeParams?: Record<string, string>;
 }
 
-const recordPerPage = 10;
-
-// Utility to replace URL parameters with values
-const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
-  const result = url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
-  return result;
+// Utility functions to handle both single and dual API configurations
+const isDualApiConfig = (config: IApiConfig | IDualApiConfig): config is IDualApiConfig => {
+  return 'search' in config && 'database' in config;
 };
 
-const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
-  if( apiMethod === "GET" ) {
-    //convention for every filter would be column_operator=value
-    //example: name.eq=John
-    let transformedFilters: Record<string, any> = {};
-    for( let key in filters ) {
-      for( let operator in filters[key] ) {
-        //if value is array, convert it into a list of values separated by comma
-        if( Array.isArray(filters[key][operator]) ) {
-          transformedFilters[`${key}.${operator}`] = filters[key][operator].join(",");
-        } else {
-          transformedFilters[`${key}.${operator}`] = filters[key][operator];
-        }
-      }
-    }
-    return transformedFilters;
+const getCurrentApiConfig = (apiConfig: IApiConfig | IDualApiConfig, isSearchMode: boolean): IApiConfig => {
+  if (isDualApiConfig(apiConfig)) {
+    return isSearchMode ? apiConfig.search : apiConfig.database;
   }
+  return apiConfig;
+};
 
-  return {
-    filters: filters
-  };
-}
+const canToggleSearchMode = (apiConfig: IApiConfig | IDualApiConfig): boolean => {
+  return isDualApiConfig(apiConfig);
+};
 
 export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
-  const identifierColumns = propertiesConfig.filter( property => property.isIdentifier );
-  const formattingColumns = propertiesConfig.filter( property => 
-    ['date', 'datetime', 'time', 'boolean', 'switch', 'toggle']
-      .includes(property.fieldType?.toLocaleLowerCase())
-  );
 
-  const [listRecords, setListRecords] = React.useState([]);
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [currentPage, setCurrentPage] = React.useState(0);
-  const [pageCursor, setPageCursor] = React.useState<Record<number, string>>({});
-  const [isLastPage, setIsLastPage] = React.useState(false);
-  const [appliedFilters, setAppliedFilters] = React.useState<Record<string, any>>({});
-  const { callApiMethod } = useApi();
-  const { notifyError } = useAppContext();
-  const { formatDate, formatBoolean } = useFormat();
-  
-  // Track if we've made the initial API call
-  const hasInitialLoad = React.useRef(false);
-  // Track the last API call parameters to prevent duplicate calls
-  const lastCallParams = React.useRef({
-    url: '',
-    filters: {},
-    page: 0,
-    cursor: ''
+  const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>({});
+  const [ searchQuery, setSearchQuery ] = React.useState<string>('');
+  const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
+  const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
+    if (isDualApiConfig(apiConfig)) {
+      return true; // Default to search mode for dual config
+    }
+    return apiConfig.useSearch || false;
+  });
+  const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(
+    propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex)
+  );
+  const [ columnSettings, setColumnSettings ] = React.useState(
+    propertiesConfig.map(p => ({
+      key: p.dataIndex,
+      title: p.name,
+      visible: !p.hidden,
+      fixed: p.actions ? 'right' : undefined,
+      isIdentifier: p.isIdentifier,
+    }))
+  );
+  const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
+
+  const {
+    listRecords,
+    isLoading,
+    currentPage,
+    pageCursor,
+    isLastPage,
+    totalRecords,
+    facetResults,
+    fetchRecords,
+    recordPerPage
+  } = useTableData({
+    apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
+    routeParams,
+    appliedFilters,
+    searchQuery,
+    sort,
+    visibleColumns,
+    facetedColumns,
+    propertiesConfig,
+    recordIdentifierKey,
+    isSearchMode,
   });
 
-  //call API get records
-  const getRecords = React.useCallback(async (
-    pageNumber: number = 1,
-    currentPageCursor: string = ""
-  ) => {
-    const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
-    const currentFilters = {...appliedFilters};
-    
-    // Check if this is a duplicate call
-    const callSignature = JSON.stringify({ 
-      url: apiUrl, 
-      filters: currentFilters,
-      page: pageNumber,
-      cursor: currentPageCursor
-    });
-    const lastCallSignature = JSON.stringify(lastCallParams.current);
-    if (callSignature === lastCallSignature) {
-      return;
+  const onSearch = (value: string) => {
+    setSearchQuery(value);
+  }
+
+  const toggleSearchMode = React.useCallback(() => {
+    if (canToggleSearchMode(apiConfig)) {
+      setIsSearchMode(prev => !prev);
+      setSearchQuery('');
+      setAppliedFilters({});
+      setSort([]);
     }
-    
-    // Update last call parameters
-    lastCallParams.current = {
-      url: apiUrl,
-      filters: currentFilters,
-      page: pageNumber,
-      cursor: currentPageCursor
-    };
+  }, [apiConfig]);
 
-    const payload = {
-      cursor: currentPageCursor,
-      limit: recordPerPage,
-      ...getFilterPayload(currentFilters, apiConfig.apiMethod),
-    };
+  const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
+    const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
+    setSort(newSorters.filter(s => s.order)); // Only keep sorts with an active order
+  };
 
-    setIsLoading(true);
+  useEffect(() => {
+    fetchRecords(1);
+  }, [ appliedFilters, searchQuery, sort, facetedColumns, isSearchMode ]);
 
-    try {
-      const response: any = await callApiMethod({
-        ...apiConfig,
-        apiUrl,
-        payload: payload,
-      });
-
-      if (response?.status === 200) {
-        const records = response.data[apiConfig.responseKey];
-
-        records.forEach((record: any) => {
-          formattingColumns.forEach((property) => {
-            if( record[property.dataIndex] === null || record[property.dataIndex] === undefined || record[property.dataIndex] === '' ) {
-              record[property.dataIndex] = '';
-              return;
-            }
-            if([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())){
-              const itemValue = record[property.dataIndex].toString().startsWith('0') ? 
-                new Date(parseInt(record[property.dataIndex])).toISOString() : 
-                record[property.dataIndex];
-              record[property.dataIndex] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
-            } else if (['boolean', 'switch', 'toggle'].includes(property.fieldType?.toLocaleLowerCase())){
-              record[property.dataIndex] = formatBoolean(record[property.dataIndex]);
-            }
-          });
-
-          const identifiers = identifierColumns.map( column => ({
-            [column.dataIndex] : record[column.dataIndex]
-          }));
-          record[recordIdentifierKey] = JSON.stringify(identifiers);
-        });
-
-        setListRecords(records);
-        setCurrentPage(pageNumber);
-        setPageCursor(prev => ({ ...prev, [pageNumber + 1]: response.data?.cursor }));
-        setIsLastPage(response.data?.cursor === null);
-      } else {
-        notifyError(response?.error);
-      }
-    } catch (error) {
-      notifyError('Failed to fetch records');
-      console.error('Error fetching records:', error);
-    } finally {
-      setIsLoading(false);
+  const handleRefresh = React.useCallback(() => {
+    setAppliedFilters({});
+    setSort([]);
+    setSearchQuery('');
+    if (isDualApiConfig(apiConfig)) {
+      setIsSearchMode(true); // Reset to search mode for dual config
+    } else {
+      setIsSearchMode(apiConfig.useSearch || false);
     }
-  }, [apiConfig, routeParams, appliedFilters, formattingColumns, identifierColumns]);
+    fetchRecords(1, "");
+  }, [ fetchRecords, apiConfig ]);
 
-  React.useEffect(() => {
-    if (!hasInitialLoad.current && apiConfig.apiUrl) {
-      hasInitialLoad.current = true;
-      getRecords();
-    }
-  }, [getRecords]);
+  const handleReload = React.useCallback(() => {
+    fetchRecords(currentPage, pageCursor[ currentPage ]);
+  }, [ fetchRecords, currentPage, pageCursor ]);
 
-  // Handle filter changes separately
-  React.useEffect(() => {
-    if (hasInitialLoad.current && Object.keys(appliedFilters).length > 0) {
-      getRecords();
-    }
-  }, [appliedFilters, getRecords]);
-
-  const getColumnNameByKey = ( dataIndex: string ) => {
-    return columns.find((column) => column.dataIndex === dataIndex)?.title;
+  const getColumnNameByKey = (dataIndex: string) => {
+    return propertiesConfig.find((column) => column.dataIndex === dataIndex)?.name;
   }
 
   //Filters
-  const { applyFilters, DisplayAppliedFilters } = useAppliedFilters({
+  const { applyFilters, DisplayAppliedFilters, clearAllFilters, hasActiveFilters, activeFiltersCount } = useAppliedFilters({
     appliedFilters,
     setAppliedFilters,
     getColumnNameByKey
   });
 
+  const getAppliedFilterForColumn = (column: string) => {
+    return appliedFilters[ column ] || {};
+  }
+
+  const toggleFacetedColumn = (dataIndex: string) => {
+    setFacetedColumns(prev =>
+      prev.includes(dataIndex)
+        ? prev.filter(d => d !== dataIndex)
+        : [ ...prev, dataIndex ]
+    );
+  };
+
+  //Sorts
+  const { DisplayAppliedSorts, clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
+    sort,
+    setSort,
+    getColumnNameByKey
+  });
+
   //Pagination
-  const { Pagination } = usePagination({
+  const { Pagination: CursorPagination } = usePagination({
     pageCursor,
-    getRecords,
+    getRecords: fetchRecords,
     currentPage,
     isLastPage
   });
 
-  //add action UI and filter UI
-  const columns = addFilterUI( addActionUI(propertiesConfig, getRecords ), applyFilters )
-  .map( column => { 
+  const NumericalPagination = () => (
+    <AntPagination
+      current={currentPage}
+      total={totalRecords}
+      pageSize={recordPerPage}
+      onChange={(page) => fetchRecords(page)}
+      showSizeChanger={false}
+    />
+  );
 
-    let renderer = column.render;
+  const selectableColumns = React.useMemo(() => propertiesConfig.filter(p => !p.isIdentifier), [ propertiesConfig ]);
 
-    if(column.fieldType === 'color'){
-      renderer = (text: string, record: any) => {
-        return {
-          children: <>
-            <svg width="12" height="12">
+  const handleColumnSettingsChange = (newSettings) => {
+    setColumnSettings(newSettings);
+    setVisibleColumns(newSettings.filter(c => c.visible).map(c => c.key));
+  };
+
+  const resetColumnSettings = () => {
+    const defaultSettings = propertiesConfig.map(p => ({
+      key: p.dataIndex,
+      title: p.name,
+      visible: !p.hidden,
+      fixed: p.actions ? 'right' : undefined,
+      isIdentifier: p.isIdentifier,
+    }));
+    handleColumnSettingsChange(defaultSettings);
+  };
+
+  const columns = addFilterUI(
+    addActionUI(propertiesConfig, handleReload, routeParams),
+    applyFilters,
+    (col) => setAppliedFilters(f => {
+      const newF = { ...f };
+      delete newF[ col ]; return newF;
+    }),
+    getAppliedFilterForColumn,
+    facetResults,
+    facetedColumns,
+    toggleFacetedColumn,
+    !!isSearchMode
+  )
+    .map((column, index) => {
+      if (column.key === 'action') return column;
+
+      let renderer = column.render;
+      if (column.fieldType === 'color') {
+        renderer = (text: string) => (
+          <>
+            <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
               <rect width="12" height="12" fill={text} strokeWidth={1} stroke="rgb(0,0,0)" />
             </svg>
-            <span> {text}</span>
+            <span style={{ marginLeft: 8 }}> {text}</span>
           </>
-        }
+        );
       }
-    }
 
-    return {  ...column, render: renderer}
-    
-   });
+      const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
+      return {
+        ...column,
+        title: columnSetting?.title || column.dataIndex,
+        render: renderer,
+        fixed: columnSetting?.fixed,
+        sorter: (isSearchMode && (column.isSortable === true || column.isSortable === undefined)) ? { multiple: index + 1 } : undefined,
+        sortOrder: sort.find(s => s.field === column.dataIndex)?.order,
+        filterIcon: <FilterFilled style={{ color: !!appliedFilters[ column.dataIndex ] ? "#1677ff" : undefined }} />,
+      }
+    })
+    .filter(c => c.key === 'action' || columnSettings.find(s => s.key === c.dataIndex)?.visible)
+    .sort((a, b) => {
+      const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
+      const bIndex = columnSettings.findIndex(s => s.key === b.dataIndex);
+      if (a.fixed === 'right' || a.key === 'action') return 1;
+      if (b.fixed === 'right' || b.key === 'action') return -1;
+      if (a.fixed === 'left') return -1;
+      if (b.fixed === 'left') return 1;
+      return aIndex - bIndex;
+    });
 
-  return { recordIdentifierKey, columns, listRecords, isLoading, Pagination, DisplayAppliedFilters };
+  return {
+    recordIdentifierKey,
+    columns,
+    listRecords,
+    isLoading,
+    Pagination: isSearchMode ? <NumericalPagination /> : CursorPagination,
+    DisplayAppliedFilters,
+    onSearch,
+    handleTableChange,
+    hasActiveFilters,
+    activeFiltersCount,
+    clearAllFilters,
+    DisplayAppliedSorts,
+    clearAllSorts,
+    hasActiveSorts,
+    activeSortsCount,
+    handleRefresh,
+    handleReload,
+    selectableColumns,
+    searchQuery,
+    columnSettings,
+    handleColumnSettingsChange,
+    resetColumnSettings,
+    isSearchMode,
+    toggleSearchMode,
+    canToggleSearchMode: canToggleSearchMode(apiConfig),
+  };
 };

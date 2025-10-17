@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.2-beta.3](https://github.com/ten24group/ui24/compare/v1.0.2-beta.2...v1.0.2-beta.3) (2025-08-14)
+
+### [1.0.2-beta.2](https://github.com/ten24group/ui24/compare/v1.0.2-beta.1...v1.0.2-beta.2) (2025-08-14)
+
+### [1.0.2-beta.1](https://github.com/ten24group/ui24/compare/v1.0.2-beta.0...v1.0.2-beta.1) (2025-08-14)
+
+### [1.0.2-beta.0](https://github.com/ten24group/ui24/compare/v1.0.1...v1.0.2-beta.0) (2025-08-14)
+
+
+### Features
+
+* smart column layout on forms and details page ([6238639](https://github.com/ten24group/ui24/commit/6238639d7204ee7e0d4f275afb988df94ba6e323))
 ### [1.0.3](https://github.com/ten24group/ui24/compare/v1.0.2...v1.0.3) (2025-07-28)
 
 ### [1.0.2](https://github.com/ten24group/ui24/compare/v1.0.1...v1.0.2) (2025-06-12)
@@ -9,6 +21,20 @@ All notable changes to this project will be documented in this file. See [standa
 
 ### Bug Fixes
 
+* action widget not handling the modal actions ([8425457](https://github.com/ten24group/ui24/commit/8425457aab96cf6eed64f6f5a8ed317308c44106))
+* action widgets ([d14e4e7](https://github.com/ten24group/ui24/commit/d14e4e7397169fec67f5dc5824f4c12145fdf9c1))
+* boolean fields not rendering the value from api ([e06b212](https://github.com/ten24group/ui24/commit/e06b21200735e025b1c3288c8b9eec65e7184e94))
+* data type formatting issues ([d47e390](https://github.com/ten24group/ui24/commit/d47e390bfda890233713a6ca24f52aa4d2b55e10))
+* detail page not rendering  nested items ([b05b49e](https://github.com/ten24group/ui24/commit/b05b49eafa449184034d6c950b89dbc755c5a31b))
+* details page to organize columns better ([6271974](https://github.com/ten24group/ui24/commit/6271974d098ded4bba13969b6b25e8e57046d862))
+* errors in several places ([32aa8ce](https://github.com/ten24group/ui24/commit/32aa8ce05d73bf1e49cd566956c9611c41ae9c9a))
+* errors not coming-up in the UI on some pages ([1713a3a](https://github.com/ten24group/ui24/commit/1713a3a64bd7be51f40f80719743260363ae6aec))
+* errors on view-entity page not rendering any value, and types enhancements ([f671b34](https://github.com/ten24group/ui24/commit/f671b34a0054c9212e6e6a9d2b951417cae8cc19))
+* facet filters for non-search listing ([49fed32](https://github.com/ten24group/ui24/commit/49fed32cf9ce520b1d9f2a8a6784e26236f2dee5))
+* filters ui ([8ffa58a](https://github.com/ten24group/ui24/commit/8ffa58a62b6ca5e8f78575d3703f716d83ffe46e))
+* form not handling simple list items properly ([210e673](https://github.com/ten24group/ui24/commit/210e673c305f00446559c209f69088bea7d620e7))
+* pagination and column selection for dynamo-db based api ([0031612](https://github.com/ten24group/ui24/commit/003161260280dddafa2eee61007888b6708b2eef))
+* route placeholders ([14cfb73](https://github.com/ten24group/ui24/commit/14cfb73a72affbef4cb4896060d02dd504cc96ba))
 * errors not coming-up in the UI on some pages ([1713a3a](https://github.com/ten24group/ui24/commit/1713a3a64bd7be51f40f80719743260363ae6aec))
 
 ### [1.0.1](https://github.com/ten24group/ui24/compare/v1.0.0...v1.0.1) (2025-05-19)

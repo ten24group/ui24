@@ -18,7 +18,6 @@ module.exports = {
     rules: [
       {
         test: /\.(ts|tsx)$/,
-        use: 'babel-loader',
         exclude: /node_modules/,
         use: {
           loader: "babel-loader",
@@ -35,8 +34,11 @@ module.exports = {
   },
   plugins: [new CompressionPlugin()],
   externals: {
-    react: 'react',
-    'react-dom': 'react-dom'
+    'react': 'react',
+    'react-dom': 'react-dom',
+    'antd': 'antd',
+    'axios': 'axios',
+    'react-router-dom': 'react-router-dom'
   },
   devServer: {
     historyApiFallback: true,

@@ -7,8 +7,8 @@
 /*!
  * @antv/g-lite
  * @description A core module for rendering engine implements DOM API.
- * @version 2.2.19
- * @date 5/9/2025, 8:18:56 AM
+ * @version 2.3.2
+ * @date 7/30/2025, 1:34:19 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -25,8 +25,8 @@
 /*!
  * @antv/g-plugin-canvas-path-generator
  * @description A G plugin of path generator with Canvas2D API
- * @version 2.1.19
- * @date 5/9/2025, 8:19:59 AM
+ * @version 2.1.22
+ * @date 7/30/2025, 1:35:25 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -34,8 +34,8 @@
 /*!
  * @antv/g-plugin-image-loader
  * @description A G plugin for loading image
- * @version 2.1.22
- * @date 5/9/2025, 8:20:25 AM
+ * @version 2.1.26
+ * @date 7/30/2025, 1:35:52 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
@@ -43,20 +43,18 @@
 /*!
  * @antv/g-web-animations-api
  * @description A simple implementation of Web Animations API.
- * @version 2.1.24
- * @date 5/9/2025, 8:20:56 AM
+ * @version 2.1.28
+ * @date 7/30/2025, 1:36:24 PM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
 
 /*!
- * Determine if an object is a Buffer
- *
- * @author   Feross Aboukhadijeh <https://feross.org>
- * @license  MIT
- */
+* tabbable 6.2.0
+* @license MIT, https://github.com/focus-trap/tabbable/blob/master/LICENSE
+*/
 
-/*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/facebook/regenerator/blob/main/LICENSE */
+/*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */
 
 /**
  * @license
@@ -65,6 +63,16 @@
  * Released under MIT license <https://lodash.com/license>
  * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
  * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
+
+/**
+ * @license React
+ * react-dom-client.production.js
+ *
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  */
 
 /**
@@ -79,23 +87,22 @@
 
 /**
  * @license React
- * react-jsx-runtime.production.min.js
+ * react-jsx-runtime.production.js
  *
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
 
 /**
- * @remix-run/router v1.23.0
+ * @license React
+ * scheduler.production.js
  *
- * Copyright (c) Remix Software Inc.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
- * LICENSE.md file in the root directory of this source tree.
- *
- * @license MIT
+ * LICENSE file in the root directory of this source tree.
  */
 
 /**
@@ -111,28 +118,6 @@
  * @return {boolean} True if the event is supported.
  * @internal
  * @license Modernizr 3.0.0pre (Custom Build) | MIT
- */
-
-/**
- * React Router DOM v6.30.0
- *
- * Copyright (c) Remix Software Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE.md file in the root directory of this source tree.
- *
- * @license MIT
- */
-
-/**
- * React Router v6.30.0
- *
- * Copyright (c) Remix Software Inc.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE.md file in the root directory of this source tree.
- *
- * @license MIT
  */
 
 /**![account-book](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNjYWNhY2EiIHZpZXdCb3g9IjY0IDY0IDg5NiA4OTYiIGZvY3VzYWJsZT0iZmFsc2UiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTcxMiAzMDRjMCA0LjQtMy42IDgtOCA4aC01NmMtNC40IDAtOC0zLjYtOC04di00OEgzODR2NDhjMCA0LjQtMy42IDgtOCA4aC01NmMtNC40IDAtOC0zLjYtOC04di00OEgxODR2NTg0aDY1NlYyNTZINzEydjQ4em0tNjUuNiAxMjEuOGwtODkuMyAxNjQuMWg0OS4xYzQuNCAwIDggMy42IDggOHYyMS4zYzAgNC40LTMuNiA4LTggOGgtNjUuNHYzMy43aDY1LjRjNC40IDAgOCAzLjYgOCA4djIxLjNjMCA0LjQtMy42IDgtOCA4aC02NS40Vjc1MmMwIDQuNC0zLjYgOC04IDhoLTQxLjNjLTQuNCAwLTgtMy42LTgtOHYtNTMuOGgtNjUuMWMtNC40IDAtOC0zLjYtOC04di0yMS4zYzAtNC40IDMuNi04IDgtOGg2NS4xdi0zMy43aC02NS4xYy00LjQgMC04LTMuNi04LTh2LTIxLjNjMC00LjQgMy42LTggOC04SDQ2N2wtODkuMy0xNjRjLTIuMS0zLjktLjctOC44IDMuMi0xMC45IDEuMS0uNyAyLjUtMSAzLjgtMWg0NmE4IDggMCAwMTcuMSA0LjRsNzMuNCAxNDUuNGgyLjhsNzMuNC0xNDUuNGMxLjMtMi43IDQuMS00LjQgNy4xLTQuNGg0NWM0LjUgMCA4IDMuNiA3LjkgOCAwIDEuMy0uNCAyLjYtMSAzLjh6IiBmaWxsPSIjZTZmNGZmIiAvPjxwYXRoIGQ9Ik02MzkuNSA0MTRoLTQ1Yy0zIDAtNS44IDEuNy03LjEgNC40TDUxNCA1NjMuOGgtMi44bC03My40LTE0NS40YTggOCAwIDAwLTcuMS00LjRoLTQ2Yy0xLjMgMC0yLjcuMy0zLjggMS0zLjkgMi4xLTUuMyA3LTMuMiAxMC45bDg5LjMgMTY0aC00OC42Yy00LjQgMC04IDMuNi04IDh2MjEuM2MwIDQuNCAzLjYgOCA4IDhoNjUuMXYzMy43aC02NS4xYy00LjQgMC04IDMuNi04IDh2MjEuM2MwIDQuNCAzLjYgOCA4IDhoNjUuMVY3NTJjMCA0LjQgMy42IDggOCA4aDQxLjNjNC40IDAgOC0zLjYgOC04di01My44aDY1LjRjNC40IDAgOC0zLjYgOC04di0yMS4zYzAtNC40LTMuNi04LTgtOGgtNjUuNHYtMzMuN2g2NS40YzQuNCAwIDgtMy42IDgtOHYtMjEuM2MwLTQuNC0zLjYtOC04LThoLTQ5LjFsODkuMy0xNjQuMWMuNi0xLjIgMS0yLjUgMS0zLjguMS00LjQtMy40LTgtNy45LTh6IiBmaWxsPSIjMTY3N2ZmIiAvPjxwYXRoIGQ9Ik04ODAgMTg0SDcxMnYtNjRjMC00LjQtMy42LTgtOC04aC01NmMtNC40IDAtOCAzLjYtOCA4djY0SDM4NHYtNjRjMC00LjQtMy42LTgtOC04aC01NmMtNC40IDAtOCAzLjYtOCA4djY0SDE0NGMtMTcuNyAwLTMyIDE0LjMtMzIgMzJ2NjY0YzAgMTcuNyAxNC4zIDMyIDMyIDMyaDczNmMxNy43IDAgMzItMTQuMyAzMi0zMlYyMTZjMC0xNy43LTE0LjMtMzItMzItMzJ6bS00MCA2NTZIMTg0VjI1NmgxMjh2NDhjMCA0LjQgMy42IDggOCA4aDU2YzQuNCAwIDgtMy42IDgtOHYtNDhoMjU2djQ4YzAgNC40IDMuNiA4IDggOGg1NmM0LjQgMCA4LTMuNiA4LTh2LTQ4aDEyOHY1ODR6IiBmaWxsPSIjMTY3N2ZmIiAvPjwvc3ZnPg==) */
@@ -1756,3 +1741,5 @@
 /**![zoom-in](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNjYWNhY2EiIHZpZXdCb3g9IjY0IDY0IDg5NiA4OTYiIGZvY3VzYWJsZT0iZmFsc2UiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTYzNyA0NDNINTE5VjMwOWMwLTQuNC0zLjYtOC04LThoLTYwYy00LjQgMC04IDMuNi04IDh2MTM0SDMyNWMtNC40IDAtOCAzLjYtOCA4djYwYzAgNC40IDMuNiA4IDggOGgxMTh2MTM0YzAgNC40IDMuNiA4IDggOGg2MGM0LjQgMCA4LTMuNiA4LThWNTE5aDExOGM0LjQgMCA4LTMuNiA4LTh2LTYwYzAtNC40LTMuNi04LTgtOHptMjg0IDQyNEw3NzUgNzIxYzEyMi4xLTE0OC45IDExMy42LTM2OS41LTI2LTUwOS0xNDgtMTQ4LjEtMzg4LjQtMTQ4LjEtNTM3IDAtMTQ4LjEgMTQ4LjYtMTQ4LjEgMzg5IDAgNTM3IDEzOS41IDEzOS42IDM2MC4xIDE0OC4xIDUwOSAyNmwxNDYgMTQ2YzMuMiAyLjggOC4zIDIuOCAxMSAwbDQzLTQzYzIuOC0yLjcgMi44LTcuOCAwLTExek02OTYgNjk2Yy0xMTguOCAxMTguNy0zMTEuMiAxMTguNy00MzAgMC0xMTguNy0xMTguOC0xMTguNy0zMTEuMiAwLTQzMCAxMTguOC0xMTguNyAzMTEuMi0xMTguNyA0MzAgMCAxMTguNyAxMTguOCAxMTguNyAzMTEuMiAwIDQzMHoiIC8+PC9zdmc+) */
 
 /**![zoom-out](data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIGZpbGw9IiNjYWNhY2EiIHZpZXdCb3g9IjY0IDY0IDg5NiA4OTYiIGZvY3VzYWJsZT0iZmFsc2UiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTYzNyA0NDNIMzI1Yy00LjQgMC04IDMuNi04IDh2NjBjMCA0LjQgMy42IDggOCA4aDMxMmM0LjQgMCA4LTMuNiA4LTh2LTYwYzAtNC40LTMuNi04LTgtOHptMjg0IDQyNEw3NzUgNzIxYzEyMi4xLTE0OC45IDExMy42LTM2OS41LTI2LTUwOS0xNDgtMTQ4LjEtMzg4LjQtMTQ4LjEtNTM3IDAtMTQ4LjEgMTQ4LjYtMTQ4LjEgMzg5IDAgNTM3IDEzOS41IDEzOS42IDM2MC4xIDE0OC4xIDUwOSAyNmwxNDYgMTQ2YzMuMiAyLjggOC4zIDIuOCAxMSAwbDQzLTQzYzIuOC0yLjcgMi44LTcuOCAwLTExek02OTYgNjk2Yy0xMTguOCAxMTguNy0zMTEuMiAxMTguNy00MzAgMC0xMTguNy0xMTguOC0xMTguNy0zMTEuMiAwLTQzMCAxMTguOC0xMTguNyAzMTEuMi0xMTguNyA0MzAgMCAxMTguNyAxMTguOCAxMTguNyAzMTEuMiAwIDQzMHoiIC8+PC9zdmc+) */
+
+//! Fixme: this conflicts with antd's column prop for ui column size.. need better handling

@@ -2,6 +2,7 @@ import React from 'react';
 import { Button, Checkbox, Form, Input, Space } from 'antd';
 import { ButtonType } from 'antd/lib/button';
 import { Link } from '../../common';
+import { substituteUrlParams } from '../../utils';
 
 type IButtonType = ButtonType
 type IHtmlType = "submit" | "reset" | "button"
@@ -57,10 +58,17 @@ const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
 interface ICreateButtons {
     formButtons: Array< IPreDefinedButtons | IFormButton >
     loader?: boolean
+    routeParams?: Record<string, string>
 }
 
-export const CreateButtons = ({ formButtons, loader = false } : ICreateButtons ) => {
-    const renderButton = (buttonConfig: IFormButton, loader: boolean = false ) => {
+export const CreateButtons = ({ formButtons, loader = false, routeParams = {} } : ICreateButtons ) => {
+    const renderButton = (buttonConfig: IFormButton = { text: "Unknown"}, loader: boolean = false ) => {
+        // Handle URL placeholder substitution
+        let processedUrl = buttonConfig.url;
+        if (processedUrl && Object.keys(routeParams).length > 0) {
+            processedUrl = substituteUrlParams(processedUrl, routeParams);
+        }
+
         return <Form.Item>
                     <Button 
                         type = { buttonConfig?.buttonType } 
@@ -72,8 +80,8 @@ export const CreateButtons = ({ formButtons, loader = false } : ICreateButtons )
                         danger = { buttonConfig.danger }
                         loading = { loader }
                     >
-                        { buttonConfig.url && <Link title={ buttonConfig.text} url={ buttonConfig.url } />} 
-                        { !buttonConfig.url && buttonConfig.text } 
+                        { processedUrl && <Link title={ buttonConfig.text} url={ processedUrl } />} 
+                        { !processedUrl && buttonConfig.text } 
                     </Button>
                 </Form.Item>
     }

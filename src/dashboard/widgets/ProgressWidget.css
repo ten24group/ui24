@@ -1,0 +1,78 @@
+.progress-widget-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  padding: 20px 24px;
+  min-height: 200px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.progress-widget-header {
+  font-size: 18px;
+  color: #333;
+  margin: 0 0 16px 0;
+  font-weight: 600;
+  letter-spacing: -0.3px;
+}
+
+.progress-widget-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.progress-widget-label {
+  font-size: 16px;
+  color: #333;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.progress-widget-display {
+  margin-bottom: 16px;
+}
+
+.progress-widget-card.type-circle .progress-widget-display,
+.progress-widget-card.type-dashboard .progress-widget-display {
+  margin-bottom: 20px;
+}
+
+.progress-widget-card.type-line .progress-widget-display {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.progress-widget-description {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.progress-widget-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.progress-value {
+  color: #1890ff;
+}
+
+.progress-separator {
+  color: #d9d9d9;
+  margin: 0 2px;
+}
+
+.progress-total {
+  color: #999;
+} 

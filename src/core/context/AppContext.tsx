@@ -8,7 +8,7 @@ interface AppContext {
     notifyInfo: (message: string) => void;
     notifyLoading: (message: string) => void;
 };
-const AppContext = createContext<AppContext>(null);
+const AppContext = createContext<AppContext>({} as AppContext);
 
 export function AppContextProvider({ children }: { children?: ReactNode }) {
 
