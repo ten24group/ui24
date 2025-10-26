@@ -26,71 +26,117 @@ export interface IPageHeader {
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
-    const [openModalIndex, setOpenModalIndex] = React.useState<number | null>(null);
     
-    const renderAction = (item: IPageAction, index: number) => {
-        if (item.type === 'dropdown' && item.items) {
-            const dropdownItems = item.items.map((dropItem, dropIndex) => {
-                let url = dropItem.url;
-                // Use substituteUrlParams for consistent placeholder handling
-                url = substituteUrlParams(url, routeParams);
-                return {
-                    key: `${dropItem.label}-${url}-${dropIndex}`,
-                    label: (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {dropItem.icon ? <Icon iconName={dropItem.icon} /> : null}
-                            {dropItem.label}
+    /**
+     * Renders a single action item (used for both top-level and dropdown items)
+     * @param action - The action to render
+     * @param key - Unique key for React
+     * @param isDropdownItem - Whether this is being rendered inside a dropdown
+     * @returns React node or Ant Design menu item object
+     */
+    const renderSingleAction = (
+        action: IPageAction,
+        key: string,
+        isDropdownItem: boolean = false
+    ): React.ReactNode | { key: string; label: React.ReactNode; icon?: React.ReactNode } => {
+        // Handle modal actions
+        if (action.openInModal && action.modalConfig) {
+            const modalTrigger = (
+                <OpenInModal
+                    key={key}
+                    {...action.modalConfig}
+                    primaryIndex={routeParams.id}
+                    routeParams={routeParams}
+                    onSuccessCallback={(response) => {
+                        if (action.modalConfig?.submitSuccessRedirect) {
+                            const redirectUrl = substituteUrlParams(
+                                action.modalConfig.submitSuccessRedirect,
+                                routeParams
+                            );
+                            navigate(redirectUrl);
+                        }
+                    }}
+                >
+                    {isDropdownItem ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                            {action.icon && <Icon iconName={action.icon} />}
+                            {action.label}
                         </span>
-                    ),
-                    onClick: () => navigate(url)
+                    ) : (
+                        <Button type="primary">{action.label}</Button>
+                    )}
+                </OpenInModal>
+            );
+            
+            if (isDropdownItem) {
+                return {
+                    key,
+                    label: modalTrigger,
+                    icon: action.icon ? <Icon iconName={action.icon} /> : undefined
                 };
-            });
-
+            }
+            return modalTrigger;
+        }
+        
+        // Handle navigation actions
+        const url = substituteUrlParams(action.url || '', routeParams);
+        
+        if (isDropdownItem) {
+            return {
+                key,
+                label: (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {action.icon && <Icon iconName={action.icon} />}
+                        {action.label}
+                    </span>
+                ),
+                icon: action.icon ? <Icon iconName={action.icon} /> : undefined,
+                onClick: () => navigate(url)
+            };
+        }
+        
+        return (
+            <Button
+                key={key}
+                type="primary"
+                onClick={() => navigate(url)}
+            >
+                {action.label}
+            </Button>
+        );
+    };
+    
+    /**
+     * Renders an action (button or dropdown)
+     */
+    const renderAction = (item: IPageAction, index: number): React.ReactNode => {
+        const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
+        
+        // Handle dropdown with items
+        if (actionType === 'dropdown' && item.items && item.items.length > 0) {
+            const menuItems = item.items.map((dropItem, dropIndex) => 
+                renderSingleAction(
+                    dropItem,
+                    `${item.label}-${dropIndex}`,
+                    true
+                )
+            );
+            
             return (
                 <Dropdown 
                     key={`dropdown-${item.label}-${index}`} 
-                    menu={{ items: dropdownItems }}
+                    menu={{ items: menuItems as any }}
                 >
                     <Button>
+                        {item.icon && <Icon iconName={item.icon} />}
                         {item.label} <DownOutlined />
                     </Button>
                 </Dropdown>
             );
         }
-
-        let url = item.url || '';
-        // Use substituteUrlParams for consistent placeholder handling
-        url = substituteUrlParams(url, routeParams);
-
-        if (item.openInModal && item.modalConfig) {
-            return (
-                <OpenInModal
-                    key={`action-${item.label}-${index}`}
-                    {...item.modalConfig}
-                    primaryIndex={routeParams.id}
-                    routeParams={routeParams}
-                    onSuccessCallback={(response) => {
-                        // Use substituteUrlParams for consistent placeholder handling
-                        const redirectUrl = substituteUrlParams(item.modalConfig.submitSuccessRedirect, routeParams);
-                        navigate(redirectUrl);
-                    }}
-                >
-                    <Button type="primary">{item.label}</Button>
-                </OpenInModal>
-            );
-        }
-
-        return (
-            <Button
-                type="primary"
-                key={`action-${item.label}-${index}`}
-                onClick={() => {
-                    if (!item.openInModal) navigate(url);
-                }}
-            >
-                {item.label}
-            </Button>
-        );
+        
+        // Handle regular button action
+        return renderSingleAction(item, `action-${item.label}-${index}`, false);
     };
 
     const PageActions = Array.isArray(pageHeaderActions) 

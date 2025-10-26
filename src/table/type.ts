@@ -63,18 +63,17 @@ export interface ITablePropertiesConfig {
   };
 }
 
-export interface IDropdownItem {
-  label: string;
-  url: string;
-  icon?: string;
-}
-
+/**
+ * Page action type
+ * Supports buttons, dropdowns with modals/navigation
+ * Note: items cannot have nested items (max 1 level of nesting)
+ */
 export type IPageAction = {
-  url?: string;
   label: string;
+  url?: string;
   icon?: string;
   type?: 'button' | 'dropdown';
-  items?: IDropdownItem[];
+  items?: Array<Omit<IPageAction, 'items'>>;  // Items cannot have sub-items
   openInModal?: boolean;
   modalConfig?: IModalConfig;
 };

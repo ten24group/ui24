@@ -3,7 +3,7 @@ import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from 
 import type { TableProps } from "antd";
 import { OpenInModal } from "../../modal/Modal";
 import { Icon, Link } from "../../core/common";
-import { Space, Tooltip } from 'antd';
+import { Space, Tooltip, Dropdown } from 'antd';
 import { useAppContext } from "../../core/context";
 
 // Utility to replace URL parameters with values
@@ -115,33 +115,101 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
 }) => {
 
   const { notifySuccess } = useAppContext()
-
-  // Determine the action URL based on whether it has placeholders
-  let actionUrl = item.url || '';
   
-  if (hasUrlPlaceholders(actionUrl)) {
-    // New approach: Use parameter substitution for URLs with placeholders
-    actionUrl = replaceUrlParams(actionUrl, record);
-  } else {
-    // Legacy approach: Append primaryIndexValue for URLs without placeholders
-    actionUrl = primaryIndexValue ? `${actionUrl}/${primaryIndexValue}` : actionUrl;
-  }
-
-  return <Fragment >
-    {item.openInModal ? (
-      <OpenInModal
-        onSuccessCallback={(response) => {
-          notifySuccess("Deleted Successfully")
-          getRecordsCallback()
-        }}
-        primaryIndex={primaryIndexValue}
-        routeParams={routeParams}
-        {...item.modalConfig}
-      ><Icon iconName={"delete"} /></OpenInModal>
-    ) : (
+  /**
+   * Renders a single action (used for both regular actions and dropdown items)
+   */
+  const renderSingleAction = (
+    action: IPageAction,
+    key: string,
+    isDropdownItem: boolean = false
+  ): React.ReactNode | { key: string; label: React.ReactNode; icon?: React.ReactNode } => {
+    // Handle modal actions
+    if (action.openInModal && action.modalConfig) {
+      const modalTrigger = (
+        <OpenInModal
+          key={key}
+          onSuccessCallback={(response) => {
+            notifySuccess("Operation Successful")
+            getRecordsCallback()
+          }}
+          primaryIndex={primaryIndexValue}
+          routeParams={routeParams}
+          {...action.modalConfig}
+        >
+          {isDropdownItem ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+              {action.icon && <Icon iconName={action.icon} />}
+              {action.label}
+            </span>
+          ) : (
+            <Icon iconName={action.icon || "delete"} />
+          )}
+        </OpenInModal>
+      );
+      
+      if (isDropdownItem) {
+        return {
+          key,
+          label: modalTrigger,
+          icon: action.icon ? <Icon iconName={action.icon} /> : undefined
+        };
+      }
+      return modalTrigger;
+    }
+    
+    // Handle navigation actions
+    let actionUrl = action.url || '';
+    if (hasUrlPlaceholders(actionUrl)) {
+      actionUrl = replaceUrlParams(actionUrl, record);
+    } else {
+      actionUrl = primaryIndexValue ? `${actionUrl}/${primaryIndexValue}` : actionUrl;
+    }
+    
+    if (isDropdownItem) {
+      return {
+        key,
+        label: (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {action.icon && <Icon iconName={action.icon} />}
+            {action.label}
+          </span>
+        ),
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined,
+        onClick: () => window.location.href = actionUrl
+      };
+    }
+    
+    return (
       <Link url={actionUrl}>
-        <Icon iconName={item.icon} />
+        <Icon iconName={action.icon} />
       </Link>
-    )}{" "}
-  </Fragment>
+    );
+  };
+  
+  // Check if this is a dropdown action
+  const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
+  
+  if (actionType === 'dropdown' && item.items && item.items.length > 0) {
+    const menuItems = item.items.map((dropItem, dropIndex) => 
+      renderSingleAction(
+        dropItem,
+        `${item.label}-${dropIndex}`,
+        true
+      )
+    );
+    
+    return (
+      <Fragment>
+        <Dropdown menu={{ items: menuItems as any }} trigger={['click']}>
+          <a onClick={(e) => e.preventDefault()} style={{ cursor: 'pointer' }}>
+            <Icon iconName={item.icon || "more"} />
+          </a>
+        </Dropdown>
+      </Fragment>
+    );
+  }
+  
+  // Regular single action
+  return <Fragment>{renderSingleAction(item, `action-${item.label}`, false)}{" "}</Fragment>
 }
