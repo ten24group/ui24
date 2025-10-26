@@ -285,7 +285,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
     // Determine columns to render
     const items = recordInfo.filter(item => !item.hidden);
-    const columns = determineColumnLayout(items, columnsConfig, 3); // Details can have up to 3 columns
+    const columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 3); // Details can have up to 3 columns
 
     return (
       <ErrorBoundary

@@ -16,20 +16,10 @@ import { useAppContext } from '../core/context/AppContext';
 import { substituteUrlParams } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { formStyles } from '../core/forms/FormField/styles';
-import { determineColumnLayout, splitIntoColumns } from '../core/forms/shared/utils';
+import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import './Form.css';
-
-// Add types for columnsConfig
-interface IColumnLayoutConfig {
-  sortOrder: number;
-  fields: string[];
-}
-interface IColumnsConfig {
-  numColumns?: number;
-  columns: IColumnLayoutConfig[];
-}
 
 // Extend IForm to accept columnsConfig
 interface IFormWithColumnsConfig extends IForm {
@@ -308,7 +298,7 @@ export function Form({
       properties: columnProps,
     }]);
   } else {
-    columns = determineColumnLayout(items, columnsConfig, 2);
+    columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 2);
   }
 
   const renderFormField = (item: IFormField, index: number) => (
