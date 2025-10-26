@@ -19,6 +19,7 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     style?: React.CSSProperties;
     apiConfig?: IApiConfig;
     submitSuccessRedirect?: string;
+    defaultValues?: Record<string, any>;
     disabled?: boolean;
     buttonLoader?: boolean;
     identifiers ?: any;

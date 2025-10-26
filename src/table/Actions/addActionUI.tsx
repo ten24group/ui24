@@ -3,7 +3,7 @@ import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from 
 import type { TableProps, MenuProps } from "antd";
 import { Icon, Link } from "../../core/common";
 import { Space, Tooltip, Dropdown } from 'antd';
-import { useAppContext } from "../../core/context";
+import { useAppContext, useModalContext } from "../../core/context";
 import { renderSingleAction, MenuItem } from "../../core/utils/actionRenderer";
 
 // Utility to replace URL parameters with values
@@ -84,6 +84,17 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         }
         
         primaryIndexValue = primaryIndexValue.join("|");
+        
+        // NEW: Auto-detect primary identifier from propertiesConfig (Problem 1)
+        if (!primaryIndexValue || primaryIndexValue === '') {
+          const identifierField = propertiesConfig.find((prop: ITablePropertiesConfig) => prop.isIdentifier);
+          if (identifierField && record[identifierField.dataIndex]) {
+            primaryIndexValue = String(record[identifierField.dataIndex]);
+          } else if (record.id) {
+            // Fallback to 'id' field
+            primaryIndexValue = String(record.id);
+          }
+        }
 
         const finalRouteParams = {
           ...routeParams,
@@ -115,6 +126,7 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
 }) => {
 
   const { notifySuccess } = useAppContext()
+  const { isInModal } = useModalContext()
   
   // Check if this is a dropdown action
   const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
@@ -126,6 +138,7 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
         key: `${item.label}-${dropIndex}`,
         isDropdownItem: true,
         isTableRowAction: true,
+        isInModal,
         routeParams,
         primaryIndex: primaryIndexValue,
         record,
@@ -156,6 +169,7 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
         key: `action-${item.label}`,
         isDropdownItem: false,
         isTableRowAction: true,
+        isInModal,
         routeParams,
         primaryIndex: primaryIndexValue,
         record,

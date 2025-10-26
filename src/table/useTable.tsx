@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { ITablePropertiesConfig } from "./type";
 import { IApiConfig, IDualApiConfig } from "../core/context";
 import { Pagination as AntPagination } from "antd";
@@ -34,10 +35,151 @@ const canToggleSearchMode = (apiConfig: IApiConfig | IDualApiConfig): boolean =>
   return isDualApiConfig(apiConfig);
 };
 
+/**
+ * Parse filters from URL query params or sessionStorage
+ * Supports both direct query params and large param storage (f=key)
+ * 
+ * CRITICAL: Internal structure MUST use operators for UI compatibility!
+ * - Plain values: sport=basketball → {sport: {eq: "basketball"}} (UI needs this!)
+ * - Already has operator: sport.neq=football → {sport: {neq: "football"}}
+ * - System params (debug, trace, etc.) are IGNORED here, added separately to API
+ */
+const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Record<string, any> => {
+  const queryParams = new URLSearchParams(location.search);
+  
+  // System/infrastructure params that should NOT be in filters
+  // These either control pagination/search OR are pass-through params for backend
+  const NON_FILTER_PARAMS = [
+    'f', 'page', 'cursor', 'count', 'q', 'sort', 'attributes',  // Infrastructure
+    'debug', 'trace', 'mock', 'test', 'dev', 'verbose', 'dryRun'  // Backend pass-through
+  ];
+  
+  // Filter operators supported by backend
+  const OPERATORS = ['eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'contains', 'notContains', 'beginsWith'];
+  
+  // Helper to parse key with operator (e.g., "sport.neq" → {field: "sport", operator: "neq"})
+  const parseKeyOperator = (key: string): { field: string; operator?: string } => {
+    const parts = key.split('.');
+    if (parts.length === 2 && OPERATORS.includes(parts[1])) {
+      return { field: parts[0], operator: parts[1] };
+    }
+    return { field: key };
+  };
+  
+  // Check for sessionStorage filter key (useLargeParamStorage pattern)
+  const filterKey = queryParams.get('f');
+  if (filterKey) {
+    try {
+      const storedData = sessionStorage.getItem(filterKey);
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        // Convert flat query params to filter structure
+        const filters: Record<string, any> = {};
+        
+        Object.entries(parsed).forEach(([key, value]) => {
+          // Skip non-filter params (infrastructure)
+          if (NON_FILTER_PARAMS.includes(key)) {
+            return;
+          }
+          
+          // Parse key to check if it has an operator
+          const { field, operator } = parseKeyOperator(key);
+          
+          // Deserialize value types
+          let deserializedValue: any = value;
+          
+          if (typeof value === 'string') {
+            // Try to detect arrays, booleans, numbers
+            if (value.startsWith('[') && value.endsWith(']')) {
+              try {
+                deserializedValue = JSON.parse(value);
+              } catch {
+                deserializedValue = value;
+              }
+            } else if (value === 'true') {
+              deserializedValue = true;
+            } else if (value === 'false') {
+              deserializedValue = false;
+            } else if (/^\d+(\.\d+)?$/.test(value)) {
+              deserializedValue = parseFloat(value);
+            } else {
+              deserializedValue = value;
+            }
+          }
+          
+          // Build filter structure (ALWAYS with operator for UI!)
+          if (operator) {
+            // Key already has operator
+            if (!filters[field]) {
+              filters[field] = {};
+            }
+            filters[field][operator] = deserializedValue;
+          } else {
+            // Plain key - WRAP in {eq: value} for UI!
+            filters[field] = { eq: deserializedValue };
+          }
+        });
+        return filters;
+      }
+    } catch (error) {
+      console.error('Failed to restore filters from sessionStorage:', error);
+    }
+  }
+  
+  // Otherwise, parse regular query params as filters
+  const filters: Record<string, any> = {};
+  
+  queryParams.forEach((value, key) => {
+    // Skip non-filter params (infrastructure like page, cursor, etc.)
+    if (NON_FILTER_PARAMS.includes(key)) {
+      return;
+    }
+    
+    // Parse key to check if it has an operator (e.g., "sport.neq")
+    const { field, operator } = parseKeyOperator(key);
+    
+    // Deserialize value
+    let deserializedValue: any;
+    if (value.startsWith('[') && value.endsWith(']')) {
+      try {
+        deserializedValue = JSON.parse(value);
+      } catch {
+        deserializedValue = value;
+      }
+    } else if (value === 'true') {
+      deserializedValue = true;
+    } else if (value === 'false') {
+      deserializedValue = false;
+    } else if (/^\d+(\.\d+)?$/.test(value)) {
+      deserializedValue = parseFloat(value);
+    } else {
+      deserializedValue = value;
+    }
+    
+    // Build filter structure (ALWAYS with operator for UI!)
+    if (operator) {
+      // Key already has operator: sport.neq=football → {sport: {neq: "football"}}
+      if (!filters[field]) {
+        filters[field] = {};
+      }
+      filters[field][operator] = deserializedValue;
+    } else {
+      // Plain key: sport=basketball → {sport: {eq: "basketball"}} (UI needs this!)
+      filters[field] = { eq: deserializedValue };
+    }
+  });
+  
+  return filters;
+};
+
 export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
+  const location = useLocation();
 
-  const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>({});
+  // Initialize filters from URL query params (for modal navigation pattern)
+  const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
+    return getInitialFiltersFromUrl(location);
+  });
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
   const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {

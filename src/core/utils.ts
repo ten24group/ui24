@@ -143,3 +143,42 @@ export const formatKey = (key: string): string => {
   return result.charAt(0).toUpperCase() + result.slice(1);
 };
 
+/**
+ * Matches a URL path against a route pattern
+ * @param pattern - Route pattern with parameters, e.g., "/user/:userId/posts/:postId"
+ * @param path - Actual URL path, e.g., "/user/123/posts/456"
+ * @returns Object with extracted parameters or null if no match
+ * @example
+ * matchRoutePattern("/user/:userId", "/user/123") // { userId: "123" }
+ * matchRoutePattern("/user/:userId/posts", "/user/123/orders") // null (no match)
+ */
+export function matchRoutePattern(pattern: string, path: string): Record<string, string> | null {
+  // Remove leading and trailing slashes and split into segments
+  const patternParts = pattern.replace(/^\/+|\/+$/g, '').split('/');
+  const pathParts = path.replace(/^\/+|\/+$/g, '').split('/');
+  
+  // If the number of segments doesn't match, this isn't a match
+  if (patternParts.length !== pathParts.length) {
+    return null;
+  }
+
+  const params: Record<string, string> = {};
+  
+  // Check each segment
+  for (let i = 0; i < patternParts.length; i++) {
+    const patternPart = patternParts[i];
+    const pathPart = pathParts[i];
+    
+    if (patternPart.startsWith(':')) {
+      // This is a parameter - capture it
+      const paramName = patternPart.slice(1);
+      params[paramName] = pathPart;
+    } else if (patternPart !== pathPart) {
+      // Static segment doesn't match
+      return null;
+    }
+  }
+
+  return params;
+}
+

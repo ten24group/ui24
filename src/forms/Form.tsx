@@ -43,6 +43,7 @@ export function Form({
   useDynamicIdFromParams = true,
   columnsConfig,
   routeParams = {},
+  defaultValues = {},
 }: IFormWithColumnsConfig) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
@@ -273,6 +274,12 @@ export function Form({
         setBtnLoader(false)
         setLoader(false)
       }
+    } else {
+      // NO API CALL (navigation-only or custom submission)
+      // Call onSubmitSuccessCallback directly (for navigation-only modals)
+      if (onSubmitSuccessCallback) {
+        onSubmitSuccessCallback(values);
+      }
     }
 
     //call when defined
@@ -329,10 +336,14 @@ export function Form({
         return acc
       }, {})
 
-      form.setFieldsValue(initialValues)
+      // Merge with defaultValues (from modal navigation or other sources)
+      // defaultValues take precedence over initialValues
+      const mergedValues = { ...initialValues, ...defaultValues };
+
+      form.setFieldsValue(mergedValues)
     }
 
-  }, [ dataLoadedFromView, formPropertiesConfig ])
+  }, [ dataLoadedFromView, formPropertiesConfig, defaultValues ])
 
 
   return (

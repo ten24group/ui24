@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { DownOutlined } from '@ant-design/icons';
 import { substituteUrlParams } from "../../../core/utils";
 import { renderSingleAction, MenuItem } from "../../../core/utils/actionRenderer";
+import { useModalContext } from "../../../core/context";
 
 interface IBreadcrumbs {
     label: string;
@@ -26,6 +27,7 @@ export interface IPageHeader {
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
+    const { isInModal } = useModalContext();
     
     /**
      * Renders an action (button or dropdown)
@@ -40,6 +42,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                     action: dropItem,
                     key: `${item.label}-${dropIndex}`,
                     isDropdownItem: true,
+                    isInModal,
                     routeParams,
                     onSuccessCallback: (response) => {
                         if (dropItem.modalConfig?.submitSuccessRedirect) {
@@ -72,6 +75,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
             action: item,
             key: `action-${item.label}-${index}`,
             isDropdownItem: false,
+            isInModal,
             routeParams,
             onSuccessCallback: (response) => {
                 if (item.modalConfig?.submitSuccessRedirect) {
