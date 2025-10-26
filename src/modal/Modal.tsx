@@ -120,11 +120,16 @@ export const Modal = ({
   }
 
   if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
+    // Extract title from modalPageConfig if it exists
+    const modalTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
+    
     return (
       <AntModal
+        title={modalTitle}
         footer={null}
         open={true}
         onCancel={onCancelCallback}
+        loading={loading}
       >
         <ErrorBoundary
           FallbackComponent={ErrorFallback}
