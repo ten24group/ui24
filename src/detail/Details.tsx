@@ -55,7 +55,7 @@ export interface IDetailsConfig extends IDetailApiConfig {
     routeParams?: Record<string, string>;
 }
 
-interface IDetailsComponentProps extends IDetailsConfig {
+export interface IDetailsComponentProps extends IDetailsConfig {
     pageTitle?: string;
     propertiesConfig: Array<IPropertiesConfig>;
     detailApiConfig?: IApiConfig;

@@ -13,7 +13,7 @@ export const detailsStyles = {
   // Column styles for details (no max width constraint)
   column: {
     flex: 1,
-    minWidth: 300, // Ensure minimum width for better readability
+    minWidth: 400, // Ensure minimum width for better readability
     display: 'flex',
     flexDirection: 'column' as const,
     gap: 16,
