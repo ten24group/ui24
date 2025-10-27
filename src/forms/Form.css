@@ -1,7 +1,34 @@
 .form-column .ant-form-item {
-  margin-bottom: 8px !important;
+  margin-bottom: 16px !important;
 }
 
 .form-column {
   padding-bottom: 16px;
+}
+
+/* Subtle form field styling */
+.form-column .ant-form-item-label > label {
+  color: #595959;
+  font-weight: 500;
+}
+
+/* Clean input styling */
+.form-column .ant-input,
+.form-column .ant-select-selector,
+.form-column .ant-picker {
+  border-color: #e8e8e8;
+  transition: all 0.2s ease;
+}
+
+.form-column .ant-input:hover,
+.form-column .ant-select-selector:hover,
+.form-column .ant-picker:hover {
+  border-color: #d9d9d9;
+}
+
+.form-column .ant-input:focus,
+.form-column .ant-select-selector:focus,
+.form-column .ant-picker:focus {
+  border-color: #40a9ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.1);
 } 

@@ -10,6 +10,7 @@ import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from
 import { FieldType, PropertyType, ValidationType } from '../../types/field-types';
 import { HelpText, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
+import { IEntityConfigReference } from '../../hooks';
 
 
 
@@ -25,7 +26,8 @@ interface IFormField {
     fieldType?: FieldType; //field type
     timezone?: string;
     options?: IFieldOptions; //options for select, radio, checkbox
-    addNewOption?: IModalConfig; //add new option for select, multi-select
+    addNewOption?: IModalConfig; // DEPRECATED: add new option for select, multi-select
+    addNewOptionConfig?: IEntityConfigReference; // NEW: Entity config reference for add new option
     label: string;
     style?: React.CSSProperties;
     initialValue?: any;
@@ -86,10 +88,10 @@ const MakeFormItem = ({
 
             {fieldType === "checkbox" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
             {fieldType === "radio" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
-            {fieldType === "select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
+            {fieldType === "select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} addNewOptionConfig={restFormItemProps.addNewOptionConfig} onOptionChange={(newSelections) => {
                 setFormValue && setFormValue({ name, value: newSelections })
             }} />}
-            {fieldType === "multi-select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
+            {fieldType === "multi-select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} addNewOptionConfig={restFormItemProps.addNewOptionConfig} onOptionChange={(newSelections) => {
                 setFormValue && setFormValue({ name, value: newSelections })
             }} />}
 
@@ -288,7 +290,8 @@ interface IFormFieldResponse {
     validations: Array<IPreDefinedValidations>;
     fieldType?: FieldType;
     options?: Array<IOptions>;
-    addNewOption?: IModalConfig;
+    addNewOption?: IModalConfig; // DEPRECATED: Use addNewOptionConfig
+    addNewOptionConfig?: IEntityConfigReference; // NEW: Entity config reference
     hidden?: boolean; //whether to hide this field from display
 
     //for image and file
@@ -340,6 +343,7 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
             fieldType: columnConfig.fieldType ?? "text",
             options: columnConfig.options ?? [],
             addNewOption: columnConfig?.addNewOption,
+            addNewOptionConfig: columnConfig?.addNewOptionConfig,
             hidden: columnConfig.hidden,
 
             // for image and files

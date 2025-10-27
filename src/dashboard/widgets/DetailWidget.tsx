@@ -1,5 +1,5 @@
 import React from 'react';
-import { Details, IDetailsConfig } from '../../detail/Details';
+import { Details, IDetailsComponentProps, IDetailsConfig } from '../../detail/Details';
 import './DetailWidget.css';
 
 export interface IDetailWidgetProps extends IDetailsConfig {
@@ -24,7 +24,7 @@ export const DetailWidget: React.FC<IDetailWidgetProps> = ({
     <div className={`detail-widget-card layout-${layout}`}>
       {title && <div className="detail-widget-header">{title}</div>}
       <div className="detail-widget-content">
-        <Details {...limitedProps} />
+        <Details {...limitedProps as IDetailsComponentProps} />
       </div>
     </div>
   );

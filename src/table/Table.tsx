@@ -15,6 +15,7 @@ export const Table = ({
   records = [], //not using as of now
   apiConfig,
   routeParams,
+  defaultFilters,
 }: ITableConfig) => {
 
   const {
@@ -45,7 +46,8 @@ export const Table = ({
   } = useTable({
     propertiesConfig,
     apiConfig,
-    routeParams
+    routeParams,
+    defaultFilters
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);

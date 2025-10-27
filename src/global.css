@@ -34,3 +34,75 @@ body {
     width: 90% !important;
     height: 90% !important;
 } */
+
+/* Modal Stacking - Subtle depth effect with width reduction + dimming */
+.ant-modal-wrap.modal-depth-0 .ant-modal { 
+  /* max-width: 95% !important;  */
+}
+
+.ant-modal-wrap.modal-depth-1 .ant-modal { 
+  /* max-width: 94% !important;  */
+  padding: 1%;
+}
+
+.ant-modal-wrap.modal-depth-2 .ant-modal { 
+  /* max-width: 93% !important; */
+  padding: 2%;
+}
+
+.ant-modal-wrap.modal-depth-3 .ant-modal { 
+  /* max-width: 92% !important;  */
+  padding: 3%;
+}
+
+.ant-modal-wrap.modal-depth-4 .ant-modal { 
+  /* max-width: 91% !important;  */
+  padding: 4%;
+}
+
+.ant-modal-wrap.modal-depth-5 .ant-modal { 
+  /* max-width: 90% !important;  */
+  padding: 5%;
+}
+.ant-modal-wrap.modal-depth-6 .ant-modal { 
+  /* max-width: 89% !important;  */
+  padding: 6%;
+}
+
+/* Dim background modals for depth perception */
+.ant-modal-wrap.modal-depth-0 {
+  background-color: rgba(0, 0, 0, 0.45) !important; /* Standard backdrop */
+}
+
+.ant-modal-wrap.modal-depth-1 {
+  background-color: rgba(0, 0, 0, 0.25) !important; /* Lighter for nested */
+}
+
+.ant-modal-wrap.modal-depth-2 {
+  background-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+.ant-modal-wrap.modal-depth-3 {
+  background-color: rgba(0, 0, 0, 0.10) !important;
+}
+
+.ant-modal-wrap.modal-depth-4 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Add subtle shadow for depth */
+.ant-modal-wrap.modal-depth-0 .ant-modal-content {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12) !important;
+}
+
+.ant-modal-wrap.modal-depth-1 .ant-modal-content {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16) !important;
+}
+
+.ant-modal-wrap.modal-depth-2 .ant-modal-content {
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.20) !important;
+}
+
+.ant-modal-wrap.modal-depth-3 .ant-modal-content {
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.24) !important;
+}

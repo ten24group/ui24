@@ -1,14 +1,15 @@
 import React from "react";
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
 import "./PageHeader.css";
-import { Breadcrumb, Button, Dropdown } from "antd";
+import { Breadcrumb, Button, Dropdown, MenuProps } from "antd";
 import { IPageAction } from "../../../table/type";
 import { Link } from "../../../core/common";
 import { Icon } from "../../../core/common/Icons/Icons";
-import { OpenInModal } from "../../../modal/Modal";
 import { useNavigate } from "react-router-dom";
 import { DownOutlined } from '@ant-design/icons';
 import { substituteUrlParams } from "../../../core/utils";
+import { renderSingleAction, MenuItem } from "../../../core/utils/actionRenderer";
+import { useModalContext } from "../../../core/context";
 
 interface IBreadcrumbs {
     label: string;
@@ -26,71 +27,67 @@ export interface IPageHeader {
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
-    const [openModalIndex, setOpenModalIndex] = React.useState<number | null>(null);
+    const { isInModal } = useModalContext();
     
-    const renderAction = (item: IPageAction, index: number) => {
-        if (item.type === 'dropdown' && item.items) {
-            const dropdownItems = item.items.map((dropItem, dropIndex) => {
-                let url = dropItem.url;
-                // Use substituteUrlParams for consistent placeholder handling
-                url = substituteUrlParams(url, routeParams);
-                return {
-                    key: `${dropItem.label}-${url}-${dropIndex}`,
-                    label: (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {dropItem.icon ? <Icon iconName={dropItem.icon} /> : null}
-                            {dropItem.label}
-                        </span>
-                    ),
-                    onClick: () => navigate(url)
-                };
-            });
-
+    /**
+     * Renders an action (button or dropdown)
+     */
+    const renderAction = (item: IPageAction, index: number): React.ReactNode => {
+        const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
+        
+        // Handle dropdown with items
+        if (actionType === 'dropdown' && item.items && item.items.length > 0) {
+            const menuItems: MenuProps['items'] = item.items.map((dropItem, dropIndex) => 
+                renderSingleAction({
+                    action: dropItem,
+                    key: `${item.label}-${dropIndex}`,
+                    isDropdownItem: true,
+                    isInModal,
+                    routeParams,
+                    onSuccessCallback: (response) => {
+                        if (dropItem.modalConfig?.submitSuccessRedirect) {
+                            const redirectUrl = substituteUrlParams(
+                                dropItem.modalConfig.submitSuccessRedirect,
+                                routeParams
+                            );
+                            navigate(redirectUrl);
+                        }
+                    },
+                    onNavigate: navigate
+                }) as MenuItem
+            );
+            
             return (
                 <Dropdown 
                     key={`dropdown-${item.label}-${index}`} 
-                    menu={{ items: dropdownItems }}
+                    menu={{ items: menuItems }}
                 >
                     <Button>
+                        {item.icon && <Icon iconName={item.icon} />}
                         {item.label} <DownOutlined />
                     </Button>
                 </Dropdown>
             );
         }
-
-        let url = item.url || '';
-        // Use substituteUrlParams for consistent placeholder handling
-        url = substituteUrlParams(url, routeParams);
-
-        if (item.openInModal && item.modalConfig) {
-            return (
-                <OpenInModal
-                    key={`action-${item.label}-${index}`}
-                    {...item.modalConfig}
-                    primaryIndex={routeParams.id}
-                    routeParams={routeParams}
-                    onSuccessCallback={(response) => {
-                        // Use substituteUrlParams for consistent placeholder handling
-                        const redirectUrl = substituteUrlParams(item.modalConfig.submitSuccessRedirect, routeParams);
-                        navigate(redirectUrl);
-                    }}
-                >
-                    <Button type="primary">{item.label}</Button>
-                </OpenInModal>
-            );
-        }
-
-        return (
-            <Button
-                type="primary"
-                key={`action-${item.label}-${index}`}
-                onClick={() => {
-                    if (!item.openInModal) navigate(url);
-                }}
-            >
-                {item.label}
-            </Button>
-        );
+        
+        // Handle regular button action
+        return renderSingleAction({
+            action: item,
+            key: `action-${item.label}-${index}`,
+            isDropdownItem: false,
+            isInModal,
+            routeParams,
+            onSuccessCallback: (response) => {
+                if (item.modalConfig?.submitSuccessRedirect) {
+                    const redirectUrl = substituteUrlParams(
+                        item.modalConfig.submitSuccessRedirect,
+                        routeParams
+                    );
+                    navigate(redirectUrl);
+                }
+            },
+            onNavigate: navigate
+        }) as React.ReactNode;
     };
 
     const PageActions = Array.isArray(pageHeaderActions) 
