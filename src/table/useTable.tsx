@@ -17,6 +17,7 @@ interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: IApiConfig | IDualApiConfig;
   routeParams?: Record<string, string>;
+  defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -172,13 +173,37 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {} }: IuseTable) => {
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
-  // Initialize filters from URL query params (for modal navigation pattern)
+  // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
-    return getInitialFiltersFromUrl(location);
+    const urlFilters = getInitialFiltersFromUrl(location);
+    
+    // Resolve placeholders in defaultFilters using routeParams
+    // Example: { teamId: ':teamId' } + routeParams.teamId='123' → { teamId: {eq: '123'} }
+    const resolvedDefaultFilters: Record<string, any> = {};
+    Object.entries(defaultFilters).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.startsWith(':')) {
+        // Placeholder: extract param name and resolve
+        const paramName = value.slice(1); // Remove leading ':'
+        const resolvedValue = routeParams[paramName];
+        
+        if (resolvedValue != null) {
+          // Wrap in operator structure for UI compatibility
+          resolvedDefaultFilters[key] = { eq: resolvedValue };
+        } else {
+          console.warn(`[useTable] Could not resolve placeholder "${value}" for filter "${key}"`);
+        }
+      } else {
+        // Non-placeholder value: use as-is (already in operator structure)
+        resolvedDefaultFilters[key] = value;
+      }
+    });
+    
+    // Merge: URL filters take precedence over defaultFilters
+    return { ...resolvedDefaultFilters, ...urlFilters };
   });
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Descriptions, DescriptionsProps, List, Spin, Typography } from 'antd';
+import { Descriptions, DescriptionsProps, List, Spin, Typography, Space, Tooltip, Button } from 'antd';
+import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
-import { useFormat } from '../core/hooks';
+import { useFormat, useEntityConfig } from '../core/hooks';
 import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link, ErrorFallback } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
@@ -40,6 +41,40 @@ interface IPropertiesConfig {
     linkConfig?: {
         routePattern: string;
         displayText?: string;
+    };
+    
+    // Raw relation data (from backend schema)
+    relation?: {
+        entityName: string;
+        type: string;
+        identifiers: any;
+    };
+    
+    // NEW: Entity config reference for relation fields
+    relationConfig?: {
+        routePattern: string;
+        identifierMapping?: 
+            | { source: string; target: string; }
+            | Array<{ source: string; target: string; }>;  // Support composite keys
+        modalConfigRef?: {
+            entityName: string;
+            pageType: 'view' | 'create' | 'list';
+            overrideConfig?: Record<string, any>;
+        };
+        modalWidth?: number | string;
+        modalTitle?: string;
+        displayConfig?: {
+            showModalIcon?: boolean;
+            icon?: string;
+            showLink?: boolean;
+        };
+    };
+    
+    // NEW: Entity config reference for addNewOption (handled in OptionSelector)
+    addNewOptionConfig?: {
+        entityName: string;
+        pageType: 'view' | 'create' | 'list';
+        overrideConfig?: Record<string, any>;
     };
 }
 
@@ -81,6 +116,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
     const { notifyError } = useAppContext();
     const { callApiMethod } = useApi();
     const [ dataLoaded, setDataLoaded ] = useState(false);
+    const { resolveConfigRef } = useEntityConfig();
     const { formatDate, formatBoolean } = useFormat()
 
     // Utility function to recursively deserialize JSON strings
@@ -328,10 +364,149 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // Render each field as before
                     const value = item.initialValue;
 
+                    // NEW: Relation field rendering with icon + link
+                    if (item.relationConfig) {
+                      const { 
+                        routePattern, 
+                        identifierMapping, 
+                        modalConfigRef, 
+                        modalWidth,
+                        modalTitle,
+                        displayConfig 
+                      } = item.relationConfig;
+                      
+                      // Skip rendering if data not loaded yet (avoid errors during initial render)
+                      if (!detailResponse) {
+                        return (
+                          <div key={index} className="details-field-container">
+                            <div className="details-field-label">{item.label}</div>
+                            <HelpText helpText={item.helpText} />
+                            <span>—</span>
+                          </div>
+                        );
+                      }
+                      
+                      // Resolve modal config if provided
+                      const resolvedModalConfig = modalConfigRef ? resolveConfigRef(modalConfigRef) : null;
+                      
+                      // Warn if modal config failed to resolve (for debugging)
+                      if (modalConfigRef && !resolvedModalConfig) {
+                        console.warn(
+                          `[Details] Failed to resolve modal config for ${item.label}:`,
+                          `${modalConfigRef.pageType}-${modalConfigRef.entityName}`
+                        );
+                      }
+                      
+                      // Extract modal title from config or use override
+                      const effectiveModalTitle = modalTitle || 
+                        (resolvedModalConfig && (
+                          (modalConfigRef?.pageType === 'list' && resolvedModalConfig.listPageConfig?.pageTitle) ||
+                          (modalConfigRef?.pageType === 'view' && resolvedModalConfig.detailsPageConfig?.pageTitle)
+                        )) ||
+                        item.label;
+                      
+                      // Build route params using full entity data for placeholder resolution
+                      const modalRouteParams = {
+                        ...routeParams,
+                        ...detailResponse
+                      };
+                      
+                      // Extract and map identifiers from source to target
+                      // Supports nested paths (e.g., "order.userId") via getNestedValue
+                      // Handles both single and multiple identifier mappings (composite keys)
+                      if (identifierMapping) {
+                        const mappings = Array.isArray(identifierMapping) 
+                          ? identifierMapping 
+                          : [identifierMapping];
+                        
+                        mappings.forEach(mapping => {
+                          // Extract value from detailResponse using source path (supports nesting)
+                          const sourceValue = getNestedValue(detailResponse, mapping.source);
+                          
+                          // Map to target parameter for API call
+                          if (sourceValue != null) {
+                            modalRouteParams[mapping.target] = sourceValue;
+                          } else {
+                            console.warn(
+                              `[Details] No value found for identifier source path: "${mapping.source}"`,
+                              `Field: ${item.label}`
+                            );
+                          }
+                        });
+                      }
+                      
+                      // Resolve the URL with mapped identifiers (for link)
+                      const resolvedUrl = substituteUrlParams(routePattern, modalRouteParams, value);
+                      
+                      // Determine icon (default based on page type)
+                      const iconName = displayConfig?.icon || 
+                        (modalConfigRef?.pageType === 'list' ? 'UnorderedListOutlined' : 'EyeOutlined');
+                      const IconComponent = iconName === 'UnorderedListOutlined' ? UnorderedListOutlined : EyeOutlined;
+                      
+                      // Determine if we should show as link (default: true for to-one, false for to-many)
+                      const shouldShowLink = displayConfig?.showLink !== false;
+                      
+                      // For to-many relations, format value display (could be count or array length)
+                      const displayValue = Array.isArray(value) ? `${value.length} items` : value;
+                      
+                      // Determine modal type from page type
+                      const modalType = modalConfigRef?.pageType === 'list' ? 'list' : 'details';
+                      
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {/* For to-many relations (lists), always show icon even if no value
+                              For to-one relations, only show if there's a value */}
+                          {(modalType === 'list' || value) ? (
+                            <Space>
+                              {/* Show value as link or plain text (only if value exists) */}
+                              {value && shouldShowLink && (
+                                <Link url={resolvedUrl} className="details-link">
+                                  {displayValue}
+                                </Link>
+                              )}
+                              {value && !shouldShowLink && (
+                                <span>{displayValue}</span>
+                              )}
+                              
+                              {/* Show modal icon if enabled - use resolved config directly */}
+                              {displayConfig?.showModalIcon !== false && resolvedModalConfig && (
+                                <Tooltip title={`View ${item.label}`}>
+                                  <OpenInModal 
+                                    modalType={modalType}
+                                    modalPageConfig={
+                                      modalType === 'list' 
+                                        ? resolvedModalConfig.listPageConfig 
+                                        : resolvedModalConfig.detailsPageConfig
+                                    }
+                                    identifiers={value}
+                                    routeParams={modalRouteParams}
+                                    modalWidth={modalWidth}
+                                    modalTitle={effectiveModalTitle}
+                                  >
+                                    <Button 
+                                      type="text" 
+                                      size="small" 
+                                      icon={<IconComponent />}
+                                      style={{ padding: '0 4px' }}
+                                      />
+                                  </OpenInModal>
+                                </Tooltip>
+                              )}
+                            </Space>
+                          ) : (
+                            <span>—</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    
                     if (item.isLink && item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
-                        { ...routeParams, ...detailResponse }
+                        { ...routeParams, ...detailResponse },
+                        value
                       );
                       const displayText = item.linkConfig.displayText || value;
                       return (

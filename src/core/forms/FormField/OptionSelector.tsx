@@ -5,6 +5,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import { IFormField } from './FormField';
 import type { InputRef } from 'antd';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
+import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
 /**
  * Represents the template for attributes.
  * like
@@ -61,13 +62,22 @@ interface IOptionSelector {
     options: IFieldOptions
     onOptionChange?: Function,
     fieldType: IFormField['fieldType'],
-    addNewOption?: IModalConfig,
+    addNewOption?: IModalConfig, // DEPRECATED: Use addNewOptionConfig instead
+    addNewOptionConfig?: IEntityConfigReference, // NEW: Entity config reference
     value?: string,
 }
 
-export const OptionSelector = ({ options = [], fieldType, addNewOption, onOptionChange, value }: IOptionSelector) => {
+export const OptionSelector = ({ 
+    options = [], 
+    fieldType, 
+    addNewOption, 
+    addNewOptionConfig,
+    onOptionChange, 
+    value 
+}: IOptionSelector) => {
 
     const { callApiMethod } = useApi()
+    const { resolveConfigRef } = useEntityConfig()
     const [ open, setOpen ] = useState(false);
     const [ disabled, setDisabled ] = useState<boolean>(false)
 
@@ -122,6 +132,42 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
     }, [ options ])
 
     const enableAddNewOption = () => {
+        // Resolve modal config from new or old format
+        let modalConfig: IModalConfig | null = null;
+        
+        if (addNewOptionConfig) {
+            // NEW: Resolve entity config reference
+            const resolvedConfig = resolveConfigRef(addNewOptionConfig);
+            
+            if (!resolvedConfig) {
+                console.warn(
+                    `[OptionSelector] Failed to resolve config for addNewOption:`,
+                    `${addNewOptionConfig.pageType}-${addNewOptionConfig.entityName}`
+                );
+                return undefined;
+            }
+            
+            if (!resolvedConfig.formPageConfig) {
+                console.warn(
+                    `[OptionSelector] Resolved config missing formPageConfig:`,
+                    `${addNewOptionConfig.pageType}-${addNewOptionConfig.entityName}`,
+                    resolvedConfig
+                );
+                return undefined;
+            }
+            
+            modalConfig = {
+                modalType: 'form',
+                modalPageConfig: resolvedConfig.formPageConfig
+            };
+        } else if (addNewOption) {
+            // OLD: Use legacy IModalConfig directly (backward compatibility)
+            modalConfig = addNewOption;
+        }
+        
+        if (!modalConfig) {
+            return undefined;
+        }
 
         return (menu) => (
             <>
@@ -131,7 +177,7 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
                     <OpenInModal
                         onOpenCallback={() => setOpen(false)}
                         onSuccessCallback={(response) => { fetchOptions() }}
-                        {...addNewOption}
+                        {...modalConfig}
                         useDynamicIdFromParams={false}
                     >
                         <PlusOutlined /> Add Record
@@ -141,16 +187,19 @@ export const OptionSelector = ({ options = [], fieldType, addNewOption, onOption
         )
     }
 
+    // Determine if add new option should be enabled
+    const hasAddNewOption = !!(addNewOptionConfig || addNewOption);
+
     return <>
         {fieldType === "checkbox" && <Checkbox.Group value={[ value ]} options={fieldOptions} />}
         {fieldType === "radio" && <Radio.Group value={[ value ]} options={fieldOptions} />}
         {fieldType === "select" && <AntSelect value={value} disabled={disabled} onOpenChange={(visible) => setOpen(visible)} open={open} options={fieldOptions} popupRender={
-            addNewOption ? enableAddNewOption() : undefined
+            hasAddNewOption ? enableAddNewOption() : undefined
         } onChange={(value) => {
             onOptionChange(value)
         }} />}
         {fieldType === "multi-select" && <AntSelect value={value} disabled={disabled} onOpenChange={(visible) => setOpen(visible)} open={open} options={fieldOptions} popupRender={
-            addNewOption ? enableAddNewOption() : undefined
+            hasAddNewOption ? enableAddNewOption() : undefined
         } onChange={(value) => {
             onOptionChange(value)
         }} mode='multiple' />}

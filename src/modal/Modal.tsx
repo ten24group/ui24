@@ -17,6 +17,10 @@ import { ErrorFallback } from '../core/common';
 import { ModalContextProvider } from '../core/context';
 import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
 
+// Simple modal depth tracking for stack effect
+const ModalDepthContext = React.createContext(0);
+export const useModalDepth = () => React.useContext(ModalDepthContext);
+
 interface IConfirmModal {
   title: string;
   content?: string;
@@ -99,6 +103,13 @@ export interface IModalConfig {
   onCancelCallback?: () => void;
   onOpenCallback?: () => void;
   routeParams?: Record<string, string>;
+  identifiers?: string | number;  // For detail modals - the entity ID to fetch
+  
+  /** Modal width in pixels or CSS string (e.g., "80%"). Default: auto-detect from page type */
+  modalWidth?: number | string;
+  
+  /** Modal title override. Default: uses page title from config */
+  modalTitle?: string;
 }
 
 /**
@@ -205,7 +216,10 @@ export const Modal = ({
   onCancelCallback,
   onConfirmCallback,
   submitSuccessRedirect,
-  routeParams = {}
+  routeParams = {},
+  identifiers,
+  modalWidth,
+  modalTitle
 }: IModalConfig) => {
 
   const { notifyError, notifySuccess } = useAppContext()
@@ -213,6 +227,10 @@ export const Modal = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [ loading, setLoading ] = React.useState(false);
+  
+  // Track modal depth for stack effect
+  const currentDepth = useModalDepth();
+  const nextDepth = currentDepth + 1;
   
   // Response modal state management
   const { 
@@ -462,18 +480,22 @@ export const Modal = ({
   };
 
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
-    const confirmModalTitle = (modalPageConfig as IConfirmModal)?.title;
+    const configTitle = (modalPageConfig as IConfirmModal)?.title;
+    const effectiveTitle = modalTitle || configTitle;
+    const effectiveWidth = modalWidth || 520;
     
     return (
-      <>
+      <ModalDepthContext.Provider value={nextDepth}>
         <AntModal
-          title={confirmModalTitle}
+          title={effectiveTitle}
           open={true}
           onOk={confirmApiAction}
           onCancel={onCancelCallback}
           okText="Confirm"
           cancelText="Cancel"
           loading={loading}
+          width={effectiveWidth}
+          wrapClassName={`modal-depth-${currentDepth}`}
         >
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
@@ -493,7 +515,7 @@ export const Modal = ({
             visible={responseModalVisible}
             responseData={responseData}
             responseConfig={responseConfig}
-            actionModalTitle={confirmModalTitle}
+            actionModalTitle={effectiveTitle}
             onClose={() => {
               hideResponseModal();
               
@@ -513,7 +535,7 @@ export const Modal = ({
             }}
           />
         )}
-      </>
+      </ModalDepthContext.Provider>
     )
   }
 
@@ -542,19 +564,32 @@ export const Modal = ({
 
   if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
-    const modalTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
+    const configTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
+    const effectiveTitle = modalTitle || configTitle;
+    
+    // Auto-detect width based on modal type if not explicitly provided
+    const effectiveWidth = modalWidth || (
+      modalType === 'list' ? '95%' :
+      modalType === 'dashboard' ? '95%' :
+      modalType === 'accordion' ? "95%" :
+      modalType === 'details' ? "95%" :
+      modalType === 'form' ? "80%" : // Forms: slightly narrower for better UX
+      520 // default for confirm modals
+    );
     
     // Get default values from query if inverseMapping is enabled
     const defaultValuesFromQuery = getDefaultValuesFromQuery();
     
     return (
-      <>
+      <ModalDepthContext.Provider value={nextDepth}>
         <AntModal
-          title={modalTitle}
+          title={effectiveTitle}
           footer={null}
           open={true}
           onCancel={onCancelCallback}
           loading={loading}
+          width={effectiveWidth}
+          wrapClassName={`modal-depth-${currentDepth}`}
         >
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
@@ -566,7 +601,7 @@ export const Modal = ({
             {/* Wrap in ModalContext so child components know they're in a modal */}
             <ModalContextProvider>
               <RenderFromPageType
-                cardStyle={{ marginTop: "5%" }}
+                cardStyle={{ marginTop: "2%" }}
                 pageType={modalType as IPageType}
                 listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
                 formPageConfig={
@@ -593,6 +628,7 @@ export const Modal = ({
                 dashboardPageConfig={
                   modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
                 }
+                identifiers={identifiers}
                 routeParams={routeParams}
               />
             </ModalContextProvider>
@@ -605,7 +641,7 @@ export const Modal = ({
             visible={responseModalVisible}
             responseData={responseData}
             responseConfig={responseConfig}
-            actionModalTitle={modalTitle}
+            actionModalTitle={effectiveTitle}
             onClose={() => {
               hideResponseModal();
               
@@ -625,26 +661,30 @@ export const Modal = ({
             }}
           />
         )}
-      </>
+      </ModalDepthContext.Provider>
     )
   }
 
   if (modalType === "custom" && children) {
     return (
-      <AntModal
-        footer={null}
-        open={true}
-        onCancel={onCancelCallback}>
-        <ErrorBoundary
-          FallbackComponent={ErrorFallback}
-          onReset={() => {
-            console.log("Modal (Custom) ErrorBoundary Reset");
-            onCancelCallback && onCancelCallback(); // Close modal on error reset
-          }}
+      <ModalDepthContext.Provider value={nextDepth}>
+        <AntModal
+          footer={null}
+          open={true}
+          onCancel={onCancelCallback}
+          wrapClassName={`modal-depth-${currentDepth}`}
         >
-          {children}
-        </ErrorBoundary>
-      </AntModal>
+            <ErrorBoundary
+              FallbackComponent={ErrorFallback}
+              onReset={() => {
+                console.log("Modal (Custom) ErrorBoundary Reset");
+                onCancelCallback && onCancelCallback(); // Close modal on error reset
+              }}
+            >
+              {children}
+            </ErrorBoundary>
+          </AntModal>
+      </ModalDepthContext.Provider>
     )
   }
 

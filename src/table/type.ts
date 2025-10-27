@@ -41,6 +41,7 @@ export interface ITableConfig {
   records?: Array<any>;
   paginationType?: ITablePagination;
   routeParams?: Record<string, string>;
+  defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
 }
 
 export interface ITablePropertiesConfig {

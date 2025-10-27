@@ -3,10 +3,9 @@ export const detailsStyles = {
   // Container styles for details
   container: {
     display: 'flex',
-    gap: 24,
+    gap: 20,
     alignItems: 'flex-start' as const,
     width: '100%',
-    paddingBottom: 32,
     flexWrap: 'wrap' as const,
   },
 
@@ -18,7 +17,7 @@ export const detailsStyles = {
     flexDirection: 'column' as const,
     gap: 16,
     background: '#fff',
-    padding: 24,
+    padding: 16,
     borderRadius: 12,
     boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
     border: '1px solid #f0f0f0',
