@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.0](https://github.com/ten24group/ui24/compare/v1.0.2-beta.3...v1.0.5-beta.0) (2025-10-27)
+
+
+### Bug Fixes
+
+* DetailWidget type issue and consolidated renderSingleAction ([998d728](https://github.com/ten24group/ui24/commit/998d7283a7fc63dfaa2d669813c980817341a7be))
+* dropdown actions not handling modals ([f7fb57a](https://github.com/ten24group/ui24/commit/f7fb57a49eb6d7c5f28725adbdf35fddd78e514c))
+* title for modals ([31e0617](https://github.com/ten24group/ui24/commit/31e06173fa1d97e71ef8ecb2f5020a30b91e3931))
+
+### [1.0.3](https://github.com/ten24group/ui24/compare/v1.0.2...v1.0.3) (2025-07-28)
+
+### [1.0.2](https://github.com/ten24group/ui24/compare/v1.0.1...v1.0.2) (2025-06-12)
+
 ### [1.0.2-beta.3](https://github.com/ten24group/ui24/compare/v1.0.2-beta.2...v1.0.2-beta.3) (2025-08-14)
 
 ### [1.0.2-beta.2](https://github.com/ten24group/ui24/compare/v1.0.2-beta.1...v1.0.2-beta.2) (2025-08-14)
