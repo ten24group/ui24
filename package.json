@@ -10,7 +10,8 @@
     "start": "webpack serve --mode development --open",
     "watch": "webpack --watch",
     "release": "npm run build && standard-version && git push --follow-tags && npm publish",
-    "release:BE": "npm run build && standard-version --prerelease beta && git push --follow-tags && npm publish --tag bleeding-edge"
+    "release:BE": "npm run build && standard-version --prerelease beta && git push --follow-tags && npm publish --tag bleeding-edge",
+    "release:BE:github": "npm run build && standard-version --prerelease beta && git push --follow-tags"
   },
   "keywords": [
     "ui24",
