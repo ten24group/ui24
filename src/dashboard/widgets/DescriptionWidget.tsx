@@ -112,8 +112,7 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
                     key={item.key}
                     label={item.label}
                     span={item.span}
-                    labelStyle={item.labelStyle}
-                    contentStyle={item.contentStyle}
+                    styles={{ label: item.labelStyle, content: item.contentStyle }}
                 >
                     {renderValue(data[item.key])}
                 </Descriptions.Item>

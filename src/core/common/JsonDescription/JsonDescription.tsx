@@ -64,7 +64,7 @@ export const JsonDescription: React.FC<{ data: any; bordered?: boolean }> = ({ d
             size="small"
             column={1}
             bordered={bordered}
-            labelStyle={{ fontWeight: 500, width: '30%' }}
+            styles={{ label: { fontWeight: 500, width: '30%'} }}
         >
             {entries.map(([key, value]) => (
                 <Descriptions.Item key={key} label={formatKey(key)}>
