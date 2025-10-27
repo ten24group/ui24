@@ -3,37 +3,8 @@ import { PostAuthPage } from '../PostAuth/PostAuthPage';
 import { useLocation } from "react-router-dom";
 import { NotFound } from '../404/NotFound';
 import { useUi24Config } from '../../core/context';
+import { matchRoutePattern } from '../../core/utils';
 import { Spin } from 'antd';
-
-// Utility to match a path against a pattern like /author/:authorId/books
-function matchRoutePattern(pattern: string, path: string) {
-    // Remove leading and trailing slashes and split into segments
-    const patternParts = pattern.replace(/^\/+|\/+$/g, '').split('/');
-    const pathParts = path.replace(/^\/+|\/+$/g, '').split('/');
-    
-    // If the number of segments doesn't match, this isn't a match
-    if (patternParts.length !== pathParts.length) {
-        return null;
-    }
-
-    const params: Record<string, string> = {};
-    
-    // Check each segment
-    for (let i = 0; i < patternParts.length; i++) {
-        const patternPart = patternParts[i];
-        const pathPart = pathParts[i];
-        
-        if (patternPart.startsWith(':')) {
-            // This is a parameter - capture it
-            const paramName = patternPart.slice(1);
-            params[paramName] = pathPart;
-        } else if (patternPart !== pathPart) {
-            return null;
-        }
-    }
-
-    return params;
-}
 
 // Handle legacy edit/detail routes that include IDs
 function handleLegacyRoute(pathname: string): { pageName: string; params: { id: string } } | null {

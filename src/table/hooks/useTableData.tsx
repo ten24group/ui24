@@ -16,12 +16,38 @@ const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
 const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
   if (apiMethod === "GET") {
     let transformedFilters: Record<string, any> = {};
+    
     for (let key in filters) {
-      for (let operator in filters[ key ]) {
-        if (Array.isArray(filters[ key ][ operator ])) {
-          transformedFilters[ `${key}.${operator}` ] = filters[ key ][ operator ].join(",");
+      const value = filters[key];
+      
+      // Check if value is an object with operators
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        // Nested structure with operators
+        for (let operator in value) {
+          if (operator === 'eq') {
+            // Special case: .eq operator outputs as plain param (no .eq suffix)
+            // {sport: {eq: "basketball"}} → sport=basketball
+            if (Array.isArray(value[operator])) {
+              transformedFilters[key] = value[operator].join(",");
+            } else {
+              transformedFilters[key] = value[operator];
+            }
+          } else {
+            // Other operators: keep the operator suffix
+            // {sport: {neq: "football"}} → sport.neq=football
+            if (Array.isArray(value[operator])) {
+              transformedFilters[ `${key}.${operator}` ] = value[operator].join(",");
+            } else {
+              transformedFilters[ `${key}.${operator}` ] = value[operator];
+            }
+          }
+        }
+      } else {
+        // Plain value (shouldn't happen now, but handle it)
+        if (Array.isArray(value)) {
+          transformedFilters[key] = value.join(",");
         } else {
-          transformedFilters[ `${key}.${operator}` ] = filters[ key ][ operator ];
+          transformedFilters[key] = value;
         }
       }
     }
@@ -90,6 +116,27 @@ export const useTableData = ({
     const payload: any = {
       ...getFilterPayload(appliedFilters, apiConfig.apiMethod),
     };
+    
+    // Add non-filter query params from URL (debug, trace, mock, etc.)
+    // These bypass filter structure and go directly to API
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const INFRASTRUCTURE_PARAMS = ['f', 'page', 'cursor', 'count', 'q', 'sort', 'attributes'];
+      urlParams.forEach((value, key) => {
+        // Skip infrastructure params (they're handled separately)
+        if (INFRASTRUCTURE_PARAMS.includes(key)) {
+          return;
+        }
+        
+        // Skip filter params (already in appliedFilters)
+        if (appliedFilters[key] || key.includes('.')) {
+          return;
+        }
+        
+        // This is a pass-through param (like debug, trace, mock) - add it!
+        payload[key] = value;
+      });
+    }
 
     // shared payload for both search and list APIs
     const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
