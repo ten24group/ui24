@@ -446,11 +446,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       // Determine if we should show as link (default: true for to-one, false for to-many)
                       const shouldShowLink = displayConfig?.showLink !== false;
                       
-                      // For to-many relations, format value display (could be count or array length)
-                      const displayValue = Array.isArray(value) ? `${value.length} items` : value;
-                      
                       // Determine modal type from page type
                       const modalType = modalConfigRef?.pageType === 'list' ? 'list' : 'details';
+                      
+                      // For to-many relations, format value display (could be count or array length)
+                      const displayValue = modalType === 'list' ? `View related items` 
+                                          : Array.isArray(value) ? `${value.length} items` 
+                                          : value;
                       
                       return (
                         <div key={index} className="details-field-container">

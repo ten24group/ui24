@@ -6,6 +6,7 @@ import { Link } from '../core/common';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../core/context';
 import { substituteUrlParams } from '../core/utils';
+import { getDefaultModalWidth } from './modalUtils';
 
 export interface OpenRouteInModalProps {
   /** URL to resolve and open in modal (e.g., "/view-user/:id") */
@@ -121,28 +122,13 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
     onSuccessCallback?.(response);
   };
 
-  // Auto-detect modal width from page type
-  const defaultWidth = React.useMemo(() => {
-    if (!pageConfig) return 800;
-
-    switch (pageConfig.pageType) {
-      case 'list':
-        return '95%';
-      case 'details':
-        return '95%';
-      case 'form':
-        return '80%';
-      case 'dashboard':
-        return '95%';
-      case 'accordion':
-        return '95%';
-      default:
-        return 800;
-    }
-
-  }, [ pageConfig ]);
-
-  const finalWidth = modalWidth || defaultWidth;
+  // Use centralized width calculation
+  const finalWidth = React.useMemo(() => {
+    if (!pageConfig) return getDefaultModalWidth('details', modalWidth);
+    
+    return getDefaultModalWidth(pageConfig.pageType as any, modalWidth);
+  }, [ pageConfig, modalWidth ]);
+  
   const finalTitle = modalTitle || pageConfig?.pageTitle;
 
   // Merge query params from resolved URL

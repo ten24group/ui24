@@ -16,6 +16,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { ModalContextProvider } from '../core/context';
 import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
+import { getDefaultModalWidth } from './modalUtils';
 
 // Simple modal depth tracking for stack effect
 const ModalDepthContext = React.createContext(0);
@@ -482,7 +483,7 @@ export const Modal = ({
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
     const configTitle = (modalPageConfig as IConfirmModal)?.title;
     const effectiveTitle = modalTitle || configTitle;
-    const effectiveWidth = modalWidth || 520;
+    const effectiveWidth = getDefaultModalWidth('confirm', modalWidth);
     
     return (
       <ModalDepthContext.Provider value={nextDepth}>
@@ -567,15 +568,8 @@ export const Modal = ({
     const configTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
     const effectiveTitle = modalTitle || configTitle;
     
-    // Auto-detect width based on modal type if not explicitly provided
-    const effectiveWidth = modalWidth || (
-      modalType === 'list' ? '95%' :
-      modalType === 'dashboard' ? '95%' :
-      modalType === 'accordion' ? "95%" :
-      modalType === 'details' ? "95%" :
-      modalType === 'form' ? "80%" : // Forms: slightly narrower for better UX
-      520 // default for confirm modals
-    );
+    // Use centralized width calculation
+    const effectiveWidth = getDefaultModalWidth(modalType as any, modalWidth);
     
     // Get default values from query if inverseMapping is enabled
     const defaultValuesFromQuery = getDefaultValuesFromQuery();
