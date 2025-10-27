@@ -62,6 +62,7 @@ export interface IDetailsComponentProps extends IDetailsConfig {
     identifiers?: string | number;
     columnsConfig?: IColumnsConfig;
     routeParams?: Record<string, string>;
+    detailResponse?: any;  // Pre-provided response data (bypasses API call)
 }
 
 const Details: React.FC<IDetailsComponentProps> = ({ 
@@ -70,10 +71,11 @@ const Details: React.FC<IDetailsComponentProps> = ({
     detailApiConfig, 
     identifiers, 
     columnsConfig, 
-    routeParams = {} 
+    routeParams = {},
+    detailResponse: initialDetailResponse
 }) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
-    const [ detailResponse, setDetailResponse ] = useState<any>(null)
+    const [ detailResponse, setDetailResponse ] = useState<any>(initialDetailResponse || null)
     // TODO: remove the dynamic-id option from here and use the identifiers prop instead
     const { dynamicID } = useParams()
     const { notifyError } = useAppContext();
@@ -211,9 +213,22 @@ const Details: React.FC<IDetailsComponentProps> = ({
                 notifyError(error?.message || 'An unexpected error occurred');
             }
         }
-
-        if (detailApiConfig)
+        
+        // If we have pre-provided detail response, format it immediately
+        if (initialDetailResponse) {
+            const formatted = recordInfo.map(item => {
+                const propertyPath = item.column || item.name || item.id;
+                const nestedValue = getNestedValue(initialDetailResponse, propertyPath);
+                const formatted = valueFormatter(item, nestedValue);
+                return { ...item, initialValue: formatted }
+            });
+            
+            setRecordInfo(formatted);
+            setDataLoaded(true);
+        } else if (detailApiConfig) {
+            // Otherwise, fetch from API
             fetchRecordInfo();
+        }
     }, [])
 
     interface IDescriptionCardOptions {

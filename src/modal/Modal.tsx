@@ -15,6 +15,7 @@ import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { ModalContextProvider } from '../core/context';
+import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
 
 interface IConfirmModal {
   title: string;
@@ -26,6 +27,7 @@ type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig | 
 
 /**
  * Navigation configuration for modal form submissions
+ * Used for navigation-only modals (no API call)
  */
 export interface INavigateToConfig {
   routePattern: string;
@@ -37,6 +39,41 @@ export interface INavigateToConfig {
   arrayValuePath?: string;
   replace?: boolean;
   inverseMapping?: boolean;
+}
+
+/**
+ * Configuration for displaying API response in a modal
+ * Reuses the existing page rendering system (details, list, dashboard, etc.)
+ * 
+ * Use Cases:
+ * - Bulk operations: Show results breakdown (created/updated/failed counts)
+ * - Report generation: Show summary with download links
+ * - Test/validation: Show operation results, warnings, API responses
+ * 
+ * Note: This type is also defined in backend (fw24/src/entity/base-entity.ts) for entity schemas.
+ * Keep these in sync manually, or consolidate in future if shared types package is created.
+ */
+export interface IResponseDisplayConfig {
+  /** Whether to show response in a modal. If false, only toast notification shows. Default: false */
+  showModal?: boolean;
+  
+  /** Title for response modal. If not provided, appends " - Results" to action modal title */
+  modalTitle?: string;
+  
+  /** Width of response modal in pixels. Default: 800 */
+  modalWidth?: number;
+  
+  /** OPTION 1: Render response using existing page type system (recommended) */
+  pageType?: 'details' | 'list' | 'dashboard' | 'accordion';
+  pageConfig?: Record<string, any>;
+  
+  /** OPTION 2: Show raw JSON response (useful for debugging/testing) */
+  showRawJson?: boolean;
+  
+  /** Path to extract data from response. Default: uses response root
+   * Example: "data.results" will use response.data.results as the data source
+   */
+  dataPath?: string;
 }
 
 export interface IModalConfig {
@@ -51,6 +88,9 @@ export interface IModalConfig {
   
   /** OR: Navigate without API call (new pattern) */
   navigateTo?: INavigateToConfig | string;
+  
+  /** OPTIONAL: Display API response in modal (instead of just toast) */
+  responseConfig?: IResponseDisplayConfig;
   
   primaryIndex?: string;
   useDynamicIdFromParams?: boolean;
@@ -157,6 +197,7 @@ export const Modal = ({
   modalPageConfig,
   apiConfig,
   navigateTo,
+  responseConfig,
   primaryIndex = "",
   useDynamicIdFromParams = true,
   onSuccessCallback,
@@ -172,6 +213,14 @@ export const Modal = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [ loading, setLoading ] = React.useState(false);
+  
+  // Response modal state management
+  const { 
+    responseModalVisible, 
+    responseData, 
+    showResponseModal, 
+    hideResponseModal 
+  } = useResponseModal();
 
   const confirmApiAction = async () => {
     // Use the clean utility function for URL parameter substitution
@@ -184,23 +233,34 @@ export const Modal = ({
       });
 
       if (response.status === 200) {
-        const responseData = apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
+        const responseDataFromApi = apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
         const message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
         notifySuccess(message);
 
-        onSuccessCallback && onSuccessCallback(responseData);
-        if (submitSuccessRedirect) {
-          // redirect to appropriate page
-          // replace placeholders with the actual values
-          let formattedSubmitSuccessRedirect = substituteUrlParams(submitSuccessRedirect, { ...routeParams, ...(responseData || {}) }, primaryIndex);
-          navigate(formattedSubmitSuccessRedirect)
+        // Check if response should be displayed in modal
+        if (responseConfig?.showModal) {
+          // Show response modal - delay redirect and callback until modal closes
+          showResponseModal(responseDataFromApi);
+          // Note: Action modal stays open, will be closed when response modal closes
+          // onConfirmCallback will be called in response modal's onClose handler
+        } else {
+          // Standard behavior: callback + redirect
+          onSuccessCallback && onSuccessCallback(responseDataFromApi);
+          if (submitSuccessRedirect) {
+            // redirect to appropriate page
+            // replace placeholders with the actual values
+            let formattedSubmitSuccessRedirect = substituteUrlParams(submitSuccessRedirect, { ...routeParams, ...(responseDataFromApi || {}) }, primaryIndex);
+            navigate(formattedSubmitSuccessRedirect)
+          }
+          // Close action modal
+          onConfirmCallback && onConfirmCallback()
         }
       } else {
         const message = response.data?.details?.message || response.data?.message || response.message || "Operation Failed";
         notifyError(message)
+        // Close modal on error
+        onConfirmCallback && onConfirmCallback()
       }
-
-      onConfirmCallback && onConfirmCallback()
     } catch (error: any) {
       notifyError(error?.message || 'An unexpected error occurred');
     } finally {
@@ -402,29 +462,83 @@ export const Modal = ({
   };
 
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
+    const confirmModalTitle = (modalPageConfig as IConfirmModal)?.title;
+    
     return (
-      <AntModal
-        title={(modalPageConfig as IConfirmModal)?.title}
-        open={true}
-        onOk={confirmApiAction}
-        onCancel={onCancelCallback}
-        okText="Confirm"
-        cancelText="Cancel"
-        loading={loading}
-      >
-        <ErrorBoundary
-          FallbackComponent={ErrorFallback}
-          onReset={() => {
-            console.log("Modal (Confirm) ErrorBoundary Reset");
-            onCancelCallback && onCancelCallback(); // Close modal on error reset
-          }}
+      <>
+        <AntModal
+          title={confirmModalTitle}
+          open={true}
+          onOk={confirmApiAction}
+          onCancel={onCancelCallback}
+          okText="Confirm"
+          cancelText="Cancel"
+          loading={loading}
         >
-          {(modalPageConfig as IConfirmModal)?.content}
-          {children}
-        </ErrorBoundary>
-      </AntModal>
+          <ErrorBoundary
+            FallbackComponent={ErrorFallback}
+            onReset={() => {
+              console.log("Modal (Confirm) ErrorBoundary Reset");
+              onCancelCallback && onCancelCallback(); // Close modal on error reset
+            }}
+          >
+            {(modalPageConfig as IConfirmModal)?.content}
+            {children}
+          </ErrorBoundary>
+        </AntModal>
+        
+        {/* Response modal - shown after successful API call */}
+        {responseConfig && (
+          <ResponseModal
+            visible={responseModalVisible}
+            responseData={responseData}
+            responseConfig={responseConfig}
+            actionModalTitle={confirmModalTitle}
+            onClose={() => {
+              hideResponseModal();
+              
+              // Execute callback and redirect after modal closes
+              onSuccessCallback && onSuccessCallback(responseData);
+              if (submitSuccessRedirect) {
+                const formattedUrl = substituteUrlParams(
+                  submitSuccessRedirect, 
+                  { ...routeParams, ...(responseData || {}) }, 
+                  primaryIndex
+                );
+                navigate(formattedUrl);
+              }
+              
+              // Close action modal too
+              onConfirmCallback && onConfirmCallback();
+            }}
+          />
+        )}
+      </>
     )
   }
+
+  // Handler for form submissions (wraps response display logic)
+  const handleFormSubmitSuccess = (response: any) => {
+    if (responseConfig?.showModal) {
+      // Extract response data (Form.tsx passes full response object)
+      const responseDataFromForm = response?.data || response;
+      showResponseModal(responseDataFromForm);
+      // Note: Action modal stays open, will be closed when response modal closes
+    } else {
+      // Standard behavior
+      onSuccessCallback && onSuccessCallback(response);
+    }
+  };
+  
+  // Validation: Warn if both navigateTo and responseConfig are specified (mutually exclusive)
+  React.useEffect(() => {
+    if (navigateTo && responseConfig?.showModal) {
+      console.warn(
+        '[Modal] Both navigateTo and responseConfig.showModal are specified. ' +
+        'navigateTo takes precedence. This might be a configuration error.'
+      );
+    }
+  }, [navigateTo, responseConfig]);
 
   if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
@@ -434,53 +548,84 @@ export const Modal = ({
     const defaultValuesFromQuery = getDefaultValuesFromQuery();
     
     return (
-      <AntModal
-        title={modalTitle}
-        footer={null}
-        open={true}
-        onCancel={onCancelCallback}
-        loading={loading}
-      >
-        <ErrorBoundary
-          FallbackComponent={ErrorFallback}
-          onReset={() => {
-            console.log("Modal (PageType) ErrorBoundary Reset");
-            onCancelCallback && onCancelCallback(); // Close modal on error reset
-          }}
+      <>
+        <AntModal
+          title={modalTitle}
+          footer={null}
+          open={true}
+          onCancel={onCancelCallback}
+          loading={loading}
         >
-          {/* Wrap in ModalContext so child components know they're in a modal */}
-          <ModalContextProvider>
-            <RenderFromPageType
-              cardStyle={{ marginTop: "5%" }}
-              pageType={modalType as IPageType}
-              listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
-              formPageConfig={
-                modalType === "form" ? {
-                  ...modalPageConfig,
-                  // Use navigation handler if navigateTo is specified, otherwise use regular callback
-                  onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
-                  // Remove apiConfig if navigateTo is specified (navigation-only mode)
-                  apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
-                  // Pre-populate form from query params if inverseMapping enabled
-                  defaultValues: defaultValuesFromQuery || (modalPageConfig as IForm).defaultValues,
-                  useDynamicIdFromParams: false,
-                  routeParams
-                } as IForm : undefined
+          <ErrorBoundary
+            FallbackComponent={ErrorFallback}
+            onReset={() => {
+              console.log("Modal (PageType) ErrorBoundary Reset");
+              onCancelCallback && onCancelCallback(); // Close modal on error reset
+            }}
+          >
+            {/* Wrap in ModalContext so child components know they're in a modal */}
+            <ModalContextProvider>
+              <RenderFromPageType
+                cardStyle={{ marginTop: "5%" }}
+                pageType={modalType as IPageType}
+                listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
+                formPageConfig={
+                  modalType === "form" ? {
+                    ...modalPageConfig,
+                    // Determine callback based on navigateTo, responseConfig, or standard
+                    onSubmitSuccessCallback: navigateTo 
+                      ? handleNavigationSubmit 
+                      : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),
+                    // Remove apiConfig if navigateTo is specified (navigation-only mode)
+                    apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
+                    // Pre-populate form from query params if inverseMapping enabled
+                    defaultValues: defaultValuesFromQuery || (modalPageConfig as IForm).defaultValues,
+                    useDynamicIdFromParams: false,
+                    routeParams
+                  } as IForm : undefined
+                }
+                detailsPageConfig={
+                  modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
+                }
+                accordionsPageConfig={
+                  modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
+                }
+                dashboardPageConfig={
+                  modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
+                }
+                routeParams={routeParams}
+              />
+            </ModalContextProvider>
+          </ErrorBoundary>
+        </AntModal>
+        
+        {/* Response modal - shown after successful API call */}
+        {responseConfig && (
+          <ResponseModal
+            visible={responseModalVisible}
+            responseData={responseData}
+            responseConfig={responseConfig}
+            actionModalTitle={modalTitle}
+            onClose={() => {
+              hideResponseModal();
+              
+              // Execute callback and redirect after modal closes
+              onSuccessCallback && onSuccessCallback(responseData);
+              if (submitSuccessRedirect) {
+                const formattedUrl = substituteUrlParams(
+                  submitSuccessRedirect, 
+                  { ...routeParams, ...(responseData || {}) }, 
+                  primaryIndex
+                );
+                navigate(formattedUrl);
               }
-              detailsPageConfig={
-                modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
-              }
-              accordionsPageConfig={
-                modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
-              }
-              dashboardPageConfig={
-                modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
-              }
-              routeParams={routeParams}
-            />
-          </ModalContextProvider>
-        </ErrorBoundary>
-      </AntModal>
+              
+              // Close action modal too
+              onCancelCallback && onCancelCallback();
+            }}
+          />
+        )}
+      </>
     )
   }
 
