@@ -4,6 +4,44 @@ import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
 /**
+ * Sort configuration for tables
+ * 
+ * Used in both backend (entity schema) and frontend (UI config)
+ * 
+ * Three formats supported:
+ * 
+ * 1. Object (single column sort for search):
+ *    { field: 'createdAt', order: 'desc' }
+ * 
+ * 2. Array (multi-column sort for search):
+ *    [{ field: 'publishDate', order: 'desc' }, { field: 'likeCount', order: 'desc' }]
+ * 
+ * 3. Order string (DynamoDB index order indication):
+ *    'asc' | 'desc'
+ *    Note: For DynamoDB, this indicates the expected index order direction,
+ *    not an actual sort parameter (DynamoDB returns data in index PK/SK order)
+ */
+export type SortConfig = 
+  | { field: string; order: 'asc' | 'desc' }           // Single column sort (search mode)
+  | Array<{ field: string; order: 'asc' | 'desc' }>    // Multi-column sort (search mode)
+  | 'asc' | 'desc';                                     // Index order direction (DynamoDB mode)
+
+/**
+ * Extended IApiConfig for table use with defaultSort
+ */
+export interface ITableApiConfig extends IApiConfig {
+  defaultSort?: SortConfig;
+}
+
+/**
+ * Extended IDualApiConfig for table use with defaultSort
+ */
+export interface IDualTableApiConfig {
+  search: ITableApiConfig;
+  database: ITableApiConfig;
+}
+
+/**
  * Table configuration interface
  * 
  * For single endpoint (backward compatible):
@@ -13,6 +51,7 @@ type ITablePagination = "default";
  *     apiUrl: "/api/posts",
  *     apiMethod: "GET",
  *     useSearch: true // or false
+ *     defaultSort: { field: 'createdAt', order: 'desc' }
  *   }
  * }
  * ```
@@ -24,12 +63,14 @@ type ITablePagination = "default";
  *     search: {
  *       apiUrl: "/api/search/posts",
  *       apiMethod: "GET",
- *       responseKey: "items"
+ *       responseKey: "items",
+ *       defaultSort: [{ field: 'publishDate', order: 'desc' }]
  *     },
  *     database: {
  *       apiUrl: "/api/posts",
  *       apiMethod: "GET",
- *       responseKey: "data"
+ *       responseKey: "data",
+ *       defaultSort: 'desc'  // DynamoDB index order
  *     }
  *   }
  * }
@@ -37,7 +78,7 @@ type ITablePagination = "default";
  */
 export interface ITableConfig {
   propertiesConfig: Array<ITablePropertiesConfig>;
-  apiConfig: IApiConfig | IDualApiConfig;
+  apiConfig: ITableApiConfig | IDualTableApiConfig;
   records?: Array<any>;
   paginationType?: ITablePagination;
   routeParams?: Record<string, string>;

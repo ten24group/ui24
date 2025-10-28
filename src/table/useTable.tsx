@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { ITablePropertiesConfig } from "./type";
-import { IApiConfig, IDualApiConfig } from "../core/context";
+import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
+import { IApiConfig } from "../core/context";
 import { Pagination as AntPagination } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
@@ -15,25 +15,76 @@ import { useTableData } from "./hooks/useTableData";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
-  apiConfig: IApiConfig | IDualApiConfig;
+  apiConfig: ITableApiConfig | IDualTableApiConfig;
   routeParams?: Record<string, string>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
 }
 
 // Utility functions to handle both single and dual API configurations
-const isDualApiConfig = (config: IApiConfig | IDualApiConfig): config is IDualApiConfig => {
+const isDualApiConfig = (config: ITableApiConfig | IDualTableApiConfig): config is IDualTableApiConfig => {
   return 'search' in config && 'database' in config;
 };
 
-const getCurrentApiConfig = (apiConfig: IApiConfig | IDualApiConfig, isSearchMode: boolean): IApiConfig => {
+const getCurrentApiConfig = (apiConfig: ITableApiConfig | IDualTableApiConfig, isSearchMode: boolean): IApiConfig => {
   if (isDualApiConfig(apiConfig)) {
     return isSearchMode ? apiConfig.search : apiConfig.database;
   }
   return apiConfig;
 };
 
-const canToggleSearchMode = (apiConfig: IApiConfig | IDualApiConfig): boolean => {
+const canToggleSearchMode = (apiConfig: ITableApiConfig | IDualTableApiConfig): boolean => {
   return isDualApiConfig(apiConfig);
+};
+
+/**
+ * Convert backend defaultSort format to Ant Design SorterResult format
+ * 
+ * Three formats:
+ * 1. Object: { field: 'createdAt', order: 'desc' } → [{ field: 'createdAt', order: 'descend' }]
+ * 2. Array: [{ field: 'publishDate', order: 'desc' }, ...] → Multi-column sorters
+ * 3. String: 'asc' | 'desc' → [] (DynamoDB index order indicator, not an actual sort)
+ * 
+ * Note: For DynamoDB mode, the string format ('asc' | 'desc') just indicates the expected
+ * index order direction. Since DynamoDB doesn't support arbitrary sorting with cursor pagination,
+ * we return an empty array (no sort indicators shown in UI).
+ */
+const convertDefaultSortToSorterResult = (defaultSort: SortConfig | undefined): SorterResult<any>[] => {
+  if (!defaultSort) return [];
+  
+  // Handle string format: 'asc' | 'desc'
+  // This is for DynamoDB and indicates index order, NOT an actual sortable field
+  // Return empty array since we don't have a field to sort by
+  if (typeof defaultSort === 'string') {
+    // Just 'asc' or 'desc' - this is DynamoDB index order indication
+    // No field specified, so we can't create a sorter
+    return [];
+  }
+  
+  // Handle array format (multi-column sort for search mode)
+  if (Array.isArray(defaultSort)) {
+    return defaultSort.map(s => ({
+      field: s.field,
+      order: s.order === 'asc' ? 'ascend' : 'descend'
+    } as SorterResult<any>));
+  }
+  
+  // Handle object format (single column sort for search mode)
+  return [{
+    field: defaultSort.field,
+    order: defaultSort.order === 'asc' ? 'ascend' : 'descend'
+  } as SorterResult<any>];
+};
+
+/**
+ * Get defaultSort from apiConfig based on current mode
+ * Follows the same pattern as getCurrentApiConfig - respects the active mode
+ */
+const getDefaultSortFromApiConfig = (apiConfig: ITableApiConfig | IDualTableApiConfig, isSearchMode: boolean): SortConfig | undefined => {
+  if (isDualApiConfig(apiConfig)) {
+    // Use the config for the current mode (just like filters, pagination, etc.)
+    return isSearchMode ? apiConfig.search?.defaultSort : apiConfig.database?.defaultSort;
+  }
+  return apiConfig.defaultSort;
 };
 
 /**
@@ -206,12 +257,21 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return { ...resolvedDefaultFilters, ...urlFilters };
   });
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
-  const [ sort, setSort ] = React.useState<SorterResult<any>[]>([]);
+  
+  // Determine initial mode FIRST (needed to get correct defaultSort)
   const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
     if (isDualApiConfig(apiConfig)) {
       return true; // Default to search mode for dual config
     }
     return apiConfig.useSearch || false;
+  });
+  
+  // Then initialize sort based on the current mode
+  const [ sort, setSort ] = React.useState<SorterResult<any>[]>(() => {
+    // Determine initial mode to get correct defaultSort
+    const initialMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
+    const defaultSort = getDefaultSortFromApiConfig(apiConfig, initialMode);
+    return convertDefaultSortToSorterResult(defaultSort);
   });
   const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(
     propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex)
@@ -256,10 +316,15 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const toggleSearchMode = React.useCallback(() => {
     if (canToggleSearchMode(apiConfig)) {
-      setIsSearchMode(prev => !prev);
+      setIsSearchMode(prev => {
+        const newMode = !prev;
+        // Reset sort to defaultSort for the NEW mode
+        const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
+        setSort(convertDefaultSortToSorterResult(defaultSort));
+        return newMode;
+      });
       setSearchQuery('');
       setAppliedFilters({});
-      setSort([]);
     }
   }, [apiConfig]);
 
@@ -274,13 +339,16 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const handleRefresh = React.useCallback(() => {
     setAppliedFilters({});
-    setSort([]);
     setSearchQuery('');
-    if (isDualApiConfig(apiConfig)) {
-      setIsSearchMode(true); // Reset to search mode for dual config
-    } else {
-      setIsSearchMode(apiConfig.useSearch || false);
-    }
+    
+    // Reset to initial mode
+    const resetMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
+    setIsSearchMode(resetMode);
+    
+    // Reset sort to defaultSort for the reset mode
+    const defaultSort = getDefaultSortFromApiConfig(apiConfig, resetMode);
+    setSort(convertDefaultSortToSorterResult(defaultSort));
+    
     fetchRecords(1, "");
   }, [ fetchRecords, apiConfig ]);
 
