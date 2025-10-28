@@ -19,6 +19,7 @@ import { formStyles } from '../core/forms/FormField/styles';
 import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
+import { handleApiError } from '../core/utils/api-error-handler';
 import './Form.css';
 
 // Extend IForm to accept columnsConfig
@@ -28,10 +29,11 @@ interface IFormWithColumnsConfig extends IForm {
 }
 
 export function Form({
-  formConfig = { name: "customForm-" + uuidv4() },
+  formConfig,
   propertiesConfig = [],
   onSubmit,
   onSubmitSuccessCallback,
+  onCancelCallback,
   formButtons = [],
   children,
   apiConfig,
@@ -47,6 +49,12 @@ export function Form({
 }: IFormWithColumnsConfig) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
+  
+  // Generate STABLE formConfig name - CRITICAL: Must not change across re-renders!
+  // Otherwise React will destroy and recreate the form, losing all field errors
+  const stableFormConfig = React.useMemo(() => {
+    return formConfig || { name: "customForm-" + uuidv4() };
+  }, [formConfig]);
 
   // TODO: remove the dynamic-id option from here and use the identifiers prop instead
   const { dynamicID = "" } = useParams()
@@ -57,6 +65,10 @@ export function Form({
   const [ loader, setLoader ] = useState<boolean>(false)
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
   const [ identifiersToUse, setIdentifiersToUse ] = useState<string | number | undefined>(useDynamicIdFromParams ? dynamicID : identifiers);
+  
+  // Track previous values to detect actual changes (not just re-renders)
+  const prevFormPropertiesConfigRef = React.useRef<IFormField[] | null>(null);
+  const prevDefaultValuesRef = React.useRef<Record<string, any> | null>(null);
 
   useEffect(() => {
     setLoader(disabled)
@@ -264,12 +276,64 @@ export function Form({
             navigate(formattedSubmitSuccessRedirect)
           }
           onSubmitSuccessCallback && onSubmitSuccessCallback(response)
-        } else if (response.status >= 400 || response.status <= 500) {
-          const errorMessage = response.message || response.error.message || response.error;
-          notifyError(errorMessage)
+        } else if (response.status >= 400 && response.status < 600) {
+          
+          // Handle error response using consolidated error handler
+          const errorResult = handleApiError(response, 'An error occurred');
+                    
+          if (errorResult.isValidationError && errorResult.validationErrors) {
+            // Set field-level errors in the form
+            if (errorResult.validationErrors.fieldErrors.length > 0) {
+              form.setFields(errorResult.validationErrors.fieldErrors);              
+            }
+            
+            // Show form-level errors as toast
+            if (errorResult.validationErrors.formErrors.length > 0) {
+              notifyError(errorResult.validationErrors.formErrors.join('; '));
+            } else if (errorResult.validationErrors.fieldErrors.length > 0) {
+              // Show specific field errors in toast as well (field errors also shown inline)
+              const fieldErrorMessages = errorResult.validationErrors.fieldErrors.map(fe => {
+                const fieldName = Array.isArray(fe.name) ? fe.name.join('.') : fe.name;
+                return `${fieldName}: ${fe.errors[0]}`;
+              });
+              notifyError(fieldErrorMessages.join('\n'));
+            } else {
+              // Fallback to generic error message
+              notifyError(errorResult.errorMessage);
+            }
+          } else {
+            // Not a validation error, just show the error message
+            notifyError(errorResult.errorMessage);
+          }
         }
       } catch (error: any) {
-        notifyError(error?.message || 'An unexpected error occurred');
+        
+        // Handle network errors or other exceptions using consolidated error handler
+        const errorResult = handleApiError(error, 'An unexpected error occurred');
+                
+        if (errorResult.isValidationError && errorResult.validationErrors) {
+          // Set field-level errors
+          if (errorResult.validationErrors.fieldErrors.length > 0) {
+            form.setFields(errorResult.validationErrors.fieldErrors);
+          }
+          
+          // Show form-level errors
+          if (errorResult.validationErrors.formErrors.length > 0) {
+            notifyError(errorResult.validationErrors.formErrors.join('; '));
+          } else if (errorResult.validationErrors.fieldErrors.length > 0) {
+            // Show specific field errors in toast as well (field errors also shown inline)
+            const fieldErrorMessages = errorResult.validationErrors.fieldErrors.map(fe => {
+              const fieldName = Array.isArray(fe.name) ? fe.name.join('.') : fe.name;
+              return `${fieldName}: ${fe.errors[0]}`;
+            });
+            notifyError(fieldErrorMessages.join('\n'));
+          } else {
+            notifyError(errorResult.errorMessage);
+          }
+        } else {
+          // Non-validation error (network error, 404, 500, etc.)
+          notifyError(errorResult.errorMessage);
+        }
       } finally {
         setBtnLoader(false)
         setLoader(false)
@@ -287,7 +351,7 @@ export function Form({
   }
 
   const [ form ] = AntForm.useForm();
-
+  
   // Determine columns to render
   let columns: IFormField[][] = [];
   const items = formPropertiesConfig.filter(item => !item.hidden);
@@ -327,12 +391,31 @@ export function Form({
     </React.Fragment>
   );
 
+  // Set initial form values - run when data loads OR when props actually change
+  // CRITICAL: Must detect actual changes vs re-renders to preserve user input after validation errors
   useEffect(() => {
-    if (dataLoadedFromView) {
+    if (!dataLoadedFromView) {
+      return; // Wait for data to load
+    }
+
+    // Check if formPropertiesConfig actually changed (not just a re-render)
+    const formPropsChanged = prevFormPropertiesConfigRef.current !== null && 
+      JSON.stringify(prevFormPropertiesConfigRef.current) !== JSON.stringify(formPropertiesConfig);
+    
+    // Check if defaultValues actually changed
+    const defaultValuesChanged = prevDefaultValuesRef.current !== null &&
+      JSON.stringify(prevDefaultValuesRef.current) !== JSON.stringify(defaultValues);
+
+    // Only update if this is the first run OR if values actually changed
+    const isFirstRun = prevFormPropertiesConfigRef.current === null;
+    const shouldUpdate = isFirstRun || formPropsChanged || defaultValuesChanged;
+
+    if (shouldUpdate) {
       //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
       //this is used to set the initial values of the form
       const initialValues = formPropertiesConfig.reduce((acc, item) => {
-        acc[ item.name ] = item.initialValue
+        // Backend uses 'defaultValue', but support 'initialValue' for backwards compatibility
+        acc[ item.name ] = item.defaultValue ?? item.initialValue
         return acc
       }, {})
 
@@ -340,10 +423,13 @@ export function Form({
       // defaultValues take precedence over initialValues
       const mergedValues = { ...initialValues, ...defaultValues };
 
-      form.setFieldsValue(mergedValues)
+      form.setFieldsValue(mergedValues);
+      
+      // Update refs to track current values
+      prevFormPropertiesConfigRef.current = formPropertiesConfig;
+      prevDefaultValuesRef.current = defaultValues;
     }
-
-  }, [ dataLoadedFromView, formPropertiesConfig, defaultValues ])
+  }, [dataLoadedFromView, formPropertiesConfig, defaultValues, form])
 
 
   return (
@@ -358,9 +444,9 @@ export function Form({
           }}
         >
           <AntForm
-            key={`form-${formConfig.name}`}
+            key={`form-${stableFormConfig.name}`}
             form={form}
-            {...formConfig}
+            {...stableFormConfig}
             layout="vertical"
             onFinish={onFinish}
             disabled={loader}
@@ -381,7 +467,7 @@ export function Form({
             {children}
             {formButtons.length > 0 && (
               <div style={{ display: "flex" }}>
-                <CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} />
+                <CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} onCancelCallback={onCancelCallback} />
               </div>
             )}
           </AntForm>

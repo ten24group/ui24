@@ -9,6 +9,7 @@ import { useApi, IApiConfig } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
 import { IDetailsConfig } from '../detail/Details';
 import { substituteUrlParams, getNestedValue } from '../core/utils';
+import { handleApiError } from '../core/utils/api-error-handler';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
@@ -274,14 +275,28 @@ export const Modal = ({
           // Close action modal
           onConfirmCallback && onConfirmCallback()
         }
-      } else {
-        const message = response.data?.details?.message || response.data?.message || response.message || "Operation Failed";
-        notifyError(message)
-        // Close modal on error
-        onConfirmCallback && onConfirmCallback()
+      } else if (response.status >= 400 && response.status < 600) {
+        // Handle error response using consolidated error handler
+        const errorResult = handleApiError(response, 'Operation failed');
+        
+        // Show all errors (validation or other)
+        notifyError(errorResult.formattedErrors.join('\n'));
+        
+        // Keep modal OPEN on validation errors (user can review and cancel)
+        // Close modal on non-validation errors (404, 403, 500, etc.)
+        if (!errorResult.isValidationError) {
+          onConfirmCallback && onConfirmCallback();
+        }
       }
     } catch (error: any) {
-      notifyError(error?.message || 'An unexpected error occurred');
+      // Handle network errors or other exceptions using consolidated error handler
+      const errorResult = handleApiError(error, 'An unexpected error occurred');
+      
+      // Show all errors
+      notifyError(errorResult.formattedErrors.join('\n'));
+      
+      // Keep modal open on validation errors or network errors (user can retry or cancel)
+      // This is intentional UX: user should decide whether to retry or cancel
     } finally {
       setLoading(false);
     }
@@ -605,6 +620,8 @@ export const Modal = ({
                     onSubmitSuccessCallback: navigateTo 
                       ? handleNavigationSubmit 
                       : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),
+                    // Pass cancel callback to close modal
+                    onCancelCallback: onCancelCallback,
                     // Remove apiConfig if navigateTo is specified (navigation-only mode)
                     apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
                     // Pre-populate form from query params if inverseMapping enabled

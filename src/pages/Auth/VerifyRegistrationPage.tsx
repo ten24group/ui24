@@ -6,6 +6,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from 'antd';
+import { handleApiError } from '../../core/utils/api-error-handler';
 export const VerifyRegistrationPage = () => {
   const location = useLocation();
   const { email, codeDeliveryDetails, message } = location.state || {};
@@ -34,17 +35,25 @@ const VerifyRegistrationForm = ({
   const { callApiMethod } = useApi();
 
   const onFinish = async (payload: any) => {
-    const response: any = await callApiMethod({
-      ...apiConfig,
-      payload: { ...payload, email }
-    });
+    try {
+      const response: any = await callApiMethod({
+        ...apiConfig,
+        payload: { ...payload, email }
+      });
 
-    if (response.status === 200) {
-      const message = response.data.message ?? "Verification Successful!";
-      notifySuccess(message);
-      navigate('/login');
-    } else if (response?.error) {
-      notifyError(response?.error);
+      if (response.status === 200) {
+        const message = response.data.message ?? "Verification Successful!";
+        notifySuccess(message);
+        navigate('/login');
+      } else if (response.status >= 400) {
+        // Handle error response using consolidated error handler
+        const errorResult = handleApiError(response, 'Verification failed');
+        notifyError(errorResult.formattedErrors.join('\n'));
+      }
+    } catch (error: any) {
+      // Handle network errors or other exceptions
+      const errorResult = handleApiError(error, 'An error occurred during verification');
+      notifyError(errorResult.formattedErrors.join('\n'));
     }
   };
 

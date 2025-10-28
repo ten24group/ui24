@@ -6,6 +6,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from '../../core/common';
 import { Button } from 'antd';
+import { handleApiError } from '../../core/utils/api-error-handler';
 
 export const SetNewPasswordPage = () => {
     return (
@@ -39,11 +40,15 @@ export const SetNewPasswordForm = () => {
                 notifySuccess('Password updated successfully');
                 // After password reset, navigate to root so AppNavigator can handle redirect
                 navigate('/');
-            } else {
-                notifyError(response?.message || response?.error || 'Failed to update password');
+            } else if (response.status >= 400) {
+                // Handle error response using consolidated error handler
+                const errorResult = handleApiError(response, 'Failed to update password');
+                notifyError(errorResult.formattedErrors.join('\n'));
             }
         } catch (error: any) {
-            notifyError(error?.message || 'An error occurred while updating password');
+            // Handle network errors or other exceptions
+            const errorResult = handleApiError(error, 'An error occurred while updating password');
+            notifyError(errorResult.formattedErrors.join('\n'));
         }
     };
 

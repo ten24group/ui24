@@ -7,76 +7,17 @@ import { useFormat, useEntityConfig } from '../core/hooks';
 import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link, ErrorFallback } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
+import { handleApiError } from '../core/utils/api-error-handler';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { detailsStyles } from './styles';
 import { HelpText } from '../core/forms/FormField/components';
 import { ErrorBoundary } from 'react-error-boundary';
 import './Details.css';
 
-import { FieldType, PropertyType } from '../core/types/field-types';
+import { IDetailFieldConfig } from '../core/types/field-config';
 
-interface IPropertiesConfig {
-    name?: string; // Property path (supports dot notation for nested objects)
-    label: string;
-    id?: string;
-    column: string;
-    hidden?: boolean;
-    initialValue: string;
-    fieldType?: FieldType;
-    helpText?: string;
-    timezone?: string;
-
-    // for list and map fields
-    type?: PropertyType;
-    properties?: Array<IPropertiesConfig>;
-    items?: {
-        type: PropertyType;
-        properties?: Array<IPropertiesConfig>;
-    };
-
-    openInModal?: boolean;
-    
-    // for internal links
-    isLink?: boolean;
-    linkConfig?: {
-        routePattern: string;
-        displayText?: string;
-    };
-    
-    // Raw relation data (from backend schema)
-    relation?: {
-        entityName: string;
-        type: string;
-        identifiers: any;
-    };
-    
-    // NEW: Entity config reference for relation fields
-    relationConfig?: {
-        routePattern: string;
-        identifierMapping?: 
-            | { source: string; target: string; }
-            | Array<{ source: string; target: string; }>;  // Support composite keys
-        modalConfigRef?: {
-            entityName: string;
-            pageType: 'view' | 'create' | 'list';
-            overrideConfig?: Record<string, any>;
-        };
-        modalWidth?: number | string;
-        modalTitle?: string;
-        displayConfig?: {
-            showModalIcon?: boolean;
-            icon?: string;
-            showLink?: boolean;
-        };
-    };
-    
-    // NEW: Entity config reference for addNewOption (handled in OptionSelector)
-    addNewOptionConfig?: {
-        entityName: string;
-        pageType: 'view' | 'create' | 'list';
-        overrideConfig?: Record<string, any>;
-    };
-}
+// For backwards compatibility, alias the old name
+type IPropertiesConfig = IDetailFieldConfig;
 
 export interface IDetailApiConfig {
     detailApiConfig?: IApiConfig;
@@ -241,12 +182,21 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     });
 
                     setRecordInfo(formatted)
+                } else if (response.status >= 400 && response.status < 600) {
+                    // Handle error response using consolidated error handler
+                    // Note: GET requests rarely have validation errors, but handler supports all error types
+                    const errorResult = handleApiError(response, 'Failed to load details');
+                    notifyError(errorResult.formattedErrors.join('\n'));
                 }
 
+                // Set data loaded even on error to stop spinner and show empty state
                 setDataLoaded(true);
                 
             } catch (error: any) {
-                notifyError(error?.message || 'An unexpected error occurred');
+                // Handle network errors or other exceptions using consolidated error handler
+                const errorResult = handleApiError(error, 'Failed to load details');
+                notifyError(errorResult.formattedErrors.join('\n'));
+                setDataLoaded(true); // Show empty state instead of infinite spinner
             }
         }
         

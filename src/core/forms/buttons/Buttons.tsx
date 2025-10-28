@@ -59,29 +59,44 @@ interface ICreateButtons {
     formButtons: Array< IPreDefinedButtons | IFormButton >
     loader?: boolean
     routeParams?: Record<string, string>
+    onCancelCallback?: () => void  // For modal cancel/close
 }
 
-export const CreateButtons = ({ formButtons, loader = false, routeParams = {} } : ICreateButtons ) => {
-    const renderButton = (buttonConfig: IFormButton = { text: "Unknown"}, loader: boolean = false ) => {
+export const CreateButtons = ({ formButtons, loader = false, routeParams = {}, onCancelCallback } : ICreateButtons ) => {
+    const renderButton = (buttonConfig: IFormButton = { text: "Unknown"}, loader: boolean = false, isCancelButton: boolean = false ) => {
         // Handle URL placeholder substitution
         let processedUrl = buttonConfig.url;
         if (processedUrl && Object.keys(routeParams).length > 0) {
             processedUrl = substituteUrlParams(processedUrl, routeParams);
         }
 
+        // For cancel buttons with URL and modal context, call onCancelCallback instead of navigating
+        // CRITICAL: Do NOT render Link component for cancel buttons in modals
+        const shouldUseCallback = isCancelButton && processedUrl && onCancelCallback;
+        
+        const handleClick = (e: React.MouseEvent<HTMLElement>) => {
+            if (shouldUseCallback) {
+                e.preventDefault();  // Prevent any navigation
+                e.stopPropagation(); // Stop event bubbling
+                onCancelCallback();  // Close modal instead
+            } else if (buttonConfig.onClick) {
+                buttonConfig.onClick(e);
+            }
+        };
+
         return <Form.Item>
                     <Button 
                         type = { buttonConfig?.buttonType } 
                         size = { buttonConfig.size ?? "middle" } 
                         href = { buttonConfig.href } 
-                        onClick = { buttonConfig?.onClick } 
+                        onClick = { handleClick } 
                         htmlType = { buttonConfig?.htmlType || "button" } 
                         className = { buttonConfig?.className }
                         danger = { buttonConfig.danger }
                         loading = { loader }
                     >
-                        { processedUrl && <Link title={ buttonConfig.text} url={ processedUrl } />} 
-                        { !processedUrl && buttonConfig.text } 
+                        { processedUrl && !shouldUseCallback && <Link title={ buttonConfig.text} url={ processedUrl } />} 
+                        { (!processedUrl || shouldUseCallback) && buttonConfig.text } 
                     </Button>
                 </Form.Item>
     }
@@ -89,9 +104,12 @@ export const CreateButtons = ({ formButtons, loader = false, routeParams = {} } 
     return <React.Fragment>
         { formButtons.map( (buttonConfig, index: number ) => {
             if( typeof buttonConfig === "string" ) {
-                return  <div key={"bt" + index} style={ {marginRight: "10px"}}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset" ) ) }</div>
+                const isCancelButton = buttonConfig === "cancel";
+                return  <div key={"bt" + index} style={ {marginRight: "10px"}}>{ renderButton( PreDefinedButtons[ buttonConfig ], ( loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset" ), isCancelButton ) }</div>
             } else {
-                return <div key={"bt" + index} style={ {marginRight: "10px"}}>{ renderButton( buttonConfig ) }</div>
+                // Check if it's a custom cancel button (has "cancel" in text or className)
+                const isCancelButton = buttonConfig.text?.toLowerCase().includes('cancel') || buttonConfig.className?.includes('cancel');
+                return <div key={"bt" + index} style={ {marginRight: "10px"}}>{ renderButton( buttonConfig, false, isCancelButton ) }</div>
             }
         })}
     </React.Fragment>

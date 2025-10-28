@@ -8,6 +8,7 @@ import { useUi24Config } from '../../core/context';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { Link } from '../../core/common';
 import { usePageConfig } from '../../core';
+import { handleApiError } from '../../core/utils/api-error-handler';
 
 export const OTPVerifyPage = () => {
   return <OTPVerifyForm />;
@@ -46,12 +47,14 @@ const OTPVerifyForm = () => {
         notifySuccess('Login Successful!');
         // After login, navigate to root so AppNavigator can handle redirect
         navigate('/');
-      } else {
-        notifyError((response.data as any)?.error || 'OTP verification failed.');
+      } else if (response.status >= 400) {
+        const errorResult = handleApiError(response, 'OTP verification failed');
+        notifyError(errorResult.errorMessage);
       }
     } catch (error: any) {
-      notifyError(error?.message || 'An error occurred during OTP verification');
-    } finally {
+      const errorResult = handleApiError(error, 'An error occurred during OTP verification');
+      notifyError(errorResult.errorMessage);
+    } finally{
       setLoader(false);
     }
   };

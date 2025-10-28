@@ -6,6 +6,7 @@ import { Link } from '../../core/common';
 import { useAppContext } from '../../core/context/AppContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { Button } from 'antd';
+import { handleApiError } from '../../core/utils/api-error-handler';
 export const RegistrationPage = () => {
   return (
     <RegistrationForm />
@@ -21,24 +22,32 @@ const RegistrationForm = () => {
   const { callApiMethod } = useApi();
 
   const onFinish = async (payload: any) => {
-    const response: any = await callApiMethod({...apiConfig, payload });
+    try {
+      const response: any = await callApiMethod({...apiConfig, payload });
 
-    if( response.status === 200 ) {
-      const message = response.data.message ?? "Registration Successful!";
-      notifySuccess(message);
-      if (!response.data?.UserConfirmed && response.data?.CodeDeliveryDetails) {
-        navigate('/verification', { 
-          state: { 
-            email: payload.email,
-            codeDeliveryDetails: response.data.CodeDeliveryDetails,
-            message: `Verification code sent to ${response.data.CodeDeliveryDetails.Destination}`
-          } 
-        });
-      } else {
-        navigate('/login');
+      if( response.status === 200 ) {
+        const message = response.data.message ?? "Registration Successful!";
+        notifySuccess(message);
+        if (!response.data?.UserConfirmed && response.data?.CodeDeliveryDetails) {
+          navigate('/verification', { 
+            state: { 
+              email: payload.email,
+              codeDeliveryDetails: response.data.CodeDeliveryDetails,
+              message: `Verification code sent to ${response.data.CodeDeliveryDetails.Destination}`
+            } 
+          });
+        } else {
+          navigate('/login');
+        }
+      } else if( response.status >= 400 ) {
+        // Handle error response using consolidated error handler
+        const errorResult = handleApiError(response, 'Registration failed');
+        notifyError(errorResult.formattedErrors.join('\n'));
       }
-    } else if( response?.error ) {
-      notifyError(response?.error)
+    } catch (error: any) {
+      // Handle network errors or other exceptions
+      const errorResult = handleApiError(error, 'An error occurred during registration');
+      notifyError(errorResult.formattedErrors.join('\n'));
     }
   }
 

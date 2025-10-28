@@ -2,10 +2,12 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Select as AntSelect, Radio, Checkbox, Divider, Space, Button } from 'antd';
 import { useApi } from '../../context';
 import { PlusOutlined } from '@ant-design/icons';
-import { IFormField } from './FormField';
 import type { InputRef } from 'antd';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
+import type { IFormField } from '../../types/field-config';
+import { handleApiError } from '../../utils/api-error-handler';
+import { useAppContext } from '../../context/AppContext';
 /**
  * Represents the template for attributes.
  * like
@@ -53,7 +55,7 @@ export function isFieldOptionsAPIConfig(obj: any): obj is IFieldOptionsAPIConfig
 
 export interface IOptions {
     label: string;
-    value: string
+    value: string | number;
 }
 
 export type IFieldOptions = Array<IOptions> | IFieldOptionsAPIConfig;
@@ -78,44 +80,55 @@ export const OptionSelector = ({
 
     const { callApiMethod } = useApi()
     const { resolveConfigRef } = useEntityConfig()
+    const { notifyError } = useAppContext()
     const [ open, setOpen ] = useState(false);
     const [ disabled, setDisabled ] = useState<boolean>(false)
 
     const [ fieldOptions, setFieldOptions ] = useState(Array.isArray(options) ? options : [])
     const fetchFieldOptions = async (config: IFieldOptionsAPIConfig): Promise<Array<IOptions>> => {
         setDisabled(true)
-        // TODO: add support for query, pagination, fetching template-attributes etc
-        const response = await callApiMethod({ ...config });
-        setDisabled(false)
+        try {
+            // TODO: add support for query, pagination, fetching template-attributes etc
+            const response = await callApiMethod({ ...config });
 
-        if (response.status === 200) {
-            let formattedOptions: Array<any>;
-            const options = response.data[ config.responseKey ] as Array<any>;
+            if (response.status === 200) {
+                let formattedOptions: Array<any>;
+                const options = response.data[ config.responseKey ] as Array<any>;
 
-            if (!config.optionMapping) {
+                if (!config.optionMapping) {
 
-                formattedOptions = options;
-            } else {
+                    formattedOptions = options;
+                } else {
 
-                formattedOptions = options.map((option) => {
-                    return {
-                        label: typeof config.optionMapping.label === 'string'
-                            ? option[ config.optionMapping.label ]
-                            : interpolateTemplate(config.optionMapping.label, option),
-                        value: typeof config.optionMapping.value === 'string'
-                            ? option[ config.optionMapping.value ]
-                            : interpolateTemplate(config.optionMapping.value, option),
-                    }
-                });
+                    formattedOptions = options.map((option) => {
+                        return {
+                            label: typeof config.optionMapping.label === 'string'
+                                ? option[ config.optionMapping.label ]
+                                : interpolateTemplate(config.optionMapping.label, option),
+                            value: typeof config.optionMapping.value === 'string'
+                                ? option[ config.optionMapping.value ]
+                                : interpolateTemplate(config.optionMapping.value, option),
+                        }
+                    });
+                }
+
+                // sort options by label
+                return formattedOptions?.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
+            } else if (response.status >= 400) {
+                // Handle error response using consolidated error handler
+                const errorResult = handleApiError(response, 'Failed to load options');
+                notifyError(errorResult.errorMessage);
             }
 
-            // sort options by label
-            return formattedOptions?.sort((a, b) => a.label.toLowerCase().localeCompare(b.label.toLowerCase()))
+            return [];
+        } catch (error: any) {
+            // Handle network errors or other exceptions
+            const errorResult = handleApiError(error, 'Failed to load options');
+            notifyError(errorResult.errorMessage);
+            return [];
+        } finally {
+            setDisabled(false)
         }
-
-        // TODO: handle error
-
-        return [];
     }
 
     const fetchOptions = async () => {

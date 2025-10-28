@@ -15,6 +15,7 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     propertiesConfig: Array<IFormFieldResponse>;
     onSubmit: (values: any) => void;
     onSubmitSuccessCallback?: (response?: any) => void;
+    onCancelCallback?: () => void;  // For modal cancel/close
     children?: React.ReactNode;
     style?: React.CSSProperties;
     apiConfig?: IApiConfig;
