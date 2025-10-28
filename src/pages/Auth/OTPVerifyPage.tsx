@@ -54,7 +54,7 @@ const OTPVerifyForm = () => {
     } catch (error: any) {
       const errorResult = handleApiError(error, 'An error occurred during OTP verification');
       notifyError(errorResult.errorMessage);
-    } finally{
+    } finally {
       setLoader(false);
     }
   };
