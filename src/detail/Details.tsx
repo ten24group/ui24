@@ -12,6 +12,7 @@ import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/util
 import { detailsStyles } from './styles';
 import { HelpText } from '../core/forms/FormField/components';
 import { ErrorBoundary } from 'react-error-boundary';
+import { evaluateTemplateValue } from '../core/utils/template';
 import './Details.css';
 
 import { IDetailFieldConfig } from '../core/types/field-config';
@@ -395,14 +396,39 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       
                       // Determine if we should show as link (default: true for to-one, false for to-many)
                       const shouldShowLink = displayConfig?.showLink !== false;
+                      const shouldShowActions = displayConfig?.actions !== false;
+                      const actionConfig = typeof displayConfig?.actions === 'object' ? displayConfig.actions : undefined;
                       
                       // Determine modal type from page type
                       const modalType = modalConfigRef?.pageType === 'list' ? 'list' : 'details';
                       
-                      // For to-many relations, format value display (could be count or array length)
-                      const displayValue = modalType === 'list' ? `View related items` 
-                                          : Array.isArray(value) ? `${value.length} items` 
-                                          : value;
+                      // Smart display value with template support
+                      let displayValue: string;
+                      
+                      // 1. Check if fully hydrated data is available (object) and template is configured
+                      if (displayConfig?.template && value && typeof value === 'object' && !Array.isArray(value)) {
+                        try {
+                          displayValue = evaluateTemplateValue(displayConfig.template, value);
+                        } catch (e) {
+                          if (process.env.NODE_ENV === 'development') {
+                            console.warn(`[Details] Template evaluation failed for relation ${item.label}:`, e);
+                          }
+                          displayValue = String(value);
+                        }
+                      }
+                      // 2. Fallback for partially resolved data (only ID present)
+                      else if (displayConfig?.fallback?.template && value && (typeof value === 'string' || typeof value === 'number')) {
+                        // Use backend-provided fallback template (already interpolated with entity metadata)
+                        displayValue = displayConfig.fallback.template.replace('{id}', String(value));
+                      }
+                      // 3. Default fallbacks for different relation types
+                      else if (modalType === 'list') {
+                        displayValue = Array.isArray(value) ? `${value.length} items` : `View related items`;
+                      }
+                      // 4. Last resort: use value as-is
+                      else {
+                        displayValue = Array.isArray(value) ? `${value.length} items` : String(value);
+                      }
                       
                       return (
                         <div key={index} className="details-field-container">
@@ -413,17 +439,17 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           {(modalType === 'list' || value) ? (
                             <Space>
                               {/* Show value as link or plain text (only if value exists) */}
-                              {value && shouldShowLink && (
+                              {value && shouldShowLink && shouldShowActions && (!actionConfig || actionConfig.link !== false) && (
                                 <Link url={resolvedUrl} className="details-link">
                                   {displayValue}
                                 </Link>
                               )}
-                              {value && !shouldShowLink && (
+                              {value && (!shouldShowLink || !shouldShowActions || (actionConfig && actionConfig.link === false)) && (
                                 <span>{displayValue}</span>
                               )}
                               
                               {/* Show modal icon if enabled - use resolved config directly */}
-                              {displayConfig?.showModalIcon !== false && resolvedModalConfig && (
+                              {shouldShowActions && (!actionConfig || actionConfig.modal !== false) && displayConfig?.showModalIcon !== false && resolvedModalConfig && (
                                 <Tooltip title={`View ${item.label}`}>
                                   <OpenInModal 
                                     modalType={modalType}
@@ -446,6 +472,39 @@ const Details: React.FC<IDetailsComponentProps> = ({
                                   </OpenInModal>
                                 </Tooltip>
                               )}
+                              
+                              {/* Custom actions if provided */}
+                              {shouldShowActions && actionConfig?.custom && actionConfig.custom.map((customAction, idx) => {
+                                const customActionLabel = customAction.template 
+                                  ? evaluateTemplateValue(customAction.template, value && typeof value === 'object' ? value : { id: value })
+                                  : customAction.label;
+                                
+                                return (
+                                  <Tooltip key={idx} title={customActionLabel}>
+                                    <Button 
+                                      type="text" 
+                                      size="small" 
+                                      onClick={() => {
+                                        // Execute custom onClick handler (string as function reference)
+                                        if (customAction.onClick && typeof window !== 'undefined') {
+                                          try {
+                                            const fn = eval(`(${customAction.onClick})`);
+                                            if (typeof fn === 'function') {
+                                              fn(value, detailResponse, routeParams);
+                                            }
+                                          } catch (e) {
+                                            console.error(`[Details] Failed to execute custom action for ${item.label}:`, e);
+                                          }
+                                        }
+                                      }}
+                                      style={{ padding: '0 4px' }}
+                                    >
+                                      {customAction.icon && <span className={customAction.icon} />}
+                                      {customActionLabel}
+                                    </Button>
+                                  </Tooltip>
+                                );
+                              })}
                             </Space>
                           ) : (
                             <span>—</span>

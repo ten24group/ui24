@@ -1,5 +1,6 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType } from "../core/types/field-types";
+import type { Template } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
@@ -96,6 +97,25 @@ export interface ITablePropertiesConfig {
   fieldType?: FieldType;
   placeholder?: string;
   helpText?: string;
+  
+  /**
+   * Template for rendering column values.
+   * Supports nested paths and composite templates.
+   * If provided, overrides default rendering.
+   * 
+   * @example
+   * // Simple string template
+   * template: '{firstName} {lastName}'
+   * 
+   * @example
+   * // Complex template with nested paths
+   * template: {
+   *   composite: ['jerseyNumber', 'name', 'team.name'],
+   *   template: '#{jerseyNumber} {name} ({team.name})'
+   * }
+   */
+  template?: Template;
+  
   // New filter configuration options
   filterConfig?: {
     defaultOperator?: string; // Default filter operator (e.g., 'contains', 'eq', 'in')
@@ -121,6 +141,14 @@ export interface ITablePropertiesConfig {
  */
 export type IPageAction = {
   label: string;
+  
+  /**
+   * Dynamic label template (evaluated from routeParams or record context).
+   * If provided, overrides static `label` field.
+   * Can be a simple string like '{teamName}' or complex object.
+   */
+  template?: Template;
+  
   url?: string;
   icon?: string;
   type?: 'button' | 'dropdown';

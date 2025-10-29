@@ -10,9 +10,18 @@ import { DownOutlined } from '@ant-design/icons';
 import { substituteUrlParams } from "../../../core/utils";
 import { renderSingleAction, MenuItem } from "../../../core/utils/actionRenderer";
 import { useModalContext } from "../../../core/context";
+import { evaluateTemplateValue } from "../../../core/utils/template";
+import { Template } from "../../../core/types";
 
 interface IBreadcrumbs {
-    label: string;
+    /**
+     * Breadcrumb label - can be static string or dynamic template.
+     * 
+     * @example label: "Teams"
+     * @example label: "{teamName}"
+     * @example label: { composite: ['teamName', 'city'], template: '{teamName} ({city})' }
+     */
+    label: Template;
     url?: string;
 }
 
@@ -20,7 +29,15 @@ type IPageActions = Array<IPageAction> | React.ReactNode;
 
 export interface IPageHeader {
     breadcrumbs?: Array<IBreadcrumbs>;
-    pageTitle?: string;
+    /**
+     * Page title - can be static string or dynamic template.
+     * Evaluated from routeParams and record data.
+     * 
+     * @example pageTitle: "Team Detail"
+     * @example pageTitle: "{teamName} - Team Detail"
+     * @example pageTitle: { composite: ['teamName', 'city'], template: '{teamName} ({city}) - Details' }
+     */
+    pageTitle?: Template;
     pageHeaderActions?: IPageActions;
     routeParams?: Record<string, string>;
 }
@@ -28,6 +45,9 @@ export interface IPageHeader {
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {} } : IPageHeader ) => {
     const navigate = useNavigate();
     const { isInModal } = useModalContext();
+    
+    // Evaluate page title template if provided
+    const evaluatedPageTitle = pageTitle ? evaluateTemplateValue(pageTitle, routeParams) : undefined;
     
     /**
      * Renders an action (button or dropdown)
@@ -98,17 +118,20 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
         <div className="PageHeader">
             <AntPageHeader 
                 className="site-page-header" 
-                title={pageTitle} 
+                title={evaluatedPageTitle} 
                 breadcrumb={{ items: breadcrumbs.map((item, index) => {
+                    // Evaluate label template if provided, otherwise use as-is
+                    const evaluatedLabel = evaluateTemplateValue(item.label, routeParams);
+                    
                     // Use substituteUrlParams for consistent placeholder handling
                     const breadcrumbUrl = substituteUrlParams(item.url, routeParams);
                     
                     return {
-                        key: `${item.label}-${breadcrumbUrl || ''}-${index}`,
+                        key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
                         title: breadcrumbUrl ? (
-                            <Link title={item.label} url={breadcrumbUrl} />
+                            <Link title={evaluatedLabel} url={breadcrumbUrl} />
                         ) : (
-                            item.label
+                            evaluatedLabel
                         )
                     };
                 })}}

@@ -12,6 +12,7 @@ import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
 import { FilterFilled } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
+import { evaluateTemplate } from "../core/utils/template";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -439,7 +440,29 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       if (column.key === 'action') return column;
 
       let renderer = column.render;
-      if (column.fieldType === 'color') {
+      
+      // Template rendering (highest priority)
+      if (column.template) {
+        renderer = (text: any, record: any) => {
+          try {
+            const templateValue = column.template;
+            if (typeof templateValue === 'string') {
+              // Simple string template
+              return evaluateTemplate(templateValue, record);
+            } else {
+              // Complex template object
+              return evaluateTemplate(templateValue, record);
+            }
+          } catch (e) {
+            if (process.env.NODE_ENV === 'development') {
+              console.warn(`[Table] Template evaluation failed for column ${column.dataIndex}:`, e);
+            }
+            return text;  // Fallback to original value
+          }
+        };
+      }
+      // Color field type handling
+      else if (column.fieldType === 'color') {
         renderer = (text: string) => (
           <>
             <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>

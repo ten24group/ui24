@@ -10,6 +10,7 @@ import { useAppContext } from '../core/context/AppContext';
 import { IDetailsConfig } from '../detail/Details';
 import { substituteUrlParams, getNestedValue, evaluateTemplateObject } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
+import { evaluateTemplateValue } from '../core/utils/template';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
@@ -18,14 +19,28 @@ import { ErrorFallback } from '../core/common';
 import { ModalContextProvider } from '../core/context';
 import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
 import { getDefaultModalWidth } from './modalUtils';
+import { Template } from '../core/types';
 
 // Simple modal depth tracking for stack effect
 const ModalDepthContext = React.createContext(0);
 export const useModalDepth = () => React.useContext(ModalDepthContext);
 
 interface IConfirmModal {
-  title: string;
-  content?: string;
+  /**
+   * Modal title - can be static string or dynamic template.
+   * 
+   * @example title: "Delete Team?"
+   * @example title: "Delete {teamName}?"
+   */
+  title: Template;
+  
+  /**
+   * Modal content - can be static string or dynamic template.
+   * 
+   * @example content: "Are you sure?"
+   * @example content: "Delete {teamName}? This will affect {playerCount} players."
+   */
+  content?: Template;
 }
 type IModalType = "confirm" | "list" | "form" | "custom" | "details" | "accordion" | "dashboard";
 
@@ -114,6 +129,26 @@ export interface IModalConfig {
    */
   refreshParentOnSuccess?: boolean;
   
+  /**
+   * Custom success message template. If not provided, uses default message from API response.
+   * Can be a static string or a dynamic template.
+   * 
+   * @example successMessage: "Operation successful"
+   * @example successMessage: "{teamName} deleted successfully"
+   * @example successMessage: { composite: ['teamName', 'playerCount'], template: '{teamName} deleted ({playerCount} players affected)' }
+   */
+  successMessage?: Template;
+  
+  /**
+   * Custom error message template. If not provided, uses error messages from API response.
+   * Can be a static string or a dynamic template.
+   * 
+   * @example errorMessage: "Operation failed"
+   * @example errorMessage: "Failed to delete {teamName}"
+   * @example errorMessage: { composite: ['teamName', 'reason'], template: 'Failed to delete {teamName}: {reason}' }
+   */
+  errorMessage?: Template;
+  
   primaryIndex?: string;
   useDynamicIdFromParams?: boolean;
   onSuccessCallback?: (response?: any) => void;
@@ -126,8 +161,16 @@ export interface IModalConfig {
   /** Modal width in pixels or CSS string (e.g., "80%"). Default: auto-detect from page type */
   modalWidth?: number | string;
   
-  /** Modal title override. Default: uses page title from config */
-  modalTitle?: string;
+  /**
+   * Modal title - can be static string or dynamic template.
+   * Evaluated from routeParams when modal opens.
+   * If not provided, uses page title from config.
+   * 
+   * @example modalTitle: "Edit Team"
+   * @example modalTitle: "Edit {teamName}"
+   * @example modalTitle: { composite: ['teamName', 'city'], template: 'Edit {teamName} ({city})' }
+   */
+  modalTitle?: Template;
 }
 
 /**
@@ -229,6 +272,8 @@ export const Modal = ({
   responseConfig,
   initialValues,
   refreshParentOnSuccess = false,
+  successMessage,
+  errorMessage,
   primaryIndex = "",
   useDynamicIdFromParams = true,
   onSuccessCallback,
@@ -272,7 +317,16 @@ export const Modal = ({
 
       if (response.status === 200) {
         const responseDataFromApi = apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
-        const message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
+        
+        // Evaluate custom success message template if provided, otherwise use API response message
+        let message: string;
+        if (successMessage) {
+          const context = { ...routeParams, ...responseDataFromApi };
+          message = evaluateTemplateValue(successMessage, context);
+        } else {
+          message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
+        }
+        
         notifySuccess(message);
 
         // Check if parent should be refreshed
@@ -305,8 +359,21 @@ export const Modal = ({
         // Handle error response using consolidated error handler
         const errorResult = handleApiError(response, 'Operation failed');
         
+        // Evaluate custom error message template if provided, otherwise use error handler result
+        let message: string;
+        if (errorMessage) {
+          const context = { 
+            ...routeParams, 
+            ...(response.data || {}),
+            error: errorResult.errorMessage 
+          };
+          message = evaluateTemplateValue(errorMessage, context);
+        } else {
+          message = errorResult.formattedErrors.join('\n');
+        }
+        
         // Show all errors (validation or other)
-        notifyError(errorResult.formattedErrors.join('\n'));
+        notifyError(message);
         
         // Keep modal OPEN on validation errors (user can review and cancel)
         // Close modal on non-validation errors (404, 403, 500, etc.)
@@ -318,8 +385,20 @@ export const Modal = ({
       // Handle network errors or other exceptions using consolidated error handler
       const errorResult = handleApiError(error, 'An unexpected error occurred');
       
+      // Evaluate custom error message template if provided, otherwise use error handler result
+      let message: string;
+      if (errorMessage) {
+        const context = { 
+          ...routeParams, 
+          error: errorResult.errorMessage 
+        };
+        message = evaluateTemplateValue(errorMessage, context);
+      } else {
+        message = errorResult.formattedErrors.join('\n');
+      }
+      
       // Show all errors
-      notifyError(errorResult.formattedErrors.join('\n'));
+      notifyError(message);
       
       // Keep modal open on validation errors or network errors (user can retry or cancel)
       // This is intentional UX: user should decide whether to retry or cancel
@@ -523,7 +602,16 @@ export const Modal = ({
 
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
     const configTitle = (modalPageConfig as IConfirmModal)?.title;
-    const effectiveTitle = modalTitle || configTitle;
+    
+    // Evaluate templates for both modalTitle and configTitle
+    const evaluatedModalTitle = modalTitle 
+      ? evaluateTemplateValue(modalTitle, routeParams)
+      : null;
+    const evaluatedConfigTitle = configTitle
+      ? evaluateTemplateValue(configTitle, routeParams)
+      : null;
+    const effectiveTitle = evaluatedModalTitle || evaluatedConfigTitle || 'Confirm';
+    
     const effectiveWidth = getDefaultModalWidth('confirm', modalWidth);
     
     return (
@@ -546,7 +634,7 @@ export const Modal = ({
               onCancelCallback && onCancelCallback(); // Close modal on error reset
             }}
           >
-            {(modalPageConfig as IConfirmModal)?.content}
+            {evaluateTemplateValue((modalPageConfig as IConfirmModal)?.content, routeParams)}
             {children}
           </ErrorBoundary>
         </AntModal>
@@ -618,7 +706,13 @@ export const Modal = ({
   if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
     const configTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
-    const effectiveTitle = modalTitle || configTitle;
+    
+    // Evaluate modalTitle template if provided, otherwise use configTitle
+    const evaluatedModalTitle = modalTitle
+      ? evaluateTemplateValue(modalTitle, routeParams, configTitle)
+      : configTitle;
+    
+    const effectiveTitle = evaluatedModalTitle || configTitle;
     
     // Use centralized width calculation
     const effectiveWidth = getDefaultModalWidth(modalType as any, modalWidth);

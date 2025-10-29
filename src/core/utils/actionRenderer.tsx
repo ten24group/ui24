@@ -5,6 +5,7 @@ import { OpenInModal } from "../../modal/Modal";
 import { OpenRouteInModal } from "../../modal/OpenRouteInModal";
 import { IPageAction } from "../../table/type";
 import { substituteUrlParams } from "../utils";
+import { evaluateTemplateValue } from "../utils/template";
 
 export type MenuItem = Required<MenuProps>['items'][number];
 
@@ -46,6 +47,11 @@ export const renderSingleAction = ({
     return null;
   }
   
+  // Evaluate template if provided, otherwise use static label
+  // Context: use record for table row actions, routeParams for page actions
+  const context = record || routeParams;
+  const evaluatedLabel = evaluateTemplateValue(action.template, context, action.label);
+  
   // Pattern 1: Modal with inline config
   if (action.openInModal && action.modalConfig) {
     const modalTrigger = (
@@ -59,12 +65,12 @@ export const renderSingleAction = ({
         {isDropdownItem ? (
           <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
             {action.icon && <Icon iconName={action.icon} />}
-            {action.label}
+            {evaluatedLabel}
           </span>
         ) : isTableRowAction ? (
           <Icon iconName={action.icon || "delete"} />
         ) : (
-          <Button type="primary">{action.label}</Button>
+          <Button type="primary">{evaluatedLabel}</Button>
         )}
       </OpenInModal>
     );
@@ -95,12 +101,12 @@ export const renderSingleAction = ({
         {isDropdownItem ? (
           <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
             {action.icon && <Icon iconName={action.icon} />}
-            {action.label}
+            {evaluatedLabel}
           </span>
         ) : isTableRowAction ? (
           <Icon iconName={action.icon || "eye"} />
         ) : (
-          <Button type="primary">{action.label}</Button>
+          <Button type="primary">{evaluatedLabel}</Button>
         )}
       </OpenRouteInModal>
     );
@@ -130,7 +136,7 @@ export const renderSingleAction = ({
   if (isDropdownItem) {
     return {
       key,
-      label: action.label,
+      label: evaluatedLabel,
       icon: action.icon ? <Icon iconName={action.icon} /> : undefined,
       onClick: () => onNavigate?.(url)
     } as MenuItem;
@@ -152,7 +158,7 @@ export const renderSingleAction = ({
       type="primary"
       onClick={() => onNavigate?.(url)}
     >
-      {action.label}
+      {evaluatedLabel}
     </Button>
   );
 };

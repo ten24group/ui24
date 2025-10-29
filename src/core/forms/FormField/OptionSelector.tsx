@@ -8,68 +8,13 @@ import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
 import type { IFormField } from '../../types/field-config';
 import { handleApiError } from '../../utils/api-error-handler';
 import { useAppContext } from '../../context/AppContext';
-import { getNestedValue } from '../../utils';
-/**
- * Represents the template for attributes in option selectors.
- * Supports both simple field names and nested paths using dot notation.
- * 
- * @example
- * // Simple fields
- * {
- *   composite: ['firstName', 'lastName'],
- *   template: '{firstName} {lastName}'
- * }
- * 
- * @example
- * // Nested fields (supports dot notation for nested objects)
- * {
- *   composite: ['team.name', 'team.city', 'sport.name'],
- *   template: '{team.name} ({team.city}) - {sport.name}'
- * }
- * 
- * @example
- * // Mixed: simple and nested
- * {
- *   composite: ['playerName', 'team.name', 'jerseyNumber'],
- *   template: '#{jerseyNumber} {playerName} - {team.name}'
- * }
- */
-export type IAttributesTemplate = {
-    /** Array of field paths (supports dot notation for nested access, e.g., 'team.name') */
-    composite: Array<string>,
-    /** Template string with {fieldPath} placeholders */
-    template: string,
-}
+import { interpolateTemplate, parseSimpleTemplate, type ITemplateConfig } from '../../utils/template';
 
 /**
- * Interpolates a template string with values from an option object.
- * Supports nested field access using dot notation (e.g., 'team.name' accesses option.team.name).
- * 
- * @param label - Template configuration with composite fields and template string
- * @param option - Data object to extract values from
- * @returns Interpolated string with placeholders replaced by actual values
- * 
- * @example
- * const label = { composite: ['team.name', 'city'], template: '{team.name} ({city})' };
- * const option = { team: { name: 'Lakers' }, city: 'LA' };
- * interpolateTemplate(label, option); // Returns: 'Lakers (LA)'
+ * @deprecated Use ITemplateConfig from '../../utils/template' instead.
+ * Kept for backward compatibility.
  */
-function interpolateTemplate(label: IAttributesTemplate, option: any): string {
-    const { composite, template } = label;
-    let interpolatedLabel = template;
-    
-    composite.forEach((attribute) => {
-        const regex = new RegExp(`{${attribute.replace(/\./g, '\\.')}}`, "g");
-        
-        // Use getNestedValue to support dot notation (e.g., 'team.name')
-        const value = getNestedValue(option, attribute);
-        
-        // Replace placeholder with value (or empty string if undefined)
-        interpolatedLabel = interpolatedLabel.replace(regex, value !== undefined ? String(value) : '');
-    });
-    
-    return interpolatedLabel;
-}
+export type IAttributesTemplate = ITemplateConfig;
 
 /**
  * Configuration for API-loaded options in form field selectors.
@@ -137,11 +82,13 @@ export type IFieldOptionsAPIConfig = {
     /** 
      * Mapping configuration for label and value fields.
      * - String: Simple field name or nested path (e.g., 'team.name')
-     * - IAttributesTemplate: Complex template with multiple fields
+     * - ITemplateConfig: Complex template with multiple fields (imported from shared utilities)
+     * 
+     * @see ITemplateConfig from '../../utils/template' for template structure
      */
     optionMapping?: {
-        label: string | IAttributesTemplate;
-        value: string | IAttributesTemplate;
+        label: string | ITemplateConfig;
+        value: string | ITemplateConfig;
     };
     /** Number of options to fetch per request. @default 50 */
     count?: number;
