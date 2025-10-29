@@ -8,48 +8,161 @@ import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
 import type { IFormField } from '../../types/field-config';
 import { handleApiError } from '../../utils/api-error-handler';
 import { useAppContext } from '../../context/AppContext';
+import { getNestedValue } from '../../utils';
 /**
- * Represents the template for attributes.
- * like
- * ```ts
+ * Represents the template for attributes in option selectors.
+ * Supports both simple field names and nested paths using dot notation.
+ * 
+ * @example
+ * // Simple fields
  * {
- *      composite: ['att1', 'att2'],
- *      template: '{att1}-AND-${att2}' // any arbitrary string with placeholders
+ *   composite: ['firstName', 'lastName'],
+ *   template: '{firstName} {lastName}'
  * }
- * ```
-*/
+ * 
+ * @example
+ * // Nested fields (supports dot notation for nested objects)
+ * {
+ *   composite: ['team.name', 'team.city', 'sport.name'],
+ *   template: '{team.name} ({team.city}) - {sport.name}'
+ * }
+ * 
+ * @example
+ * // Mixed: simple and nested
+ * {
+ *   composite: ['playerName', 'team.name', 'jerseyNumber'],
+ *   template: '#{jerseyNumber} {playerName} - {team.name}'
+ * }
+ */
 export type IAttributesTemplate = {
+    /** Array of field paths (supports dot notation for nested access, e.g., 'team.name') */
     composite: Array<string>,
+    /** Template string with {fieldPath} placeholders */
     template: string,
 }
 
-function interpolateTemplate(label: IAttributesTemplate, option: any) {
+/**
+ * Interpolates a template string with values from an option object.
+ * Supports nested field access using dot notation (e.g., 'team.name' accesses option.team.name).
+ * 
+ * @param label - Template configuration with composite fields and template string
+ * @param option - Data object to extract values from
+ * @returns Interpolated string with placeholders replaced by actual values
+ * 
+ * @example
+ * const label = { composite: ['team.name', 'city'], template: '{team.name} ({city})' };
+ * const option = { team: { name: 'Lakers' }, city: 'LA' };
+ * interpolateTemplate(label, option); // Returns: 'Lakers (LA)'
+ */
+function interpolateTemplate(label: IAttributesTemplate, option: any): string {
     const { composite, template } = label;
     let interpolatedLabel = template;
+    
     composite.forEach((attribute) => {
-        const regex = new RegExp(`{${attribute}}`, "g");
-        interpolatedLabel = interpolatedLabel.replace(regex, option[ attribute ]);
+        const regex = new RegExp(`{${attribute.replace(/\./g, '\\.')}}`, "g");
+        
+        // Use getNestedValue to support dot notation (e.g., 'team.name')
+        const value = getNestedValue(option, attribute);
+        
+        // Replace placeholder with value (or empty string if undefined)
+        interpolatedLabel = interpolatedLabel.replace(regex, value !== undefined ? String(value) : '');
     });
+    
     return interpolatedLabel;
 }
 
+/**
+ * Configuration for API-loaded options in form field selectors.
+ * Supports fw24's cursor-based pagination and remote search patterns.
+ * 
+ * Features:
+ * - Cursor-based pagination with "Load More" button (enabled by default)
+ * - Remote search with configurable debouncing (enabled by default)
+ * - Frontend search fallback when remote search is disabled
+ * - Automatic deduplication by value
+ * - Alphabetical sorting by label
+ * - Nested field support via optionMapping (e.g., 'team.name')
+ * 
+ * @example
+ * // Basic configuration
+ * {
+ *   apiMethod: 'GET',
+ *   apiUrl: '/api/teams',
+ *   responseKey: 'data',
+ *   optionMapping: {
+ *     label: 'teamName',
+ *     value: 'teamId'
+ *   }
+ * }
+ * 
+ * @example
+ * // With filters and custom settings
+ * {
+ *   apiMethod: 'GET',
+ *   apiUrl: '/api/teams',
+ *   responseKey: 'data',
+ *   filters: { status: 'active' },
+ *   count: 100,
+ *   disableSearch: true,
+ *   optionMapping: {
+ *     label: 'teamName',
+ *     value: 'teamId'
+ *   }
+ * }
+ * 
+ * @example
+ * // With nested fields and template labels
+ * {
+ *   apiMethod: 'GET',
+ *   apiUrl: '/api/players',
+ *   responseKey: 'data',
+ *   optionMapping: {
+ *     label: {
+ *       composite: ['name', 'team.name', 'jerseyNumber'],
+ *       template: '#{jerseyNumber} {name} ({team.name})'
+ *     },
+ *     value: 'playerId'
+ *   }
+ * }
+ */
 export type IFieldOptionsAPIConfig = {
+    /** HTTP method for fetching options */
     apiMethod: 'GET' | 'POST';
+    /** API endpoint URL */
     apiUrl: string;
+    /** Key in response data that contains the options array */
     responseKey: string;
-    /** Additional filters to apply when fetching options */
+    /** Additional filters to apply when fetching options (sent in request payload) */
     filters?: Record<string, any>;
+    /** 
+     * Mapping configuration for label and value fields.
+     * - String: Simple field name or nested path (e.g., 'team.name')
+     * - IAttributesTemplate: Complex template with multiple fields
+     */
     optionMapping?: {
         label: string | IAttributesTemplate;
         value: string | IAttributesTemplate;
     };
-    /** Number of options to fetch per request (default: 50) */
+    /** Number of options to fetch per request. @default 50 */
     count?: number;
-    /** Disable load more functionality - cursor-based pagination (default: false, meaning load more is ENABLED) */
+    /** 
+     * Disable cursor-based pagination "Load More" functionality.
+     * When false (default), shows "Load More" button when more data is available.
+     * @default false (ENABLED by default)
+     */
     disableLoadMore?: boolean;
-    /** Disable remote search - sends 'search' parameter to backend (default: false, meaning search is ENABLED) */
+    /** 
+     * Disable remote search functionality.
+     * When false (default), sends 'search' parameter to backend.
+     * When true, falls back to frontend filtering.
+     * @default false (ENABLED by default)
+     */
     disableSearch?: boolean;
-    /** Debounce delay for search in ms (default: 500) */
+    /** 
+     * Debounce delay for remote search in milliseconds.
+     * Prevents excessive API calls while user is typing.
+     * @default 500
+     */
     searchDebounce?: number;
 }
 export function isFieldOptionsAPIConfig(obj: any): obj is IFieldOptionsAPIConfig {
@@ -78,6 +191,90 @@ interface IOptionSelector {
     value?: string,
 }
 
+/**
+ * OptionSelector - A versatile form field component for select, multi-select, radio, and checkbox inputs.
+ * 
+ * Features:
+ * - **Static Options**: Pass an array of options directly
+ * - **API-Loaded Options**: Fetch options from backend with cursor-based pagination
+ * - **Remote Search**: Search options via backend API with debouncing (500ms default)
+ * - **Frontend Search**: Fallback to client-side filtering when remote search is disabled
+ * - **Load More**: Infinite scroll pattern with "Load More" button for large datasets
+ * - **Deduplication**: Automatically removes duplicate options by value
+ * - **Sorting**: Options are alphabetically sorted by label
+ * - **Nested Data**: Supports dot notation for nested fields (e.g., 'team.name')
+ * - **Add New**: Optional button to create new options via modal
+ * - **Template Labels**: Complex labels with multiple fields (e.g., '#12 Player Name (Team)')
+ * 
+ * API Request Pattern (fw24):
+ * ```typescript
+ * {
+ *   ...filters,           // Base filters
+ *   cursor: 'abc123',     // Pagination cursor (omitted on first request)
+ *   count: 50,            // Number of records to fetch
+ *   search: 'Lakers'      // Search term (when remote search enabled)
+ * }
+ * ```
+ * 
+ * API Response Pattern (fw24):
+ * ```typescript
+ * {
+ *   data: [...options],   // Array of option records
+ *   cursor: 'xyz789'      // Next page cursor (null/undefined = no more data)
+ * }
+ * ```
+ * 
+ * @param options - Static array of options OR API configuration for dynamic loading
+ * @param fieldType - Type of selector: 'select', 'multi-select', 'radio', 'checkbox', 'autocomplete'
+ * @param onOptionChange - Callback when selection changes
+ * @param value - Current selected value(s)
+ * @param addNewOption - (DEPRECATED) Legacy modal config for adding new options
+ * @param addNewOptionConfig - Entity config reference for adding new options via modal
+ * 
+ * @example
+ * // Static options
+ * <OptionSelector
+ *   fieldType="select"
+ *   options={[
+ *     { label: 'Option 1', value: '1' },
+ *     { label: 'Option 2', value: '2' }
+ *   ]}
+ *   onOptionChange={(value) => console.log(value)}
+ * />
+ * 
+ * @example
+ * // API-loaded with search and pagination
+ * <OptionSelector
+ *   fieldType="select"
+ *   options={{
+ *     apiMethod: 'GET',
+ *     apiUrl: '/api/teams',
+ *     responseKey: 'data',
+ *     optionMapping: { label: 'teamName', value: 'teamId' },
+ *     count: 50,
+ *     disableSearch: false,
+ *     disableLoadMore: false
+ *   }}
+ * />
+ * 
+ * @example
+ * // With nested fields and template labels
+ * <OptionSelector
+ *   fieldType="select"
+ *   options={{
+ *     apiMethod: 'GET',
+ *     apiUrl: '/api/players',
+ *     responseKey: 'data',
+ *     optionMapping: {
+ *       label: {
+ *         composite: ['jerseyNumber', 'name', 'team.name'],
+ *         template: '#{jerseyNumber} {name} ({team.name})'
+ *       },
+ *       value: 'playerId'
+ *     }
+ *   }}
+ * />
+ */
 export const OptionSelector = ({ 
     options = [], 
     fieldType, 

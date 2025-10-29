@@ -8,7 +8,7 @@ import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { useApi, IApiConfig } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
 import { IDetailsConfig } from '../detail/Details';
-import { substituteUrlParams, getNestedValue } from '../core/utils';
+import { substituteUrlParams, getNestedValue, evaluateTemplateObject } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
@@ -97,6 +97,22 @@ export interface IModalConfig {
   
   /** OPTIONAL: Display API response in modal (instead of just toast) */
   responseConfig?: IResponseDisplayConfig;
+  
+  /**
+   * Pre-populate form fields from context (route params + record data).
+   * Values are evaluated when modal opens. Supports:
+   * - Static values: `{ isActive: true, priority: 1 }`
+   * - Template strings: `{ teamId: '{teamId}', sport: '{sport}' }`
+   * - Nested paths: `{ teamName: '{team.name}' }`
+   */
+  initialValues?: Record<string, any>;
+  
+  /**
+   * If true, parent component will be refreshed after successful operation.
+   * Triggers onSuccessCallback with API response data.
+   * @default false
+   */
+  refreshParentOnSuccess?: boolean;
   
   primaryIndex?: string;
   useDynamicIdFromParams?: boolean;
@@ -211,6 +227,8 @@ export const Modal = ({
   apiConfig,
   navigateTo,
   responseConfig,
+  initialValues,
+  refreshParentOnSuccess = false,
   primaryIndex = "",
   useDynamicIdFromParams = true,
   onSuccessCallback,
@@ -257,6 +275,11 @@ export const Modal = ({
         const message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
         notifySuccess(message);
 
+        // Check if parent should be refreshed
+        if (refreshParentOnSuccess && onSuccessCallback) {
+          onSuccessCallback(responseDataFromApi);
+        }
+        
         // Check if response should be displayed in modal
         if (responseConfig?.showModal) {
           // Show response modal - delay redirect and callback until modal closes
@@ -265,7 +288,10 @@ export const Modal = ({
           // onConfirmCallback will be called in response modal's onClose handler
         } else {
           // Standard behavior: callback + redirect
-          onSuccessCallback && onSuccessCallback(responseDataFromApi);
+          // Note: Don't call onSuccessCallback again if already called above
+          if (!refreshParentOnSuccess && onSuccessCallback) {
+            onSuccessCallback(responseDataFromApi);
+          }
           if (submitSuccessRedirect) {
             // redirect to appropriate page
             // replace placeholders with the actual values
@@ -536,7 +562,10 @@ export const Modal = ({
               hideResponseModal();
               
               // Execute callback and redirect after modal closes
-              onSuccessCallback && onSuccessCallback(responseData);
+              // Note: Don't call callback if refreshParentOnSuccess already called it
+              if (!refreshParentOnSuccess && onSuccessCallback) {
+                onSuccessCallback(responseData);
+              }
               if (submitSuccessRedirect) {
                 const formattedUrl = substituteUrlParams(
                   submitSuccessRedirect, 
@@ -557,14 +586,22 @@ export const Modal = ({
 
   // Handler for form submissions (wraps response display logic)
   const handleFormSubmitSuccess = (response: any) => {
+    // Extract response data (Form.tsx passes full response object)
+    const responseDataFromForm = response?.data || response;
+    
+    // Check if parent should be refreshed
+    if (refreshParentOnSuccess && onSuccessCallback) {
+      onSuccessCallback(responseDataFromForm);
+    }
+    
     if (responseConfig?.showModal) {
-      // Extract response data (Form.tsx passes full response object)
-      const responseDataFromForm = response?.data || response;
       showResponseModal(responseDataFromForm);
       // Note: Action modal stays open, will be closed when response modal closes
     } else {
-      // Standard behavior
-      onSuccessCallback && onSuccessCallback(response);
+      // Standard behavior - only call callback if not already called above
+      if (!refreshParentOnSuccess && onSuccessCallback) {
+        onSuccessCallback(responseDataFromForm);
+      }
     }
   };
   
@@ -624,8 +661,17 @@ export const Modal = ({
                     onCancelCallback: onCancelCallback,
                     // Remove apiConfig if navigateTo is specified (navigation-only mode)
                     apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
-                    // Pre-populate form from query params if inverseMapping enabled
-                    defaultValues: defaultValuesFromQuery || (modalPageConfig as IForm).defaultValues,
+                    // Pre-populate form from context and query params
+                    // Merge priority (lowest to highest):
+                    // 1. Field defaults (from entity schema) - handled by Form component
+                    // 2. initialValues (from action config) - evaluated here
+                    // 3. Query params (from URL with inverseMapping)
+                    // 4. Form defaultValues (from parent component)
+                    defaultValues: {
+                      ...(initialValues ? evaluateTemplateObject(initialValues, routeParams) : {}),
+                      ...defaultValuesFromQuery,
+                      ...(modalPageConfig as IForm).defaultValues
+                    },
                     useDynamicIdFromParams: false,
                     routeParams
                   } as IForm : undefined
