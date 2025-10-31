@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
 import { IApiConfig } from "../core/context";
@@ -287,6 +287,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     }))
   );
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
+  const [ fetchTrigger, setFetchTrigger ] = React.useState(0);
 
   const {
     listRecords,
@@ -313,6 +314,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const onSearch = (value: string) => {
     setSearchQuery(value);
+    setFetchTrigger(prev => prev + 1);
   }
 
   const toggleSearchMode = React.useCallback(() => {
@@ -326,20 +328,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       });
       setSearchQuery('');
       setAppliedFilters({});
+      setFetchTrigger(prev => prev + 1);
     }
   }, [apiConfig]);
 
   const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
     setSort(newSorters.filter(s => s.order)); // Only keep sorts with an active order
+    setFetchTrigger(prev => prev + 1);
   };
 
-  useEffect(() => {
-    fetchRecords(1);
-  }, [ appliedFilters, searchQuery, sort, facetedColumns, isSearchMode, getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, JSON.stringify(routeParams) ]);
-
   // Reset columns and state when entity changes (navigation between list pages)
-  useEffect(() => {
+  // Use useLayoutEffect to ensure this runs BEFORE the fetch effect
+  useLayoutEffect(() => {
     setVisibleColumns(propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex));
     setColumnSettings(propertiesConfig.map(p => ({
       key: p.dataIndex,
@@ -371,7 +372,15 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     // Reset sort to default for the current mode
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, isSearchMode);
     setSort(convertDefaultSortToSorterResult(defaultSort));
+    
+    // Trigger fetch with new state
+    setFetchTrigger(prev => prev + 1);
   }, [getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, propertiesConfig.map(p => p.dataIndex).join(',')]);
+
+  // Fetch data when trigger changes
+  useEffect(() => {
+    fetchRecords(1);
+  }, [fetchTrigger]);
 
   const handleRefresh = React.useCallback(() => {
     setAppliedFilters({});
@@ -397,11 +406,22 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   }
 
   //Filters
-  const { applyFilters, DisplayAppliedFilters, clearAllFilters, hasActiveFilters, activeFiltersCount } = useAppliedFilters({
+  const { applyFilters: _applyFilters, DisplayAppliedFilters, clearAllFilters: _clearAllFilters, hasActiveFilters, activeFiltersCount } = useAppliedFilters({
     appliedFilters,
     setAppliedFilters,
     getColumnNameByKey
   });
+
+  // Wrap filter functions to trigger fetch
+  const applyFilters = React.useCallback((column: string, filterOperator: string, value: string | Array<string>) => {
+    _applyFilters(column, filterOperator, value);
+    setFetchTrigger(prev => prev + 1);
+  }, [_applyFilters]);
+
+  const clearAllFilters = React.useCallback(() => {
+    _clearAllFilters();
+    setFetchTrigger(prev => prev + 1);
+  }, [_clearAllFilters]);
 
   const getAppliedFilterForColumn = (column: string) => {
     return appliedFilters[ column ] || {};
@@ -413,14 +433,20 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         ? prev.filter(d => d !== dataIndex)
         : [ ...prev, dataIndex ]
     );
+    setFetchTrigger(prev => prev + 1);
   };
 
   //Sorts
-  const { DisplayAppliedSorts, clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
+  const { DisplayAppliedSorts, clearAllSorts: _clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
     sort,
     setSort,
     getColumnNameByKey
   });
+
+  const clearAllSorts = React.useCallback(() => {
+    _clearAllSorts();
+    setFetchTrigger(prev => prev + 1);
+  }, [_clearAllSorts]);
 
   //Pagination
   const { Pagination: CursorPagination } = usePagination({
