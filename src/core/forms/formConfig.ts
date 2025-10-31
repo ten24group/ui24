@@ -25,6 +25,7 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     buttonLoader?: boolean;
     identifiers ?: any;
     useDynamicIdFromParams?: boolean;
+    entityName?: string;  // NEW: Entity name from backend config generation
 }
 
 

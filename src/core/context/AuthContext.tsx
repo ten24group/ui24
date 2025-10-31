@@ -15,6 +15,8 @@ type IAuthContext = IAuthProvider & {
   getRefreshToken: () => string | null;
   rememberMe: boolean;
   setRememberMe: (flag: boolean) => void;
+  // TODO: implement so we have user info here.
+  user?: { roles: Array<string>; }
 }
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);

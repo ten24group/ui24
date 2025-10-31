@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge } from "antd";
 import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
@@ -8,6 +8,7 @@ import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
+import { OnDataChangeCallback } from '../core/types/pageData';
 import './Table.css';
 
 export const Table = ({
@@ -16,6 +17,9 @@ export const Table = ({
   apiConfig,
   routeParams,
   defaultFilters,
+  entityName,  // From backend config generation
+  onDataChange,  // For lifting state
+  onDataRefresh,  // Standard: Register refresh handler
 }: ITableConfig) => {
 
   const {
@@ -37,6 +41,7 @@ export const Table = ({
     handleRefresh,
     handleReload,
     searchQuery,
+    appliedFilters,  // NEW: Now exposed from useTable
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
@@ -51,6 +56,63 @@ export const Table = ({
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
+  
+  // NEW: Track selected row keys
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  
+  // Calculate selectedRecords only when selectedRowKeys change (not on data refetch)
+  const selectedRecords = useMemo(() => 
+    listRecords.filter(record => selectedRowKeys.includes(record[recordIdentifierKey])),
+    [selectedRowKeys, listRecords, recordIdentifierKey]
+  );
+  
+  // CRITICAL FIX: Track previous values to prevent infinite loops
+  const prevStateRef = React.useRef<string>('');
+  
+  // Register refresh handler with parent
+  useEffect(() => {
+    if (onDataRefresh) {
+      onDataRefresh(handleReload);
+    }
+  }, [onDataRefresh, handleReload]);
+  
+  // Lift table state to parent (debouncing handled by parent)
+  // Don't depend on listRecords to avoid re-lifting on data refetch
+  useEffect(() => {
+    if (!onDataChange) return;
+    
+    // Serialize current state for comparison
+    const currentState = JSON.stringify({
+      selectedCount: selectedRecords.length,
+      selectedIds: selectedRowKeys,
+      filters: appliedFilters,
+      searchQuery,
+      entityName
+    });
+    
+    // Only lift state if it actually changed
+    if (currentState === prevStateRef.current) {
+      return;
+    }
+    
+    prevStateRef.current = currentState;
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Table] Lifting state', {
+        selectedCount: selectedRecords.length,
+        hasFilters: Object.keys(appliedFilters).length > 0,
+        hasSearch: !!searchQuery
+      });
+    }
+    
+    onDataChange({
+      selectedRecords,  // Memoized, only changes when selection changes
+      filters: appliedFilters,
+      searchQuery,
+      pageType: 'list',
+      entityName
+    });
+  }, [selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {

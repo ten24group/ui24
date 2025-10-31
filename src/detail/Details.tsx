@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Descriptions, DescriptionsProps, List, Spin, Typography, Space, Tooltip, Button } from 'antd';
 import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
@@ -13,6 +13,7 @@ import { detailsStyles } from './styles';
 import { HelpText } from '../core/forms/FormField/components';
 import { ErrorBoundary } from 'react-error-boundary';
 import { evaluateTemplateValue } from '../core/utils/template';
+import { OnDataChangeCallback } from '../core/types/pageData';
 import './Details.css';
 
 import { IDetailFieldConfig } from '../core/types/field-config';
@@ -40,6 +41,9 @@ export interface IDetailsComponentProps extends IDetailsConfig {
     columnsConfig?: IColumnsConfig;
     routeParams?: Record<string, string>;
     detailResponse?: any;  // Pre-provided response data (bypasses API call)
+    entityName?: string;  // NEW: Entity name from backend config generation
+    onDataChange?: OnDataChangeCallback;  // NEW: For lifting state
+    onDataRefresh?: (refreshFn: () => void) => void;  // Standard: Register refresh handler
 }
 
 const Details: React.FC<IDetailsComponentProps> = ({ 
@@ -49,7 +53,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
     identifiers, 
     columnsConfig, 
     routeParams = {},
-    detailResponse: initialDetailResponse
+    detailResponse: initialDetailResponse,
+    entityName,  // From backend config
+    onDataChange,  // for the component to lift state to parent
+    onDataRefresh  // Standard refresh callback
 }) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
     const [ detailResponse, setDetailResponse ] = useState<any>(initialDetailResponse || null)
@@ -58,8 +65,27 @@ const Details: React.FC<IDetailsComponentProps> = ({
     const { notifyError } = useAppContext();
     const { callApiMethod } = useApi();
     const [ dataLoaded, setDataLoaded ] = useState(false);
+    const [ isRefreshing, setIsRefreshing ] = useState(false);  // Separate loading state for refresh
     const { resolveConfigRef } = useEntityConfig();
     const { formatDate, formatBoolean } = useFormat()
+    
+    // CRITICAL FIX: Track previous values to prevent infinite loops
+    const prevDetailStateRef = React.useRef<string>('');
+    
+    // Lift detail state to parent
+    useEffect(() => {
+      if (!onDataChange || !detailResponse) return;
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Details] Lifting state', { entityName, hasRecord: !!detailResponse });
+      }
+      
+      onDataChange({
+        record: detailResponse,
+        pageType: 'view',
+        entityName
+      });
+    }, [detailResponse, entityName, onDataChange]);
 
     // Utility function to recursively deserialize JSON strings
     const deserializeJsonStrings = (value: any): any => {
@@ -157,66 +183,76 @@ const Details: React.FC<IDetailsComponentProps> = ({
         return initialValue;
     }
 
-    useEffect(() => {
-        const fetchRecordInfo = async () => {
-            const identifier = identifiers || dynamicID;
-            let apiUrl = detailApiConfig.apiUrl;
-            
-            // Use the clean utility function for URL parameter substitution
-            apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
-
-            try {
-                const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
-
-                if (response.status === 200) {
-                    
-                    const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
-                    setDetailResponse(detailResponse)
-
-                    const formatted = recordInfo.map(item => {
-                        // Use getNestedValue to handle dot notation in property names (e.g., "indexInfo.uid")
-                        // Use item.name for the property path, fall back to item.column for backward compatibility
-                        const propertyPath = item.column || item.name || item.id;
-                        const nestedValue = getNestedValue(detailResponse, propertyPath);
-                        const formatted = valueFormatter(item, nestedValue);
-                        return { ...item, initialValue: formatted }
-                    });
-
-                    setRecordInfo(formatted)
-                } else if (response.status >= 400 && response.status < 600) {
-                    // Handle error response using consolidated error handler
-                    // Note: GET requests rarely have validation errors, but handler supports all error types
-                    const errorResult = handleApiError(response, 'Failed to load details');
-                    notifyError(errorResult.formattedErrors.join('\n'));
-                }
-
-                // Set data loaded even on error to stop spinner and show empty state
-                setDataLoaded(true);
-                
-            } catch (error: any) {
-                // Handle network errors or other exceptions using consolidated error handler
-                const errorResult = handleApiError(error, 'Failed to load details');
-                notifyError(errorResult.formattedErrors.join('\n'));
-                setDataLoaded(true); // Show empty state instead of infinite spinner
-            }
+    // Standard data fetch function (can be called on mount or on-demand)
+    const fetchRecordInfo = React.useCallback(async (showLoader = true) => {
+        if (showLoader) {
+            setIsRefreshing(true);
         }
         
+        const identifier = identifiers || dynamicID;
+        let apiUrl = detailApiConfig?.apiUrl;
+        
+        if (!apiUrl) return;
+        
+        // Use the clean utility function for URL parameter substitution
+        apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
+
+        try {
+            const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
+
+            if (response.status === 200) {
+                const fetchedDetailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
+                setDetailResponse(fetchedDetailResponse)
+
+                const formatted = recordInfo.map(item => {
+                    const propertyPath = item.column || item.name || item.id;
+                    const nestedValue = getNestedValue(fetchedDetailResponse, propertyPath);
+                    const formattedValue = valueFormatter(item, nestedValue);
+                    return { ...item, initialValue: formattedValue }
+                });
+
+                setRecordInfo(formatted)
+            } else if (response.status >= 400 && response.status < 600) {
+                const errorResult = handleApiError(response, 'Failed to load details');
+                notifyError(errorResult.formattedErrors.join('\n'));
+            }
+
+            setDataLoaded(true);
+            setIsRefreshing(false);
+            
+        } catch (error: any) {
+            const errorResult = handleApiError(error, 'Failed to load details');
+            notifyError(errorResult.formattedErrors.join('\n'));
+            setDataLoaded(true);
+            setIsRefreshing(false);
+        }
+    }, [identifiers, dynamicID, detailApiConfig, routeParams, callApiMethod, recordInfo, notifyError]);
+    
+    // Register refresh handler with parent
+    useEffect(() => {
+        if (onDataRefresh) {
+            onDataRefresh(() => fetchRecordInfo(true));
+        }
+    }, [onDataRefresh, fetchRecordInfo]);
+    
+    // Initial load
+    useEffect(() => {
         // If we have pre-provided detail response, format it immediately
         if (initialDetailResponse) {
             const formatted = recordInfo.map(item => {
                 const propertyPath = item.column || item.name || item.id;
                 const nestedValue = getNestedValue(initialDetailResponse, propertyPath);
-                const formatted = valueFormatter(item, nestedValue);
-                return { ...item, initialValue: formatted }
+                const formattedValue = valueFormatter(item, nestedValue);
+                return { ...item, initialValue: formattedValue }
             });
             
             setRecordInfo(formatted);
             setDataLoaded(true);
         } else if (detailApiConfig) {
             // Otherwise, fetch from API
-            fetchRecordInfo();
+            fetchRecordInfo(false);  // Don't show refresh loader on initial load
         }
-    }, [])
+    }, [])  // Only on mount
 
     interface IDescriptionCardOptions {
         name: string;
@@ -305,7 +341,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
           // Potentially re-fetch data here if appropriate
         }}
       >
-        <Spin spinning={!dataLoaded}>
+        <Spin spinning={!dataLoaded || isRefreshing}>
           <div style={detailsStyles.container}>
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
@@ -402,32 +438,44 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       // Determine modal type from page type
                       const modalType = modalConfigRef?.pageType === 'list' ? 'list' : 'details';
                       
+                      // Check if relation ID exists (null/undefined check)
+                      const hasValue = value != null && value !== '' && 
+                        !(typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
+                      
                       // Smart display value with template support
                       let displayValue: string;
                       
                       // 1. Check if fully hydrated data is available (object) and template is configured
-                      if (displayConfig?.template && value && typeof value === 'object' && !Array.isArray(value)) {
+                      if (displayConfig?.template && hasValue && typeof value === 'object' && !Array.isArray(value)) {
                         try {
                           displayValue = evaluateTemplateValue(displayConfig.template, value);
                         } catch (e) {
-                          if (process.env.NODE_ENV === 'development') {
-                            console.warn(`[Details] Template evaluation failed for relation ${item.label}:`, e);
-                          }
+                          console.warn(`[Details] Template evaluation failed for relation ${item.label}:`, e);
                           displayValue = String(value);
                         }
                       }
                       // 2. Fallback for partially resolved data (only ID present)
-                      else if (displayConfig?.fallback?.template && value && (typeof value === 'string' || typeof value === 'number')) {
-                        // Use backend-provided fallback template (already interpolated with entity metadata)
-                        displayValue = displayConfig.fallback.template.replace('{id}', String(value));
+                      else if (displayConfig?.fallback?.template && hasValue && (typeof value === 'string' || typeof value === 'number')) {
+                        // Use backend-provided fallback template - evaluate it with full context (modalRouteParams)
+                        // Backend generates templates like "Seasons: {seasonId}" not "{id}", so we need full context
+                        try {
+                          displayValue = evaluateTemplateValue(displayConfig.fallback.template, modalRouteParams);
+                        } catch (e) {
+                          console.warn(`[Details] Fallback template evaluation failed for relation ${item.label}:`, e);
+                          displayValue = String(value);
+                        }
                       }
                       // 3. Default fallbacks for different relation types
                       else if (modalType === 'list') {
-                        displayValue = Array.isArray(value) ? `${value.length} items` : `View related items`;
+                        displayValue = (Array.isArray(value) && value.length > 0) ? `${value.length} items` : `View related items`;
                       }
-                      // 4. Last resort: use value as-is
+                      // 4. Handle missing/null values
+                      else if (!hasValue) {
+                        displayValue = '—'; // Em dash for "not assigned"
+                      }
+                      // 5. Last resort: use value as-is
                       else {
-                        displayValue = Array.isArray(value) ? `${value.length} items` : String(value);
+                        displayValue = (Array.isArray(value) && value.length > 0) ? `${value.length} items` : String(value);
                       }
                       
                       return (
@@ -436,20 +484,20 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <HelpText helpText={item.helpText} />
                           {/* For to-many relations (lists), always show icon even if no value
                               For to-one relations, only show if there's a value */}
-                          {(modalType === 'list' || value) ? (
+                          {(modalType === 'list' || hasValue) ? (
                             <Space>
                               {/* Show value as link or plain text (only if value exists) */}
-                              {value && shouldShowLink && shouldShowActions && (!actionConfig || actionConfig.link !== false) && (
+                              {hasValue && shouldShowLink && shouldShowActions && (!actionConfig || actionConfig.link !== false) && (
                                 <Link url={resolvedUrl} className="details-link">
                                   {displayValue}
                                 </Link>
                               )}
-                              {value && (!shouldShowLink || !shouldShowActions || (actionConfig && actionConfig.link === false)) && (
+                              {hasValue && (!shouldShowLink || !shouldShowActions || (actionConfig && actionConfig.link === false)) && (
                                 <span>{displayValue}</span>
                               )}
                               
-                              {/* Show modal icon if enabled - use resolved config directly */}
-                              {shouldShowActions && (!actionConfig || actionConfig.modal !== false) && displayConfig?.showModalIcon !== false && resolvedModalConfig && (
+                              {/* Show modal icon if enabled - use resolved config directly (only if value exists for to-one) */}
+                              {(modalType === 'list' || hasValue) && shouldShowActions && (!actionConfig || actionConfig.modal !== false) && displayConfig?.showModalIcon !== false && resolvedModalConfig && (
                                 <Tooltip title={`View ${item.label}`}>
                                   <OpenInModal 
                                     modalType={modalType}
@@ -474,7 +522,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                               )}
                               
                               {/* Custom actions if provided */}
-                              {shouldShowActions && actionConfig?.custom && actionConfig.custom.map((customAction, idx) => {
+                              {hasValue && shouldShowActions && actionConfig?.custom && actionConfig.custom.map((customAction, idx) => {
                                 const customActionLabel = customAction.template 
                                   ? evaluateTemplateValue(customAction.template, value && typeof value === 'object' ? value : { id: value })
                                   : customAction.label;
@@ -507,7 +555,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                               })}
                             </Space>
                           ) : (
-                            <span>—</span>
+                            <span>{displayValue}</span>
                           )}
                         </div>
                       );

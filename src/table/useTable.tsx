@@ -336,7 +336,42 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   useEffect(() => {
     fetchRecords(1);
-  }, [ appliedFilters, searchQuery, sort, facetedColumns, isSearchMode ]);
+  }, [ appliedFilters, searchQuery, sort, facetedColumns, isSearchMode, getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, JSON.stringify(routeParams) ]);
+
+  // Reset columns and state when entity changes (navigation between list pages)
+  useEffect(() => {
+    setVisibleColumns(propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex));
+    setColumnSettings(propertiesConfig.map(p => ({
+      key: p.dataIndex,
+      title: p.name,
+      visible: !p.hidden,
+      fixed: p.actions ? 'right' : undefined,
+      isIdentifier: p.isIdentifier,
+    })));
+    setFacetedColumns([]);
+    
+    // Reset filters and search when navigating to a different entity
+    // (but preserve URL-based filters through location query params)
+    const urlFilters = getInitialFiltersFromUrl(location);
+    const resolvedDefaultFilters: Record<string, any> = {};
+    Object.entries(defaultFilters).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.startsWith(':')) {
+        const paramName = value.slice(1);
+        const resolvedValue = routeParams[paramName];
+        if (resolvedValue != null) {
+          resolvedDefaultFilters[key] = { eq: resolvedValue };
+        }
+      } else {
+        resolvedDefaultFilters[key] = value;
+      }
+    });
+    setAppliedFilters({ ...resolvedDefaultFilters, ...urlFilters });
+    setSearchQuery('');
+    
+    // Reset sort to default for the current mode
+    const defaultSort = getDefaultSortFromApiConfig(apiConfig, isSearchMode);
+    setSort(convertDefaultSortToSorterResult(defaultSort));
+  }, [getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, propertiesConfig.map(p => p.dataIndex).join(',')]);
 
   const handleRefresh = React.useCallback(() => {
     setAppliedFilters({});
@@ -521,5 +556,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),
+    // NEW: Expose for state lifting to parent
+    appliedFilters,
   };
 };

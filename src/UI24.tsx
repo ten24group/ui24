@@ -3,7 +3,7 @@ import { App as AntdApp, ConfigProvider } from "antd";
 import enUS from 'antd/locale/en_US';
 
 import { AppRouter, IAppRouter } from './routes/AppRouter';
-import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider } from './core/context';
+import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider, AppStateProvider } from './core/context';
 import { IUi24Config } from './core/context';
 
 type ConfigResolver<T extends unknown> = T // the config itself
@@ -24,9 +24,12 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
                     <AppContextProvider>
                         <ThemeProvider>
                             <AuthProvider>
-                                <ApiProvider>
-                                    <AppRouter customRoutes={customRoutes} />
-                                </ApiProvider>
+                                {/* NEW: AppStateProvider transforms auth token into clean actor structure */}
+                                <AppStateProvider>
+                                    <ApiProvider>
+                                        <AppRouter customRoutes={customRoutes} />
+                                    </ApiProvider>
+                                </AppStateProvider>
                             </AuthProvider>
                         </ThemeProvider>
                     </AppContextProvider>

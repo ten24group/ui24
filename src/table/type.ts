@@ -1,6 +1,6 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType } from "../core/types/field-types";
-import type { Template } from "../core/types";
+import type { Template, VisibilityConfig } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
 type ITablePagination = "default";
 
@@ -84,6 +84,15 @@ export interface ITableConfig {
   paginationType?: ITablePagination;
   routeParams?: Record<string, string>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
+  entityName?: string;  // Entity name from backend config generation
+  onDataChange?: (data: Partial<{
+    selectedRecords?: any[];
+    filters?: Record<string, any>;
+    searchQuery?: string;
+    pageType?: string;
+    entityName?: string;
+  }>) => void;  // Callback to lift table state to parent
+  onDataRefresh?: (refreshFn: () => void) => void;  // Standard: Register refresh handler
 }
 
 export interface ITablePropertiesConfig {
@@ -171,6 +180,13 @@ export type IPageAction = {
   
   /** Only open in modal on specified screen size. Default: always */
   openInModalCondition?: 'sm' | 'md' | 'lg' | 'xl';
+  
+  /**
+   * Visibility configuration for conditional rendering.
+   * Controls visibility and enablement based on actor roles, record state, context, and custom logic.
+   * Evaluated using the universal evaluation system.
+   */
+  visibility?: VisibilityConfig;
 };
 
 export interface IActionIndexValue {

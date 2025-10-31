@@ -1,5 +1,5 @@
 import { Form as AntForm, Spin } from 'antd';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { dayjsCustom } from '../core/dayjs';
@@ -20,12 +20,17 @@ import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { handleApiError } from '../core/utils/api-error-handler';
+import { OnDataChangeCallback } from '../core/types/pageData';
+import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
 
 // Extend IForm to accept columnsConfig
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
   routeParams?: Record<string, string>;
+  entityName?: string;  // From backend config generation
+  onDataChange?: OnDataChangeCallback;  // For lifting state
+  onDataRefresh?: (refreshFn: () => void) => void;  // Standard: Register refresh handler
 }
 
 export function Form({
@@ -46,6 +51,9 @@ export function Form({
   columnsConfig,
   routeParams = {},
   defaultValues = {},
+  entityName,  // From backend config
+  onDataChange,  // For lifting state
+  onDataRefresh,  // Standard refresh callback
 }: IFormWithColumnsConfig) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
@@ -64,7 +72,11 @@ export function Form({
   const { callApiMethod } = useApi();
   const [ loader, setLoader ] = useState<boolean>(false)
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
+  const [ isRefreshing, setIsRefreshing ] = useState<boolean>(false)  // Separate loading state for refresh
   const [ identifiersToUse, setIdentifiersToUse ] = useState<string | number | undefined>(useDynamicIdFromParams ? dynamicID : identifiers);
+  
+  // Track initial record (for edit mode)
+  const [initialRecord, setInitialRecord] = useState<any>(null);
   
   // Track previous values to detect actual changes (not just re-renders)
   const prevFormPropertiesConfigRef = React.useRef<IFormField[] | null>(null);
@@ -86,74 +98,65 @@ export function Form({
     }
   }, [ identifiers, dynamicID ])
 
-  useEffect(() => {
-
-    const loadAndFormatData = async () => {
-      setLoader(true)
-
-      // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
-      const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
-      const recordData = shouldFetchRecord ? await fetchRecordInfo() : {};
-      
-      const itemValueFormatter = (item: IFormField, itemValue: any) => {
-
-        if (!itemValue) {
-          return itemValue;
-        }
-
-        const { name, fieldType, type } = item;
-
-        if (type === "map") {
-          itemValue = item.properties.reduce((acc, prop: IFormField) => {
-            acc[ prop.name ] = itemValueFormatter(prop, itemValue[ prop.name ]);
-            return acc;
-          }, {});
-        }
-
-        if (type === "list") {
-          itemValue = itemValue || [];
-          itemValue = itemValue.map(it => itemValueFormatter(item.items as any, it));
-        }
-
-        if (fieldType === "datetime" || fieldType === "date" || fieldType === "time") {
-          // if the value starts with 0, then it is a timestamp and we need to convert it to a date
-          if (itemValue.toString().startsWith('0')) {
-            itemValue = dayjsCustom.tz(
-              new Date(parseInt(itemValue)).toISOString(),
-              item.timezone
-            );
-          } else {
-            itemValue = dayjsCustom.tz(
-              itemValue,
-              item.timezone
-            );
-          }
-        } else if ([ 'boolean', 'toggle', 'switch' ].includes(fieldType)) {
-          itemValue = itemValue;
-        } else if (fieldType === "color") {
-          itemValue = itemValue ?? "#FFA500";
-        } else if (fieldType === "json") {
-          itemValue = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
-        }
-
-        return itemValue;
-      }
-
-      if (recordData) {
-
-        const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-          const itemValue = itemValueFormatter(item, recordData[ item.column || item.name || item.id ])
-          return { ...item, initialValue: itemValue }
-        });
-
-        setFormPropertiesConfig(updatedFieldsWithInitialValues);
-      }
-
-      setLoader(false)
-      setDataLoadedFromView(true);
+  // Helper: Format item values for form display
+  const itemValueFormatter = React.useCallback((item: IFormField, itemValue: any) => {
+    if (!itemValue) {
+      return itemValue;
     }
 
-    const fetchRecordInfo = async () => {
+    const { name, fieldType, type } = item;
+
+    if (type === "map") {
+      itemValue = item.properties.reduce((acc, prop: IFormField) => {
+        acc[ prop.name ] = itemValueFormatter(prop, itemValue[ prop.name ]);
+        return acc;
+      }, {});
+    }
+
+    if (type === "list") {
+      itemValue = itemValue || [];
+      itemValue = itemValue.map(it => itemValueFormatter(item.items as any, it));
+    }
+
+    if (fieldType === "datetime" || fieldType === "date" || fieldType === "time") {
+      // if the value starts with 0, then it is a timestamp and we need to convert it to a date
+      if (itemValue.toString().startsWith('0')) {
+        itemValue = dayjsCustom.tz(
+          new Date(parseInt(itemValue)).toISOString(),
+          item.timezone
+        );
+      } else {
+        itemValue = dayjsCustom.tz(
+          itemValue,
+          item.timezone
+        );
+      }
+    } else if ([ 'boolean', 'toggle', 'switch' ].includes(fieldType)) {
+      itemValue = itemValue;
+    } else if (fieldType === "color") {
+      itemValue = itemValue ?? "#FFA500";
+    } else if (fieldType === "json") {
+      itemValue = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
+    }
+
+    return itemValue;
+  }, []);
+
+  // Store updated field values for form refresh
+  const updatedFieldValuesRef = React.useRef<Record<string, any> | null>(null);
+  
+  // Standard data fetch function (can be called on mount or on-demand)
+  const loadAndFormatData = React.useCallback(async (showLoader = true) => {
+    if (showLoader) {
+      setIsRefreshing(true);
+      setLoader(true);
+    }
+
+    // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
+    const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
+    
+    let recordData = {};
+    if (shouldFetchRecord) {
       try {
         let apiUrl = detailApiConfig.apiUrl;
         
@@ -164,7 +167,10 @@ export function Form({
 
         if (response.status === 200) {
           const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
-          return detailResponse;
+          
+          // Store initial record for state lifting
+          setInitialRecord(detailResponse);
+          recordData = detailResponse;
         } else {
           notifyError(response.message || response.error || 'An unexpected error occurred');
         }
@@ -172,8 +178,41 @@ export function Form({
         notifyError(error?.message || 'An unexpected error occurred');
       }
     }
+    
+    if (recordData && Object.keys(recordData).length > 0) {
+      const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
+        const itemValue = itemValueFormatter(item, recordData[ item.column || item.name || item.id ])
+        return { ...item, initialValue: itemValue }
+      });
 
-    loadAndFormatData();
+      setFormPropertiesConfig(updatedFieldsWithInitialValues);
+      
+      // Store values for form update (applied after form is available)
+      // Use showLoader param, not isRefreshing state (which is stale in async context)
+      if (showLoader) {
+        const refreshedValues = updatedFieldsWithInitialValues.reduce((acc, item) => {
+          acc[ item.name ] = item.initialValue;
+          return acc;
+        }, {});
+        updatedFieldValuesRef.current = refreshedValues;
+      }
+    }
+
+    setLoader(false);
+    setIsRefreshing(false);
+    setDataLoadedFromView(true);
+  }, [detailApiConfig, identifiersToUse, routeParams, callApiMethod, notifyError, formPropertiesConfig, itemValueFormatter]);
+  
+  // Register refresh handler with parent
+  useEffect(() => {
+    if (onDataRefresh) {
+      onDataRefresh(() => loadAndFormatData(true));
+    }
+  }, [onDataRefresh, loadAndFormatData]);
+  
+  // Initial load
+  useEffect(() => {
+    loadAndFormatData(false);  // Don't show refresh loader on initial load
   }, [])
 
   const onFinish = async (values: any) => {
@@ -351,6 +390,55 @@ export function Form({
   }
 
   const [ form ] = AntForm.useForm();
+  
+  // Apply refreshed values to form (when refresh completes)
+  useEffect(() => {
+    if (updatedFieldValuesRef.current) {
+      form.setFieldsValue(updatedFieldValuesRef.current);
+      updatedFieldValuesRef.current = null; // Clear after applying
+    }
+  }, [form, isRefreshing]);
+  
+  // Watch form values
+  const formValues = AntForm.useWatch([], form) || form.getFieldsValue(true);
+  
+  // NEW: Determine pageType from initialRecord
+  const pageType = useMemo(() => {
+    return initialRecord ? 'edit' : 'create';
+  }, [initialRecord]);
+  
+  // NEW: Debounce formValues LOCALLY to avoid effect running on every keystroke
+  const debouncedFormValues = useDebounce(formValues, 200);
+  
+  // CRITICAL FIX: Track previous values to prevent infinite loops
+  const prevFormStateRef = React.useRef<string>('');
+  
+  // NEW: Lift form state to parent (COMBINED effect - prevents race conditions)
+  useEffect(() => {
+    if (!onDataChange) return;
+    
+    // // Serialize current state for comparison
+    // const currentState = JSON.stringify({
+    //   hasRecord: !!initialRecord,
+    //   formValuesKeys: debouncedFormValues,
+    //   pageType,
+    //   entityName
+    // });
+    
+    // // Only lift state if it actually changed
+    // if (currentState === prevFormStateRef.current) {
+    //   return;
+    // }
+    
+    // prevFormStateRef.current = currentState;
+    
+    onDataChange({
+      record: initialRecord,
+      formValues: debouncedFormValues || {},
+      pageType,
+      entityName
+    });
+  }, [initialRecord, debouncedFormValues, pageType, entityName, onDataChange]);
   
   // Determine columns to render
   let columns: IFormField[][] = [];

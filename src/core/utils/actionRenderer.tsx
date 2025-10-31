@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, MenuProps } from "antd";
+import { Button, MenuProps, Tooltip } from "antd";
 import { Icon } from "../common/Icons/Icons";
 import { OpenInModal } from "../../modal/Modal";
 import { OpenRouteInModal } from "../../modal/OpenRouteInModal";
@@ -7,7 +7,7 @@ import { IPageAction } from "../../table/type";
 import { substituteUrlParams } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
 
-export type MenuItem = Required<MenuProps>['items'][number];
+export type MenuItem = Required<MenuProps>[ 'items' ][ number ];
 
 interface RenderActionOptions {
   action: IPageAction;
@@ -15,6 +15,8 @@ interface RenderActionOptions {
   isDropdownItem?: boolean;
   isTableRowAction?: boolean;
   isInModal?: boolean;  // NEW: Pass modal context from parent component
+  isDisabled?: boolean;
+  disabledMessage?: string;
   routeParams?: Record<string, string>;
   primaryIndex?: string;
   record?: Record<string, any>;
@@ -36,6 +38,8 @@ export const renderSingleAction = ({
   isDropdownItem = false,
   isTableRowAction = false,
   isInModal = false,
+  isDisabled = false,
+  disabledMessage = '',
   routeParams = {},
   primaryIndex,
   record,
@@ -46,12 +50,12 @@ export const renderSingleAction = ({
   if (isInModal && action.hideInModal) {
     return null;
   }
-  
+
   // Evaluate template if provided, otherwise use static label
   // Context: use record for table row actions, routeParams for page actions
   const context = record || routeParams;
   const evaluatedLabel = evaluateTemplateValue(action.template, context, action.label);
-  
+
   // Pattern 1: Modal with inline config
   if (action.openInModal && action.modalConfig) {
     const modalTrigger = (
@@ -62,19 +66,21 @@ export const renderSingleAction = ({
         routeParams={routeParams}
         onSuccessCallback={onSuccessCallback}
       >
-        {isDropdownItem ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-            {action.icon && <Icon iconName={action.icon} />}
-            {evaluatedLabel}
-          </span>
-        ) : isTableRowAction ? (
-          <Icon iconName={action.icon || "delete"} />
-        ) : (
-          <Button type="primary">{evaluatedLabel}</Button>
-        )}
+        <Tooltip title={disabledMessage}>
+          {isDropdownItem ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+              {action.icon && <Icon iconName={action.icon} />}
+              {evaluatedLabel}
+            </span>
+          ) : isTableRowAction ? (
+            <Icon iconName={action.icon || "delete"} />
+          ) : (
+            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+          )}
+        </Tooltip>
       </OpenInModal>
     );
-    
+
     if (isDropdownItem) {
       return {
         key,
@@ -84,7 +90,7 @@ export const renderSingleAction = ({
     }
     return modalTrigger;
   }
-  
+
   // Pattern 2: Modal with route resolution (NEW)
   if (action.openInModal && action.url && !action.modalConfig) {
     const modalTrigger = (
@@ -98,19 +104,21 @@ export const renderSingleAction = ({
         openInModalCondition={action.openInModalCondition}
         onSuccessCallback={onSuccessCallback}
       >
-        {isDropdownItem ? (
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-            {action.icon && <Icon iconName={action.icon} />}
-            {evaluatedLabel}
-          </span>
-        ) : isTableRowAction ? (
-          <Icon iconName={action.icon || "eye"} />
-        ) : (
-          <Button type="primary">{evaluatedLabel}</Button>
-        )}
+        <Tooltip title={disabledMessage}>
+          {isDropdownItem ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+              {action.icon && <Icon iconName={action.icon} />}
+              {evaluatedLabel}
+            </span>
+          ) : isTableRowAction ? (
+            <Icon iconName={action.icon || "eye"} />
+          ) : (
+            <Button type="primary">{evaluatedLabel}</Button>
+          )}
+        </Tooltip>
       </OpenRouteInModal>
     );
-    
+
     if (isDropdownItem) {
       return {
         key,
@@ -120,10 +128,10 @@ export const renderSingleAction = ({
     }
     return modalTrigger;
   }
-  
+
   // Pattern 3: Regular navigation
   let url = action.url || '';
-  
+
   // Use the existing substituteUrlParams utility properly
   if (record) {
     // For table rows: use record data as routeParams and primaryIndex as fallback
@@ -132,7 +140,7 @@ export const renderSingleAction = ({
     // For page headers: use routeParams as is
     url = substituteUrlParams(url, routeParams);
   }
-  
+
   if (isDropdownItem) {
     return {
       key,
@@ -141,25 +149,30 @@ export const renderSingleAction = ({
       onClick: () => onNavigate?.(url)
     } as MenuItem;
   }
-  
+
   // For table rows, return Link with Icon
   if (isTableRowAction) {
     return (
-      <a href={url} onClick={(e) => { e.preventDefault(); onNavigate?.(url); }}>
-        <Icon iconName={action.icon} />
-      </a>
+      <Tooltip title={disabledMessage}>
+        <a href={ isDisabled ? undefined : url} onClick={(e) => { e.preventDefault(); onNavigate?.(url); }}>
+          <Icon iconName={action.icon} />
+        </a>
+      </Tooltip>
     );
   }
-  
+
   // For page headers, return Button
   return (
-    <Button
-      key={key}
-      type="primary"
-      onClick={() => onNavigate?.(url)}
-    >
-      {evaluatedLabel}
-    </Button>
+    <Tooltip title={disabledMessage}>
+      <Button
+        key={key}
+        type="primary"
+        disabled={isDisabled}
+        onClick={() => onNavigate?.(url)}
+      >
+        {evaluatedLabel}
+      </Button>
+    </Tooltip>
   );
 };
 
