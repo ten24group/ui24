@@ -178,6 +178,12 @@ export const useTableData = ({
         }
 
         records.forEach((record: any) => {
+          // Store raw record BEFORE any display formatting mutations
+          // This preserves original API data types for evaluation (e.g., boolean false vs "No")
+          // Only store if not already present (prevents overwriting with formatted data on re-renders)
+          if (!record.__raw__) {
+            record.__raw__ = { ...record };
+          }
 
           formattingColumns.forEach((property) => {
             // Use getNestedValue to handle nested data paths
@@ -197,7 +203,11 @@ export const useTableData = ({
                 nestedValue;
               record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
             } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              record[ property.dataIndex ] = formatBoolean(nestedValue);
+              // Only format if the value is actually a boolean (not already formatted)
+              // This prevents double-formatting when fetchRecords is called multiple times
+              if (typeof nestedValue === 'boolean') {
+                record[ property.dataIndex ] = formatBoolean(nestedValue);
+              }
             } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
               const itemValue = nestedValue;
               record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;

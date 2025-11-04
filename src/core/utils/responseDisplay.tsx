@@ -32,7 +32,7 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
 
   const {
     modalTitle,
-    modalWidth = 800,
+    modalWidth = 707,
     pageType,
     pageConfig,
     showRawJson = false,

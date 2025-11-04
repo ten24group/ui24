@@ -3,7 +3,7 @@ import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from 
 import type { TableProps, MenuProps } from "antd";
 import { Icon, Link } from "../../core/common";
 import { Space, Tooltip, Dropdown } from 'antd';
-import { useAppContext, useModalContext } from "../../core/context";
+import { useAppContext, useEvaluationContext, useModalContext } from "../../core/context";
 import { renderSingleAction, MenuItem } from "../../core/utils/actionRenderer";
 import { useEvaluation } from "../../core/hooks";
 
@@ -27,7 +27,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
           <Tooltip 
             title={item.helpText}
             placement="top"
-            overlayStyle={{ maxWidth: '300px' }}
+            styles={{ root: { maxWidth: '300px' } }}
           >
             <span style={{ cursor: 'help' }}>{item.name}</span>
           </Tooltip>
@@ -46,6 +46,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   //Add action column in Table
   //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
   //if the actions array is empty, then do not include the key in the object
+  
   const actionIndexValue: IActionIndexValue = propertiesConfig
     .filter(item => Array.isArray(item.actions) && item.actions.length > 0)
     .reduce((acc: IActionIndexValue, item) => {
@@ -160,8 +161,10 @@ const ListPageActionInner = React.memo(({
   isInModal: boolean
 }) => {
   
-  // Evaluate visibility with record context
-  const { visible, enabled, disabledMessage } = useEvaluation(item.visibility, { record });
+  // Use raw API data for evaluation (before display formatting mutations)
+  // This ensures boolean conditions work correctly (false vs "No")
+  const rawRecord = (record as any).__raw__ || record;
+  const { visible, enabled, disabledMessage } = useEvaluation(item.visibility, { record: rawRecord });
   
   // Don't render if not visible
   if (!visible) return null;

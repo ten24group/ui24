@@ -81,7 +81,7 @@ export interface IResponseDisplayConfig {
   /** Title for response modal. If not provided, appends " - Results" to action modal title */
   modalTitle?: string;
   
-  /** Width of response modal in pixels. Default: 800 */
+  /** Width of response modal in pixels. Default: 707 */
   modalWidth?: number;
   
   /** OPTION 1: Render response using existing page type system (recommended) */

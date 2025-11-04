@@ -13,7 +13,6 @@ import { detailsStyles } from './styles';
 import { HelpText } from '../core/forms/FormField/components';
 import { ErrorBoundary } from 'react-error-boundary';
 import { evaluateTemplateValue } from '../core/utils/template';
-import { OnDataChangeCallback } from '../core/types/pageData';
 import './Details.css';
 
 import { IDetailFieldConfig } from '../core/types/field-config';
@@ -27,6 +26,7 @@ export interface IDetailApiConfig {
 
 export interface IDetailsConfig extends IDetailApiConfig {
     pageTitle?: string;
+    entityName?: string;  // NEW: Entity name from backend config generation
     identifiers?: string | number | Array<string | number>;
     propertiesConfig: Array<IPropertiesConfig>;
     columnsConfig?: IColumnsConfig;
@@ -41,9 +41,8 @@ export interface IDetailsComponentProps extends IDetailsConfig {
     columnsConfig?: IColumnsConfig;
     routeParams?: Record<string, string>;
     detailResponse?: any;  // Pre-provided response data (bypasses API call)
-    entityName?: string;  // NEW: Entity name from backend config generation
-    onDataChange?: OnDataChangeCallback;  // NEW: For lifting state
-    onDataRefresh?: (refreshFn: () => void) => void;  // Standard: Register refresh handler
+    onDataChange?: (data: { record?: any; pageType?: string; entityName?: string }) => void;
+    refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
 }
 
 const Details: React.FC<IDetailsComponentProps> = ({ 
@@ -55,8 +54,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
     routeParams = {},
     detailResponse: initialDetailResponse,
     entityName,  // From backend config
-    onDataChange,  // for the component to lift state to parent
-    onDataRefresh  // Standard refresh callback
+    onDataChange,  // Callback to lift state to wrapper
+    refreshRef,  // Ref to expose refresh function to wrapper
 }) => {
     const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
     const [ detailResponse, setDetailResponse ] = useState<any>(initialDetailResponse || null)
@@ -69,16 +68,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
     const { resolveConfigRef } = useEntityConfig();
     const { formatDate, formatBoolean } = useFormat()
     
-    // CRITICAL FIX: Track previous values to prevent infinite loops
-    const prevDetailStateRef = React.useRef<string>('');
-    
-    // Lift detail state to parent
+    // Lift detail state to wrapper (if callback provided)
     useEffect(() => {
       if (!onDataChange || !detailResponse) return;
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Details] Lifting state', { entityName, hasRecord: !!detailResponse });
-      }
       
       onDataChange({
         record: detailResponse,
@@ -228,12 +220,12 @@ const Details: React.FC<IDetailsComponentProps> = ({
         }
     }, [identifiers, dynamicID, detailApiConfig, routeParams, callApiMethod, recordInfo, notifyError]);
     
-    // Register refresh handler with parent
+    // Expose refresh function to parent wrapper via ref
     useEffect(() => {
-        if (onDataRefresh) {
-            onDataRefresh(() => fetchRecordInfo(true));
+        if (refreshRef) {
+            refreshRef.current = fetchRecordInfo;
         }
-    }, [onDataRefresh, fetchRecordInfo]);
+    }, [fetchRecordInfo, refreshRef]);
     
     // Initial load
     useEffect(() => {
@@ -408,9 +400,16 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         
                         mappings.forEach(mapping => {
                           // Extract value from detailResponse using source path (supports nesting)
-                          const sourceValue = getNestedValue(detailResponse, mapping.source);
+                          let sourceValue = getNestedValue(detailResponse, mapping.source);
+                          
+                          // Fallback: if source field doesn't exist, try using 'id' or routeParams.id
+                          // This handles cases where backend config uses entity name (e.g., "teamId") but entity has "id"
+                          if (sourceValue == null) {
+                            sourceValue = detailResponse.id || routeParams.id;
+                          }
                           
                           // Map to target parameter for API call
+                          // ONLY set the target field - that's what the filter expects
                           if (sourceValue != null) {
                             modalRouteParams[mapping.target] = sourceValue;
                           } else {

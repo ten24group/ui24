@@ -29,13 +29,13 @@ export const getDefaultModalWidth = (
     case 'list':
       return 1200;
     case 'form':
-      return 1000;
+      return 1200;
     case 'confirm':
       return 520;
     case 'custom':
       return undefined; // Let AntD default
     default:
-      return 800;
+      return 707;
   }
 };
 

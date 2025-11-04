@@ -132,16 +132,32 @@ export class UniversalEvaluator {
   
   /**
    * Type guard for shortcut conditions
+   * FIXED: Returns false if config also has inline conditions (mixed mode)
    */
   private isShortcutCondition(config: VisibilityConfig):  config is ShortcutVisibilityCondition {
-    return ('requiredRoles' in config || 
-            'excludedRoles' in config || 
-            'showWhen' in config || 
-            'hideWhen' in config);
+    const hasShortcuts = ('requiredRoles' in config || 
+                          'excludedRoles' in config || 
+                          'showWhen' in config || 
+                          'hideWhen' in config);
+    
+    const hasInlineConditions = ('actor' in config || 
+                                  'record' in config || 
+                                  'queryParams' in config || 
+                                  'selectedRecords' in config || 
+                                  'formValues' in config ||
+                                  'context' in config);
+    
+    // If it has BOTH shortcuts AND inline conditions, treat as inline (more comprehensive)
+    if (hasShortcuts && hasInlineConditions) {
+      return false;
+    }
+    
+    return hasShortcuts;
   }
   
   /**
    * Evaluate shortcut conditions (synchronous)
+   * FIXED: Also evaluates inline conditions when mixed with shortcuts
    */
   private evaluateShortcutsSync(
     config: ShortcutVisibilityCondition,
@@ -150,7 +166,8 @@ export class UniversalEvaluator {
     
     // Required roles
     if (config.requiredRoles && config.requiredRoles.length > 0) {
-      const userRoles = context.actor?.cognito?.groups || [];
+      // FIXED: Support both actor.groups (new) and actor.cognito.groups (legacy)
+      const userRoles = context.actor?.groups || context.actor?.cognito?.groups || [];
       const hasRequiredRole = config.requiredRoles.some(role => userRoles.includes(role));
       if (!hasRequiredRole) {
         // TODO: disabled messages 
@@ -160,7 +177,8 @@ export class UniversalEvaluator {
     
     // Excluded roles
     if (config.excludedRoles && config.excludedRoles.length > 0) {
-      const userRoles = context.actor?.cognito?.groups || [];
+      // FIXED: Support both actor.groups (new) and actor.cognito.groups (legacy)
+      const userRoles = context.actor?.groups || context.actor?.cognito?.groups || [];
       const hasExcludedRole = config.excludedRoles.some(role => userRoles.includes(role));
       if (hasExcludedRole) {
         return { visible: true, enabled: false };
@@ -186,11 +204,50 @@ export class UniversalEvaluator {
   
   /**
    * Evaluate inline conditions (synchronous)
+   * FIXED: Also handles shortcuts when mixed with inline conditions
    */
   private evaluateInlineSync(
     config: InlineVisibilityCondition,
     context: EvaluationContext
   ): EvaluationResult {
+    // FIXED: Handle shortcuts if present (for mixed configs with both shortcuts and inline conditions)
+    // Use indexed access without type casting
+    let hasRoleAccess = true;
+    
+    // Required roles (affects enablement, not visibility)
+    const requiredRoles = 'requiredRoles' in config ? config['requiredRoles' as keyof typeof config] : undefined;
+    if (Array.isArray(requiredRoles) && requiredRoles.length > 0) {
+      // FIXED: Support both actor.groups (new) and actor.cognito.groups (legacy)
+      const userRoles = context.actor?.groups || context.actor?.cognito?.groups || [];
+      hasRoleAccess = requiredRoles.some(role => userRoles.includes(role));
+    }
+    
+    // Excluded roles
+    const excludedRoles = 'excludedRoles' in config ? config['excludedRoles' as keyof typeof config] : undefined;
+    if (Array.isArray(excludedRoles) && excludedRoles.length > 0) {
+      // FIXED: Support both actor.groups (new) and actor.cognito.groups (legacy)
+      const userRoles = context.actor?.groups || context.actor?.cognito?.groups || [];
+      const hasExcludedRole = excludedRoles.some(role => userRoles.includes(role));
+      if (hasExcludedRole) {
+        return { visible: true, enabled: false };
+      }
+    }
+    
+    // Show when
+    const showWhen = 'showWhen' in config ? config['showWhen' as keyof typeof config] : undefined;
+    if (showWhen && context.record) {
+      if (!this.matchesObject(showWhen, context.record, context)) {
+        return { visible: false, enabled: false };
+      }
+    }
+    
+    // Hide when
+    const hideWhen = 'hideWhen' in config ? config['hideWhen' as keyof typeof config] : undefined;
+    if (hideWhen && context.record) {
+      if (this.matchesObject(hideWhen, context.record, context)) {
+        return { visible: false, enabled: false };
+      }
+    }
     
     // Actor conditions
     if (config.actor) {
@@ -200,7 +257,11 @@ export class UniversalEvaluator {
     }
     
     // Record conditions
-    if (config.record && context.record) {
+    if (config.record) {
+      if (!context.record) {
+        // Config requires record but none provided - HIDE
+        return { visible: false, enabled: false };
+      }
       if (!this.evaluateRulesSync(config.record, context.record, context)) {
         return { visible: false, enabled: false };
       }
@@ -239,7 +300,8 @@ export class UniversalEvaluator {
       }
     }
     
-    return { visible: true, enabled: true };
+    // Return result based on role access
+    return { visible: true, enabled: hasRoleAccess };
   }
   
   /**
@@ -406,11 +468,21 @@ export class UniversalEvaluator {
     
     // In list
     if ('inList' in rule && rule.inList !== undefined) {
+      // If value is an array (e.g., user groups), check if ANY value is in the list
+      if (Array.isArray(value)) {
+        return value.some(v => rule.inList!.includes(v));
+      }
+      // If value is not an array, check if value is in the list
       return rule.inList.includes(value);
     }
     
     // Not in list
     if ('notInList' in rule && rule.notInList !== undefined) {
+      // If value is an array (e.g., user groups), check if NONE of the values are in the list
+      if (Array.isArray(value)) {
+        return !value.some(v => rule.notInList!.includes(v));
+      }
+      // If value is not an array, check if value is not in the list
       return !rule.notInList.includes(value);
     }
     

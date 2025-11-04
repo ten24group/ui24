@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge } from "antd";
+import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
@@ -8,7 +8,8 @@ import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
-import { OnDataChangeCallback } from '../core/types/pageData';
+import { renderSingleAction } from '../core/utils/actionRenderer';
+import { useEvaluationBatch } from '../core/hooks/useEvaluation';
 import './Table.css';
 
 export const Table = ({
@@ -18,8 +19,9 @@ export const Table = ({
   routeParams,
   defaultFilters,
   entityName,  // From backend config generation
-  onDataChange,  // For lifting state
-  onDataRefresh,  // Standard: Register refresh handler
+  bulkActions,  // Actions shown when multiple rows selected
+  rowSelection: rowSelectionConfig,  // Row selection configuration
+  onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
 
   const {
@@ -66,53 +68,60 @@ export const Table = ({
     [selectedRowKeys, listRecords, recordIdentifierKey]
   );
   
-  // CRITICAL FIX: Track previous values to prevent infinite loops
-  const prevStateRef = React.useRef<string>('');
-  
-  // Register refresh handler with parent
-  useEffect(() => {
-    if (onDataRefresh) {
-      onDataRefresh(handleReload);
-    }
-  }, [onDataRefresh, handleReload]);
-  
-  // Lift table state to parent (debouncing handled by parent)
-  // Don't depend on listRecords to avoid re-lifting on data refetch
+  // Lift table state to wrapper (if callback provided)
   useEffect(() => {
     if (!onDataChange) return;
     
-    // Serialize current state for comparison
-    const currentState = JSON.stringify({
-      selectedCount: selectedRecords.length,
-      selectedIds: selectedRowKeys,
-      filters: appliedFilters,
-      searchQuery,
-      entityName
-    });
-    
-    // Only lift state if it actually changed
-    if (currentState === prevStateRef.current) {
-      return;
-    }
-    
-    prevStateRef.current = currentState;
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Table] Lifting state', {
-        selectedCount: selectedRecords.length,
-        hasFilters: Object.keys(appliedFilters).length > 0,
-        hasSearch: !!searchQuery
-      });
-    }
-    
     onDataChange({
-      selectedRecords,  // Memoized, only changes when selection changes
+      selectedRecords,
+      selectedRowKeys,
       filters: appliedFilters,
       searchQuery,
       pageType: 'list',
       entityName
     });
   }, [selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange]);
+
+  // Extract visibility configs from bulk actions for batch evaluation
+  const bulkActionsVisibilityConfigs = useMemo(() => 
+    bulkActions ? bulkActions.map(action => action.visibility) : [],
+    [bulkActions]
+  );
+
+  // Evaluate all bulk actions in batch
+  const bulkActionsEvaluationResults = useEvaluationBatch(bulkActionsVisibilityConfigs, {
+    selectedRecords,
+    queryParams: routeParams,
+  });
+
+  // Merge evaluation results with actions and filter visible ones
+  const visibleBulkActions = useMemo(() => {
+    if (!bulkActions || bulkActions.length === 0) return [];
+    
+    return bulkActions
+      .map((action, index) => ({
+        ...action,
+        _evaluated: bulkActionsEvaluationResults[index]
+      }))
+      .filter(action => action._evaluated?.visible !== false);
+  }, [bulkActions, bulkActionsEvaluationResults]);
+
+  // Row selection configuration for AntTable - using AntD's native row selection API
+  const rowSelection = useMemo(() => {
+    if (!rowSelectionConfig?.enabled) return undefined;
+    
+    return {
+      type: 'checkbox' as const,
+      selectedRowKeys,
+      onChange: (selectedKeys: React.Key[], selectedRows: any[]) => {
+        setSelectedRowKeys(selectedKeys);
+      },
+      getCheckboxProps: (record: any) => ({
+        // Can add conditional disabling based on record properties if needed
+        // disabled: record.someField === 'value',
+      }),
+    };
+  }, [rowSelectionConfig, selectedRowKeys]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -138,6 +147,47 @@ export const Table = ({
         handleReload();
       }}
     >
+      {/* Bulk Actions Toolbar (shown when rows are selected) */}
+      {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
+        <div style={{ 
+          padding: '12px 16px', 
+          background: '#e6f7ff', 
+          borderRadius: '4px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <div style={{ fontWeight: 500 }}>
+            {selectedRowKeys.length} {selectedRowKeys.length === 1 ? 'item' : 'items'} selected
+            <Button 
+              type="link" 
+              size="small"
+              onClick={() => setSelectedRowKeys([])}
+              style={{ marginLeft: '8px' }}
+            >
+              Clear selection
+            </Button>
+          </div>
+          <Space>
+            {visibleBulkActions.map((action, index) => {
+              const rendered = renderSingleAction({
+                action,
+                key: `bulk-action-${index}`,
+                isDropdownItem: false,
+                isTableRowAction: false,
+                isDisabled: action._evaluated?.enabled === false,
+                disabledMessage: action._evaluated?.disabledMessage || '',
+                routeParams,
+                record: undefined,  // Bulk actions don't have a single record
+                onSuccessCallback: handleReload,  // Refresh table after bulk action
+              });
+              return rendered as React.ReactNode;
+            })}
+          </Space>
+        </div>
+      )}
+
       <div className="table-toolbar">
         <div style={{ flex: 1 }}>
           {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
@@ -202,6 +252,7 @@ export const Table = ({
           spinning: isLoading,
         }}
         onChange={handleTableChange}
+        rowSelection={rowSelection}
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
         {renderPagination()}

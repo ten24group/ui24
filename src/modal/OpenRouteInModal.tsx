@@ -145,11 +145,14 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
       : pageTitleFallback;
   }, [ modalTitle, params, pageConfig?.pageTitle ]);
 
-  // Merge query params from resolved URL
-  const finalRouteParams = {
-    ...params,
-    ...Object.fromEntries(queryParams.entries())
-  };
+  // Merge route params: original routeParams + resolved params from URL + query params
+  // This ensures custom params (like teamId, homeTeamId from identifierMapping) are preserved
+  // Memoized to prevent unnecessary re-renders and duplicate API calls
+  const finalRouteParams = React.useMemo(() => ({
+    ...routeParams,  // Include original route params (important for filters)
+    ...params,        // Override with params extracted from URL pattern
+    ...Object.fromEntries(queryParams.entries())  // Add query params
+  }), [routeParams, params, queryParams]);
 
   return (
     <>

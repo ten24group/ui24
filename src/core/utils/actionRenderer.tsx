@@ -58,20 +58,23 @@ export const renderSingleAction = ({
 
   // Pattern 1: Modal with inline config
   if (action.openInModal && action.modalConfig) {
+    // Merge record data with routeParams for template resolution (initialValues)
+    // Priority: record data overrides routeParams
+    const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
+    
     const modalTrigger = (
       <OpenInModal
         key={key}
         {...action.modalConfig}
         primaryIndex={primaryIndex || routeParams.id}
-        routeParams={routeParams}
+        identifiers={primaryIndex || routeParams.id}  // Pass identifiers for Form component
+        routeParams={finalRouteParams}  // Include record data for template resolution
         onSuccessCallback={onSuccessCallback}
       >
         <Tooltip title={disabledMessage}>
           {isDropdownItem ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-              {action.icon && <Icon iconName={action.icon} />}
-              {evaluatedLabel}
-            </span>
+            // For dropdown items, don't include icon in label - MenuItem handles it separately
+            evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "delete"} />
           ) : (
@@ -93,11 +96,15 @@ export const renderSingleAction = ({
 
   // Pattern 2: Modal with route resolution (NEW)
   if (action.openInModal && action.url && !action.modalConfig) {
+    // Merge record data with routeParams for template resolution
+    // Priority: record data overrides routeParams
+    const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
+    
     const modalTrigger = (
       <OpenRouteInModal
         key={key}
         url={action.url}
-        routeParams={record || routeParams}
+        routeParams={finalRouteParams}
         primaryIndex={primaryIndex}
         modalWidth={action.modalWidth}
         modalTitle={action.modalTitle}
@@ -106,10 +113,8 @@ export const renderSingleAction = ({
       >
         <Tooltip title={disabledMessage}>
           {isDropdownItem ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
-              {action.icon && <Icon iconName={action.icon} />}
-              {evaluatedLabel}
-            </span>
+            // For dropdown items, don't include icon in label - MenuItem handles it separately
+            evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "eye"} />
           ) : (

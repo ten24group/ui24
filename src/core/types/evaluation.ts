@@ -100,12 +100,15 @@ export type ShortcutVisibilityCondition = {
 /**
  * Visibility configuration (union type).
  * Matches backend type from fw24/src/entity/base-entity.ts
+ * 
+ * FIXED: Allow configs to have BOTH shortcut AND inline conditions
  */
 export type VisibilityConfig = 
   | InlineVisibilityCondition
   | CustomVisibilityCondition
   | NamedVisibilityCondition
-  | ShortcutVisibilityCondition;
+  | ShortcutVisibilityCondition
+  | (InlineVisibilityCondition & ShortcutVisibilityCondition);
 
 /**
  * Evaluation context for frontend evaluation.

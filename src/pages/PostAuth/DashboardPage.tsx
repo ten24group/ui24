@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { WidgetRenderer } from '../../dashboard/WidgetRenderer';
 import { IStatWidgetProps } from '../../dashboard/widgets/StatWidget';
 import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
@@ -11,7 +11,6 @@ import { IDetailsConfig } from '../../detail/Details';
 import { IForm } from '../../core/forms/formConfig';
 import { IModalConfig } from '../../modal/Modal';
 import { PageDataProvider } from '../../core/context/PageDataContext';
-import { OnDataChangeCallback } from '../../core/types/pageData';
 
 export type DefaultTimePeriod = {
   period: TimePeriod;
@@ -185,10 +184,8 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
 
 export const DashboardPage: React.FC<{ 
   dashboardConfig: IDashboardPageConfig;
-  onDataChange?: OnDataChangeCallback;  // NEW: For lifting dashboard state
 }> = ({ 
-  dashboardConfig,
-  onDataChange  // NEW
+  dashboardConfig
 }) => {
   const { selectConfig } = useUi24Config();
   const formatConfigTz = selectConfig(config => {
@@ -208,19 +205,6 @@ export const DashboardPage: React.FC<{
     });
     return initial;
   });
-  
-  // NEW: Lift dashboard state to parent if needed
-  useEffect(() => {
-    if (!onDataChange) return;
-    
-    onDataChange({
-      dashboardFilters: {
-        timePeriod: dashboardTimePeriod,
-        widgetTimePeriods
-      },
-      pageType: 'dashboard'
-    });
-  }, [dashboardTimePeriod, widgetTimePeriods, onDataChange]);
 
   if (!dashboardConfig || !dashboardConfig.widgets) {
     return <div> </div>;

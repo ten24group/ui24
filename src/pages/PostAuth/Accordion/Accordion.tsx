@@ -1,23 +1,20 @@
 import { CaretRightOutlined } from '@ant-design/icons';
-import React, { useState } from 'react';
+import React from 'react';
 import { Collapse, theme } from 'antd';
 import { IRenderFromPageType } from '../PostAuthPage';
 import { RenderFromPageType } from '../PostAuthPage';
 import { PageDataProvider } from '../../../core/context/PageDataContext';
-import { OnDataChangeCallback } from '../../../core/types/pageData';
 
 export type IAccordionPageConfig = Record<string, IRenderFromPageType>
 
 export interface IAccordionProps {
   accordionsPageConfig?: IAccordionPageConfig;
   routeParams?: Record<string, string>;
-  onDataChange?: OnDataChangeCallback;  // NEW: For lifting state (optional)
 }
 
 export const Accordion = ({ 
   accordionsPageConfig, 
-  routeParams = {},
-  onDataChange  // NEW
+  routeParams = {}
 }: IAccordionProps) => {
   const { token } = theme.useToken();
 
@@ -42,7 +39,6 @@ export const Accordion = ({
           <RenderFromPageType 
             {...accordion} 
             routeParams={routeParams}
-            onDataChange={onDataChange}
           />
         </PageDataProvider>
       ),

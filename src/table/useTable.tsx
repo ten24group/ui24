@@ -229,13 +229,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
-  // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
-  const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
-    const urlFilters = getInitialFiltersFromUrl(location);
-    
-    // Resolve placeholders in defaultFilters using routeParams
-    // Example: { teamId: ':teamId' } + routeParams.teamId='123' → { teamId: {eq: '123'} }
-    const resolvedDefaultFilters: Record<string, any> = {};
+  // Memoize resolved defaultFilters to reference them when resetting
+  const resolvedDefaultFilters = React.useMemo(() => {
+    const resolved: Record<string, any> = {};
     Object.entries(defaultFilters).forEach(([key, value]) => {
       if (typeof value === 'string' && value.startsWith(':')) {
         // Placeholder: extract param name and resolve
@@ -244,15 +240,21 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         
         if (resolvedValue != null) {
           // Wrap in operator structure for UI compatibility
-          resolvedDefaultFilters[key] = { eq: resolvedValue };
+          resolved[key] = { eq: resolvedValue };
         } else {
           console.warn(`[useTable] Could not resolve placeholder "${value}" for filter "${key}"`);
         }
       } else {
         // Non-placeholder value: use as-is (already in operator structure)
-        resolvedDefaultFilters[key] = value;
+        resolved[key] = value;
       }
     });
+    return resolved;
+  }, [defaultFilters, routeParams]);
+
+  // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
+  const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
+    const urlFilters = getInitialFiltersFromUrl(location);
     
     // Merge: URL filters take precedence over defaultFilters
     return { ...resolvedDefaultFilters, ...urlFilters };
@@ -321,16 +323,18 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     if (canToggleSearchMode(apiConfig)) {
       setIsSearchMode(prev => {
         const newMode = !prev;
-        // Reset sort to defaultSort for the NEW mode
+        // Reset sort to defaultSort
         const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
         setSort(convertDefaultSortToSorterResult(defaultSort));
         return newMode;
       });
       setSearchQuery('');
-      setAppliedFilters({});
+      // Reset to defaultFilters instead of clearing everything
+      // This preserves pre-applied filters (e.g., awayTeamId from relation modals)
+      setAppliedFilters(resolvedDefaultFilters);
       setFetchTrigger(prev => prev + 1);
     }
-  }, [apiConfig]);
+  }, [apiConfig, resolvedDefaultFilters]);
 
   const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
@@ -354,18 +358,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     // Reset filters and search when navigating to a different entity
     // (but preserve URL-based filters through location query params)
     const urlFilters = getInitialFiltersFromUrl(location);
-    const resolvedDefaultFilters: Record<string, any> = {};
-    Object.entries(defaultFilters).forEach(([key, value]) => {
-      if (typeof value === 'string' && value.startsWith(':')) {
-        const paramName = value.slice(1);
-        const resolvedValue = routeParams[paramName];
-        if (resolvedValue != null) {
-          resolvedDefaultFilters[key] = { eq: resolvedValue };
-        }
-      } else {
-        resolvedDefaultFilters[key] = value;
-      }
-    });
+    // Use the memoized resolvedDefaultFilters
     setAppliedFilters({ ...resolvedDefaultFilters, ...urlFilters });
     setSearchQuery('');
     
@@ -383,7 +376,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   }, [fetchTrigger]);
 
   const handleRefresh = React.useCallback(() => {
-    setAppliedFilters({});
+    // Reset to defaultFilters instead of clearing everything
+    // This preserves pre-applied filters (e.g., awayTeamId from relation modals)
+    setAppliedFilters(resolvedDefaultFilters);
     setSearchQuery('');
     
     // Reset to initial mode
@@ -395,7 +390,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setSort(convertDefaultSortToSorterResult(defaultSort));
     
     fetchRecords(1, "");
-  }, [ fetchRecords, apiConfig ]);
+  }, [ fetchRecords, apiConfig, resolvedDefaultFilters ]);
 
   const handleReload = React.useCallback(() => {
     fetchRecords(currentPage, pageCursor[ currentPage ]);
@@ -582,7 +577,6 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),
-    // NEW: Expose for state lifting to parent
     appliedFilters,
   };
 };

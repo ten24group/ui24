@@ -13,6 +13,9 @@ import { useModalContext } from "../../../core/context";
 import { evaluateTemplateValue } from "../../../core/utils/template";
 import { Template, EvaluationResult } from "../../../core/types";
 import { useEvaluationBatch } from "../../../core/hooks";
+import { useDetailRecord } from "../../../core/context/DetailStateContext";
+import { useFormRecord } from "../../../core/context/FormStateContext";
+import { useSelectedRecords } from "../../../core/context/TableStateContext";
 
 interface IBreadcrumbs {
     /**
@@ -44,9 +47,17 @@ export interface IPageHeader {
     onRefreshData?: () => void;  // Callback to refresh page data after modal actions
 }
 
-export const PageHeader = React.memo(({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {}, onRefreshData } : IPageHeader ) => {
+export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {}, onRefreshData } : IPageHeader ) => {
     const navigate = useNavigate();
     const { isInModal } = useModalContext();
+    
+    // Get record data from contexts (use-context-selector only subscribes if context exists)
+    const detailRecord = useDetailRecord();
+    const formRecord = useFormRecord();
+    const selectedRecords = useSelectedRecords();
+    
+    // Determine which record to use (priority: detail > form > first selected)
+    const record = detailRecord || formRecord || (selectedRecords && selectedRecords.length > 0 ? selectedRecords[0] : undefined);
     
     // Evaluate page title template if provided
     const evaluatedPageTitle = pageTitle ? evaluateTemplateValue(pageTitle, routeParams) : undefined;
@@ -58,24 +69,16 @@ export const PageHeader = React.memo(({ breadcrumbs = [], pageTitle, pageHeaderA
     );
     
     /**
-     * Evaluate visibility for all actions.
+     * Evaluate visibility for all actions with record context.
      * 
-     * NOTE: Context is built automatically from:
-     * - actor (from useAuth + JWT decode)
-     * - queryParams (from useLocation)
-     * - modalDepth (from useModalDepth)
-     * 
-     * To pass additional context (e.g., record, selectedRecords):
-     * - Use additionalContext parameter in useEvaluationBatch
-     * - Example: useEvaluationBatch(configs, { record: detailData })
-     * - Example: useEvaluationBatch(configs, { selectedRecords: tableSelection })
-     * 
-     * Context is automatically provided by PostAuthPage via PageDataProvider.
+     * Now automatically includes:
+     * - actor (from AppStaticContext)
+     * - route, queryParams, modalDepth (from PageStaticContext)
+     * - record (from DetailStateContext, FormStateContext, or TableStateContext)
      */
     const evaluations = useEvaluationBatch(
-        actionsArray.map(action => action.visibility)
-        // additionalContext can be passed here if needed:
-        // { pageType: 'list', entityName: 'team', record: detailData }
+        actionsArray.map(action => action.visibility),
+        { record, selectedRecords } // Pass record and selectedRecords for evaluation
     );
     
     // Collect all dropdown items for batch evaluation
@@ -101,9 +104,10 @@ export const PageHeader = React.memo(({ breadcrumbs = [], pageTitle, pageHeaderA
         return items;
     }, [dropdownItemsMap]);
     
-    // Evaluate all dropdown items at once
+    // Evaluate all dropdown items at once (with same context as parent actions)
     const dropdownItemEvaluations = useEvaluationBatch(
-        allDropdownItems.map(({ item }) => item.visibility)
+        allDropdownItems.map(({ item }) => item.visibility),
+        { record, selectedRecords } // Pass same context
     );
     
     // Build a map of dropdown item evaluations for easy lookup
@@ -275,4 +279,4 @@ export const PageHeader = React.memo(({ breadcrumbs = [], pageTitle, pageHeaderA
             />
         </div>
     );
-});
+};

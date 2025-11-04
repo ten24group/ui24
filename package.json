@@ -94,6 +94,7 @@
     "react-editor-js": "^2.1.0",
     "react-error-boundary": "^6.0.0",
     "remove": "^0.1.5",
+    "use-context-selector": "^2.0.0",
     "uuid": "^11.1.0"
   }
 }

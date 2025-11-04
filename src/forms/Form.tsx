@@ -20,7 +20,6 @@ import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { handleApiError } from '../core/utils/api-error-handler';
-import { OnDataChangeCallback } from '../core/types/pageData';
 import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
 
@@ -29,8 +28,7 @@ interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
   routeParams?: Record<string, string>;
   entityName?: string;  // From backend config generation
-  onDataChange?: OnDataChangeCallback;  // For lifting state
-  onDataRefresh?: (refreshFn: () => void) => void;  // Standard: Register refresh handler
+  onDataChange?: (data: { record?: any; formValues?: Record<string, any>; pageType?: string; entityName?: string }) => void;
 }
 
 export function Form({
@@ -52,8 +50,7 @@ export function Form({
   routeParams = {},
   defaultValues = {},
   entityName,  // From backend config
-  onDataChange,  // For lifting state
-  onDataRefresh,  // Standard refresh callback
+  onDataChange,  // Callback to lift state to wrapper
 }: IFormWithColumnsConfig) {
   const navigate = useNavigate();
   const { notifyError, notifySuccess } = useAppContext()
@@ -202,13 +199,6 @@ export function Form({
     setIsRefreshing(false);
     setDataLoadedFromView(true);
   }, [detailApiConfig, identifiersToUse, routeParams, callApiMethod, notifyError, formPropertiesConfig, itemValueFormatter]);
-  
-  // Register refresh handler with parent
-  useEffect(() => {
-    if (onDataRefresh) {
-      onDataRefresh(() => loadAndFormatData(true));
-    }
-  }, [onDataRefresh, loadAndFormatData]);
   
   // Initial load
   useEffect(() => {
@@ -410,27 +400,9 @@ export function Form({
   // NEW: Debounce formValues LOCALLY to avoid effect running on every keystroke
   const debouncedFormValues = useDebounce(formValues, 200);
   
-  // CRITICAL FIX: Track previous values to prevent infinite loops
-  const prevFormStateRef = React.useRef<string>('');
-  
-  // NEW: Lift form state to parent (COMBINED effect - prevents race conditions)
+  // Lift form state to wrapper (if callback provided)
   useEffect(() => {
     if (!onDataChange) return;
-    
-    // // Serialize current state for comparison
-    // const currentState = JSON.stringify({
-    //   hasRecord: !!initialRecord,
-    //   formValuesKeys: debouncedFormValues,
-    //   pageType,
-    //   entityName
-    // });
-    
-    // // Only lift state if it actually changed
-    // if (currentState === prevFormStateRef.current) {
-    //   return;
-    // }
-    
-    // prevFormStateRef.current = currentState;
     
     onDataChange({
       record: initialRecord,
