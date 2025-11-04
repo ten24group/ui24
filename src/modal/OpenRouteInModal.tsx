@@ -7,6 +7,8 @@ import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../core/context';
 import { substituteUrlParams } from '../core/utils';
 import { getDefaultModalWidth } from './modalUtils';
+import { evaluateTemplateValue } from '../core/utils/template';
+import type { Template } from '../core/types';
 
 export interface OpenRouteInModalProps {
   /** URL to resolve and open in modal (e.g., "/view-user/:id") */
@@ -21,8 +23,14 @@ export interface OpenRouteInModalProps {
   /** Custom modal width (overrides auto-detection) */
   modalWidth?: number | string;
 
-  /** Override resolved page title */
-  modalTitle?: string;
+  /**
+   * Modal title - can be static string or dynamic template.
+   * Evaluated from routeParams when modal opens.
+   * 
+   * @example modalTitle: "View Team"
+   * @example modalTitle: "View {teamName}"
+   */
+  modalTitle?: Template;
 
   /** Only open in modal on specified screen size */
   openInModalCondition?: 'sm' | 'md' | 'lg' | 'xl';
@@ -129,13 +137,22 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
     return getDefaultModalWidth(pageConfig.pageType as any, modalWidth);
   }, [ pageConfig, modalWidth ]);
   
-  const finalTitle = modalTitle || pageConfig?.pageTitle;
+  // Evaluate modalTitle template if provided, otherwise use page title
+  const finalTitle = React.useMemo(() => {
+    const pageTitleFallback = pageConfig?.pageTitle;
+    return modalTitle 
+      ? evaluateTemplateValue(modalTitle, params, pageTitleFallback)
+      : pageTitleFallback;
+  }, [ modalTitle, params, pageConfig?.pageTitle ]);
 
-  // Merge query params from resolved URL
-  const finalRouteParams = {
-    ...params,
-    ...Object.fromEntries(queryParams.entries())
-  };
+  // Merge route params: original routeParams + resolved params from URL + query params
+  // This ensures custom params (like teamId, homeTeamId from identifierMapping) are preserved
+  // Memoized to prevent unnecessary re-renders and duplicate API calls
+  const finalRouteParams = React.useMemo(() => ({
+    ...routeParams,  // Include original route params (important for filters)
+    ...params,        // Override with params extracted from URL pattern
+    ...Object.fromEntries(queryParams.entries())  // Add query params
+  }), [routeParams, params, queryParams]);
 
   return (
     <>

@@ -8,7 +8,9 @@ import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { useApi, IApiConfig } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
 import { IDetailsConfig } from '../detail/Details';
-import { substituteUrlParams, getNestedValue } from '../core/utils';
+import { substituteUrlParams, getNestedValue, evaluateTemplateObject } from '../core/utils';
+import { handleApiError } from '../core/utils/api-error-handler';
+import { evaluateTemplateValue } from '../core/utils/template';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
@@ -17,14 +19,28 @@ import { ErrorFallback } from '../core/common';
 import { ModalContextProvider } from '../core/context';
 import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
 import { getDefaultModalWidth } from './modalUtils';
+import { Template } from '../core/types';
 
 // Simple modal depth tracking for stack effect
 const ModalDepthContext = React.createContext(0);
 export const useModalDepth = () => React.useContext(ModalDepthContext);
 
 interface IConfirmModal {
-  title: string;
-  content?: string;
+  /**
+   * Modal title - can be static string or dynamic template.
+   * 
+   * @example title: "Delete Team?"
+   * @example title: "Delete {teamName}?"
+   */
+  title: Template;
+  
+  /**
+   * Modal content - can be static string or dynamic template.
+   * 
+   * @example content: "Are you sure?"
+   * @example content: "Delete {teamName}? This will affect {playerCount} players."
+   */
+  content?: Template;
 }
 type IModalType = "confirm" | "list" | "form" | "custom" | "details" | "accordion" | "dashboard";
 
@@ -65,7 +81,7 @@ export interface IResponseDisplayConfig {
   /** Title for response modal. If not provided, appends " - Results" to action modal title */
   modalTitle?: string;
   
-  /** Width of response modal in pixels. Default: 800 */
+  /** Width of response modal in pixels. Default: 707 */
   modalWidth?: number;
   
   /** OPTION 1: Render response using existing page type system (recommended) */
@@ -97,6 +113,42 @@ export interface IModalConfig {
   /** OPTIONAL: Display API response in modal (instead of just toast) */
   responseConfig?: IResponseDisplayConfig;
   
+  /**
+   * Pre-populate form fields from context (route params + record data).
+   * Values are evaluated when modal opens. Supports:
+   * - Static values: `{ isActive: true, priority: 1 }`
+   * - Template strings: `{ teamId: '{teamId}', sport: '{sport}' }`
+   * - Nested paths: `{ teamName: '{team.name}' }`
+   */
+  initialValues?: Record<string, any>;
+  
+  /**
+   * If true, parent component will be refreshed after successful operation.
+   * Triggers onSuccessCallback with API response data.
+   * @default false
+   */
+  refreshParentOnSuccess?: boolean;
+  
+  /**
+   * Custom success message template. If not provided, uses default message from API response.
+   * Can be a static string or a dynamic template.
+   * 
+   * @example successMessage: "Operation successful"
+   * @example successMessage: "{teamName} deleted successfully"
+   * @example successMessage: { composite: ['teamName', 'playerCount'], template: '{teamName} deleted ({playerCount} players affected)' }
+   */
+  successMessage?: Template;
+  
+  /**
+   * Custom error message template. If not provided, uses error messages from API response.
+   * Can be a static string or a dynamic template.
+   * 
+   * @example errorMessage: "Operation failed"
+   * @example errorMessage: "Failed to delete {teamName}"
+   * @example errorMessage: { composite: ['teamName', 'reason'], template: 'Failed to delete {teamName}: {reason}' }
+   */
+  errorMessage?: Template;
+  
   primaryIndex?: string;
   useDynamicIdFromParams?: boolean;
   onSuccessCallback?: (response?: any) => void;
@@ -109,8 +161,16 @@ export interface IModalConfig {
   /** Modal width in pixels or CSS string (e.g., "80%"). Default: auto-detect from page type */
   modalWidth?: number | string;
   
-  /** Modal title override. Default: uses page title from config */
-  modalTitle?: string;
+  /**
+   * Modal title - can be static string or dynamic template.
+   * Evaluated from routeParams when modal opens.
+   * If not provided, uses page title from config.
+   * 
+   * @example modalTitle: "Edit Team"
+   * @example modalTitle: "Edit {teamName}"
+   * @example modalTitle: { composite: ['teamName', 'city'], template: 'Edit {teamName} ({city})' }
+   */
+  modalTitle?: Template;
 }
 
 /**
@@ -210,6 +270,10 @@ export const Modal = ({
   apiConfig,
   navigateTo,
   responseConfig,
+  initialValues,
+  refreshParentOnSuccess = false,
+  successMessage,
+  errorMessage,
   primaryIndex = "",
   useDynamicIdFromParams = true,
   onSuccessCallback,
@@ -253,9 +317,23 @@ export const Modal = ({
 
       if (response.status === 200) {
         const responseDataFromApi = apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
-        const message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
+        
+        // Evaluate custom success message template if provided, otherwise use API response message
+        let message: string;
+        if (successMessage) {
+          const context = { ...routeParams, ...responseDataFromApi };
+          message = evaluateTemplateValue(successMessage, context);
+        } else {
+          message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
+        }
+        
         notifySuccess(message);
 
+        // Check if parent should be refreshed
+        if (refreshParentOnSuccess && onSuccessCallback) {
+          onSuccessCallback(responseDataFromApi);
+        }
+        
         // Check if response should be displayed in modal
         if (responseConfig?.showModal) {
           // Show response modal - delay redirect and callback until modal closes
@@ -264,7 +342,10 @@ export const Modal = ({
           // onConfirmCallback will be called in response modal's onClose handler
         } else {
           // Standard behavior: callback + redirect
-          onSuccessCallback && onSuccessCallback(responseDataFromApi);
+          // Note: Don't call onSuccessCallback again if already called above
+          if (!refreshParentOnSuccess && onSuccessCallback) {
+            onSuccessCallback(responseDataFromApi);
+          }
           if (submitSuccessRedirect) {
             // redirect to appropriate page
             // replace placeholders with the actual values
@@ -274,14 +355,53 @@ export const Modal = ({
           // Close action modal
           onConfirmCallback && onConfirmCallback()
         }
-      } else {
-        const message = response.data?.details?.message || response.data?.message || response.message || "Operation Failed";
-        notifyError(message)
-        // Close modal on error
-        onConfirmCallback && onConfirmCallback()
+      } else if (response.status >= 400 && response.status < 600) {
+        // Handle error response using consolidated error handler
+        const errorResult = handleApiError(response, 'Operation failed');
+        
+        // Evaluate custom error message template if provided, otherwise use error handler result
+        let message: string;
+        if (errorMessage) {
+          const context = { 
+            ...routeParams, 
+            ...(response.data || {}),
+            error: errorResult.errorMessage 
+          };
+          message = evaluateTemplateValue(errorMessage, context);
+        } else {
+          message = errorResult.formattedErrors.join('\n');
+        }
+        
+        // Show all errors (validation or other)
+        notifyError(message);
+        
+        // Keep modal OPEN on validation errors (user can review and cancel)
+        // Close modal on non-validation errors (404, 403, 500, etc.)
+        if (!errorResult.isValidationError) {
+          onConfirmCallback && onConfirmCallback();
+        }
       }
     } catch (error: any) {
-      notifyError(error?.message || 'An unexpected error occurred');
+      // Handle network errors or other exceptions using consolidated error handler
+      const errorResult = handleApiError(error, 'An unexpected error occurred');
+      
+      // Evaluate custom error message template if provided, otherwise use error handler result
+      let message: string;
+      if (errorMessage) {
+        const context = { 
+          ...routeParams, 
+          error: errorResult.errorMessage 
+        };
+        message = evaluateTemplateValue(errorMessage, context);
+      } else {
+        message = errorResult.formattedErrors.join('\n');
+      }
+      
+      // Show all errors
+      notifyError(message);
+      
+      // Keep modal open on validation errors or network errors (user can retry or cancel)
+      // This is intentional UX: user should decide whether to retry or cancel
     } finally {
       setLoading(false);
     }
@@ -482,7 +602,16 @@ export const Modal = ({
 
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
     const configTitle = (modalPageConfig as IConfirmModal)?.title;
-    const effectiveTitle = modalTitle || configTitle;
+    
+    // Evaluate templates for both modalTitle and configTitle
+    const evaluatedModalTitle = modalTitle 
+      ? evaluateTemplateValue(modalTitle, routeParams)
+      : null;
+    const evaluatedConfigTitle = configTitle
+      ? evaluateTemplateValue(configTitle, routeParams)
+      : null;
+    const effectiveTitle = evaluatedModalTitle || evaluatedConfigTitle || 'Confirm';
+    
     const effectiveWidth = getDefaultModalWidth('confirm', modalWidth);
     
     return (
@@ -505,7 +634,7 @@ export const Modal = ({
               onCancelCallback && onCancelCallback(); // Close modal on error reset
             }}
           >
-            {(modalPageConfig as IConfirmModal)?.content}
+            {evaluateTemplateValue((modalPageConfig as IConfirmModal)?.content, routeParams)}
             {children}
           </ErrorBoundary>
         </AntModal>
@@ -521,7 +650,10 @@ export const Modal = ({
               hideResponseModal();
               
               // Execute callback and redirect after modal closes
-              onSuccessCallback && onSuccessCallback(responseData);
+              // Note: Don't call callback if refreshParentOnSuccess already called it
+              if (!refreshParentOnSuccess && onSuccessCallback) {
+                onSuccessCallback(responseData);
+              }
               if (submitSuccessRedirect) {
                 const formattedUrl = substituteUrlParams(
                   submitSuccessRedirect, 
@@ -542,14 +674,22 @@ export const Modal = ({
 
   // Handler for form submissions (wraps response display logic)
   const handleFormSubmitSuccess = (response: any) => {
+    // Extract response data (Form.tsx passes full response object)
+    const responseDataFromForm = response?.data || response;
+    
+    // Check if parent should be refreshed
+    if (refreshParentOnSuccess && onSuccessCallback) {
+      onSuccessCallback(responseDataFromForm);
+    }
+    
     if (responseConfig?.showModal) {
-      // Extract response data (Form.tsx passes full response object)
-      const responseDataFromForm = response?.data || response;
       showResponseModal(responseDataFromForm);
       // Note: Action modal stays open, will be closed when response modal closes
     } else {
-      // Standard behavior
-      onSuccessCallback && onSuccessCallback(response);
+      // Standard behavior - only call callback if not already called above
+      if (!refreshParentOnSuccess && onSuccessCallback) {
+        onSuccessCallback(responseDataFromForm);
+      }
     }
   };
   
@@ -566,7 +706,13 @@ export const Modal = ({
   if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
     const configTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
-    const effectiveTitle = modalTitle || configTitle;
+    
+    // Evaluate modalTitle template if provided, otherwise use configTitle
+    const evaluatedModalTitle = modalTitle
+      ? evaluateTemplateValue(modalTitle, routeParams, configTitle)
+      : configTitle;
+    
+    const effectiveTitle = evaluatedModalTitle || configTitle;
     
     // Use centralized width calculation
     const effectiveWidth = getDefaultModalWidth(modalType as any, modalWidth);
@@ -605,10 +751,21 @@ export const Modal = ({
                     onSubmitSuccessCallback: navigateTo 
                       ? handleNavigationSubmit 
                       : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),
+                    // Pass cancel callback to close modal
+                    onCancelCallback: onCancelCallback,
                     // Remove apiConfig if navigateTo is specified (navigation-only mode)
                     apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
-                    // Pre-populate form from query params if inverseMapping enabled
-                    defaultValues: defaultValuesFromQuery || (modalPageConfig as IForm).defaultValues,
+                    // Pre-populate form from context and query params
+                    // Merge priority (lowest to highest):
+                    // 1. Field defaults (from entity schema) - handled by Form component
+                    // 2. initialValues (from action config) - evaluated here
+                    // 3. Query params (from URL with inverseMapping)
+                    // 4. Form defaultValues (from parent component)
+                    defaultValues: {
+                      ...(initialValues ? evaluateTemplateObject(initialValues, routeParams) : {}),
+                      ...defaultValuesFromQuery,
+                      ...(modalPageConfig as IForm).defaultValues
+                    },
                     useDynamicIdFromParams: false,
                     routeParams
                   } as IForm : undefined

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { WidgetRenderer } from '../../dashboard/WidgetRenderer';
 import { IStatWidgetProps } from '../../dashboard/widgets/StatWidget';
 import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
@@ -10,6 +10,7 @@ import { useUi24Config } from '../../core/context';
 import { IDetailsConfig } from '../../detail/Details';
 import { IForm } from '../../core/forms/formConfig';
 import { IModalConfig } from '../../modal/Modal';
+import { PageDataProvider } from '../../core/context/PageDataContext';
 
 export type DefaultTimePeriod = {
   period: TimePeriod;
@@ -181,7 +182,11 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
   };
 }
 
-export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> = ({ dashboardConfig }) => {
+export const DashboardPage: React.FC<{ 
+  dashboardConfig: IDashboardPageConfig;
+}> = ({ 
+  dashboardConfig
+}) => {
   const { selectConfig } = useUi24Config();
   const formatConfigTz = selectConfig(config => {
     return config.formatConfig?.timezone;
@@ -206,7 +211,16 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
   }
 
   return (
-    <>
+    // Dashboard gets ISOLATED context to prevent state leakage
+    <PageDataProvider 
+      localData={{ 
+        dashboardFilters: {
+          timePeriod: dashboardTimePeriod,
+          widgetTimePeriods
+        }
+      }} 
+      isolated={true}
+    >
       {dashboardConfig?.showTimePeriodSelector && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
           <TimePeriodSelector value={dashboardTimePeriod} onChange={setDashboardTimePeriod} timezone={resolvedDashboardTz} />
@@ -266,6 +280,6 @@ export const DashboardPage: React.FC<{ dashboardConfig: IDashboardPageConfig }> 
           );
         })}
       </div>
-    </>
+    </PageDataProvider>
   );
 }; 

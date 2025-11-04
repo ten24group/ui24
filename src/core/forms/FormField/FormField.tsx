@@ -1,47 +1,13 @@
-import React, { ReactNode, useEffect } from 'react';
-import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Switch, TimePicker, Select as AntSelect, Typography } from 'antd';
-import { OptionSelector, IFieldOptions, IOptions } from './OptionSelector';
-import { useApi, useUi24Config } from '../../context';
+import React from 'react';
+import { Button, Card, Form, Input, DatePicker, TimePicker, Typography, Switch } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
+import { OptionSelector, IOptions } from './OptionSelector';
+import { useUi24Config } from '../../context';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
-import { IModalConfig } from '../../../modal/Modal';
-
-import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
-import { FieldType, PropertyType, ValidationType } from '../../types/field-types';
+import { FileUploader, CustomBlockNoteEditor } from '../../common/';
 import { HelpText, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
-import { IEntityConfigReference } from '../../hooks';
-
-
-
-interface IFormField {
-    namePrefixPath?: any[];
-    id?: string;
-    column?: string;
-    name: string; //unique identifier, should be without spaces
-    validationRules?: Array<any>; //rules matching ant design convention
-    placeholder: string; //placeholder text
-    helpText?: string; //help text for the field
-    prefixIcon?: ReactNode; //prefix icon as a react component
-    fieldType?: FieldType; //field type
-    timezone?: string;
-    options?: IFieldOptions; //options for select, radio, checkbox
-    addNewOption?: IModalConfig; // DEPRECATED: add new option for select, multi-select
-    addNewOptionConfig?: IEntityConfigReference; // NEW: Entity config reference for add new option
-    label: string;
-    style?: React.CSSProperties;
-    initialValue?: any;
-    setFormValue?: Function;
-    hidden?: boolean; //whether to hide this field from display
-
-    // for list and map fields
-    type?: PropertyType;
-    properties?: Array<IFormField>
-    items?: {
-        type: PropertyType,
-        properties?: Array<IFormField>
-    }
-}
+import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFieldOptions } from '../../types/field-config';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -73,7 +39,6 @@ const MakeFormItem = ({
             rules={validationRules}
             label={label}
             style={style}
-            initialValue={initialValue}
             valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
         >
 
@@ -118,7 +83,7 @@ const MakeFormItem = ({
             {fieldType === "file" &&
                 <FileUploader
                     accept={restFormItemProps[ 'accept' ] ?? undefined}
-                    listType={restFormItemProps[ 'listType' ] ?? 'picture-card'}
+                    listType={(restFormItemProps[ 'listType' ] as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
                     // config for the default image uploader
                     fileNamePrefix={restFormItemProps[ 'fileNamePrefix' ] ?? undefined}
                     getSignedUploadUrlAPIConfig={restFormItemProps[ 'getSignedUploadUrlAPIConfig' ] ?? undefined}
@@ -128,7 +93,7 @@ const MakeFormItem = ({
             {fieldType === "image" &&
                 <FileUploader
                     accept={restFormItemProps[ 'accept' ] ?? 'image/*'}
-                    listType={restFormItemProps[ 'listType' ] ?? 'picture-card'}
+                    listType={(restFormItemProps[ 'listType' ] as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
                     withImageCrop={restFormItemProps[ 'withImageCrop' ] ?? true}
 
                     // config for the default image uploader
@@ -177,7 +142,6 @@ const MakeFormListItem = ({
         <Form.List
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
-            initialValue={initialValue}
         >
             {(fields, { add, remove }) => {
                 return <div style={formStyles.listContainer}>
@@ -281,35 +245,6 @@ export function FormField(formField: IFormField) {
     </div>
 }
 
-type IPreDefinedValidations = "required" | "email" | `match:${string}`;
-interface IFormFieldResponse {
-    column: string;
-    label: string;
-    placeholder: string;
-    helpText?: string;
-    validations: Array<IPreDefinedValidations>;
-    fieldType?: FieldType;
-    options?: Array<IOptions>;
-    addNewOption?: IModalConfig; // DEPRECATED: Use addNewOptionConfig
-    addNewOptionConfig?: IEntityConfigReference; // NEW: Entity config reference
-    hidden?: boolean; //whether to hide this field from display
-
-    //for image and file
-    accept?: string;
-    fileNamePrefix?: string;
-    listType?: string;
-    getSignedUploadUrlAPIConfig?: GetSignedUploadUrlAPIConfig,
-    withImageCrop?: boolean;
-
-    // list and map fields
-    type?: PropertyType;
-    properties?: Array<IFormFieldResponse>
-    items?: {
-        type: PropertyType,
-        properties?: Array<IFormFieldResponse>
-    }
-}
-
 const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) => {
     return (validationRules ?? []).map(validationRule => {
         let antValidationRule = {}
@@ -341,6 +276,7 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
             placeholder: columnConfig.placeholder ?? columnConfig.label,
             helpText: columnConfig.helpText,
             fieldType: columnConfig.fieldType ?? "text",
+            defaultValue: columnConfig.defaultValue, // Pass through default value from backend
             options: columnConfig.options ?? [],
             addNewOption: columnConfig?.addNewOption,
             addNewOptionConfig: columnConfig?.addNewOptionConfig,

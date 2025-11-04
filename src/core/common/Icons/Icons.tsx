@@ -1,24 +1,385 @@
-import { AppstoreOutlined, MailOutlined, SettingOutlined, PoweroffOutlined, PlusCircleOutlined, EditOutlined, DeleteOutlined, CopyOutlined, EyeOutlined, SearchOutlined, ExportOutlined, ImportOutlined, DownOutlined, UpOutlined } from '@ant-design/icons';
+import { 
+    AppstoreOutlined, 
+    MailOutlined, 
+    SettingOutlined, 
+    PoweroffOutlined, 
+    PlusCircleOutlined,
+    PlusOutlined,
+    MinusCircleOutlined,
+    MinusOutlined,
+    EditOutlined, 
+    DeleteOutlined, 
+    CopyOutlined, 
+    EyeOutlined,
+    EyeInvisibleOutlined,
+    SearchOutlined, 
+    ExportOutlined, 
+    ImportOutlined, 
+    DownOutlined, 
+    UpOutlined,
+    LeftOutlined,
+    RightOutlined,
+    PlayCircleOutlined,
+    PauseCircleOutlined,
+    WarningOutlined,
+    ApiOutlined,
+    QuestionCircleOutlined,
+    FolderOutlined,
+    FolderOpenOutlined,
+    FileOutlined,
+    FileTextOutlined,
+    SyncOutlined,
+    ReloadOutlined,
+    ThunderboltOutlined,
+    ControlOutlined,
+    BarChartOutlined,
+    LineChartOutlined,
+    PieChartOutlined,
+    TeamOutlined,
+    UserOutlined,
+    UserAddOutlined,
+    UsergroupAddOutlined,
+    GlobalOutlined,
+    AimOutlined,
+    EnvironmentOutlined,
+    TrophyOutlined,
+    SignalFilled,
+    HomeOutlined,
+    DashboardOutlined,
+    CalendarOutlined,
+    ClockCircleOutlined,
+    BellOutlined,
+    NotificationOutlined,
+    LockOutlined,
+    UnlockOutlined,
+    SaveOutlined,
+    UploadOutlined,
+    DownloadOutlined,
+    CloudUploadOutlined,
+    CloudDownloadOutlined,
+    CloudOutlined,
+    HeartOutlined,
+    HeartFilled,
+    StarOutlined,
+    StarFilled,
+    LikeOutlined,
+    DislikeOutlined,
+    CheckOutlined,
+    CheckCircleOutlined,
+    CloseOutlined,
+    CloseCircleOutlined,
+    InfoCircleOutlined,
+    ExclamationCircleOutlined,
+    FilterOutlined,
+    SortAscendingOutlined,
+    SortDescendingOutlined,
+    MenuOutlined,
+    MenuFoldOutlined,
+    MenuUnfoldOutlined,
+    MoreOutlined,
+    EllipsisOutlined,
+    FullscreenOutlined,
+    FullscreenExitOutlined,
+    ZoomInOutlined,
+    ZoomOutOutlined,
+    PrinterOutlined,
+    ShareAltOutlined,
+    LinkOutlined,
+    TagOutlined,
+    TagsOutlined,
+    BookOutlined,
+    ReadOutlined,
+    FormOutlined,
+    OrderedListOutlined,
+    UnorderedListOutlined,
+    TableOutlined,
+    CommentOutlined,
+    MessageOutlined,
+    PhoneOutlined,
+    MobileOutlined,
+    CameraOutlined,
+    PictureOutlined,
+    VideoCameraOutlined,
+    ShoppingCartOutlined,
+    ShoppingOutlined,
+    GiftOutlined,
+    DollarOutlined,
+    CreditCardOutlined,
+    WalletOutlined,
+    BankOutlined,
+    CalculatorOutlined,
+    SafetyOutlined,
+    SecurityScanOutlined,
+    KeyOutlined,
+    ToolOutlined,
+    BugOutlined,
+    CodeOutlined,
+    BranchesOutlined,
+    DeploymentUnitOutlined,
+    RocketOutlined,
+    BuildOutlined,
+    ExperimentOutlined,
+    FundOutlined,
+    StockOutlined,
+    PropertySafetyOutlined,
+    CarOutlined,
+    CarryOutOutlined,
+    CompassOutlined,
+    CustomerServiceOutlined,
+    DatabaseOutlined,
+    DesktopOutlined,
+    DisconnectOutlined,
+    FieldTimeOutlined,
+    FireOutlined,
+    FlagOutlined,
+    FundProjectionScreenOutlined,
+    GoldOutlined,
+    HourglassOutlined,
+    IdcardOutlined,
+    InsuranceOutlined,
+    LayoutOutlined,
+    Loading3QuartersOutlined,
+    LoadingOutlined,
+    MedicineBoxOutlined,
+    PaperClipOutlined,
+    PercentageOutlined,
+    PushpinOutlined,
+    QrcodeOutlined,
+    ScheduleOutlined,
+    SkinOutlined,
+    SmileOutlined,
+    SoundOutlined,
+    SwapOutlined,
+    SwitcherOutlined,
+    TrademarkOutlined,
+    UsbOutlined,
+    WifiOutlined,
+    HistoryOutlined
+} from '@ant-design/icons';
 import React from 'react';
 
+// Helper function to create multiple naming variations
+const createIconMappings = (name: string, component: React.ReactNode) => {
+    const mappings: Record<string, React.ReactNode> = {};
+    
+    // Original Ant Design name (e.g., "SyncOutlined")
+    mappings[name] = component;
+    
+    // Remove "Outlined", "Filled", "TwoTone" suffix for base name
+    const baseName = name.replace(/(Outlined|Filled|TwoTone)$/, '');
+    
+    // Lowercase version (e.g., "sync")
+    mappings[baseName.toLowerCase()] = component;
+    
+    // Kebab-case version (e.g., "sync-outlined")
+    const kebabCase = name.replace(/([A-Z])/g, '-$1').toLowerCase().replace(/^-/, '');
+    mappings[kebabCase] = component;
+    
+    // CamelCase version (e.g., "syncOutlined")
+    mappings[baseName.charAt(0).toLowerCase() + baseName.slice(1) + name.replace(baseName, '')] = component;
+    
+    return mappings;
+};
 
-const IconConfig = {
-    "appStore": <AppstoreOutlined />,
-    "mail": <MailOutlined />,
-    "settings": <SettingOutlined />,
-    "logout": <PoweroffOutlined />,
-    "edit": <EditOutlined />,
-    "view": <EyeOutlined />,
-    "delete": <DeleteOutlined />,
-    "copy": <CopyOutlined />,
-    "plus": <PlusCircleOutlined />,
-    "search": <SearchOutlined />,
-    "export": <ExportOutlined />,
-    "import": <ImportOutlined />,
-    "down": <DownOutlined />,
-    "up": <UpOutlined />
-}
+// Build comprehensive icon configuration
+const buildIconConfig = () => {
+    const config: Record<string, React.ReactNode> = {};
+    
+    const icons = [
+        { name: 'AppstoreOutlined', component: <AppstoreOutlined /> },
+        { name: 'MailOutlined', component: <MailOutlined /> },
+        { name: 'SettingOutlined', component: <SettingOutlined /> },
+        { name: 'PoweroffOutlined', component: <PoweroffOutlined /> },
+        { name: 'PlusCircleOutlined', component: <PlusCircleOutlined /> },
+        { name: 'PlusOutlined', component: <PlusOutlined /> },
+        { name: 'MinusCircleOutlined', component: <MinusCircleOutlined /> },
+        { name: 'MinusOutlined', component: <MinusOutlined /> },
+        { name: 'EditOutlined', component: <EditOutlined /> },
+        { name: 'DeleteOutlined', component: <DeleteOutlined /> },
+        { name: 'CopyOutlined', component: <CopyOutlined /> },
+        { name: 'EyeOutlined', component: <EyeOutlined /> },
+        { name: 'EyeInvisibleOutlined', component: <EyeInvisibleOutlined /> },
+        { name: 'SearchOutlined', component: <SearchOutlined /> },
+        { name: 'ExportOutlined', component: <ExportOutlined /> },
+        { name: 'ImportOutlined', component: <ImportOutlined /> },
+        { name: 'DownOutlined', component: <DownOutlined /> },
+        { name: 'UpOutlined', component: <UpOutlined /> },
+        { name: 'LeftOutlined', component: <LeftOutlined /> },
+        { name: 'RightOutlined', component: <RightOutlined /> },
+        { name: 'PlayCircleOutlined', component: <PlayCircleOutlined /> },
+        { name: 'PauseCircleOutlined', component: <PauseCircleOutlined /> },
+        { name: 'WarningOutlined', component: <WarningOutlined /> },
+        { name: 'ApiOutlined', component: <ApiOutlined /> },
+        { name: 'QuestionCircleOutlined', component: <QuestionCircleOutlined /> },
+        { name: 'FolderOutlined', component: <FolderOutlined /> },
+        { name: 'FolderOpenOutlined', component: <FolderOpenOutlined /> },
+        { name: 'FileOutlined', component: <FileOutlined /> },
+        { name: 'FileTextOutlined', component: <FileTextOutlined /> },
+        { name: 'SyncOutlined', component: <SyncOutlined /> },
+        { name: 'ReloadOutlined', component: <ReloadOutlined /> },
+        { name: 'ThunderboltOutlined', component: <ThunderboltOutlined /> },
+        { name: 'ControlOutlined', component: <ControlOutlined /> },
+        { name: 'BarChartOutlined', component: <BarChartOutlined /> },
+        { name: 'LineChartOutlined', component: <LineChartOutlined /> },
+        { name: 'PieChartOutlined', component: <PieChartOutlined /> },
+        { name: 'TeamOutlined', component: <TeamOutlined /> },
+        { name: 'UserOutlined', component: <UserOutlined /> },
+        { name: 'UserAddOutlined', component: <UserAddOutlined /> },
+        { name: 'UsergroupAddOutlined', component: <UsergroupAddOutlined /> },
+        { name: 'GlobalOutlined', component: <GlobalOutlined /> },
+        { name: 'AimOutlined', component: <AimOutlined /> },
+        { name: 'EnvironmentOutlined', component: <EnvironmentOutlined /> },
+        { name: 'TrophyOutlined', component: <TrophyOutlined /> },
+        { name: 'SignalFilled', component: <SignalFilled /> },
+        { name: 'HomeOutlined', component: <HomeOutlined /> },
+        { name: 'DashboardOutlined', component: <DashboardOutlined /> },
+        { name: 'CalendarOutlined', component: <CalendarOutlined /> },
+        { name: 'ClockCircleOutlined', component: <ClockCircleOutlined /> },
+        { name: 'BellOutlined', component: <BellOutlined /> },
+        { name: 'NotificationOutlined', component: <NotificationOutlined /> },
+        { name: 'LockOutlined', component: <LockOutlined /> },
+        { name: 'UnlockOutlined', component: <UnlockOutlined /> },
+        { name: 'SaveOutlined', component: <SaveOutlined /> },
+        { name: 'UploadOutlined', component: <UploadOutlined /> },
+        { name: 'DownloadOutlined', component: <DownloadOutlined /> },
+        { name: 'CloudUploadOutlined', component: <CloudUploadOutlined /> },
+        { name: 'CloudDownloadOutlined', component: <CloudDownloadOutlined /> },
+        { name: 'CloudOutlined', component: <CloudOutlined /> },
+        { name: 'HeartOutlined', component: <HeartOutlined /> },
+        { name: 'HeartFilled', component: <HeartFilled /> },
+        { name: 'StarOutlined', component: <StarOutlined /> },
+        { name: 'StarFilled', component: <StarFilled /> },
+        { name: 'LikeOutlined', component: <LikeOutlined /> },
+        { name: 'DislikeOutlined', component: <DislikeOutlined /> },
+        { name: 'CheckOutlined', component: <CheckOutlined /> },
+        { name: 'CheckCircleOutlined', component: <CheckCircleOutlined /> },
+        { name: 'CloseOutlined', component: <CloseOutlined /> },
+        { name: 'CloseCircleOutlined', component: <CloseCircleOutlined /> },
+        { name: 'InfoCircleOutlined', component: <InfoCircleOutlined /> },
+        { name: 'ExclamationCircleOutlined', component: <ExclamationCircleOutlined /> },
+        { name: 'FilterOutlined', component: <FilterOutlined /> },
+        { name: 'SortAscendingOutlined', component: <SortAscendingOutlined /> },
+        { name: 'SortDescendingOutlined', component: <SortDescendingOutlined /> },
+        { name: 'MenuOutlined', component: <MenuOutlined /> },
+        { name: 'MenuFoldOutlined', component: <MenuFoldOutlined /> },
+        { name: 'MenuUnfoldOutlined', component: <MenuUnfoldOutlined /> },
+        { name: 'MoreOutlined', component: <MoreOutlined /> },
+        { name: 'EllipsisOutlined', component: <EllipsisOutlined /> },
+        { name: 'FullscreenOutlined', component: <FullscreenOutlined /> },
+        { name: 'FullscreenExitOutlined', component: <FullscreenExitOutlined /> },
+        { name: 'ZoomInOutlined', component: <ZoomInOutlined /> },
+        { name: 'ZoomOutOutlined', component: <ZoomOutOutlined /> },
+        { name: 'PrinterOutlined', component: <PrinterOutlined /> },
+        { name: 'ShareAltOutlined', component: <ShareAltOutlined /> },
+        { name: 'LinkOutlined', component: <LinkOutlined /> },
+        { name: 'TagOutlined', component: <TagOutlined /> },
+        { name: 'TagsOutlined', component: <TagsOutlined /> },
+        { name: 'BookOutlined', component: <BookOutlined /> },
+        { name: 'ReadOutlined', component: <ReadOutlined /> },
+        { name: 'FormOutlined', component: <FormOutlined /> },
+        { name: 'OrderedListOutlined', component: <OrderedListOutlined /> },
+        { name: 'UnorderedListOutlined', component: <UnorderedListOutlined /> },
+        { name: 'TableOutlined', component: <TableOutlined /> },
+        { name: 'CommentOutlined', component: <CommentOutlined /> },
+        { name: 'MessageOutlined', component: <MessageOutlined /> },
+        { name: 'PhoneOutlined', component: <PhoneOutlined /> },
+        { name: 'MobileOutlined', component: <MobileOutlined /> },
+        { name: 'CameraOutlined', component: <CameraOutlined /> },
+        { name: 'PictureOutlined', component: <PictureOutlined /> },
+        { name: 'VideoCameraOutlined', component: <VideoCameraOutlined /> },
+        { name: 'ShoppingCartOutlined', component: <ShoppingCartOutlined /> },
+        { name: 'ShoppingOutlined', component: <ShoppingOutlined /> },
+        { name: 'GiftOutlined', component: <GiftOutlined /> },
+        { name: 'DollarOutlined', component: <DollarOutlined /> },
+        { name: 'CreditCardOutlined', component: <CreditCardOutlined /> },
+        { name: 'WalletOutlined', component: <WalletOutlined /> },
+        { name: 'BankOutlined', component: <BankOutlined /> },
+        { name: 'CalculatorOutlined', component: <CalculatorOutlined /> },
+        { name: 'SafetyOutlined', component: <SafetyOutlined /> },
+        { name: 'SecurityScanOutlined', component: <SecurityScanOutlined /> },
+        { name: 'KeyOutlined', component: <KeyOutlined /> },
+        { name: 'ToolOutlined', component: <ToolOutlined /> },
+        { name: 'BugOutlined', component: <BugOutlined /> },
+        { name: 'CodeOutlined', component: <CodeOutlined /> },
+        { name: 'BranchesOutlined', component: <BranchesOutlined /> },
+        { name: 'DeploymentUnitOutlined', component: <DeploymentUnitOutlined /> },
+        { name: 'RocketOutlined', component: <RocketOutlined /> },
+        { name: 'BuildOutlined', component: <BuildOutlined /> },
+        { name: 'ExperimentOutlined', component: <ExperimentOutlined /> },
+        { name: 'FundOutlined', component: <FundOutlined /> },
+        { name: 'StockOutlined', component: <StockOutlined /> },
+        { name: 'PropertySafetyOutlined', component: <PropertySafetyOutlined /> },
+        { name: 'CarOutlined', component: <CarOutlined /> },
+        { name: 'CarryOutOutlined', component: <CarryOutOutlined /> },
+        { name: 'CompassOutlined', component: <CompassOutlined /> },
+        { name: 'CustomerServiceOutlined', component: <CustomerServiceOutlined /> },
+        { name: 'DatabaseOutlined', component: <DatabaseOutlined /> },
+        { name: 'DesktopOutlined', component: <DesktopOutlined /> },
+        { name: 'DisconnectOutlined', component: <DisconnectOutlined /> },
+        { name: 'FieldTimeOutlined', component: <FieldTimeOutlined /> },
+        { name: 'FireOutlined', component: <FireOutlined /> },
+        { name: 'FlagOutlined', component: <FlagOutlined /> },
+        { name: 'FundProjectionScreenOutlined', component: <FundProjectionScreenOutlined /> },
+        { name: 'GoldOutlined', component: <GoldOutlined /> },
+        { name: 'HourglassOutlined', component: <HourglassOutlined /> },
+        { name: 'IdcardOutlined', component: <IdcardOutlined /> },
+        { name: 'InsuranceOutlined', component: <InsuranceOutlined /> },
+        { name: 'LayoutOutlined', component: <LayoutOutlined /> },
+        { name: 'Loading3QuartersOutlined', component: <Loading3QuartersOutlined /> },
+        { name: 'LoadingOutlined', component: <LoadingOutlined /> },
+        { name: 'MedicineBoxOutlined', component: <MedicineBoxOutlined /> },
+        { name: 'PaperClipOutlined', component: <PaperClipOutlined /> },
+        { name: 'PercentageOutlined', component: <PercentageOutlined /> },
+        { name: 'PushpinOutlined', component: <PushpinOutlined /> },
+        { name: 'QrcodeOutlined', component: <QrcodeOutlined /> },
+        { name: 'ScheduleOutlined', component: <ScheduleOutlined /> },
+        { name: 'SkinOutlined', component: <SkinOutlined /> },
+        { name: 'SmileOutlined', component: <SmileOutlined /> },
+        { name: 'SoundOutlined', component: <SoundOutlined /> },
+        { name: 'SwapOutlined', component: <SwapOutlined /> },
+        { name: 'SwitcherOutlined', component: <SwitcherOutlined /> },
+        { name: 'TrademarkOutlined', component: <TrademarkOutlined /> },
+        { name: 'UsbOutlined', component: <UsbOutlined /> },
+        { name: 'WifiOutlined', component: <WifiOutlined /> },
+        { name: 'HistoryOutlined', component: <HistoryOutlined /> },
+    ];
+    
+    // Create all naming variations for each icon
+    icons.forEach(({ name, component }) => {
+        const mappings = createIconMappings(name, component);
+        Object.assign(config, mappings);
+    });
+    
+    // Add common aliases
+    config['settings'] = <SettingOutlined />;
+    config['logout'] = <PoweroffOutlined />;
+    config['view'] = <EyeOutlined />;
+    config['plus'] = <PlusCircleOutlined />;
+    config['more'] = <MoreOutlined />;
+    config['refresh'] = <ReloadOutlined />;
+    config['play'] = <PlayCircleOutlined />;
+    config['pause'] = <PauseCircleOutlined />;
+    config['warning'] = <WarningOutlined />;
+    config['error'] = <CloseCircleOutlined />;
+    config['success'] = <CheckCircleOutlined />;
+    config['info'] = <InfoCircleOutlined />;
+    config['question'] = <QuestionCircleOutlined />;
+    config['loading'] = <LoadingOutlined />;
+    config['appStore'] = <AppstoreOutlined />;
+    
+    return config;
+};
 
-export const Icon = ({ iconName }: { iconName: string }): React.ReactNode => {
-    return IconConfig[ iconName ];
+const IconConfig = buildIconConfig();
+
+export const Icon = ({ iconName }: { iconName?: string }): React.ReactNode => {
+    if (!iconName) return <QuestionCircleOutlined />;
+    
+    const icon = IconConfig[iconName];
+    if (!icon) {
+        console.warn(`[Icon] Unknown icon name: "${iconName}". Using fallback icon.`);
+        return <QuestionCircleOutlined />;
+    }
+    
+    return icon;
 }

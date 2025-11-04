@@ -1,10 +1,11 @@
-import React, { Fragment } from "react";
+import React, { Fragment, useMemo } from "react";
 import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from "../type";
 import type { TableProps, MenuProps } from "antd";
 import { Icon, Link } from "../../core/common";
 import { Space, Tooltip, Dropdown } from 'antd';
-import { useAppContext, useModalContext } from "../../core/context";
+import { useAppContext, useEvaluationContext, useModalContext } from "../../core/context";
 import { renderSingleAction, MenuItem } from "../../core/utils/actionRenderer";
+import { useEvaluation } from "../../core/hooks";
 
 // Utility to replace URL parameters with values
 const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
@@ -26,7 +27,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
           <Tooltip 
             title={item.helpText}
             placement="top"
-            overlayStyle={{ maxWidth: '300px' }}
+            styles={{ root: { maxWidth: '300px' } }}
           >
             <span style={{ cursor: 'help' }}>{item.name}</span>
           </Tooltip>
@@ -45,6 +46,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   //Add action column in Table
   //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
   //if the actions array is empty, then do not include the key in the object
+  
   const actionIndexValue: IActionIndexValue = propertiesConfig
     .filter(item => Array.isArray(item.actions) && item.actions.length > 0)
     .reduce((acc: IActionIndexValue, item) => {
@@ -117,7 +119,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   return columns
 }
 
-const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, routeParams }: { 
+const ListPageAction = React.memo(({ item, record, primaryIndexValue, getRecordsCallback, routeParams }: { 
   item: IPageAction, 
   record: IRecord, 
   primaryIndexValue: string,
@@ -128,8 +130,48 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
   const { notifySuccess } = useAppContext()
   const { isInModal } = useModalContext()
   
+  return (
+    <ListPageActionInner 
+      item={item}
+      record={record}
+      primaryIndexValue={primaryIndexValue}
+      getRecordsCallback={getRecordsCallback}
+      routeParams={routeParams}
+      notifySuccess={notifySuccess}
+      isInModal={isInModal}
+    />
+  );
+});
+
+const ListPageActionInner = React.memo(({ 
+  item, 
+  record, 
+  primaryIndexValue, 
+  getRecordsCallback, 
+  routeParams,
+  notifySuccess,
+  isInModal
+}: { 
+  item: IPageAction, 
+  record: IRecord, 
+  primaryIndexValue: string,
+  getRecordsCallback: () => void,
+  routeParams: Record<string, string>,
+  notifySuccess: (message: string) => void,
+  isInModal: boolean
+}) => {
+  
+  // Use raw API data for evaluation (before display formatting mutations)
+  // This ensures boolean conditions work correctly (false vs "No")
+  const rawRecord = (record as any).__raw__ || record;
+  const { visible, enabled, disabledMessage } = useEvaluation(item.visibility, { record: rawRecord });
+  
+  // Don't render if not visible
+  if (!visible) return null;
+  
   // Check if this is a dropdown action
   const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
+  const isDisabled = !enabled;
   
   if (actionType === 'dropdown' && item.items && item.items.length > 0) {
     const menuItems: MenuProps['items'] = item.items.map((dropItem, dropIndex) => 
@@ -150,22 +192,28 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
       }) as MenuItem
     );
     
+    const dropdownTrigger = (
+      <a onClick={(e) => e.preventDefault()} style={{ cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1 }}>
+        <Icon iconName={item.icon || "more"} />
+      </a>
+    );
+    
     return (
       <Fragment>
-        <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-          <a onClick={(e) => e.preventDefault()} style={{ cursor: 'pointer' }}>
-            <Icon iconName={item.icon || "more"} />
-          </a>
+        <Tooltip title={isDisabled ? disabledMessage : undefined}>
+          <Dropdown menu={{ items: menuItems }} trigger={['click']} disabled={isDisabled}>
+            {dropdownTrigger}
         </Dropdown>
+        </Tooltip>
       </Fragment>
     );
   }
   
-  // Regular single action - render as Icon for table rows
-  return (
-    <Fragment>
-      {renderSingleAction({
-        action: item,
+  // Regular single action - render as Icon for table rows with disabled state
+  const modifiedAction = isDisabled ? { ...item, disabled: true } : item;
+  
+  const actionElement = renderSingleAction({
+    action: modifiedAction,
         key: `action-${item.label}`,
         isDropdownItem: false,
         isTableRowAction: true,
@@ -178,8 +226,22 @@ const ListPageAction = ({ item, record, primaryIndexValue, getRecordsCallback, r
           getRecordsCallback()
         },
         onNavigate: (url) => window.location.href = url
-      }) as React.ReactNode}
+  }) as React.ReactNode;
+  
+  if (isDisabled && disabledMessage) {
+    return (
+      <Fragment>
+        <Tooltip title={disabledMessage}>
+          <span>{actionElement}</span>
+        </Tooltip>
+      </Fragment>
+    );
+  }
+  
+  return (
+    <Fragment>
+      {actionElement}
       {" "}
     </Fragment>
   );
-}
+});

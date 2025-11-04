@@ -73,11 +73,11 @@ class Authenticator implements IAuthProvider {
         return this.rememberMe ? window.localStorage : window.sessionStorage;
     }
 
-    public getApiAuthMode() {
+    public getApiAuthMode = () => {
         return this.API_AUTH_MODE;
     };
 
-    public setToken(token: string | null) {
+    public setToken = (token: string | null) => {
         if (token) {
             this.storage.setItem(AUTH_TOKEN_CACHE_KEY, token);
         } else {
@@ -85,25 +85,25 @@ class Authenticator implements IAuthProvider {
         }
     };
 
-    public getToken() {
+    public getToken = () => {
         const tokenData = this.getCachedTokenData();
         if (tokenData) {
             return tokenData.IdToken;
         }
     };
 
-    public getRefreshToken() {
+    public getRefreshToken = () => {
         const tokenData = this.getCachedTokenData();
         if (tokenData) {
             return tokenData.RefreshToken;
         }
     };
 
-    public isLoggedIn() {
+    public isLoggedIn = () => {
         return !!this.getToken();
     };
 
-    removeToken = () => {
+    public removeToken = () => {
         this.removeCredentials();
         this.storage.removeItem(AUTH_TOKEN_CACHE_KEY);
     };
@@ -112,7 +112,7 @@ class Authenticator implements IAuthProvider {
         this.storage.setItem(TEMP_AWS_CREDENTIALS_CACHE_KEY, JSON.stringify(credentials));
     };
 
-    public removeCredentials() {
+    public removeCredentials = () => {
         return this.storage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
     };
 
@@ -122,7 +122,7 @@ class Authenticator implements IAuthProvider {
      * Removes stale entries if parsing fails.
      * @returns AwsCredentialIdentity or null if unavailable.
      */
-    public async getCachedCredentials(): Promise<AwsCredentialIdentity | null> {
+    public getCachedCredentials = async (): Promise<AwsCredentialIdentity | null> => {
 
         // get cached credentials from storage
         const cached = this.storage.getItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
@@ -156,7 +156,7 @@ class Authenticator implements IAuthProvider {
      * Uses a 5 seconds buffer time for expiration validation.
      * @param credentials - parsed credentials from storage
      */
-    public isValidCredentials(credentials: AwsCredentialIdentity): boolean {
+    public isValidCredentials = (credentials: AwsCredentialIdentity): boolean => {
         // if there's no expiration time then it's valid
         if (!credentials.expiration) {
             return true;
@@ -171,7 +171,7 @@ class Authenticator implements IAuthProvider {
      * Throws error if IdToken is missing or request fails.
      * @returns AxiosResponse with AWS credentials data.
      */
-    public async getNewTempAwsCredentials() {
+    public getNewTempAwsCredentials = async () => {
         const token = this.getToken();
         if (!token) {
             console.error('Cannot fetch AWS credentials: no IdToken present');
@@ -197,7 +197,7 @@ class Authenticator implements IAuthProvider {
     /**
      * Refresh the Cognito IdToken using the refresh token.
      */
-    public async refreshIdToken() {
+    public refreshIdToken = async () => {
         const refreshToken = this.getRefreshToken();
         if (!refreshToken) {
             console.error('Cannot refresh IdToken: no RefreshToken present');
@@ -235,7 +235,7 @@ class Authenticator implements IAuthProvider {
     }
 
     // --- credential fetching helpers ---
-    private async fetchCredentials(): Promise<AwsCredentialIdentity> {
+    private fetchCredentials = async (): Promise<AwsCredentialIdentity> => {
 
         const response = await this.getNewTempAwsCredentials();
         if (!response.data?.Credentials) {
@@ -256,7 +256,7 @@ class Authenticator implements IAuthProvider {
         return creds;
     }
 
-    private async fetchCredentialsWithRefresh(): Promise<AwsCredentialIdentity> {
+    private fetchCredentialsWithRefresh = async (): Promise<AwsCredentialIdentity> => {
         try {
             return await this.fetchCredentials();
         } catch (error: any) {
@@ -277,7 +277,7 @@ class Authenticator implements IAuthProvider {
     }
 
     // --- public API ---
-    public async getCredentials(): Promise<AwsCredentialIdentity> {
+    public getCredentials = async (): Promise<AwsCredentialIdentity> => {
         const cached = await this.getCachedCredentials();
         if (cached) {
             return cached;
@@ -290,7 +290,7 @@ class Authenticator implements IAuthProvider {
      * Removes storage entry on invalid JSON or invalid token data.
      * @returns Parsed token object or null.
      */
-    public getCachedTokenData(): CachedTokenData | null {
+    public getCachedTokenData = (): CachedTokenData | null => {
         try {
             const tokenData = this.storage.getItem(AUTH_TOKEN_CACHE_KEY);
             if (!tokenData) return null;
@@ -321,7 +321,7 @@ class Authenticator implements IAuthProvider {
      * this will provide a buffer time for the request to reach server side before the token expires.
      * @param tokenData - parsed token data from storage
      */
-    public isValidTokenData(tokenData: CachedTokenData): boolean {
+    public isValidTokenData = (tokenData: CachedTokenData): boolean => {
         try {
             if (typeof tokenData.IdToken === 'string') {
                 const decoded = jwtDecode<CognitoTokenPayload>(tokenData.IdToken);
@@ -441,7 +441,7 @@ class Authenticator implements IAuthProvider {
     /**
      * Attach authentication headers to outgoing requests
      */
-    public async authenticateRequest(config: InternalAxiosRequestConfig<any>): Promise<InternalAxiosRequestConfig<any>> {
+    public authenticateRequest = async (config: InternalAxiosRequestConfig<any>): Promise<InternalAxiosRequestConfig<any>> => {
         await this.requestHeaders(config);
         return config;
     }
@@ -449,21 +449,21 @@ class Authenticator implements IAuthProvider {
     /**
      * Process tokens/credentials from responses
      */
-    public processResponse(response: AxiosResponse<CachedTokenData>): void {
+    public processResponse = (response: AxiosResponse<CachedTokenData>): void => {
         this.processToken(response);
     }
 
     /**
      * Should we refresh auth on this error?
      */
-    public shouldRefreshAuth(error: AxiosError, _config?: InternalAxiosRequestConfig<any>): boolean {
+    public shouldRefreshAuth = (error: AxiosError, _config?: InternalAxiosRequestConfig<any>): boolean => {
         return [ 401, 403 ].includes(error.response?.status);
     }
 
     /**
      * Two-phase refresh: STS-only, then IdToken+STS
      */
-    public async refreshAuth(): Promise<void> {
+    public refreshAuth = async (): Promise<void> => {
         try {
             // force new credentials (clears cache)
             this.removeCredentials();
@@ -478,7 +478,7 @@ class Authenticator implements IAuthProvider {
     /**
      * Logout user
      */
-    public logout(): void {
+    public logout = (): void => {
         this.removeCredentials();
         this.removeToken();
     }

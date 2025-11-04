@@ -6,6 +6,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { useNavigate } from 'react-router-dom';
 import { Link } from '../../core/common';
 import { Button } from 'antd';
+import { handleApiError } from '../../core/utils/api-error-handler';
 
 export const ResetPasswordPage = () => {
     return (
@@ -26,11 +27,15 @@ export const ResetPasswordForm = () => {
             if (response.status === 200) {
                 notifySuccess(response?.message || response?.data?.message || 'Password reset successful');
                 navigate('/login');
-            } else {
-                notifyError(response?.message || response?.error || 'Failed to reset password');
+            } else if (response.status >= 400) {
+                // Handle error response using consolidated error handler
+                const errorResult = handleApiError(response, 'Failed to reset password');
+                notifyError(errorResult.formattedErrors.join('\n'));
             }
         } catch (error: any) {
-            notifyError(error?.message || 'An error occurred while resetting password');
+            // Handle network errors or other exceptions
+            const errorResult = handleApiError(error, 'An error occurred while resetting password');
+            notifyError(errorResult.formattedErrors.join('\n'));
         }
     }
     const handleForgotPassword = () => {

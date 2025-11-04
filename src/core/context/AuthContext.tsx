@@ -1,7 +1,23 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { useUi24Config } from './UI24Context';
 import { IAuthProvider, LocalStorageAuthProvider, useAWSAuthenticator } from '../providers';
 import type { AxiosResponse } from 'axios';
+import { jwtDecode } from 'jwt-decode';
+
+/**
+ * Cognito JWT token payload shape
+ */
+interface CognitoTokenPayload {
+  sub?: string;
+  'cognito:groups'?: string[];
+  'cognito:username'?: string;
+  email?: string;
+  username?: string;
+  groups?: string[];
+  id?: string;
+  permissions?: string[];
+  [key: string]: any;
+}
 
 type IAuthContext = IAuthProvider & {
   isLoggedIn: boolean;
@@ -15,6 +31,8 @@ type IAuthContext = IAuthProvider & {
   getRefreshToken: () => string | null;
   rememberMe: boolean;
   setRememberMe: (flag: boolean) => void;
+  // FIXED: Properly typed user object decoded from JWT token
+  user?: CognitoTokenPayload;
 }
 
 const AuthContext = createContext<IAuthContext | undefined>(undefined);
@@ -43,6 +61,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const providerName = selectConfig((config) => "aws");
   const authProvider = getProvider(providerName, rememberMe);
   const [ isLoggedIn, setIsLoggedIn ] = useState(authProvider.getToken() ? true : false);
+
+  // FIXED: Decode JWT token to extract user information
+  const user = useMemo(() => {
+    try {
+      const token = authProvider.getToken();
+      if (!token || !isLoggedIn) {
+        return undefined;
+      }
+      
+      // Decode JWT token
+      const decoded = jwtDecode<CognitoTokenPayload>(token);
+      return decoded;
+    } catch (error) {
+      console.error('[AuthProvider] Failed to decode token:', error);
+      return undefined;
+    }
+  }, [isLoggedIn, authProvider.getToken]);
 
   const processToken = (request: any): boolean => {
     const validToken = authProvider.processToken(request)
@@ -80,6 +115,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshToken: authProvider.refreshToken,
       rememberMe,
       setRememberMe,
+      // FIXED: Expose decoded user information from JWT token
+      user,
     }}>
       {children}
     </AuthContext.Provider>

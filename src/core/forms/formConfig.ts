@@ -15,6 +15,7 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     propertiesConfig: Array<IFormFieldResponse>;
     onSubmit: (values: any) => void;
     onSubmitSuccessCallback?: (response?: any) => void;
+    onCancelCallback?: () => void;  // For modal cancel/close
     children?: React.ReactNode;
     style?: React.CSSProperties;
     apiConfig?: IApiConfig;
@@ -24,6 +25,7 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     buttonLoader?: boolean;
     identifiers ?: any;
     useDynamicIdFromParams?: boolean;
+    entityName?: string;  // NEW: Entity name from backend config generation
 }
 
 
