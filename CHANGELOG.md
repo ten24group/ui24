@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.1](https://github.com/ten24group/ui24/compare/v1.0.5-beta.0...v1.0.5-beta.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* default sorting for tables ([a35198b](https://github.com/ten24group/ui24/commit/a35198ba8d87b38297f2189c1ca1795c35c65990))
+
 ### [1.0.5-beta.0](https://github.com/ten24group/ui24/compare/v1.0.2-beta.3...v1.0.5-beta.0) (2025-10-27)
 
 
