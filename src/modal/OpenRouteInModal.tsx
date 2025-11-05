@@ -175,6 +175,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
               {...pageConfig}
               routeParams={finalRouteParams}
               onSuccessCallback={handleSuccess}
+              onCancelCallback={handleClose}
             />
           </ModalContextProvider>
         </AntModal>

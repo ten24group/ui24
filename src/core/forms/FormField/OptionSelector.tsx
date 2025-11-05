@@ -5,10 +5,10 @@ import { PlusOutlined } from '@ant-design/icons';
 import type { InputRef } from 'antd';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
-import type { IFormField } from '../../types/field-config';
+import type { IFormField, ITemplateConfig } from '../../types/field-config';
 import { handleApiError } from '../../utils/api-error-handler';
 import { useAppContext } from '../../context/AppContext';
-import { interpolateTemplate, parseSimpleTemplate, type ITemplateConfig } from '../../utils/template';
+import { interpolateTemplate, parseSimpleTemplate } from '../../utils/template';
 
 /**
  * @deprecated Use ITemplateConfig from '../../utils/template' instead.
@@ -550,7 +550,7 @@ export const OptionSelector = ({
                 onOpenChange={(visible) => setOpen(visible)} 
                 open={open} 
                 options={fieldOptions}
-                dropdownRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
+                popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => onOptionChange?.(value)}
                 notFoundContent={loading ? 'Loading...' : 'No options found'}
                 placeholder={hasRemoteSearch ? 'Type to search...' : 'Select an option'}
@@ -567,7 +567,7 @@ export const OptionSelector = ({
                 onOpenChange={(visible) => setOpen(visible)} 
                 open={open} 
                 options={fieldOptions}
-                dropdownRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
+                popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => onOptionChange?.(value)}
                 mode='multiple'
                 notFoundContent={loading ? 'Loading...' : 'No options found'}

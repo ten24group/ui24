@@ -75,7 +75,7 @@ const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
     },
     "cancel" : {
         text: "Cancel",
-        htmlType: "reset",
+        htmlType: "button",
     },
     "reset" : {
         text: "Reset",
@@ -106,13 +106,13 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
             processedUrl = substituteUrlParams(processedUrl, routeParams);
         }
 
-        // For cancel buttons with URL and modal context, call onCancelCallback instead of navigating
+        // For cancel buttons in modal context, call onCancelCallback instead of navigating/resetting
         // CRITICAL: Do NOT render Link component for cancel buttons in modals
-        const shouldUseCallback = isCancelButton && processedUrl && onCancelCallback;
+        const shouldUseCallback = isCancelButton && onCancelCallback;
         
         const handleClick = (e: React.MouseEvent<HTMLElement>) => {
             if (shouldUseCallback) {
-                e.preventDefault();  // Prevent any navigation
+                e.preventDefault();  // Prevent any navigation/reset
                 e.stopPropagation(); // Stop event bubbling
                 onCancelCallback();  // Close modal instead
             } else if (buttonConfig.onClick) {

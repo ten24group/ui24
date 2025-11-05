@@ -88,7 +88,7 @@ export const renderSingleAction = ({
       return {
         key,
         label: modalTrigger,
-        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
       } as MenuItem;
     }
     return modalTrigger;
@@ -128,7 +128,7 @@ export const renderSingleAction = ({
       return {
         key,
         label: modalTrigger,
-        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
       } as MenuItem;
     }
     return modalTrigger;
@@ -150,7 +150,7 @@ export const renderSingleAction = ({
     return {
       key,
       label: evaluatedLabel,
-      icon: action.icon ? <Icon iconName={action.icon} /> : undefined,
+      icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
       onClick: () => onNavigate?.(url)
     } as MenuItem;
   }
