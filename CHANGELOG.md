@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.3](https://github.com/ten24group/ui24/compare/v1.0.5-beta.2...v1.0.5-beta.3) (2025-11-05)
+
+
+### Bug Fixes
+
+* cancel-button functionality in forms icon style in dropdowns, and react warnings ([2ae73fc](https://github.com/ten24group/ui24/commit/2ae73fc3d30e6eac5cec16812ef0872ea297fad1))
+
 ### [1.0.5-beta.2](https://github.com/ten24group/ui24/compare/v1.0.5-beta.1...v1.0.5-beta.2) (2025-11-04)
 
 ### [1.0.5-beta.1](https://github.com/ten24group/ui24/compare/v1.0.5-beta.0...v1.0.5-beta.1) (2025-11-04)
