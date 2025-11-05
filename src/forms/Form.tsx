@@ -13,7 +13,7 @@ import { useApi } from '../core/context';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
-import { substituteUrlParams } from '../core/utils';
+import { substituteUrlParams, getNestedValue } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { formStyles } from '../core/forms/FormField/styles';
 import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
@@ -178,7 +178,9 @@ export function Form({
     
     if (recordData && Object.keys(recordData).length > 0) {
       const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-        const itemValue = itemValueFormatter(item, recordData[ item.column || item.name || item.id ])
+        const fieldPath = item.column || item.name || item.id;
+        // Use getNestedValue to handle dot-notation paths (e.g., 'leaguesConfig.enabled')
+        const itemValue = itemValueFormatter(item, getNestedValue(recordData, fieldPath))
         return { ...item, initialValue: itemValue }
       });
 
@@ -474,28 +476,35 @@ export function Form({
       //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
       //this is used to set the initial values of the form
       
-      // Recursive function to extract default values from nested structures
+      // Recursive function to extract initial/default values from nested structures
+      // Priority: initialValue (from API in edit mode) > defaultValue (schema default)
       const extractDefaultValues = (fields: any[]): any => {
         return fields.reduce((acc, item) => {
-          // For map fields with nested properties, recursively extract defaults
+          // For map fields with nested properties, recursively extract values
           if (item.type === 'map' && item.properties && item.properties.length > 0) {
-            const nestedDefaults = extractDefaultValues(item.properties);
-            // Only set if there are actual default values in nested properties
-            if (Object.keys(nestedDefaults).length > 0) {
-              acc[item.name] = nestedDefaults;
+            // If we have initialValue for this map (from API), use it
+            if (item.initialValue !== undefined) {
+              acc[item.name] = item.initialValue;
+            } else {
+              // Otherwise, recursively extract from nested properties
+              const nestedDefaults = extractDefaultValues(item.properties);
+              // Only set if there are actual values in nested properties
+              if (Object.keys(nestedDefaults).length > 0) {
+                acc[item.name] = nestedDefaults;
+              }
             }
           }
-          // For list fields, default is empty array (user adds items manually)
-          // Don't set default values for list items here
+          // For list fields, use initialValue first, then defaultValue
           else if (item.type === 'list') {
-            // Lists start empty unless there's an explicit defaultValue
-            if (item.defaultValue !== undefined) {
+            if (item.initialValue !== undefined) {
+              acc[item.name] = item.initialValue;
+            } else if (item.defaultValue !== undefined) {
               acc[item.name] = item.defaultValue;
             }
           }
-          // For regular fields, use their defaultValue
-          else if (item.defaultValue !== undefined || item.initialValue !== undefined) {
-            acc[item.name] = item.defaultValue ?? item.initialValue;
+          // For regular fields, prioritize initialValue over defaultValue
+          else if (item.initialValue !== undefined || item.defaultValue !== undefined) {
+            acc[item.name] = item.initialValue ?? item.defaultValue;
           }
           
           return acc;
