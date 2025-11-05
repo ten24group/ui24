@@ -69,7 +69,29 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     axiosInstance.interceptors.response.use(
         (response) => {
             // Process any new tokens or credentials
-            auth.processResponse?.(response as any);
+            try {
+                auth.processResponse?.(response as any);
+            } catch (error) {
+                // If token processing fails (e.g., authorization error), 
+                // reject with the error message properly attached
+                console.error('Token processing failed:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+                return Promise.reject({
+                    message: errorMessage,
+                    response: {
+                        status: 403,
+                        statusText: 'Forbidden',
+                        data: {
+                            message: errorMessage,
+                            details: {
+                                message: errorMessage
+                            }
+                        },
+                        headers: response.headers,
+                        config: response.config
+                    }
+                });
+            }
             return response;
         },
         async (error) => {
