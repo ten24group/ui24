@@ -140,6 +140,7 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
 
     return <React.Fragment>
         { formButtons.map( (buttonConfig, index: number ) => {
+            // Handle string shortcuts (e.g., "submit", "reset", "cancel")
             if( typeof buttonConfig === "string" ) {
                 const isCancelButton = buttonConfig === "cancel";
                 const config = PreDefinedButtons[ buttonConfig ];
@@ -152,12 +153,20 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
                     />
                 </div>
             } else {
-                // Check if it's a custom cancel button (has "cancel" in text or className)
-                const isCancelButton = buttonConfig.text?.toLowerCase().includes('cancel') || buttonConfig.className?.includes('cancel');
+                // Handle button objects
+                // Check if button has 'action' field matching a predefined button
+                const action = (buttonConfig as any).action as IPreDefinedButtons | undefined;
+                const isCancelButton = action === 'cancel' || buttonConfig.text?.toLowerCase().includes('cancel') || buttonConfig.className?.includes('cancel');
+                
+                // If action matches a predefined button, merge with predefined config
+                const finalConfig = action && PreDefinedButtons[action]
+                    ? { ...PreDefinedButtons[action], ...buttonConfig }  // Predefined defaults + custom overrides
+                    : buttonConfig;  // Fully custom button
+                
                 return <div key={"bt" + index} style={ {marginRight: "10px"}}>
                     <EvaluatedFormButton 
-                        buttonConfig={buttonConfig}
-                        loader={false}
+                        buttonConfig={finalConfig}
+                        loader={action === 'submit' && loader}  // Only show loader on submit
                         isCancelButton={isCancelButton}
                         renderButton={renderButton}
                     />
