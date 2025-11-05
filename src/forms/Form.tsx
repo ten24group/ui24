@@ -473,11 +473,36 @@ export function Form({
     if (shouldUpdate) {
       //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
       //this is used to set the initial values of the form
-      const initialValues = formPropertiesConfig.reduce((acc, item) => {
-        // Backend uses 'defaultValue', but support 'initialValue' for backwards compatibility
-        acc[ item.name ] = item.defaultValue ?? item.initialValue
-        return acc
-      }, {})
+      
+      // Recursive function to extract default values from nested structures
+      const extractDefaultValues = (fields: any[]): any => {
+        return fields.reduce((acc, item) => {
+          // For map fields with nested properties, recursively extract defaults
+          if (item.type === 'map' && item.properties && item.properties.length > 0) {
+            const nestedDefaults = extractDefaultValues(item.properties);
+            // Only set if there are actual default values in nested properties
+            if (Object.keys(nestedDefaults).length > 0) {
+              acc[item.name] = nestedDefaults;
+            }
+          }
+          // For list fields, default is empty array (user adds items manually)
+          // Don't set default values for list items here
+          else if (item.type === 'list') {
+            // Lists start empty unless there's an explicit defaultValue
+            if (item.defaultValue !== undefined) {
+              acc[item.name] = item.defaultValue;
+            }
+          }
+          // For regular fields, use their defaultValue
+          else if (item.defaultValue !== undefined || item.initialValue !== undefined) {
+            acc[item.name] = item.defaultValue ?? item.initialValue;
+          }
+          
+          return acc;
+        }, {});
+      };
+      
+      const initialValues = extractDefaultValues(formPropertiesConfig);
 
       // Merge with defaultValues (from modal navigation or other sources)
       // defaultValues take precedence over initialValues
