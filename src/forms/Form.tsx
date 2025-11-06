@@ -169,10 +169,14 @@ export function Form({
           setInitialRecord(detailResponse);
           recordData = detailResponse;
         } else {
-          notifyError(response.message || response.error || 'An unexpected error occurred');
+          // Handle error response using consolidated error handler
+          const errorResult = handleApiError(response, 'Failed to load record');
+          notifyError(errorResult.formattedErrors.join('\n'));
         }
       } catch (error: any) {
-        notifyError(error?.message || 'An unexpected error occurred');
+        // Handle network errors or other exceptions using consolidated error handler
+        const errorResult = handleApiError(error, 'Failed to load record');
+        notifyError(errorResult.formattedErrors.join('\n'));
       }
     }
     

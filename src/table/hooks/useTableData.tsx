@@ -5,6 +5,7 @@ import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig } from '../type';
 import { useFormat } from '../../core/hooks';
 import { getNestedValue } from '../../core/utils';
+import { handleApiError } from '../../core/utils/api-error-handler';
 
 const recordPerPage = 10;
 
@@ -236,7 +237,10 @@ export const useTableData = ({
         notifyError(response?.error);
       }
     } catch (error) {
-      notifyError('Failed to fetch records');
+      // Use handleApiError to extract proper error message from API response
+      const errorResult = handleApiError(error, 'Failed to fetch records');
+      notifyError(errorResult.errorMessage);
+      
       console.error('Error fetching records:', error);
       // Log additional error details for debugging
       if (error && typeof error === 'object') {
