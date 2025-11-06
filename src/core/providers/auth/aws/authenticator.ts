@@ -162,8 +162,17 @@ class Authenticator implements IAuthProvider {
             return true;
         }
         // if the time difference is greater than 0, then the credentials are valid
-        const diff = (new Date(credentials.expiration)).getTime() - (Date.now() + 5 * 1000);  // 5 seconds buffer
-        return diff > 0;
+        const expirationTime = new Date(credentials.expiration).getTime();
+        const currentTimeWithBuffer = Date.now() + 5 * 1000;  // 5 seconds buffer
+        const diff = expirationTime - currentTimeWithBuffer;
+        const isValid = diff > 0;
+        
+        if (!isValid) {
+            const expiresIn = Math.floor((expirationTime - Date.now()) / 1000);
+            console.log(`[Auth] AWS temporary credentials expired or expiring soon (${expiresIn}s remaining)`);
+        }
+        
+        return isValid;
     };
 
     /**
@@ -258,19 +267,32 @@ class Authenticator implements IAuthProvider {
 
     private fetchCredentialsWithRefresh = async (): Promise<AwsCredentialIdentity> => {
         try {
+            console.log('[Auth] Fetching AWS temporary credentials with current IdToken');
             return await this.fetchCredentials();
         } catch (error: any) {
             if (error.response?.status === 401 || error.response?.status === 403) {
-                // expired IdToken: refresh and retry once
-                const refreshResponse = await this.refreshIdToken();
-                if (!refreshResponse.data?.IdToken) {
+                console.log('[Auth] Failed to fetch credentials (401/403), IdToken may be expired. Attempting to refresh IdToken...');
+                try {
+                    const refreshResponse = await this.refreshIdToken();
+                    if (!refreshResponse.data?.IdToken) {
+                        console.error('[Auth] No IdToken in refresh response, logging out');
+                        this.logout();
+                        throw new Error('Unauthorized: Unable to refresh IdToken');
+                    }
+                    console.log('[Auth] Successfully refreshed IdToken, fetching new credentials');
+                    this.setToken(JSON.stringify(refreshResponse.data));
+                    return await this.fetchCredentials();
+                } catch (refreshError: any) {
+                    console.error('[Auth] Failed to refresh IdToken:', refreshError.response?.status || refreshError.message);
+                    if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+                        console.error('[Auth] Refresh token expired or invalid, logging out');
+                    }
                     this.logout();
-                    throw new Error('Unauthorized: Unable to refresh IdToken');
+                    throw new Error('Unauthorized: Failed to refresh authentication');
                 }
-                this.setToken(JSON.stringify(refreshResponse.data));
-                return await this.fetchCredentials();
             }
             // other errors: propagate after logout
+            console.error('[Auth] Unexpected error fetching credentials:', error.message);
             this.logout();
             throw error;
         }
@@ -280,8 +302,10 @@ class Authenticator implements IAuthProvider {
     public getCredentials = async (): Promise<AwsCredentialIdentity> => {
         const cached = await this.getCachedCredentials();
         if (cached) {
+            console.log('[Auth] Using cached AWS temporary credentials');
             return cached;
         }
+        console.log('[Auth] No valid cached credentials, fetching new ones');
         return await this.fetchCredentialsWithRefresh();
     }
 
@@ -391,6 +415,18 @@ class Authenticator implements IAuthProvider {
             return;
         }
 
+        // Skip authentication for auth endpoints to prevent circular dependencies
+        // These endpoints expect IdToken in the request body, not in headers
+        const url = config.url || '';
+        const fullUrl = config.baseURL ? `${config.baseURL}${url}` : url;
+        const isAuthEndpoint = fullUrl.includes(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT) || 
+                               fullUrl.includes(this.REFRESH_TOKEN_API_ENDPOINT);
+        
+        if (isAuthEndpoint) {
+            console.log(`[Auth] Skipping AWS IAM auth for auth endpoint: ${url}`);
+            return;
+        }
+
         if (this.getApiAuthMode() === 'JWT') {
             const token = this.getToken();
             if (!token) {
@@ -461,15 +497,18 @@ class Authenticator implements IAuthProvider {
     }
 
     /**
-     * Two-phase refresh: STS-only, then IdToken+STS
+     * Refresh authentication by fetching new temporary credentials.
+     * First tries with current IdToken, then refreshes IdToken if needed.
      */
     public refreshAuth = async (): Promise<void> => {
         try {
+            console.log('[Auth] refreshAuth called - clearing cached credentials');
             // force new credentials (clears cache)
             this.removeCredentials();
             await this.fetchCredentialsWithRefresh();
+            console.log('[Auth] refreshAuth completed successfully');
         } catch (error) {
-            console.error('Failed to refresh authentication:', error);
+            console.error('[Auth] refreshAuth failed:', error);
             this.logout();
             throw error;
         }

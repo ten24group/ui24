@@ -146,6 +146,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
         } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType)) {
             // format the boolean value using uiConfig's boolean-formats
             initialValue = formatBoolean(initialValue);
+        } else if (typeof itemData === 'boolean') {
+            // Auto-detect boolean values even if fieldType is missing
+            // This makes the UI more resilient to missing fieldType configurations
+            initialValue = formatBoolean(itemData);
         } else if (item?.fieldType === 'number') {
             // format number values
             initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;

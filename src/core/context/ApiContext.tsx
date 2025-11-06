@@ -208,35 +208,97 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 if (!response) {
                     throw {
-                        message: 'No response received from API call',
-                        response: { status: 503, data: { message: 'Service Unavailable' } },
+                        message: 'No response received from API call - this should not happen',
+                        response: { 
+                            status: 503, 
+                            data: { 
+                                message: 'No response from server',
+                                errorType: 'NO_RESPONSE',
+                                details: {
+                                    message: 'The API method did not return a response. This is likely a framework bug.',
+                                    method,
+                                    url: apiConfig.apiUrl
+                                }
+                            } 
+                        },
                     };
                 }
 
                 return response;
 
             } catch (error: any) {
-                // propagate normalized errors
+                // Network errors, timeouts, and other non-response errors
                 if (!error.response) {
+                    // Determine error type and create user-friendly message
+                    let errorMessage = error.message || 'Network error occurred';
+                    let errorType = 'NETWORK_ERROR';
+                    
+                    // Categorize common error types for better user feedback
+                    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+                        errorType = 'TIMEOUT';
+                        errorMessage = `Request timeout: ${error.message || 'The server took too long to respond'}`;
+                    } else if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+                        errorType = 'NETWORK_ERROR';
+                        errorMessage = `Network error: ${error.message || 'Unable to connect to the server'}`;
+                    } else if (error.code === 'ERR_CANCELED') {
+                        errorType = 'CANCELED';
+                        errorMessage = 'Request was canceled';
+                    } else if (error.message?.includes('ECONNREFUSED')) {
+                        errorType = 'CONNECTION_REFUSED';
+                        errorMessage = 'Connection refused: Unable to connect to the server';
+                    } else if (error.message?.includes('ENOTFOUND')) {
+                        errorType = 'DNS_ERROR';
+                        errorMessage = 'DNS error: Could not resolve server address';
+                    }
+                    
                     const normalizedError = {
-                        message: error.message || 'Network error: No response received',
-                        response: { status: 503, data: { message: 'Service Unavailable' } },
+                        message: errorMessage,
+                        code: error.code || errorType,
+                        originalError: error.message,
+                        response: { 
+                            status: 503, 
+                            data: { 
+                                message: errorMessage,
+                                errorType,
+                                code: error.code,
+                                details: {
+                                    message: errorMessage,
+                                    originalMessage: error.message,
+                                    code: error.code,
+                                    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                                }
+                            } 
+                        },
                     };
                     return Promise.reject(normalizedError);
                 }
 
-                // For all other API errors, normalize the error object.
+                // HTTP errors with response from server
                 const status = error.response.status;
                 const responseData = error.response.data;
+                
+                // Extract the most specific error message available
                 const parsedErrorMessage = responseData?.details?.message
                     || responseData?.message
                     || responseData?.error
                     || error.message
-                    || 'An unexpected error occurred';
+                    || `HTTP ${status} error occurred`;
 
                 const normalizedError = {
                     message: parsedErrorMessage,
-                    response: { status, data: { message: parsedErrorMessage, ...responseData } },
+                    code: responseData?.code || responseData?.errorCode,
+                    response: { 
+                        status, 
+                        data: { 
+                            message: parsedErrorMessage, 
+                            ...responseData,
+                            // Ensure details are preserved
+                            details: {
+                                ...responseData?.details,
+                                message: responseData?.details?.message || parsedErrorMessage,
+                            }
+                        } 
+                    },
                 };
                 return Promise.reject(normalizedError);
             }
