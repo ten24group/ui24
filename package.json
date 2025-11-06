@@ -1,6 +1,6 @@
 {
   "name": "@ten24group/ui24",
-  "version": "1.0.5-beta.6",
+  "version": "1.0.5-beta.7",
   "description": "Admin UI package for fw24 projects",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
