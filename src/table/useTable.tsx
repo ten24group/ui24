@@ -13,6 +13,7 @@ import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
 import { FilterFilled } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
+import { Template } from "../core/types";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -419,18 +420,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   }, [_clearAllFilters]);
 
-  const getAppliedFilterForColumn = (column: string) => {
+  // ✅ Stabilize with useCallback - memoization dependency
+  const getAppliedFilterForColumn = React.useCallback((column: string) => {
     return appliedFilters[ column ] || {};
-  }
+  }, [appliedFilters]);
 
-  const toggleFacetedColumn = (dataIndex: string) => {
+  const toggleFacetedColumn = React.useCallback((dataIndex: string) => {
     setFacetedColumns(prev =>
       prev.includes(dataIndex)
         ? prev.filter(d => d !== dataIndex)
         : [ ...prev, dataIndex ]
     );
     setFetchTrigger(prev => prev + 1);
-  };
+  }, []); // ✅ No dependencies - uses functional updates
 
   //Sorts
   const { DisplayAppliedSorts, clearAllSorts: _clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
@@ -480,13 +482,52 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     handleColumnSettingsChange(defaultSettings);
   };
 
+  // ✅ Stabilize removeFilter with useCallback - memoization dependency
+  const removeFilter = React.useCallback((col: string) => {
+    setAppliedFilters(prev => {
+      const { [col]: _, ...rest } = prev;
+      return rest;
+    });
+    setFetchTrigger(prev => prev + 1);
+  }, []); // ✅ No dependencies - uses functional updates
+
+  // ✅ OPTIMIZATION 2: Cache column renderers to avoid creating new functions
+  // Template renderers are pure functions - same template always produces same renderer
+  const rendererCache = React.useRef<Map<string, (text: any, record: any) => any>>(new Map());
+  
+  const getTemplateRenderer = React.useCallback((template: string | object) => {
+    const cacheKey = typeof template === 'string' ? template : JSON.stringify(template);
+    
+    if (!rendererCache.current.has(cacheKey)) {
+      rendererCache.current.set(cacheKey, (text: any, record: any) => {
+        try {
+          return evaluateTemplate(template as Template, record);
+        } catch (e) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn(`[Table] Template evaluation failed:`, e);
+          }
+          return text;  // Fallback to original value
+        }
+      });
+    }
+    
+    return rendererCache.current.get(cacheKey)!;
+  }, []);
+  
+  // ✅ Color renderer is static - create once
+  const colorRenderer = React.useMemo(() => (text: string) => (
+    <>
+      <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
+        <rect width="12" height="12" fill={text} strokeWidth={1} stroke="rgb(0,0,0)" />
+      </svg>
+      <span style={{ marginLeft: 8 }}> {text}</span>
+    </>
+  ), []);
+
   const columns = addFilterUI(
     addActionUI(propertiesConfig, handleReload, routeParams),
     applyFilters,
-    (col) => setAppliedFilters(f => {
-      const newF = { ...f };
-      delete newF[ col ]; return newF;
-    }),
+    removeFilter,
     getAppliedFilterForColumn,
     facetResults,
     facetedColumns,
@@ -497,37 +538,11 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       if (column.key === 'action') return column;
 
       let renderer = column.render;
-      
-      // Template rendering (highest priority)
+
       if (column.template) {
-        renderer = (text: any, record: any) => {
-          try {
-            const templateValue = column.template;
-            if (typeof templateValue === 'string') {
-              // Simple string template
-              return evaluateTemplate(templateValue, record);
-            } else {
-              // Complex template object
-              return evaluateTemplate(templateValue, record);
-            }
-          } catch (e) {
-            if (process.env.NODE_ENV === 'development') {
-              console.warn(`[Table] Template evaluation failed for column ${column.dataIndex}:`, e);
-            }
-            return text;  // Fallback to original value
-          }
-        };
-      }
-      // Color field type handling
-      else if (column.fieldType === 'color') {
-        renderer = (text: string) => (
-          <>
-            <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
-              <rect width="12" height="12" fill={text} strokeWidth={1} stroke="rgb(0,0,0)" />
-            </svg>
-            <span style={{ marginLeft: 8 }}> {text}</span>
-          </>
-        );
+        renderer = getTemplateRenderer(column.template);
+      } else if (column.fieldType === 'color') {
+        renderer = colorRenderer;
       }
 
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
@@ -539,7 +554,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         sorter: (isSearchMode && (column.isSortable === true || column.isSortable === undefined)) ? { multiple: index + 1 } : undefined,
         sortOrder: sort.find(s => s.field === column.dataIndex)?.order,
         filterIcon: <FilterFilled style={{ color: !!appliedFilters[ column.dataIndex ] ? "#1677ff" : undefined }} />,
-      }
+      };
     })
     .filter(c => c.key === 'action' || columnSettings.find(s => s.key === c.dataIndex)?.visible)
     .sort((a, b) => {
