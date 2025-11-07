@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useMemo } from 'react';
 import { Layout } from 'antd';
 import { AuthLayout } from './AuthLayout/AuthLayout';
 import { PublicLayout } from './PublicLayout/PublicLayout';
@@ -10,9 +10,9 @@ export const CoreLayout = ({ children, authType = "public" }: { children?: React
     const { selectConfig } = useUi24Config()
     const layouts = selectConfig((config) => config.layouts)
 
-    // Determine which layout to use based on route type
-    const getLayoutComponent = (type: IRouteAuthType) => {
-        switch (type) {
+    // Memoize the layout component to prevent unnecessary re-renders
+    const WrapperLayout = useMemo(() => {
+        switch (authType) {
             case "auth":
                 return layouts?.authLayout || AuthLayout;
             case "public":
@@ -22,9 +22,7 @@ export const CoreLayout = ({ children, authType = "public" }: { children?: React
             default:
                 return AuthLayout;
         }
-    };
-
-    const WrapperLayout = getLayoutComponent(authType);
+    }, [authType, layouts]);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>

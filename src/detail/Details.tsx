@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Descriptions, DescriptionsProps, List, Spin, Typography, Space, Tooltip, Button } from 'antd';
+import { Descriptions, DescriptionsProps, List, Spin, Skeleton, Typography, Space, Tooltip, Button } from 'antd';
 import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
 import { useParams } from "react-router-dom"
@@ -337,13 +337,24 @@ const Details: React.FC<IDetailsComponentProps> = ({
           // Potentially re-fetch data here if appropriate
         }}
       >
-        <Spin spinning={!dataLoaded || isRefreshing}>
+        {!dataLoaded ? (
+          // Show skeleton loader on initial load for instant page transition
           <div style={detailsStyles.container}>
-            {columns.map((columnItems, colIdx) => (
+            {columns.map((_, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
-                {columnItems
-                  .filter((item) => !item.hidden)
-                  .map((item: IPropertiesConfig, index: number) => {
+                <Skeleton active paragraph={{ rows: 8 }} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          // Show spinner overlay only for refresh (keeps content visible)
+          <Spin spinning={isRefreshing}>
+            <div style={detailsStyles.container}>
+              {columns.map((columnItems, colIdx) => (
+                <div key={colIdx} style={detailsStyles.column}>
+                  {columnItems
+                    .filter((item) => !item.hidden)
+                    .map((item: IPropertiesConfig, index: number) => {
                     // Render each field as before
                     const value = item.initialValue;
 
@@ -816,6 +827,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
             ))}
           </div>
         </Spin>
+        )}
       </ErrorBoundary>
     );
   };

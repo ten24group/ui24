@@ -54,6 +54,7 @@ export interface IPostAuthPage extends IRenderFromPageType {
  * PageDataProvider kept for backward compatibility with Accordion/Dashboard.
  */
 export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuthPage) => {
+  
   // For form/table/details pages, PageHeader is rendered by the wrapper component.
   // Only render PageHeader here for accordion/dashboard/custom pages.
   const shouldRenderPageHeaderHere = props.pageType === 'accordion' || props.pageType === 'dashboard' || props.pageType === 'custom';

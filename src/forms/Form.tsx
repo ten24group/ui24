@@ -1,4 +1,4 @@
-import { Form as AntForm, Spin } from 'antd';
+import { Form as AntForm, Spin, Skeleton } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -22,6 +22,7 @@ import { ErrorFallback } from '../core/common';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
+import { useCoreNavigator } from '../routes/Navigation';
 
 // Extend IForm to accept columnsConfig
 interface IFormWithColumnsConfig extends IForm {
@@ -52,7 +53,8 @@ export function Form({
   entityName,  // From backend config
   onDataChange,  // Callback to lift state to wrapper
 }: IFormWithColumnsConfig) {
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
+
   const { notifyError, notifySuccess } = useAppContext()
   
   // Generate STABLE formConfig name - CRITICAL: Must not change across re-renders!
@@ -531,8 +533,13 @@ export function Form({
 
 
   return (
-    <Spin spinning={!dataLoadedFromView}>
-      {dataLoadedFromView && (
+    <>
+      {!dataLoadedFromView ? (
+        // Show skeleton loader on initial load for instant page transition
+        <div>
+          <Skeleton active paragraph={{ rows: 10 }} />
+        </div>
+      ) : (
         <ErrorBoundary
           FallbackComponent={ErrorFallback}
           onReset={() => {
@@ -571,6 +578,6 @@ export function Form({
           </AntForm>
         </ErrorBoundary>
       )}
-    </Spin>
+    </>
   );
 };

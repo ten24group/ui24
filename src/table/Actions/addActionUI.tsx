@@ -6,16 +6,8 @@ import { Space, Tooltip, Dropdown } from 'antd';
 import { useAppContext, useEvaluationContext, useModalContext } from "../../core/context";
 import { renderSingleAction, MenuItem } from "../../core/utils/actionRenderer";
 import { useEvaluation } from "../../core/hooks";
+import { useCoreNavigator } from "../../routes/Navigation";
 
-// Utility to replace URL parameters with values
-const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
-  return url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
-};
-
-// Check if URL has placeholder parameters
-const hasUrlPlaceholders = (url: string): boolean => {
-  return /:(\w+)/.test(url);
-};
 
 export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, getRecordsCallback: () => void, routeParams: Record<string, string> = {}) => {
 
@@ -129,7 +121,8 @@ const ListPageAction = React.memo(({ item, record, primaryIndexValue, getRecords
 
   const { notifySuccess } = useAppContext()
   const { isInModal } = useModalContext()
-  
+  const navigate = useCoreNavigator();
+
   return (
     <ListPageActionInner 
       item={item}
@@ -139,6 +132,7 @@ const ListPageAction = React.memo(({ item, record, primaryIndexValue, getRecords
       routeParams={routeParams}
       notifySuccess={notifySuccess}
       isInModal={isInModal}
+      navigate={navigate}
     />
   );
 });
@@ -150,7 +144,8 @@ const ListPageActionInner = React.memo(({
   getRecordsCallback, 
   routeParams,
   notifySuccess,
-  isInModal
+  isInModal,
+  navigate
 }: { 
   item: IPageAction, 
   record: IRecord, 
@@ -158,7 +153,8 @@ const ListPageActionInner = React.memo(({
   getRecordsCallback: () => void,
   routeParams: Record<string, string>,
   notifySuccess: (message: string) => void,
-  isInModal: boolean
+  isInModal: boolean,
+  navigate: (path: string) => void
 }) => {
   
   // Use raw API data for evaluation (before display formatting mutations)
@@ -188,7 +184,7 @@ const ListPageActionInner = React.memo(({
           notifySuccess("Operation Successful")
           getRecordsCallback()
         },
-        onNavigate: (url) => window.location.href = url
+        onNavigate: (url) => navigate(url)
       }) as MenuItem
     );
     
@@ -225,7 +221,7 @@ const ListPageActionInner = React.memo(({
           notifySuccess("Operation Successful")
           getRecordsCallback()
         },
-        onNavigate: (url) => window.location.href = url
+        onNavigate: (url) => navigate(url)
   }) as React.ReactNode;
   
   if (isDisabled && disabledMessage) {

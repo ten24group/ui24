@@ -7,6 +7,7 @@ import { AuthForm } from '../../forms/Layout/AuthForm';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from 'antd';
 import { handleApiError } from '../../core/utils/api-error-handler';
+import { useCoreNavigator } from '../../routes/Navigation';
 export const VerifyRegistrationPage = () => {
   const location = useLocation();
   const { email, codeDeliveryDetails, message } = location.state || {};
@@ -29,7 +30,7 @@ const VerifyRegistrationForm = ({
   codeDeliveryDetails?: any;
   verificationMessage?: string;
 }) => {
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
   const { notifySuccess, notifyError } = useAppContext();
   const { propertiesConfig, apiConfig } = usePageConfig("/verify");
   const { callApiMethod } = useApi();

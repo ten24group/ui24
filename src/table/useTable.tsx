@@ -294,6 +294,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const {
     listRecords,
     isLoading,
+    isInitialLoad,
     currentPage,
     pageCursor,
     isLastPage,
@@ -556,6 +557,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     columns,
     listRecords,
     isLoading,
+    isInitialLoad,
     Pagination: isSearchMode ? <NumericalPagination /> : CursorPagination,
     DisplayAppliedFilters,
     onSearch,

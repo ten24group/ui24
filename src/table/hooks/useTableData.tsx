@@ -84,6 +84,7 @@ export const useTableData = ({
 }: IUseTableDataProps) => {
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
+  const [ isInitialLoad, setIsInitialLoad ] = React.useState(true);  // Track initial load for skeleton
   const [ currentPage, setCurrentPage ] = React.useState(1);
   const [ pageCursor, setPageCursor ] = React.useState<Record<number, string>>({ 1: "" });
   const [ isLastPage, setIsLastPage ] = React.useState(false);
@@ -256,12 +257,14 @@ export const useTableData = ({
       }
     } finally {
       setIsLoading(false);
+      setIsInitialLoad(false);  // Mark initial load complete
     }
   }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode ]);
 
   return {
     listRecords,
     isLoading,
+    isInitialLoad,
     currentPage,
     pageCursor,
     isLastPage,

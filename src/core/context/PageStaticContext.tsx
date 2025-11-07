@@ -41,11 +41,23 @@ export const PageStaticProvider = ({
   const location = useLocation();
   const modalDepth = useModalDepth();
   
+  // Store previous config reference to detect actual changes
+  const configRef = React.useRef(config);
+  const stableConfig = React.useMemo(() => {
+    // If config reference changed, update it
+    // This allows parent to update config, but also allows us to keep stable reference
+    // when parent recreates config object with same content
+    if (config !== configRef.current) {
+      configRef.current = config;
+    }
+    return configRef.current;
+  }, [config]);
+  
   const value = useMemo((): PageStaticContextValue => {
     return {
       pageType,
       entityName,
-      config,
+      config: stableConfig,
       route: {
         routeParams: params,
         queryParams: Object.fromEntries(new URLSearchParams(location.search)),
@@ -56,7 +68,7 @@ export const PageStaticProvider = ({
         isInModal: modalDepth > 0
       }
     };
-  }, [pageType, entityName, config, params, location.search, location.pathname, modalDepth]);
+  }, [pageType, entityName, stableConfig, params, location.search, location.pathname, modalDepth]);
   
   return (
     <PageStaticContext.Provider value={value}>

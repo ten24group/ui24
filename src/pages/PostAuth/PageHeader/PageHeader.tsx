@@ -16,6 +16,7 @@ import { useEvaluationBatch } from "../../../core/hooks";
 import { useDetailRecord } from "../../../core/context/DetailStateContext";
 import { useFormRecord } from "../../../core/context/FormStateContext";
 import { useSelectedRecords } from "../../../core/context/TableStateContext";
+import { useCoreNavigator } from "../../../routes/Navigation";
 
 interface IBreadcrumbs {
     /**
@@ -48,7 +49,7 @@ export interface IPageHeader {
 }
 
 export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {}, onRefreshData } : IPageHeader ) => {
-    const navigate = useNavigate();
+    const navigate = useCoreNavigator();
     const { isInModal } = useModalContext();
     
     // Get record data from contexts (use-context-selector only subscribes if context exists)

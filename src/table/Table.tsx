@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge, Space } from "antd";
+import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
@@ -29,6 +29,7 @@ export const Table = ({
     columns,
     listRecords,
     isLoading,
+    isInitialLoad,
     Pagination,
     DisplayAppliedFilters,
     onSearch,
@@ -237,26 +238,35 @@ export const Table = ({
         />
       )}
 
-      <AntTable
-        scroll={{ x: true }}
-        columns={columns}
-        rowKey={recordIdentifierKey}
-        dataSource={listRecords}
-        pagination={false}
-        loading={{
-          indicator: (
-            <div>
-              <Spin />
-            </div>
-          ),
-          spinning: isLoading,
-        }}
-        onChange={handleTableChange}
-        rowSelection={rowSelection}
-      />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-        {renderPagination()}
-      </div>
+      {isInitialLoad ? (
+        // Show skeleton loader on initial load for instant page transition
+        <div>
+          <Skeleton active paragraph={{ rows: 10 }} />
+        </div>
+      ) : (
+        <>
+          <AntTable
+            scroll={{ x: true }}
+            columns={columns}
+            rowKey={recordIdentifierKey}
+            dataSource={listRecords}
+            pagination={false}
+            loading={{
+              indicator: (
+                <div>
+                  <Spin />
+                </div>
+              ),
+              spinning: isLoading,
+            }}
+            onChange={handleTableChange}
+            rowSelection={rowSelection}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+            {renderPagination()}
+          </div>
+        </>
+      )}
     </ErrorBoundary>
   );
 };

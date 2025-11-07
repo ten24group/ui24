@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Link } from '../../core/common';
 import { Button } from 'antd';
 import { handleApiError } from '../../core/utils/api-error-handler';
+import { useCoreNavigator } from '../../routes/Navigation';
 
 export const ResetPasswordPage = () => {
     return (
@@ -15,7 +16,7 @@ export const ResetPasswordPage = () => {
 };
 
 export const ResetPasswordForm = () => {
-    const navigate = useNavigate();
+    const navigate = useCoreNavigator();
     const { notifySuccess, notifyError } = useAppContext();
     const { propertiesConfig, apiConfig } = usePageConfig("/reset-password");
     const { callApiMethod } = useApi();

@@ -5,10 +5,12 @@ import { useAppContext } from '../../core/context/AppContext';
 import { useUi24Config } from '../../core/context';
 import { useAuth } from '../../core/context/AuthContext';
 import { handleApiError } from '../../core/utils/api-error-handler';
+import { useCoreNavigator } from '../../routes/Navigation';
 
 export const AuthCallbackPage = () => {
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
+
   const { callApiMethod } = useApi();
   const { notifyError, notifySuccess } = useAppContext();
   const { selectConfig } = useUi24Config();

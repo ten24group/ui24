@@ -9,6 +9,7 @@ import { substituteUrlParams } from '../core/utils';
 import { getDefaultModalWidth } from './modalUtils';
 import { evaluateTemplateValue } from '../core/utils/template';
 import type { Template } from '../core/types';
+import { useCoreNavigator } from '../routes/Navigation';
 
 export interface OpenRouteInModalProps {
   /** URL to resolve and open in modal (e.g., "/view-user/:id") */
@@ -72,7 +73,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   const [ open, setOpen ] = useState(false);
   const [ opening, setOpening ] = useState(false);
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
   const initialLocation = useRef(location.pathname);
 
   // Resolve route

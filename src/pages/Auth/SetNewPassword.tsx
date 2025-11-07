@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from '../../core/common';
 import { Button } from 'antd';
 import { handleApiError } from '../../core/utils/api-error-handler';
+import { useCoreNavigator } from '../../routes/Navigation';
 
 export const SetNewPasswordPage = () => {
     return (
@@ -15,7 +16,7 @@ export const SetNewPasswordPage = () => {
 };
 
 export const SetNewPasswordForm = () => {
-    const navigate = useNavigate();
+    const navigate = useCoreNavigator();
     const location = useLocation();
     const { notifySuccess, notifyError } = useAppContext();
     const { propertiesConfig, apiConfig } = usePageConfig("/set-new-password");

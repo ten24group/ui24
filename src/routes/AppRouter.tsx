@@ -1,11 +1,10 @@
-import React, { ReactNode } from 'react';
+import React, { useMemo } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { App as AntdApp } from "antd";
 import { ProtectedRoute } from './ProtectedRoute';
 import { IRoute, IRoutes } from './types';
 import { defaultRoutes } from './DefaultRoutes';
 import { CoreLayout } from '../layout';
-import { useUi24Config } from '../core/context';
 import { ConfigLoader } from '../common/ConfigLoader';
 import { ErrorBoundary } from 'react-error-boundary';
 
@@ -20,24 +19,39 @@ const ErrorFallback = ({ error }: { error: Error }) => {
 
 export type IAppRouter = { customRoutes?: IRoutes }
 
-export const AppRouter = ({ customRoutes = [] }: IAppRouter) => {
-  const { selectConfig } = useUi24Config();
+// Create stable wrapped components outside of render
+const createRouteElement = (route: IRoute) => {
+  // Create a stable component for this route
+  const RouteComponent = () => (
+    <CoreLayout authType={route.authType}>
+      {route.element}
+    </CoreLayout>
+  );
+  
+  return (
+    <ProtectedRoute
+      path={route.path}
+      component={RouteComponent}
+      authType={route.authType}
+    />
+  );
+};
 
-  // Merge custom routes with default routes, giving precedence to custom ones
-  const mergedRoutes = [ ...customRoutes, ...defaultRoutes ].reduce((acc: any, route: IRoute, index: number) => {
-    acc[ route.path ] = <React.Fragment key={`route-${index}`}><Route path={route.path} element={
-      <ProtectedRoute
-        path={route.path}
-        component={() => (
-          <CoreLayout authType={route.authType}>
-            {route.element}
-          </CoreLayout>
-        )}
-        authType={route.authType}
-      />
-    } /> </React.Fragment>;
-    return acc;
-  }, {});
+export const AppRouter = ({ customRoutes = [] }: IAppRouter) => {
+  // Memoize merged routes to prevent recreating on every render
+  // Only recreate if customRoutes changes
+  const mergedRoutes = useMemo(() => {
+    return [ ...customRoutes, ...defaultRoutes ].reduce((acc: any, route: IRoute, index: number) => {
+      acc[ route.path ] = (
+        <Route 
+          key={`route-${route.path}`} 
+          path={route.path} 
+          element={createRouteElement(route)} 
+        />
+      );
+      return acc;
+    }, {});
+  }, [customRoutes]);
 
   return (
     <AntdApp>

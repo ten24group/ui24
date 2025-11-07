@@ -1,25 +1,23 @@
-import React from 'react';
 import { Modal as AntModal } from 'antd';
-import { IForm } from '../core/forms/formConfig';
-import { ITableConfig } from '../table/type';
-import { Icon } from '../core/common';
-import { Link } from '../core/common';
-import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
-import { useApi, IApiConfig } from '../core/context';
+import React from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { useLocation } from 'react-router-dom';
+import { ErrorFallback, Link } from '../core/common';
+import { IApiConfig, ModalContextProvider, useApi } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
-import { IDetailsConfig } from '../detail/Details';
-import { substituteUrlParams, getNestedValue, evaluateTemplateObject } from '../core/utils';
+import { IForm } from '../core/forms/formConfig';
+import { Template } from '../core/types';
+import { evaluateTemplateObject, getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
+import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
 import { evaluateTemplateValue } from '../core/utils/template';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { IDetailsConfig } from '../detail/Details';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
-import { ErrorBoundary } from 'react-error-boundary';
-import { ErrorFallback } from '../core/common';
-import { ModalContextProvider } from '../core/context';
-import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
+import { IPageType, RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
+import { useCoreNavigator } from '../routes/Navigation';
+import { ITableConfig } from '../table/type';
 import { getDefaultModalWidth } from './modalUtils';
-import { Template } from '../core/types';
 
 // Simple modal depth tracking for stack effect
 const ModalDepthContext = React.createContext(0);
@@ -289,7 +287,8 @@ export const Modal = ({
 
   const { notifyError, notifySuccess } = useAppContext()
   const { callApiMethod } = useApi();
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
+
   const location = useLocation();
   const [ loading, setLoading ] = React.useState(false);
   
