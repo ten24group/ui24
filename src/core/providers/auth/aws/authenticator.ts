@@ -177,17 +177,25 @@ class Authenticator implements IAuthProvider {
 
     /**
      * Request new temporary AWS credentials using current IdToken.
-     * Throws error if IdToken is missing or request fails.
+     * Accepts expired IdTokens - the refresh flow will handle token renewal if server rejects.
+     * Throws error only if IdToken is completely missing or request fails.
      * @returns AxiosResponse with AWS credentials data.
      */
     public getNewTempAwsCredentials = async () => {
-        const token = this.getToken();
-        if (!token) {
-            console.error('Cannot fetch AWS credentials: no IdToken present');
+        const tokenData = this.getCachedTokenData();
+        if (!tokenData || !tokenData.IdToken) {
+            console.error('[Auth] Cannot fetch AWS credentials: no token data or IdToken present');
             throw new Error('Unauthorized: No IdToken available for AWS credentials request');
         }
+        
+        // Check if IdToken is expired - if so, log a warning but still attempt the request
+        // The server will reject with 401/403 and trigger the refresh flow in fetchCredentialsWithRefresh
+        if (!this.isValidTokenData(tokenData)) {
+            console.warn('[Auth] IdToken appears expired, attempting request anyway - refresh flow will handle renewal if rejected');
+        }
+        
         try {
-            const response = await this.axiosInstance.post(`${this.AWS_TEMP_CREDENTIALS_API_ENDPOINT}/`, { idToken: token });
+            const response = await this.axiosInstance.post(`${this.AWS_TEMP_CREDENTIALS_API_ENDPOINT}/`, { idToken: tokenData.IdToken });
             return response as AxiosResponse<{
                 Credentials: {
                     AccessKeyId: string;
@@ -198,7 +206,7 @@ class Authenticator implements IAuthProvider {
                 }
             }>;
         } catch (error) {
-            console.error('Error fetching AWS credentials:', error);
+            console.error('[Auth] Error fetching AWS credentials:', error);
             throw error;
         }
     };
@@ -270,30 +278,33 @@ class Authenticator implements IAuthProvider {
             console.log('[Auth] Fetching AWS temporary credentials with current IdToken');
             return await this.fetchCredentials();
         } catch (error: any) {
+            // Only attempt refresh if we got auth-related errors (401/403)
             if (error.response?.status === 401 || error.response?.status === 403) {
-                console.log('[Auth] Failed to fetch credentials (401/403), IdToken may be expired. Attempting to refresh IdToken...');
+                console.log('[Auth] Failed to fetch credentials (401/403), IdToken expired. Attempting to refresh IdToken using RefreshToken...');
                 try {
                     const refreshResponse = await this.refreshIdToken();
                     if (!refreshResponse.data?.IdToken) {
-                        console.error('[Auth] No IdToken in refresh response, logging out');
+                        console.error('[Auth] No IdToken in refresh response, all tokens exhausted - logging out');
                         this.logout();
-                        throw new Error('Unauthorized: Unable to refresh IdToken');
+                        throw new Error('Unauthorized: Unable to refresh IdToken - all tokens exhausted');
                     }
-                    console.log('[Auth] Successfully refreshed IdToken, fetching new credentials');
+                    console.log('[Auth] Successfully refreshed IdToken, fetching new AWS temporary credentials');
                     this.setToken(JSON.stringify(refreshResponse.data));
                     return await this.fetchCredentials();
                 } catch (refreshError: any) {
                     console.error('[Auth] Failed to refresh IdToken:', refreshError.response?.status || refreshError.message);
                     if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
-                        console.error('[Auth] Refresh token expired or invalid, logging out');
+                        console.error('[Auth] RefreshToken expired or invalid - all authentication options exhausted, logging out');
+                    } else {
+                        console.error('[Auth] Unexpected error during token refresh, logging out');
                     }
                     this.logout();
-                    throw new Error('Unauthorized: Failed to refresh authentication');
+                    throw new Error('Unauthorized: Failed to refresh authentication - refresh token invalid or expired');
                 }
             }
-            // other errors: propagate after logout
-            console.error('[Auth] Unexpected error fetching credentials:', error.message);
-            this.logout();
+            // Other errors (network, server, etc.): only log, don't logout (may be transient)
+            console.error('[Auth] Unexpected error fetching credentials:', error.response?.status || error.message);
+            console.error('[Auth] This may be a transient error - not logging out automatically');
             throw error;
         }
     }
@@ -311,7 +322,7 @@ class Authenticator implements IAuthProvider {
 
     /**
      * Parse and return cached token data.
-     * Removes storage entry on invalid JSON or invalid token data.
+     * Removes storage entry on invalid JSON but preserves expired tokens (they can be refreshed).
      * @returns Parsed token object or null.
      */
     public getCachedTokenData = (): CachedTokenData | null => {
@@ -328,12 +339,16 @@ class Authenticator implements IAuthProvider {
                 return null;
             }
 
-            if (!!parsed && !this.isValidTokenData(parsed as CachedTokenData)) {
-                this.removeToken();
-                return null;
+            // CRITICAL FIX: Don't remove expired tokens - they contain RefreshToken needed for renewal
+            // Only validate structure, not expiration. Let the refresh flow handle expired IdTokens.
+            if (!!parsed && typeof parsed.IdToken === 'string' && typeof parsed.RefreshToken === 'string') {
+                return parsed as CachedTokenData;
             }
 
-            return parsed as CachedTokenData;
+            // Only remove if token structure is invalid (missing required fields)
+            console.warn('[Auth] Token data missing required fields (IdToken or RefreshToken), removing from storage');
+            this.removeToken();
+            return null;
         } catch (e) {
             console.error('Error accessing token data:', e);
             return null;
@@ -411,7 +426,7 @@ class Authenticator implements IAuthProvider {
     public requestHeaders = async (config: InternalAxiosRequestConfig): Promise<void> => {
 
         if (!this.isLoggedIn()) {
-            console.warn("Not logged in: can't set auth on request", config);
+            console.warn("[Auth] Not logged in: can't set auth on request", config.url);
             return;
         }
 
