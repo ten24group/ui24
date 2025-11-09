@@ -1,0 +1,15 @@
+/**
+ * Filter Segments - Minimal CSS, let Ant Design handle styling
+ */
+
+.filter-segments {
+  margin-bottom: 12px;
+}
+
+/* Only add layout for badge support - Ant Design handles everything else */
+.filter-segment-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+

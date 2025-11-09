@@ -6,6 +6,7 @@ import { ITablePropertiesConfig } from '../type';
 import { useFormat } from '../../core/hooks';
 import { getNestedValue } from '../../core/utils';
 import { handleApiError } from '../../core/utils/api-error-handler';
+import { NON_FILTER_URL_PARAMS } from '../constants';
 
 const recordPerPage = 10;
 
@@ -123,10 +124,10 @@ export const useTableData = ({
     // These bypass filter structure and go directly to API
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const INFRASTRUCTURE_PARAMS = ['f', 'page', 'cursor', 'count', 'q', 'sort', 'attributes'];
+      // Use shared constant for consistency with useTable.tsx
       urlParams.forEach((value, key) => {
         // Skip infrastructure params (they're handled separately)
-        if (INFRASTRUCTURE_PARAMS.includes(key)) {
+        if (NON_FILTER_URL_PARAMS.includes(key as any)) {
           return;
         }
         

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
@@ -12,6 +12,9 @@ import { renderSingleAction } from '../core/utils/actionRenderer';
 import { useEvaluationBatch } from '../core/hooks/useEvaluation';
 import { substituteUrlParams } from '../core/utils';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
+import { resolveFilterPlaceholders, PlaceholderContext } from '../core/utils/placeholderResolver';
+import { useAuth } from '../core/context/AuthContext';
+import { FilterSegments } from './FilterSegments/FilterSegments';
 import './Table.css';
 
 export const Table = ({
@@ -24,8 +27,30 @@ export const Table = ({
   bulkActions,  // Actions shown when multiple rows selected
   rowSelection: rowSelectionConfig,  // Row selection configuration
   expandableConfig,  // Expandable row configuration
+  segments,  // Filter segments for quick filtering
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
+  const { user } = useAuth();
+  
+  // Build placeholder context for segments and filters
+  // IMPORTANT: now is NOT in dependencies to avoid recreating context every render
+  const placeholderContext: PlaceholderContext = useMemo(() => ({
+    actor: user ? {
+      actorId: user.sub || user.id,
+      email: user.email,
+      username: user.username,
+      groups: user['cognito:groups'] || user.groups,
+      ...user,
+    } : undefined,
+    routeParams,
+    now: new Date(),  // Created once per user/routeParams change, not every render
+  }), [user, routeParams]);
+  
+  // Track resolved defaultFilters for segment merging
+  const resolvedDefaultFilters = useMemo(() => {
+    if (!defaultFilters) return {};
+    return resolveFilterPlaceholders(defaultFilters, placeholderContext);
+  }, [defaultFilters, placeholderContext]);
 
   const {
     recordIdentifierKey,
@@ -48,6 +73,8 @@ export const Table = ({
     handleReload,
     searchQuery,
     appliedFilters,  // NEW: Now exposed from useTable
+    setAppliedFilters,  // NEW: For filter segments
+    setFetchTrigger,  // NEW: To trigger refetch after state updates
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
@@ -156,16 +183,21 @@ export const Table = ({
           // Substitute placeholders in API URL (e.g., :teamId)
           const resolvedApiUrl = substituteUrlParams(apiUrl, expandedRouteParams);
 
-          // Resolve default filters with placeholder substitution
-          const resolvedDefaultFilters: Record<string, any> = {};
-          Object.entries(nestedDefaultFilters).forEach(([key, value]) => {
-            if (typeof value === 'string' && value.startsWith(':')) {
-              const paramName = value.substring(1);
-              resolvedDefaultFilters[key] = expandedRouteParams[paramName];
-            } else {
-              resolvedDefaultFilters[key] = value;
-            }
-          });
+          // Resolve default filters using placeholder resolver
+          const placeholderContext: PlaceholderContext = {
+            actor: user ? {
+              actorId: user.sub || user.id,
+              email: user.email,
+              username: user.username,
+              groups: user['cognito:groups'] || user.groups,
+              ...user,
+            } : undefined,
+            record,  // Current row data
+            parent: record,  // Parent record for nested context
+            routeParams: expandedRouteParams,
+            now: new Date(),
+          };
+          const resolvedDefaultFilters = resolveFilterPlaceholders(nestedDefaultFilters, placeholderContext);
 
           // Filter columns if specific fields are requested
           const filteredPropertiesConfig = columnFields && columnFields.length > 0
@@ -278,7 +310,26 @@ export const Table = ({
         // Optionally, trigger a table data reload
         handleReload();
       }}
-    >
+    >      
+      {/* Filter Segments (quick filter tabs) */}
+      {segments && segments.length > 0 && (
+        <FilterSegments
+          segments={segments}
+          isSearchMode={isSearchMode}
+          onSegmentChange={useCallback((segmentId: string, segmentFilters: Record<string, any>) => {
+            // IMPORTANT: Merge segment filters WITH defaultFilters
+            // This preserves pre-applied filters like :teamId from route params
+            const mergedFilters = { ...resolvedDefaultFilters, ...segmentFilters };
+            setAppliedFilters(mergedFilters);
+            
+            // Trigger table refetch AFTER state updates
+            // Use setFetchTrigger instead of handleReload to ensure filters are updated first
+            setFetchTrigger(prev => prev + 1);
+          }, [resolvedDefaultFilters, setAppliedFilters, setFetchTrigger])}
+          placeholderContext={placeholderContext}
+        />
+      )}
+      
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
       {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
         <div style={{ 

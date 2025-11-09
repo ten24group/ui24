@@ -15,6 +15,9 @@ import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
 import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
+import { resolveFilterPlaceholders, PlaceholderContext } from "../core/utils/placeholderResolver";
+import { useAuth } from "../core/context/AuthContext";
+import { NON_FILTER_URL_PARAMS } from "./constants";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -103,11 +106,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   const queryParams = new URLSearchParams(location.search);
   
   // System/infrastructure params that should NOT be in filters
-  // These either control pagination/search OR are pass-through params for backend
-  const NON_FILTER_PARAMS = [
-    'f', 'page', 'cursor', 'count', 'q', 'sort', 'attributes',  // Infrastructure
-    'debug', 'trace', 'mock', 'test', 'dev', 'verbose', 'dryRun'  // Backend pass-through
-  ];
+  // (defined in ./constants.ts for consistency across table code)
   
   // Filter operators supported by backend
   const OPERATORS = ['eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'contains', 'notContains', 'beginsWith'];
@@ -133,7 +132,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
         
         Object.entries(parsed).forEach(([key, value]) => {
           // Skip non-filter params (infrastructure)
-          if (NON_FILTER_PARAMS.includes(key)) {
+          if (NON_FILTER_URL_PARAMS.includes(key as any)) {
             return;
           }
           
@@ -186,7 +185,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   
   queryParams.forEach((value, key) => {
     // Skip non-filter params (infrastructure like page, cursor, etc.)
-    if (NON_FILTER_PARAMS.includes(key)) {
+    if (NON_FILTER_URL_PARAMS.includes(key as any)) {
       return;
     }
     
@@ -230,29 +229,26 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
 export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
+  const { user } = useAuth();
 
-  // Memoize resolved defaultFilters to reference them when resetting
+  // Memoize resolved defaultFilters using new placeholder resolver
   const resolvedDefaultFilters = React.useMemo(() => {
-    const resolved: Record<string, any> = {};
-    Object.entries(defaultFilters).forEach(([key, value]) => {
-      if (typeof value === 'string' && value.startsWith(':')) {
-        // Placeholder: extract param name and resolve
-        const paramName = value.slice(1); // Remove leading ':'
-        const resolvedValue = routeParams[paramName];
-        
-        if (resolvedValue != null) {
-          // Wrap in operator structure for UI compatibility
-          resolved[key] = { eq: resolvedValue };
-        } else {
-          console.warn(`[useTable] Could not resolve placeholder "${value}" for filter "${key}"`);
-        }
-      } else {
-        // Non-placeholder value: use as-is (already in operator structure)
-        resolved[key] = value;
-      }
-    });
-    return resolved;
-  }, [defaultFilters, routeParams]);
+    // Build context for placeholder resolution
+    const context: PlaceholderContext = {
+      actor: user ? {
+        actorId: user.sub || user.id,
+        email: user.email,
+        username: user.username,
+        groups: user['cognito:groups'] || user.groups,
+        ...user,
+      } : undefined,
+      routeParams,
+      now: new Date(),
+    };
+    
+    // Resolve all placeholders in defaultFilters
+    return resolveFilterPlaceholders(defaultFilters, context);
+  }, [defaultFilters, routeParams, user]);
 
   // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
@@ -651,5 +647,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),
     appliedFilters,
+    setAppliedFilters,  // Expose for filter segments
+    setFetchTrigger,    // Expose to trigger refetch after state updates
   };
 };
