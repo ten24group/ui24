@@ -14,6 +14,7 @@ import { FilterFilled } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
+import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -420,7 +421,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   }, [_clearAllFilters]);
 
-  // ✅ Stabilize with useCallback - memoization dependency
+  // Stabilize with useCallback - memoization dependency
   const getAppliedFilterForColumn = React.useCallback((column: string) => {
     return appliedFilters[ column ] || {};
   }, [appliedFilters]);
@@ -432,7 +433,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         : [ ...prev, dataIndex ]
     );
     setFetchTrigger(prev => prev + 1);
-  }, []); // ✅ No dependencies - uses functional updates
+  }, []); // No dependencies - uses functional updates
 
   //Sorts
   const { DisplayAppliedSorts, clearAllSorts: _clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
@@ -482,16 +483,16 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     handleColumnSettingsChange(defaultSettings);
   };
 
-  // ✅ Stabilize removeFilter with useCallback - memoization dependency
+  // Stabilize removeFilter with useCallback - memoization dependency
   const removeFilter = React.useCallback((col: string) => {
     setAppliedFilters(prev => {
       const { [col]: _, ...rest } = prev;
       return rest;
     });
     setFetchTrigger(prev => prev + 1);
-  }, []); // ✅ No dependencies - uses functional updates
+  }, []); // No dependencies - uses functional updates
 
-  // ✅ OPTIMIZATION 2: Cache column renderers to avoid creating new functions
+  // OPTIMIZATION: Cache column renderers to avoid creating new functions
   // Template renderers are pure functions - same template always produces same renderer
   const rendererCache = React.useRef<Map<string, (text: any, record: any) => any>>(new Map());
   
@@ -514,7 +515,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
   
-  // ✅ Color renderer is static - create once
+  // Color renderer is static - create once
   const colorRenderer = React.useMemo(() => (text: string) => (
     <>
       <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
@@ -539,9 +540,24 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
       let renderer = column.render;
 
-      if (column.template) {
+      // Priority 1: Relation config renderer (for related entities)
+      if (column.relationConfig) {
+        renderer = (value: any, record: any) => (
+          <RelationFieldRenderer
+            relationConfig={column.relationConfig!}
+            value={value}
+            record={record}
+            routeParams={routeParams}
+            label={column.name}
+          />
+        );
+      }
+      // Priority 2: Template renderer (for composite values)
+      else if (column.template) {
         renderer = getTemplateRenderer(column.template);
-      } else if (column.fieldType === 'color') {
+      }
+      // Priority 3: Field type specific renderers
+      else if (column.fieldType === 'color') {
         renderer = colorRenderer;
       }
 
@@ -567,9 +583,49 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       return aIndex - bIndex;
     });
 
+  // Apply column grouping based on groupTitle property
+  // Uses Ant Design's children property to create grouped column headers
+  const finalColumns = React.useMemo(() => {
+    // Check if any columns have groupTitle
+    const hasGroups = columns.some(col => col.groupTitle);
+    if (!hasGroups) {
+      return columns;
+    }
+
+    const grouped: any[] = [];
+    const groupedFieldSet = new Set<string>();
+    const groupMap = new Map<string, any[]>();
+
+    // Group columns by groupTitle
+    columns.forEach(col => {
+      if (col.groupTitle) {
+        if (!groupMap.has(col.groupTitle)) {
+          groupMap.set(col.groupTitle, []);
+        }
+        groupMap.get(col.groupTitle)!.push(col);
+        groupedFieldSet.add(col.dataIndex as string);
+      }
+    });
+
+    // Create grouped column structures
+    groupMap.forEach((childColumns, groupTitle) => {
+      grouped.push({
+        title: groupTitle,
+        children: childColumns
+      });
+    });
+
+    // Add ungrouped columns (including action column)
+    const ungroupedColumns = columns.filter(col => 
+      !groupedFieldSet.has(col.dataIndex as string)
+    );
+
+    return [...grouped, ...ungroupedColumns];
+  }, [columns]);
+
   return {
     recordIdentifierKey,
-    columns,
+    columns: finalColumns,
     listRecords,
     isLoading,
     isInitialLoad,

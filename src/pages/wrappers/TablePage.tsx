@@ -4,6 +4,7 @@
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import { TableStateProvider } from '../../core/context/TableStateContext';
+import { useModalContext } from '../../core/context';
 import { Table } from '../../table/Table';
 import { ITableConfig } from '../../table/type';
 import { PageHeader, IPageHeader } from '../PostAuth/PageHeader/PageHeader';
@@ -46,16 +47,21 @@ export const TablePage: React.FC<TablePageProps> = ({
     }
   }, []);
   
+  // Check if we're in a modal - skip PageHeader if true (modal already has title)
+  const { isInModal } = useModalContext();
+  
   return (
     <TableStateProvider value={tableState}>
       <div className="table-page">
-        {/* PageHeader has access to TableStateContext */}
-        <PageHeader
-          pageHeaderActions={pageHeaderActions}
-          pageTitle={pageTitle}
-          breadcrumbs={breadcrumbs}
-          routeParams={routeParams}
-        />
+        {/* Skip PageHeader when in modal - modal already has title/chrome */}
+        {!isInModal && (
+          <PageHeader
+            pageHeaderActions={pageHeaderActions}
+            pageTitle={pageTitle}
+            breadcrumbs={breadcrumbs}
+            routeParams={routeParams}
+          />
+        )}
         
         {/* Table component - pass through onDataChange to capture state */}
         <Table

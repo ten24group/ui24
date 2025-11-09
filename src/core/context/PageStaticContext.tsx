@@ -10,7 +10,7 @@ import { useParams, useLocation } from 'react-router-dom';
 import { useModalDepth } from '../../modal/Modal';
 
 export interface PageStaticContextValue {
-  pageType?: 'list' | 'view' | 'edit' | 'create' | 'accordion' |  'dashboard' | 'system';
+  pageType?: 'list' | 'details' | 'form' | 'accordion' |  'dashboard' | 'system' | 'custom';
   entityName?: string;
   config: any; // Full page config from entities.json
   route: {

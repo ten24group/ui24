@@ -60,8 +60,15 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
     // Determine which record to use (priority: detail > form > first selected)
     const record = detailRecord || formRecord || (selectedRecords && selectedRecords.length > 0 ? selectedRecords[0] : undefined);
     
+    // Build context for template evaluation (merge routeParams with record data)
+    // This enables templates like {teamName} to work in page titles and breadcrumbs
+    const templateContext = useMemo(() => ({
+        ...routeParams,
+        ...(record || {})  // Include record data for smart detection templates
+    }), [routeParams, record]);
+    
     // Evaluate page title template if provided
-    const evaluatedPageTitle = pageTitle ? evaluateTemplateValue(pageTitle, routeParams) : undefined;
+    const evaluatedPageTitle = pageTitle ? evaluateTemplateValue(pageTitle, templateContext) : undefined;
     
     // Get actions array (handle both array and ReactNode)
     const actionsArray = useMemo(() => 
@@ -262,10 +269,11 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                 title={evaluatedPageTitle} 
                 breadcrumb={{ items: breadcrumbs.map((item, index) => {
                     // Evaluate label template if provided, otherwise use as-is
-                    const evaluatedLabel = evaluateTemplateValue(item.label, routeParams);
+                    // Use templateContext (includes record data) for smart detection templates
+                    const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
                     
                     // Use substituteUrlParams for consistent placeholder handling
-                    const breadcrumbUrl = substituteUrlParams(item.url, routeParams);
+                    const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
                     
                     return {
                         key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,

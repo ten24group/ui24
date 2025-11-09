@@ -4,6 +4,7 @@
  */
 import React, { useState, useMemo, useCallback } from 'react';
 import { FormStateProvider } from '../../core/context/FormStateContext';
+import { useModalContext } from '../../core/context';
 import { useDebounce } from '../../core/hooks/useSelectiveDebounce';
 import { Form } from '../../forms/Form';
 import { IForm } from '../../core/forms/formConfig';
@@ -53,16 +54,21 @@ export const FormPage: React.FC<FormPageProps> = ({
     }
   }, []);
   
+  // Check if we're in a modal - skip PageHeader if true (modal already has title)
+  const { isInModal } = useModalContext();
+  
   return (
     <FormStateProvider value={formState}>
       <div className="form-page">
-        {/* PageHeader has access to FormStateContext */}
-        <PageHeader
-          pageHeaderActions={pageHeaderActions}
-          pageTitle={pageTitle}
-          breadcrumbs={breadcrumbs}
-          routeParams={enhancedRouteParams}
-        />
+        {/* Skip PageHeader when in modal - modal already has title/chrome */}
+        {!isInModal && (
+          <PageHeader
+            pageHeaderActions={pageHeaderActions}
+            pageTitle={pageTitle}
+            breadcrumbs={breadcrumbs}
+            routeParams={enhancedRouteParams}
+          />
+        )}
         
         {/* Form component - pass through onDataChange to capture state */}
         <Form

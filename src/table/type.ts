@@ -2,7 +2,42 @@ import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType } from "../core/types/field-types";
 import type { Template, VisibilityConfig } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
+import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 type ITablePagination = "default";
+
+/**
+ * Expandable row configuration for tables.
+ * 
+ * Matches backend type from fw24/src/entity/base-entity.ts (ITableExpandableConfig)
+ */
+export interface ITableExpandableConfig {
+  mode: 'nested-table' | 'details' | 'custom';
+  relationField?: string;
+  tableConfig?: {
+    apiUrl: string;
+    apiMethod?: 'GET' | 'POST';
+    responseKey?: string;
+    columns?: ReadonlyArray<string> | Array<string>;
+    pageSize?: number;
+    showPagination?: boolean;
+    defaultFilters?: Record<string, any>;
+    showViewAll?: boolean;
+    viewAllModalWidth?: number | string;
+  };
+  detailsConfig?: {
+    fields?: ReadonlyArray<string> | Array<string>;
+    numColumns?: number;
+  };
+  customConfig?: {
+    pageType: 'list' | 'details' | 'form' | 'dashboard' | 'accordion';
+    pageConfig?: Record<string, any>;
+  };
+  rowExpandable?: VisibilityConfig;
+  defaultExpanded?: boolean;
+  expandIcon?: string;
+  indentSize?: number;
+}
+
 
 /**
  * Sort configuration for tables
@@ -98,6 +133,14 @@ export interface ITableConfig {
     readonly enabled: boolean;
     readonly visibility?: VisibilityConfig;  // Conditional row selection
   };  // Row selection configuration (from backend tableConfig.rowSelection)
+  /**
+   * Expandable row configuration.
+   * From backend: entitySchema.model.listPageConfig.tableConfig.expandable
+   * 
+   * Allows displaying nested data (e.g., to-many relations) within table rows.
+   * Uses existing Table component for nested-table mode, providing full table features.
+   */
+  expandableConfig?: ITableExpandableConfig;
   onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
 }
 
@@ -112,6 +155,12 @@ export interface ITablePropertiesConfig {
   fieldType?: FieldType;
   placeholder?: string;
   helpText?: string;
+  /**
+   * Group title for column grouping.
+   * Columns with the same groupTitle will be grouped under a common header.
+   * From backend: tableConfig.columns[].groupTitle
+   */
+  groupTitle?: string;
   
   /**
    * Template for rendering column values.
@@ -131,7 +180,51 @@ export interface ITablePropertiesConfig {
    */
   template?: Template;
   
-  // New filter configuration options
+  /**
+   * Relation field configuration for rendering related entities.
+   * 
+   * When present, this column will be rendered using RelationFieldRenderer
+   * instead of the standard template renderer, providing:
+   * - Template-based display using duplicated relation data
+   * - Fallback templates for ID-only data
+   * - Links to related entities
+   * - Modal viewing with lazy config resolution
+   * - Custom actions
+   * 
+   * Priority: relationConfig > template > fieldType-based rendering
+   * 
+   * Backend auto-generates this from entity relation definitions.
+   * 
+   * @example
+   * // To-one relation (team field showing team name with link/modal)
+   * relationConfig: {
+   *   routePattern: '/view-team/:teamId',
+   *   identifierMapping: { source: 'teamId', target: 'teamId' },
+   *   modalConfigRef: { entityName: 'team', pageType: 'view' },
+   *   displayConfig: {
+   *     template: '{teamName}',
+   *     fallback: { template: 'Team: {teamId}' }
+   *   }
+   * }
+   * 
+   * @example
+   * // To-many relation (games field showing count with modal list)
+   * relationConfig: {
+   *   routePattern: '/list-game',
+   *   modalConfigRef: {
+   *     entityName: 'game',
+   *     pageType: 'list',
+   *     overrideConfig: { defaultFilters: { teamId: ':teamId' } }
+   *   },
+   *   displayConfig: {
+   *     showLink: false,
+   *     showModalIcon: true
+   *   }
+   * }
+   */
+  relationConfig?: IRelationFieldConfig;
+  
+  // Filter configuration options
   filterConfig?: {
     defaultOperator?: string; // Default filter operator (e.g., 'contains', 'eq', 'in')
     availableOperators?: string[]; // Restrict available operators for this column

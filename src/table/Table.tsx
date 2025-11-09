@@ -10,6 +10,8 @@ import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { renderSingleAction } from '../core/utils/actionRenderer';
 import { useEvaluationBatch } from '../core/hooks/useEvaluation';
+import { substituteUrlParams } from '../core/utils';
+import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import './Table.css';
 
 export const Table = ({
@@ -21,6 +23,7 @@ export const Table = ({
   entityName,  // From backend config generation
   bulkActions,  // Actions shown when multiple rows selected
   rowSelection: rowSelectionConfig,  // Row selection configuration
+  expandableConfig,  // Expandable row configuration
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
 
@@ -123,6 +126,134 @@ export const Table = ({
       }),
     };
   }, [rowSelectionConfig, selectedRowKeys]);
+
+  // Expandable row configuration - reuses existing Table component for nested tables
+  const expandable = useMemo(() => {
+    if (!expandableConfig) return undefined;
+
+    return {
+      expandedRowRender: (record: any) => {
+        // Build route params with parent record data for placeholder substitution
+        const expandedRouteParams = {
+          ...routeParams,
+          ...record,
+        };
+
+        // Mode 1: Nested Table (reuses existing Table component)
+        if (expandableConfig.mode === 'nested-table' && expandableConfig.tableConfig) {
+          const { 
+            apiUrl, 
+            apiMethod = 'GET',
+            responseKey = 'data',
+            columns: columnFields,
+            pageSize = 5,
+            showPagination = true,
+            defaultFilters: nestedDefaultFilters = {},
+            showViewAll = false,
+            viewAllModalWidth = 1200,
+          } = expandableConfig.tableConfig;
+
+          // Substitute placeholders in API URL (e.g., :teamId)
+          const resolvedApiUrl = substituteUrlParams(apiUrl, expandedRouteParams);
+
+          // Resolve default filters with placeholder substitution
+          const resolvedDefaultFilters: Record<string, any> = {};
+          Object.entries(nestedDefaultFilters).forEach(([key, value]) => {
+            if (typeof value === 'string' && value.startsWith(':')) {
+              const paramName = value.substring(1);
+              resolvedDefaultFilters[key] = expandedRouteParams[paramName];
+            } else {
+              resolvedDefaultFilters[key] = value;
+            }
+          });
+
+          // Filter columns if specific fields are requested
+          const filteredPropertiesConfig = columnFields && columnFields.length > 0
+            ? propertiesConfig.filter(col => columnFields.includes(col.dataIndex))
+            : propertiesConfig;
+
+          return (
+            <div style={{ padding: '8px 0' }}>
+              <Table
+                propertiesConfig={filteredPropertiesConfig}
+                apiConfig={{
+                  apiUrl: resolvedApiUrl,
+                  apiMethod,
+                  responseKey,
+                  useSearch: false,  // Nested tables use database mode by default
+                }}
+                routeParams={expandedRouteParams}
+                defaultFilters={resolvedDefaultFilters}
+                entityName={entityName}
+              />
+            </div>
+          );
+        }
+
+        // Mode 2: Details (uses RenderFromPageType with details config)
+        if (expandableConfig.mode === 'details') {
+          const { fields, numColumns = 2 } = expandableConfig.detailsConfig || {};
+
+          // Filter and transform table properties config to details field config
+          const detailFields = (fields && fields.length > 0
+            ? propertiesConfig.filter(col => fields.includes(col.dataIndex))
+            : propertiesConfig  // Show all fields if no specific fields requested
+          ).map(col => ({
+            ...col,
+            label: col.name,  // Map name to label for details
+            dataIndex: col.dataIndex,
+            initialValue: record[col.dataIndex],  // Set value from expanded record
+          }));
+
+          return (
+            <div style={{ padding: '8px 16px' }}>
+              <RenderFromPageType
+                pageType="details"
+                detailsPageConfig={{
+                  detailResponse: record,  // Pass record data directly - no API fetch needed
+                  propertiesConfig: detailFields,
+                  columnsConfig: {
+                    numColumns,
+                    columns: [{ sortOrder: 0, fields: detailFields.map(c => c.dataIndex) }]
+                  }
+                }}
+                routeParams={expandedRouteParams}
+              />
+            </div>
+          );
+        }
+
+        // Mode 3: Custom (uses RenderFromPageType with custom config)
+        if (expandableConfig.mode === 'custom' && expandableConfig.customConfig) {
+          const { pageType, pageConfig } = expandableConfig.customConfig;
+
+          return (
+            <div style={{ padding: '8px 16px' }}>
+              <RenderFromPageType
+                pageType={pageType}
+                {...pageConfig}
+                routeParams={expandedRouteParams}
+              />
+            </div>
+          );
+        }
+
+        // Fallback: Show JSON
+        return <pre style={{ margin: '8px 16px' }}>{JSON.stringify(record, null, 2)}</pre>;
+      },
+      
+      // Conditional row expansion based on visibility config
+      // TODO: Integrate with visibility evaluation system
+      rowExpandable: (record: any) => {
+        // For now, always allow expansion if config is present
+        // In future, evaluate expandableConfig.rowExpandable with visibility system
+        return true;
+      },
+      
+      // Optional: Custom indent size
+      indentSize: expandableConfig.indentSize,
+    };
+  }, [expandableConfig, routeParams, propertiesConfig, entityName]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -261,6 +392,7 @@ export const Table = ({
             }}
             onChange={handleTableChange}
             rowSelection={rowSelection}
+            expandable={expandable}
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
             {renderPagination()}

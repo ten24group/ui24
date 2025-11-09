@@ -13,9 +13,9 @@ import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../../core/common';
 import { PageDataProvider } from '../../core/context/PageDataContext';
-import { PageStaticProvider } from '../../core/context/PageStaticContext';
+import { PageStaticContextValue, PageStaticProvider } from '../../core/context/PageStaticContext';
 
-export type IPageType = "list" | "form" | "accordion" | "details" | "dashboard" | "custom";
+export type IPageType =  PageStaticContextValue['pageType'];
 
 export interface IRenderFromPageType extends IPageHeader {
     identifiers?: string | number;

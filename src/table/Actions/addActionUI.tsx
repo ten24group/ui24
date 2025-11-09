@@ -26,10 +26,14 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         ) : item.name,
         dataIndex: item.dataIndex,
         key: item.dataIndex,
+        name: item.name,  // Preserve name for RelationFieldRenderer label
         fieldType: item.fieldType,
         isFilterable: item.isFilterable,
         isSortable: item.isSortable,
-        filterConfig: item.filterConfig, // Add this line to preserve filterConfig
+        filterConfig: item.filterConfig,
+        relationConfig: item.relationConfig,  // For relation field rendering
+        template: item.template,  // For template-based rendering
+        groupTitle: item.groupTitle,  // For column grouping
       }
 
       return column;

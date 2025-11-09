@@ -146,7 +146,7 @@ export interface EvaluationContext {
   /**
    * Current page type
    */
-  pageType?: 'list' | 'view' | 'edit' | 'create' | 'accordion' |  'dashboard' | 'system';
+  pageType?: 'list' | 'details' | 'form' | 'accordion' |  'dashboard' | 'system' | 'custom';
   
   /**
    * Current entity name
