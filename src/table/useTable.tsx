@@ -15,9 +15,9 @@ import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
 import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
-import { resolveFilterPlaceholders, PlaceholderContext } from "../core/utils/placeholderResolver";
-import { useAuth } from "../core/context/AuthContext";
+import { resolveFilterPlaceholders } from "../core/utils/placeholderResolver";
 import { NON_FILTER_URL_PARAMS } from "./constants";
+import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -229,26 +229,15 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
 export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {} }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
-  const { user } = useAuth();
 
   // Memoize resolved defaultFilters using new placeholder resolver
+  // Build placeholder context once
+  const placeholderContext = usePlaceholderContext(routeParams);
+  
   const resolvedDefaultFilters = React.useMemo(() => {
-    // Build context for placeholder resolution
-    const context: PlaceholderContext = {
-      actor: user ? {
-        actorId: user.sub || user.id,
-        email: user.email,
-        username: user.username,
-        groups: user['cognito:groups'] || user.groups,
-        ...user,
-      } : undefined,
-      routeParams,
-      now: new Date(),
-    };
-    
     // Resolve all placeholders in defaultFilters
-    return resolveFilterPlaceholders(defaultFilters, context);
-  }, [defaultFilters, routeParams, user]);
+    return resolveFilterPlaceholders(defaultFilters, placeholderContext);
+  }, [defaultFilters, placeholderContext]);
 
   // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {

@@ -12,10 +12,10 @@ import { renderSingleAction } from '../core/utils/actionRenderer';
 import { useEvaluationBatch } from '../core/hooks/useEvaluation';
 import { substituteUrlParams } from '../core/utils';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
-import { resolveFilterPlaceholders, PlaceholderContext } from '../core/utils/placeholderResolver';
-import { useAuth } from '../core/context/AuthContext';
+import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import './Table.css';
+import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 
 export const Table = ({
   propertiesConfig,
@@ -30,21 +30,8 @@ export const Table = ({
   segments,  // Filter segments for quick filtering
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
-  const { user } = useAuth();
-  
   // Build placeholder context for segments and filters
-  // IMPORTANT: now is NOT in dependencies to avoid recreating context every render
-  const placeholderContext: PlaceholderContext = useMemo(() => ({
-    actor: user ? {
-      actorId: user.sub || user.id,
-      email: user.email,
-      username: user.username,
-      groups: user['cognito:groups'] || user.groups,
-      ...user,
-    } : undefined,
-    routeParams,
-    now: new Date(),  // Created once per user/routeParams change, not every render
-  }), [user, routeParams]);
+  const placeholderContext = usePlaceholderContext(routeParams);
   
   // Track resolved defaultFilters for segment merging
   const resolvedDefaultFilters = useMemo(() => {
@@ -183,21 +170,12 @@ export const Table = ({
           // Substitute placeholders in API URL (e.g., :teamId)
           const resolvedApiUrl = substituteUrlParams(apiUrl, expandedRouteParams);
 
-          // Resolve default filters using placeholder resolver
-          const placeholderContext: PlaceholderContext = {
-            actor: user ? {
-              actorId: user.sub || user.id,
-              email: user.email,
-              username: user.username,
-              groups: user['cognito:groups'] || user.groups,
-              ...user,
-            } : undefined,
+          // Resolve default filters using placeholder resolver with record context
+          const nestedPlaceholderContext = usePlaceholderContext(expandedRouteParams, {
             record,  // Current row data
             parent: record,  // Parent record for nested context
-            routeParams: expandedRouteParams,
-            now: new Date(),
-          };
-          const resolvedDefaultFilters = resolveFilterPlaceholders(nestedDefaultFilters, placeholderContext);
+          });
+          const resolvedDefaultFilters = resolveFilterPlaceholders(nestedDefaultFilters, nestedPlaceholderContext);
 
           // Filter columns if specific fields are requested
           const filteredPropertiesConfig = columnFields && columnFields.length > 0

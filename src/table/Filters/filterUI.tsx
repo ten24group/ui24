@@ -120,6 +120,8 @@ export const filterUI = (
         setErrors({ filterValue: "Please enter value", filterEndValue: "Please enter value" })
       } else {
         //apply filter
+        // NOTE: Placeholder resolution (e.g., :startOfMonth → actual date) happens in useTableData
+        // before sending to API. This allows filters to work with all placeholder types (dates, actor, etc.)
         const filterToApply = selectedFacets.length > 0 ? selectedFacets : isListFilter ? filterInList : filterValue;
         const operatorToApply = selectedFacets.length > 0 ? 'in' : filterOperator;
         applyFilters(dataIndex, operatorToApply, isBetweenFilter ? [ filterValue, filterEndValue ] : filterToApply)
@@ -170,12 +172,44 @@ export const filterUI = (
       if (filterType === 'datetime') {
         // If inline quick date options exist, show select
         if (hasInlineOptions) {
+          // If "custom" is selected, show datetime-local input instead
+          if (filterValue === 'custom') {
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <Select
+                  placeholder={`Select ${title}`}
+                  value={filterValue}
+                  onChange={(value) => {
+                    if (value === 'custom') {
+                      // Reset to empty for datetime input
+                      setFilterValue('');
+                    } else {
+                      setFilterValue(value);
+                    }
+                  }}
+                  style={{ width: '100%' }}
+                  options={(predefinedOptions as Array<{ label: string; value: string }>).map(option => ({
+                    label: option.label,
+                    value: option.value === null ? 'custom' : String(option.value)
+                  }))}
+                />
+                <Input
+                  type="datetime-local"
+                  placeholder={`${title}`}
+                  value={filterValue === 'custom' ? '' : filterValue}
+                  onChange={(e) => setFilterValue(e.target.value)}
+                />
+              </div>
+            );
+          }
+          
           return (
             <Select
               placeholder={`Select ${title}`}
-              value={filterValue}
+              value={filterValue || undefined}
               onChange={(value) => setFilterValue(value)}
               style={{ width: '100%' }}
+              allowClear
               options={(predefinedOptions as Array<{ label: string; value: string }>).map(option => ({
                 label: option.label,
                 value: option.value === null ? 'custom' : String(option.value)
