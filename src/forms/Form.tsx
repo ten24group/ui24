@@ -1,3 +1,110 @@
+/**
+ * @fileoverview Form Component for FW24 Framework
+ * 
+ * This is the main form component that provides comprehensive form functionality
+ * for creating and editing records. It supports multi-column layouts, field validation,
+ * nested objects/arrays, API integration, and automatic data loading for edit mode.
+ * 
+ * ## Key Features
+ * 
+ * - **Create & Edit Modes**: Automatically detects mode based on presence of record data
+ * - **Multi-Column Layouts**: Flexible column layouts (1-3 columns) with automatic responsive behavior
+ * - **Field Validation**: Client-side and server-side validation with inline error display
+ * - **Nested Data**: Support for nested objects (maps) and arrays (lists)
+ * - **Data Type Handling**: Automatic conversion of dates, numbers, booleans, JSON, etc.
+ * - **API Integration**: Automatic data loading (edit mode) and submission (create/update)
+ * - **Error Handling**: Comprehensive error handling with field-level and form-level errors
+ * - **Success Redirects**: Configurable redirects after successful submission
+ * - **State Lifting**: Lifts form state to parent for visibility conditions and context
+ * 
+ * ## Architecture
+ * 
+ * The Form component follows a layered architecture:
+ * 1. **Form.tsx** (this file): Form orchestration, data loading, submission
+ * 2. **FormField.tsx**: Individual field rendering with validation
+ * 3. **Field Components**: Specialized components for each field type (text, select, date, etc.)
+ * 4. **API Integration**: Uses `useApi` hook for data fetching and submission
+ * 
+ * ## Data Flow
+ * 
+ * ### Create Mode
+ * 1. Load schema defaults from `propertiesConfig`
+ * 2. Merge with `defaultValues` prop (from modal navigation, etc.)
+ * 3. Render form with initial values
+ * 4. On submit, POST data to API
+ * 5. Redirect or callback on success
+ * 
+ * ### Edit Mode
+ * 1. Fetch existing record from `detailApiConfig`
+ * 2. Format record data for form display (dates, booleans, JSON, etc.)
+ * 3. Set as `initialValue` for each field
+ * 4. Render form with initial values
+ * 5. On submit, PUT/PATCH data to API
+ * 6. Redirect or callback on success
+ * 
+ * ## Field Type Handling
+ * 
+ * The form automatically handles data conversion for various field types:
+ * - **Dates**: Converts to/from ISO strings and dayjs objects
+ * - **Numbers**: Converts string inputs to numbers
+ * - **Booleans**: Converts to boolean type
+ * - **JSON**: Parses JSON strings for submission, stringifies for display
+ * - **Maps**: Recursively processes nested objects
+ * - **Lists**: Handles array fields with dynamic add/remove
+ * 
+ * ## Error Handling
+ * 
+ * The form handles errors at multiple levels:
+ * - **Field-level errors**: Displayed inline under each field
+ * - **Form-level errors**: Displayed as toast notifications
+ * - **Network errors**: Displayed with user-friendly messages
+ * - **Validation errors**: Parsed from API response and mapped to fields
+ * 
+ * ## Usage
+ * 
+ * @example
+ * ```tsx
+ * // Create form
+ * <Form
+ *   propertiesConfig={[
+ *     { name: 'teamName', label: 'Name', fieldType: 'text', required: true },
+ *     { name: 'city', label: 'City', fieldType: 'text', required: true }
+ *   ]}
+ *   apiConfig={{
+ *     apiMethod: 'POST',
+ *     apiUrl: '/api/team',
+ *     responseKey: 'data'
+ *   }}
+ *   formButtons={[
+ *     { text: 'Save', action: 'submit' },
+ *     { text: 'Cancel', action: 'cancel', url: '/list-team' }
+ *   ]}
+ *   submitSuccessRedirect="/list-team"
+ * />
+ * 
+ * // Edit form
+ * <Form
+ *   propertiesConfig={[...]}
+ *   detailApiConfig={{
+ *     apiMethod: 'GET',
+ *     apiUrl: '/api/team/:teamId',
+ *     responseKey: 'data'
+ *   }}
+ *   apiConfig={{
+ *     apiMethod: 'PUT',
+ *     apiUrl: '/api/team/:teamId',
+ *     responseKey: 'data'
+ *   }}
+ *   identifiers="123"
+ *   formButtons={[...]}
+ *   submitSuccessRedirect="/list-team"
+ * />
+ * ```
+ * 
+ * @see {@link FormField} for individual field rendering
+ * @see {@link useApi} for API integration
+ */
+
 import { Form as AntForm, Spin, Skeleton } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -24,7 +131,9 @@ import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
 import { useCoreNavigator } from '../routes/Navigation';
 
-// Extend IForm to accept columnsConfig
+/**
+ * Extended form configuration with column layout support and state lifting.
+ */
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
   routeParams?: Record<string, string>;
@@ -32,6 +141,27 @@ interface IFormWithColumnsConfig extends IForm {
   onDataChange?: (data: { record?: any; formValues?: Record<string, any>; pageType?: string; entityName?: string }) => void;
 }
 
+/**
+ * Main Form component for creating and editing records.
+ * 
+ * Provides a complete form solution with data loading, validation, submission,
+ * error handling, and multi-column layouts. Supports both create and edit modes.
+ * 
+ * @param props - Form configuration props
+ * @param props.propertiesConfig - Field configurations from backend
+ * @param props.apiConfig - API configuration for form submission
+ * @param props.detailApiConfig - API configuration for loading existing data (edit mode)
+ * @param props.formButtons - Form action buttons (submit, cancel, etc.)
+ * @param props.columnsConfig - Multi-column layout configuration
+ * @param props.submitSuccessRedirect - URL to redirect to after successful submission
+ * @param props.identifiers - Record identifier for edit mode
+ * @param props.routeParams - Route parameters for URL substitution
+ * @param props.defaultValues - Default values for form fields (from modal navigation, etc.)
+ * @param props.entityName - Entity name for context
+ * @param props.onDataChange - Callback to lift form state to parent
+ * 
+ * @returns Rendered form component
+ */
 export function Form({
   formConfig,
   propertiesConfig = [],

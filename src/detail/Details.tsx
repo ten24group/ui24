@@ -1,3 +1,92 @@
+/**
+ * @fileoverview Details Component for FW24 Framework
+ * 
+ * This is the main details component that provides comprehensive read-only detail views
+ * for displaying record data. It supports multi-column layouts, rich field types (images,
+ * JSON, rich text), relation rendering, and nested data structures.
+ * 
+ * ## Key Features
+ * 
+ * - **Multi-Column Layouts**: Flexible column layouts (1-3 columns) with automatic responsive behavior
+ * - **Rich Field Types**: Support for text, images, JSON, rich text, code, colors, files, etc.
+ * - **Relation Rendering**: Automatic rendering of relation fields with links and modals
+ * - **Nested Data**: Support for nested objects (maps) and arrays (lists)
+ * - **Data Formatting**: Automatic formatting of dates, booleans, numbers, etc.
+ * - **API Integration**: Automatic data loading from API or accepts pre-loaded data
+ * - **State Lifting**: Lifts detail state to parent for visibility conditions and context
+ * - **Refresh Support**: Exposes refresh function for on-demand data reloading
+ * 
+ * ## Architecture
+ * 
+ * The Details component follows a layered architecture:
+ * 1. **Details.tsx** (this file): Detail orchestration, data loading, field rendering
+ * 2. **RelationFieldRenderer**: Specialized renderer for relation fields
+ * 3. **Field Renderers**: Specialized renderers for each field type (image, JSON, rich text, etc.)
+ * 4. **API Integration**: Uses `useApi` hook for data fetching
+ * 
+ * ## Data Flow
+ * 
+ * ### With API
+ * 1. Fetch record data from `detailApiConfig`
+ * 2. Format data for display (dates, booleans, JSON, etc.)
+ * 3. Render fields in multi-column layout
+ * 
+ * ### With Pre-loaded Data
+ * 1. Accept record data via `detailResponse` prop
+ * 2. Format data for display
+ * 3. Render fields in multi-column layout
+ * 
+ * ## Field Type Handling
+ * 
+ * The details component automatically handles various field types:
+ * - **Text**: Simple string display with URL auto-detection
+ * - **Dates**: Formatted using configured date/time formats
+ * - **Booleans**: Formatted as Yes/No or custom labels
+ * - **JSON**: Rendered as formatted definition list or code block
+ * - **Images**: Rendered as responsive images
+ * - **Rich Text**: Rendered using BlockNote editor (read-only)
+ * - **Code**: Rendered as formatted code blocks
+ * - **Relations**: Rendered with links and modal icons
+ * - **Lists**: Rendered as nested definition lists or JSON
+ * - **Maps**: Rendered as nested definition lists
+ * 
+ * ## Usage
+ * 
+ * @example
+ * ```tsx
+ * // With API fetching
+ * <Details
+ *   propertiesConfig={[
+ *     { name: 'teamName', label: 'Name', column: 'teamName', fieldType: 'text' },
+ *     { name: 'city', label: 'City', column: 'city', fieldType: 'text' },
+ *     { name: 'logo', label: 'Logo', column: 'logo', fieldType: 'image' }
+ *   ]}
+ *   detailApiConfig={{
+ *     apiMethod: 'GET',
+ *     apiUrl: '/api/team/:teamId',
+ *     responseKey: 'data'
+ *   }}
+ *   identifiers="123"
+ *   columnsConfig={{
+ *     numColumns: 2,
+ *     columns: [
+ *       { sortOrder: 0, fields: ['teamName', 'city'] },
+ *       { sortOrder: 1, fields: ['logo'] }
+ *     ]
+ *   }}
+ * />
+ * 
+ * // With pre-loaded data (expandable rows, modals, etc.)
+ * <Details
+ *   propertiesConfig={[...]}
+ *   detailResponse={{ teamName: 'Lakers', city: 'Los Angeles', logo: '...' }}
+ * />
+ * ```
+ * 
+ * @see {@link RelationFieldRenderer} for relation field rendering
+ * @see {@link useFormat} for date/boolean formatting
+ */
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Descriptions, DescriptionsProps, List, Spin, Skeleton, Typography, Space, Tooltip, Button } from 'antd';
 import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
@@ -21,10 +110,16 @@ import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer'
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
 
+/**
+ * Detail API configuration interface.
+ */
 export interface IDetailApiConfig {
   detailApiConfig?: IApiConfig;
 }
 
+/**
+ * Core details configuration interface.
+ */
 export interface IDetailsConfig extends IDetailApiConfig {
   pageTitle?: Template;
   entityName?: string;  // NEW: Entity name from backend config generation
@@ -35,6 +130,9 @@ export interface IDetailsConfig extends IDetailApiConfig {
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
 }
 
+/**
+ * Details component props with state lifting and refresh support.
+ */
 export interface IDetailsComponentProps extends IDetailsConfig {
   propertiesConfig: Array<IPropertiesConfig>;
   detailApiConfig?: IApiConfig;
@@ -46,6 +144,26 @@ export interface IDetailsComponentProps extends IDetailsConfig {
   refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
 }
 
+/**
+ * Main Details component for rendering read-only record details.
+ * 
+ * Provides a complete detail view solution with data loading, formatting,
+ * multi-column layouts, and support for various field types including relations,
+ * images, JSON, rich text, and more.
+ * 
+ * @param props - Details configuration props
+ * @param props.propertiesConfig - Field configurations from backend
+ * @param props.detailApiConfig - API configuration for loading data (optional if detailResponse provided)
+ * @param props.identifiers - Record identifier for API fetching
+ * @param props.columnsConfig - Multi-column layout configuration
+ * @param props.routeParams - Route parameters for URL substitution
+ * @param props.detailResponse - Pre-loaded record data (bypasses API call)
+ * @param props.entityName - Entity name for context
+ * @param props.onDataChange - Callback to lift detail state to parent
+ * @param props.refreshRef - Ref to expose refresh function to parent
+ * 
+ * @returns Rendered details component
+ */
 const Details: React.FC<IDetailsComponentProps> = ({
   pageTitle,
   propertiesConfig,

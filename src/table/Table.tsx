@@ -1,3 +1,77 @@
+/**
+ * @fileoverview Table Component for FW24 Framework
+ * 
+ * This is the main table component that provides enterprise-grade table functionality
+ * including pagination, sorting, filtering, searching, row selection, bulk actions,
+ * expandable rows, and filter segments.
+ * 
+ * ## Key Features
+ * 
+ * - **Pagination**: Cursor-based pagination with configurable page size
+ * - **Sorting**: Multi-column sorting with visual indicators
+ * - **Filtering**: Column-level filters with multiple operators (eq, contains, in, etc.)
+ * - **Search**: Full-text search toggle between database and search modes
+ * - **Row Selection**: Multi-row selection with bulk actions
+ * - **Bulk Actions**: Actions that operate on multiple selected rows
+ * - **Expandable Rows**: Nested tables or detail views within expandable rows
+ * - **Filter Segments**: Quick filter tabs for common filter presets
+ * - **Column Settings**: Show/hide columns, adjust widths, reorder columns
+ * - **Placeholder Resolution**: Automatic resolution of placeholders in filters (`:actor.actorId`, `:startOfMonth`, etc.)
+ * - **Relation Rendering**: Automatic rendering of relation fields with links and modals
+ * 
+ * ## Architecture
+ * 
+ * The Table component follows a layered architecture:
+ * 1. **Table.tsx** (this file): UI rendering and user interactions
+ * 2. **useTable.tsx**: Data fetching, state management, and business logic
+ * 3. **useTableData.tsx**: API calls and data transformation
+ * 4. **FilterSegments**: Quick filter tabs with placeholder resolution
+ * 5. **ColumnSettings**: Column visibility and configuration
+ * 
+ * ## Placeholder Resolution
+ * 
+ * The table automatically resolves placeholders in:
+ * - Default filters (from backend config)
+ * - Segment filters (from filter segments)
+ * - Expandable row API URLs
+ * - Relation field identifiers
+ * 
+ * Supported placeholders:
+ * - `:actor.actorId` - Current user ID
+ * - `:startOfMonth`, `:endOfMonth` - Date expressions
+ * - `:teamId`, `:gameId` - Route parameters
+ * 
+ * ## Usage
+ * 
+ * @example
+ * ```tsx
+ * <Table
+ *   propertiesConfig={[
+ *     { name: 'Team', dataIndex: 'teamName', fieldType: 'text', isFilterable: true },
+ *     { name: 'City', dataIndex: 'city', fieldType: 'text', isFilterable: true }
+ *   ]}
+ *   apiConfig={{
+ *     apiMethod: 'GET',
+ *     apiUrl: '/api/team',
+ *     responseKey: 'data',
+ *     useSearch: true
+ *   }}
+ *   defaultFilters={{ status: { eq: 'active' } }}
+ *   segments={[
+ *     { id: 'all', label: 'All Teams', filters: {} },
+ *     { id: 'active', label: 'Active', filters: { status: { eq: 'active' } } }
+ *   ]}
+ *   bulkActions={[
+ *     { label: 'Delete Selected', url: '/api/team/bulk-delete', openInModal: true }
+ *   ]}
+ * />
+ * ```
+ * 
+ * @see {@link useTable} for data fetching and state management
+ * @see {@link useTableData} for API integration
+ * @see {@link FilterSegments} for quick filter tabs
+ */
+
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
@@ -17,6 +91,26 @@ import { FilterSegments } from './FilterSegments/FilterSegments';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 
+/**
+ * Main Table component for rendering data tables with advanced features.
+ * 
+ * Consumes backend-generated table configurations and renders a fully-featured
+ * data table with pagination, sorting, filtering, searching, and more.
+ * 
+ * @param props - Table configuration props
+ * @param props.propertiesConfig - Column configurations from backend
+ * @param props.apiConfig - API configuration for data fetching
+ * @param props.routeParams - Route parameters for placeholder resolution
+ * @param props.defaultFilters - Pre-applied filters (can use placeholders)
+ * @param props.entityName - Entity name for context
+ * @param props.bulkActions - Actions to show when rows are selected
+ * @param props.rowSelection - Row selection configuration
+ * @param props.expandableConfig - Expandable row configuration
+ * @param props.segments - Filter segment configurations
+ * @param props.onDataChange - Callback to lift table state to parent
+ * 
+ * @returns Rendered table component
+ */
 export const Table = ({
   propertiesConfig,
   records = [], //not using as of now
