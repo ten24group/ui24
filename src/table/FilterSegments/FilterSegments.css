@@ -1,15 +1,46 @@
 /**
- * Filter Segments - Minimal CSS, let Ant Design handle styling
+ * Filter Segments Styles
+ * Clean, minimal inline filter segments
  */
 
 .filter-segments {
-  margin-bottom: 12px;
+  /* Container styles handled inline for better theming */
 }
 
-/* Only add layout for badge support - Ant Design handles everything else */
+.filter-segments-container {
+  /* Main container - horizontal flex layout */
+}
+
+.filter-segment-group {
+  /* Individual group - inline with label and segments */
+  display: flex;
+  align-items: center;
+}
+
+.filter-segment-group-label {
+  /* Group label styling */
+  user-select: none;
+}
+
+/* Badge support for segment labels */
 .filter-segment-label {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
+/* Responsive behavior for smaller screens */
+@media (max-width: 768px) {
+  .filter-segments-container {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 16px !important;
+  }
+  
+  .filter-segment-group {
+    width: 100%;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+  }
+}

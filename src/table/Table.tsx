@@ -311,24 +311,44 @@ export const Table = ({
         handleReload();
       }}
     >      
-      {/* Filter Segments (quick filter tabs) */}
-      {segments && segments.length > 0 && (
-        <FilterSegments
-          segments={segments}
-          isSearchMode={isSearchMode}
-          onSegmentChange={useCallback((segmentId: string, segmentFilters: Record<string, any>) => {
-            // IMPORTANT: Merge segment filters WITH defaultFilters
-            // This preserves pre-applied filters like :teamId from route params
-            const mergedFilters = { ...resolvedDefaultFilters, ...segmentFilters };
-            setAppliedFilters(mergedFilters);
-            
-            // Trigger table refetch AFTER state updates
-            // Use setFetchTrigger instead of handleReload to ensure filters are updated first
-            setFetchTrigger(prev => prev + 1);
-          }, [resolvedDefaultFilters, setAppliedFilters, setFetchTrigger])}
-          placeholderContext={placeholderContext}
-        />
-      )}
+      
+      <div className="table-toolbar">
+        <div style={{ flex: 1 }}>
+          {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {canToggleSearchMode && (
+            <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
+              <Button 
+                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />} 
+                onClick={toggleSearchMode}
+                type={isSearchMode ? "default" : "primary"}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="Reset">
+            <Button icon={<ClearOutlined />} onClick={handleRefresh} />
+          </Tooltip>
+          <Tooltip title="Refresh Data">
+            <Button icon={<ReloadOutlined />} onClick={handleReload} />
+          </Tooltip>
+          <Tooltip title="Column Settings">
+            <Dropdown
+              popupRender={() => (
+                <ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />
+              )}
+              trigger={[ 'click' ]}
+            >
+              <Button icon={<SettingOutlined />} />
+            </Dropdown>
+          </Tooltip>
+          <Tooltip title="View Applied Filters & Sorts">
+            <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
+              <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
+            </Badge>
+          </Tooltip>
+        </div>
+      </div>
       
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
       {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
@@ -371,44 +391,26 @@ export const Table = ({
         </div>
       )}
 
-      <div className="table-toolbar">
-        <div style={{ flex: 1 }}>
-          {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {canToggleSearchMode && (
-            <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
-              <Button 
-                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />} 
-                onClick={toggleSearchMode}
-                type={isSearchMode ? "default" : "primary"}
-              />
-            </Tooltip>
-          )}
-          <Tooltip title="Reset">
-            <Button icon={<ClearOutlined />} onClick={handleRefresh} />
-          </Tooltip>
-          <Tooltip title="Refresh Data">
-            <Button icon={<ReloadOutlined />} onClick={handleReload} />
-          </Tooltip>
-          <Tooltip title="Column Settings">
-            <Dropdown
-              popupRender={() => (
-                <ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />
-              )}
-              trigger={[ 'click' ]}
-            >
-              <Button icon={<SettingOutlined />} />
-            </Dropdown>
-          </Tooltip>
-          <Tooltip title="View Applied Filters & Sorts">
-            <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
-              <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
-            </Badge>
-          </Tooltip>
-        </div>
-      </div>
+      {/* Filter Segments (quick filter tabs) */}
+      {segments && segments.length > 0 && (
+        <FilterSegments
+          segments={segments}
+          isSearchMode={isSearchMode}
+          onSegmentChange={useCallback((segmentId: string, segmentFilters: Record<string, any>) => {
+            // IMPORTANT: Merge segment filters WITH defaultFilters
+            // This preserves pre-applied filters like :teamId from route params
+            const mergedFilters = { ...resolvedDefaultFilters, ...segmentFilters };
+            setAppliedFilters(mergedFilters);
+            
+            // Trigger table refetch AFTER state updates
+            // Use setFetchTrigger instead of handleReload to ensure filters are updated first
+            setFetchTrigger(prev => prev + 1);
+          }, [resolvedDefaultFilters, setAppliedFilters, setFetchTrigger])}
+          placeholderContext={placeholderContext}
+        />
+      )}
 
+      {/* Applied Filters & Sorts Display */}
       {showFilters && (
         <AppliedFiltersDisplay
           hasActiveFilters={hasActiveFilters}

@@ -4,16 +4,17 @@ import { Icon } from '../../core/common';
 import React from 'react';
 import { filterOperators } from './filterOperators';
 import { FieldType } from '../../core/types/field-types';
+import { OptionSelector, type IFieldOptionsAPIConfig } from '../../core/forms/FormField/OptionSelector';
 
 interface IColumnFilterProps {
   dataIndex: string
   title: string
   fieldType: FieldType
   filterConfig?: {
+    filterType?: 'text' | 'select' | 'datetime' | 'number' | 'boolean' | 'relation';
     defaultOperator?: string;
     availableOperators?: string[];
-    predefinedOptions?: Array<{ label: string; value: string }>;
-    filterType?: 'text' | 'select' | 'datetime' | 'number' | 'boolean';
+    predefinedOptions?: IFieldOptionsAPIConfig | Array<{ label: string; value: string }>;
   };
 }
 
@@ -58,8 +59,11 @@ export const filterUI = (
     const appliedFilterForColumn = getAppliedFilterForColumn(dataIndex);
     const appliedInFilterValues = (appliedFilterForColumn.in || []) as string[];
 
-    // Check if this column has predefined options
-    const hasPredefinedOptions = filterConfig?.predefinedOptions && filterConfig.predefinedOptions.length > 0;
+    // Check if predefinedOptions is API config or inline array
+    const predefinedOptions = filterConfig?.predefinedOptions;
+    const isApiConfig = predefinedOptions && typeof predefinedOptions === 'object' && !Array.isArray(predefinedOptions) && 'apiMethod' in predefinedOptions;
+    const hasInlineOptions = predefinedOptions && Array.isArray(predefinedOptions) && predefinedOptions.length > 0;
+    const hasPredefinedOptions = isApiConfig || hasInlineOptions;
     const filterType = filterConfig?.filterType || (isTextColumn ? 'text' : 'text');
 
     const handleOperatorChange = (newOperator: string) => {
@@ -151,37 +155,36 @@ export const filterUI = (
     const renderFilterInput = () => {
       if (hideFilterValue) return null;
 
-      if (hasPredefinedOptions && (filterOperator === 'eq' || filterOperator === 'in' || filterOperator === 'nin')) {
+      // Use OptionSelector for select/relation fields with API config or inline options
+      if ((filterType === 'select' || filterType === 'relation') && (isApiConfig || hasInlineOptions)) {
         return (
-          <Select
-            placeholder={`Select ${title}`}
+          <OptionSelector
+            fieldType="select"
+            options={isApiConfig ? (predefinedOptions as IFieldOptionsAPIConfig) : (predefinedOptions as Array<{ label: string; value: string }>)}
             value={filterValue}
-            onChange={(value) => setFilterValue(value)}
-            style={{ width: '100%' }}
-            options={filterConfig!.predefinedOptions!.map(option => ({
-              label: option.label,
-              value: option.value
-            }))}
-          />
-        );
-      }
-
-      if (filterType === 'select' && hasPredefinedOptions) {
-        return (
-          <Select
-            placeholder={`Select ${title}`}
-            value={filterValue}
-            onChange={(value) => setFilterValue(value)}
-            style={{ width: '100%' }}
-            options={filterConfig!.predefinedOptions!.map(option => ({
-              label: option.label,
-              value: option.value
-            }))}
+            onOptionChange={(value: string) => setFilterValue(value)}
           />
         );
       }
 
       if (filterType === 'datetime') {
+        // If inline quick date options exist, show select
+        if (hasInlineOptions) {
+          return (
+            <Select
+              placeholder={`Select ${title}`}
+              value={filterValue}
+              onChange={(value) => setFilterValue(value)}
+              style={{ width: '100%' }}
+              options={(predefinedOptions as Array<{ label: string; value: string }>).map(option => ({
+                label: option.label,
+                value: option.value === null ? 'custom' : String(option.value)
+              }))}
+            />
+          );
+        }
+        
+        // Default datetime-local input
         return (
           <Input
             type="datetime-local"
@@ -205,18 +208,17 @@ export const filterUI = (
 
       if (filterType === 'boolean') {
         return (
-          <Select
-            placeholder={`Select ${title}`}
-            value={filterValue}
-            onChange={(value) => setFilterValue(value)}
-            style={{ width: '100%' }}
-            options={[
-              { label: 'True', value: 'true' },
-              { label: 'False', value: 'false' }
-            ]}
-          />
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Checkbox
+              checked={filterValue === 'true' || filterValue === 'True'}
+              onChange={(e) => setFilterValue(e.target.checked ? 'true' : 'false')}
+            >
+              {title}
+            </Checkbox>
+          </div>
         );
       }
+
 
       // Default text input
       return (
