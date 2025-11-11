@@ -4,6 +4,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { DetailStateProvider } from '../../core/context/DetailStateContext';
+import { useModalContext } from '../../core/context';
 import { Details, IDetailsComponentProps } from '../../detail/Details';
 import { PageHeader, IPageHeader } from '../PostAuth/PageHeader/PageHeader';
 
@@ -57,17 +58,22 @@ export const DetailPage: React.FC<DetailPageProps> = ({
     }
   }, []);
   
+  // Check if we're in a modal - skip PageHeader if true (modal already has title)
+  const { isInModal } = useModalContext();
+  
   return (
     <DetailStateProvider value={detailState}>
       <div className="detail-page">
-        {/* PageHeader has access to DetailStateContext and can trigger refresh */}
-        <PageHeader
-          pageHeaderActions={pageHeaderActions}
-          pageTitle={pageTitle}
-          breadcrumbs={breadcrumbs}
-          routeParams={enhancedRouteParams}
-          onRefreshData={handleRefresh}
-        />
+        {/* Skip PageHeader when in modal - modal already has title/chrome */}
+        {!isInModal && (
+          <PageHeader
+            pageHeaderActions={pageHeaderActions}
+            pageTitle={pageTitle}
+            breadcrumbs={breadcrumbs}
+            routeParams={enhancedRouteParams}
+            onRefreshData={handleRefresh}
+          />
+        )}
         
         {/* Details component - pass through onDataChange and refreshRef */}
         <Details

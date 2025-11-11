@@ -312,10 +312,12 @@ export const OptionSelector = ({
                     updatedOptions = formattedOptions;
                 }
                 
-                // Sort all options by label
-                updatedOptions.sort((a, b) => 
-                    a.label.toLowerCase().localeCompare(b.label.toLowerCase())
-                );
+                // Sort all options by label (with safety checks)
+                updatedOptions.sort((a, b) => {
+                    const labelA = String(a.label || a.value || '').toLowerCase();
+                    const labelB = String(b.label || b.value || '').toLowerCase();
+                    return labelA.localeCompare(labelB);
+                });
                 
                 setFieldOptions(updatedOptions);
                 
@@ -554,6 +556,8 @@ export const OptionSelector = ({
                 onChange={(value) => onOptionChange?.(value)}
                 notFoundContent={loading ? 'Loading...' : 'No options found'}
                 placeholder={hasRemoteSearch ? 'Type to search...' : 'Select an option'}
+                style={{ minWidth: 200, width: '100%' }}
+                popupMatchSelectWidth={false}
             />
         )}
         
@@ -572,6 +576,8 @@ export const OptionSelector = ({
                 mode='multiple'
                 notFoundContent={loading ? 'Loading...' : 'No options found'}
                 placeholder={hasRemoteSearch ? 'Type to search...' : 'Select options'}
+                style={{ minWidth: 200, width: '100%' }}
+                popupMatchSelectWidth={false}
             />
         )}
     </>

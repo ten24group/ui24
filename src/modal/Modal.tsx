@@ -1,3 +1,28 @@
+/**
+ * Modal.tsx
+ * 
+ * ==========================================
+ * ACTION-ORIENTED MODAL COMPONENT
+ * ==========================================
+ * 
+ * PURPOSE: Perform actions and operations with API integration
+ * 
+ * USE THIS WHEN:
+ * - Confirmation dialogs (delete, approve, reject)
+ * - Forms that submit to API (create, update, delete)
+ * - Navigation-only forms (filter form → navigate with query params)
+ * - Bulk operations with response display
+ * - Need API integration, loading states, success/error handling
+ * 
+ * USE OpenRouteInModal.tsx INSTEAD WHEN:
+ * - Viewing entity details without actions
+ * - Browsing related lists
+ * - Opening routes from entities.json
+ * - Need overrideConfig support (defaultFilters, hideFields)
+ * 
+ * ==========================================
+ */
+
 import { Modal as AntModal } from 'antd';
 import React from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -20,7 +45,7 @@ import { ITableConfig } from '../table/type';
 import { getDefaultModalWidth } from './modalUtils';
 
 // Simple modal depth tracking for stack effect
-const ModalDepthContext = React.createContext(0);
+export const ModalDepthContext = React.createContext(0);
 export const useModalDepth = () => React.useContext(ModalDepthContext);
 
 interface IConfirmModal {
@@ -843,6 +868,153 @@ export const Modal = ({
 
 type IOpenInModal = IModalConfig
 
+/**
+ * OpenInModal - Action-Oriented Modal Component
+ * 
+ * PURPOSE:
+ * Opens modals for performing actions (API calls, form submissions, confirmations).
+ * This is the "do something" modal with rich API integration and response handling.
+ * 
+ * WHEN TO USE:
+ * ✅ Confirmation dialogs ("Delete Team?", "Approve Request?")
+ * ✅ Action forms with API calls (Create, Update, Delete operations)
+ * ✅ Navigation-only forms (filter form → navigate with query params)
+ * ✅ Bulk operations with response display (show results in second modal)
+ * ✅ Custom success/error messages with templates
+ * ✅ Need loading states during API calls
+ * ✅ Need refreshParentOnSuccess callback
+ * 
+ * WHEN NOT TO USE (use OpenRouteInModal instead):
+ * ❌ Viewing entity details without actions (use OpenRouteInModal)
+ * ❌ Browsing related lists (use OpenRouteInModal)
+ * ❌ Opening routes defined in entities.json (use OpenRouteInModal)
+ * ❌ Need lazy config loading (use OpenRouteInModal)
+ * ❌ Need overrideConfig support (use OpenRouteInModal)
+ * 
+ * KEY FEATURES:
+ * - API Integration: Full support for apiConfig (POST, PUT, DELETE, etc.)
+ * - Confirm Modals: Built-in OK/Cancel dialogs
+ * - Response Display: Show API results in second modal (responseConfig)
+ * - Navigation: Navigate with form values (navigateTo)
+ * - Template Messages: Dynamic success/error messages
+ * - Form Pre-population: initialValues with template support
+ * - Inverse Mapping: Pre-populate form from URL query params
+ * - Large Param Storage: sessionStorage for long filter URLs
+ * - Loading States: Built-in loading spinner during API calls
+ * - Error Boundaries: Safe rendering with error handling
+ * - Modal Depth Tracking: Visual stacking for nested modals
+ * 
+ * MODAL TYPES SUPPORTED:
+ * 1. confirm: Simple confirmation dialog with OK/Cancel
+ * 2. form: Full form with API call or navigation
+ * 3. list: Display list page in modal
+ * 4. details: Display detail page in modal
+ * 5. dashboard: Display dashboard in modal
+ * 6. accordion: Display accordion page in modal
+ * 7. custom: Custom content (children)
+ * 
+ * EXAMPLE USAGE:
+ * ```tsx
+ * // 1. Confirmation Dialog
+ * <OpenInModal
+ *   modalType="confirm"
+ *   modalPageConfig={{ 
+ *     title: "Delete {teamName}?", 
+ *     content: "This will affect {playerCount} players." 
+ *   }}
+ *   apiConfig={{ apiMethod: 'DELETE', apiUrl: '/team/:id' }}
+ *   successMessage="{teamName} deleted successfully"
+ *   refreshParentOnSuccess={true}
+ *   routeParams={{ teamId: 'team-123', teamName: 'Lakers', playerCount: '15' }}
+ *   primaryIndex="team-123"
+ * >
+ *   <Button danger>Delete</Button>
+ * </OpenInModal>
+ * 
+ * // 2. Create Form with API Call
+ * <OpenInModal
+ *   modalType="form"
+ *   modalPageConfig={{
+ *     propertiesConfig: [
+ *       { name: 'teamName', label: 'Team Name', type: 'string', required: true },
+ *       { name: 'sport', label: 'Sport', type: 'select', options: [...] },
+ *       { name: 'isActive', label: 'Active', type: 'boolean' }
+ *     ]
+ *   }}
+ *   apiConfig={{ apiMethod: 'POST', apiUrl: '/team' }}
+ *   initialValues={{ isActive: true, sport: 'basketball' }}
+ *   submitSuccessRedirect="/view-team/:id"
+ *   onSuccessCallback={(response) => console.log('Created:', response)}
+ *   modalTitle="Create Team"
+ * >
+ *   <Button type="primary">Create Team</Button>
+ * </OpenInModal>
+ * 
+ * // 3. Filter Form with Navigation (no API call)
+ * <OpenInModal
+ *   modalType="form"
+ *   modalPageConfig={{
+ *     propertiesConfig: [
+ *       { name: 'status', label: 'Status', type: 'select', options: [...] },
+ *       { name: 'teamId', label: 'Team', type: 'select', options: [...] },
+ *       { name: 'startDate', label: 'Start Date', type: 'date' }
+ *     ]
+ *   }}
+ *   navigateTo={{
+ *     routePattern: '/list-game',
+ *     queryParamMapping: {
+ *       'status': 'status',
+ *       'teamId': 'teamId',
+ *       'startDate': 'startDate'
+ *     },
+ *     useLargeParamStorage: true,  // Use sessionStorage for long URLs
+ *     inverseMapping: true  // Pre-populate form from URL
+ *   }}
+ *   modalTitle="Filter Games"
+ * >
+ *   <Button>Advanced Filters</Button>
+ * </OpenInModal>
+ * 
+ * // 4. Bulk Operation with Response Display
+ * <OpenInModal
+ *   modalType="form"
+ *   modalPageConfig={{
+ *     propertiesConfig: [
+ *       { name: 'status', label: 'New Status', type: 'select', options: [...] },
+ *       { name: 'priority', label: 'Priority', type: 'number' }
+ *     ]
+ *   }}
+ *   apiConfig={{ apiMethod: 'POST', apiUrl: '/bulk-update' }}
+ *   responseConfig={{
+ *     showModal: true,
+ *     pageType: 'dashboard',
+ *     pageConfig: { 
+ *       widgets: [
+ *         { type: 'stat', title: 'Updated', value: '{count}' },
+ *         { type: 'stat', title: 'Failed', value: '{failedCount}' }
+ *       ]
+ *     }
+ *   }}
+ *   modalTitle="Bulk Update Teams"
+ * >
+ *   <Button>Bulk Update</Button>
+ * </OpenInModal>
+ * ```
+ * 
+ * COMPARISON WITH OpenRouteInModal:
+ * - OpenInModal: Perform actions (this component)
+ * - OpenRouteInModal: Browse entities (see OpenRouteInModal.tsx)
+ * 
+ * ARCHITECTURE:
+ * - Wraps internal Modal component (handles API, navigation, response display)
+ * - Manages open/close state
+ * - Forwards callbacks and props to internal Modal
+ * - Supports array children: [trigger, content]
+ * 
+ * @see OpenRouteInModal.tsx - For view-oriented modals
+ * @see Modal component - Internal modal implementation
+ * @see IModalConfig - Full configuration interface
+ */
 export const OpenInModal = ({ ...props }: IOpenInModal) => {
 
   const [ open, setOpen ] = React.useState(false)

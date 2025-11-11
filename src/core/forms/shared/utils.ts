@@ -17,10 +17,24 @@ export function determineColumnLayout<T>(
 ): T[][] {
 
   if (columnsConfig?.columns?.length > 0) {
-    // todo: if columnsConfig.numcolumns is provided, use it to split items into columns
-    // Sort columns by sortOrder
-    return columnsConfig.columns
-      .sort((a, b) => a.sortOrder - b.sortOrder)
+    // Get all items that should be rendered based on columnsConfig
+    const sortedColumns = columnsConfig.columns
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    
+    const allConfiguredItems = sortedColumns
+      .flatMap(col =>
+        col.fields
+          .map(fieldKey => items.find((item: any) => item.name === fieldKey || item.column === fieldKey))
+          .filter(item => item) as T[]
+      );
+
+    // If numColumns is specified, redistribute items into that many columns
+    if (columnsConfig.numColumns && columnsConfig.numColumns > 0) {
+      return splitIntoColumns(allConfiguredItems, Math.min(columnsConfig.numColumns, maxColumns));
+    }
+
+    // Otherwise, use the explicit column structure
+    return sortedColumns
       .map(col =>
         col.fields
           .map(fieldKey => items.find((item: any) => item.name === fieldKey || item.column === fieldKey))

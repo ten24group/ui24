@@ -14,6 +14,10 @@ import { FilterFilled } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
+import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
+import { resolveFilterPlaceholders } from "../core/utils/placeholderResolver";
+import { NON_FILTER_URL_PARAMS } from "./constants";
+import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -102,11 +106,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   const queryParams = new URLSearchParams(location.search);
   
   // System/infrastructure params that should NOT be in filters
-  // These either control pagination/search OR are pass-through params for backend
-  const NON_FILTER_PARAMS = [
-    'f', 'page', 'cursor', 'count', 'q', 'sort', 'attributes',  // Infrastructure
-    'debug', 'trace', 'mock', 'test', 'dev', 'verbose', 'dryRun'  // Backend pass-through
-  ];
+  // (defined in ./constants.ts for consistency across table code)
   
   // Filter operators supported by backend
   const OPERATORS = ['eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'contains', 'notContains', 'beginsWith'];
@@ -132,7 +132,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
         
         Object.entries(parsed).forEach(([key, value]) => {
           // Skip non-filter params (infrastructure)
-          if (NON_FILTER_PARAMS.includes(key)) {
+          if (NON_FILTER_URL_PARAMS.includes(key as any)) {
             return;
           }
           
@@ -185,7 +185,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   
   queryParams.forEach((value, key) => {
     // Skip non-filter params (infrastructure like page, cursor, etc.)
-    if (NON_FILTER_PARAMS.includes(key)) {
+    if (NON_FILTER_URL_PARAMS.includes(key as any)) {
       return;
     }
     
@@ -230,28 +230,14 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
-  // Memoize resolved defaultFilters to reference them when resetting
+  // Memoize resolved defaultFilters using new placeholder resolver
+  // Build placeholder context once
+  const placeholderContext = usePlaceholderContext(routeParams);
+  
   const resolvedDefaultFilters = React.useMemo(() => {
-    const resolved: Record<string, any> = {};
-    Object.entries(defaultFilters).forEach(([key, value]) => {
-      if (typeof value === 'string' && value.startsWith(':')) {
-        // Placeholder: extract param name and resolve
-        const paramName = value.slice(1); // Remove leading ':'
-        const resolvedValue = routeParams[paramName];
-        
-        if (resolvedValue != null) {
-          // Wrap in operator structure for UI compatibility
-          resolved[key] = { eq: resolvedValue };
-        } else {
-          console.warn(`[useTable] Could not resolve placeholder "${value}" for filter "${key}"`);
-        }
-      } else {
-        // Non-placeholder value: use as-is (already in operator structure)
-        resolved[key] = value;
-      }
-    });
-    return resolved;
-  }, [defaultFilters, routeParams]);
+    // Resolve all placeholders in defaultFilters
+    return resolveFilterPlaceholders(defaultFilters, placeholderContext);
+  }, [defaultFilters, placeholderContext]);
 
   // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
@@ -420,7 +406,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   }, [_clearAllFilters]);
 
-  // ✅ Stabilize with useCallback - memoization dependency
+  // Stabilize with useCallback - memoization dependency
   const getAppliedFilterForColumn = React.useCallback((column: string) => {
     return appliedFilters[ column ] || {};
   }, [appliedFilters]);
@@ -432,7 +418,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         : [ ...prev, dataIndex ]
     );
     setFetchTrigger(prev => prev + 1);
-  }, []); // ✅ No dependencies - uses functional updates
+  }, []); // No dependencies - uses functional updates
 
   //Sorts
   const { DisplayAppliedSorts, clearAllSorts: _clearAllSorts, hasActiveSorts, activeSortsCount } = useAppliedSorts({
@@ -482,16 +468,16 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     handleColumnSettingsChange(defaultSettings);
   };
 
-  // ✅ Stabilize removeFilter with useCallback - memoization dependency
+  // Stabilize removeFilter with useCallback - memoization dependency
   const removeFilter = React.useCallback((col: string) => {
     setAppliedFilters(prev => {
       const { [col]: _, ...rest } = prev;
       return rest;
     });
     setFetchTrigger(prev => prev + 1);
-  }, []); // ✅ No dependencies - uses functional updates
+  }, []); // No dependencies - uses functional updates
 
-  // ✅ OPTIMIZATION 2: Cache column renderers to avoid creating new functions
+  // OPTIMIZATION: Cache column renderers to avoid creating new functions
   // Template renderers are pure functions - same template always produces same renderer
   const rendererCache = React.useRef<Map<string, (text: any, record: any) => any>>(new Map());
   
@@ -514,7 +500,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
   
-  // ✅ Color renderer is static - create once
+  // Color renderer is static - create once
   const colorRenderer = React.useMemo(() => (text: string) => (
     <>
       <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
@@ -539,9 +525,24 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
       let renderer = column.render;
 
-      if (column.template) {
+      // Priority 1: Relation config renderer (for related entities)
+      if (column.relationConfig) {
+        renderer = (value: any, record: any) => (
+          <RelationFieldRenderer
+            relationConfig={column.relationConfig!}
+            value={value}
+            record={record}
+            routeParams={routeParams}
+            label={column.name}
+          />
+        );
+      }
+      // Priority 2: Template renderer (for composite values)
+      else if (column.template) {
         renderer = getTemplateRenderer(column.template);
-      } else if (column.fieldType === 'color') {
+      }
+      // Priority 3: Field type specific renderers
+      else if (column.fieldType === 'color') {
         renderer = colorRenderer;
       }
 
@@ -567,9 +568,49 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       return aIndex - bIndex;
     });
 
+  // Apply column grouping based on groupTitle property
+  // Uses Ant Design's children property to create grouped column headers
+  const finalColumns = React.useMemo(() => {
+    // Check if any columns have groupTitle
+    const hasGroups = columns.some(col => col.groupTitle);
+    if (!hasGroups) {
+      return columns;
+    }
+
+    const grouped: any[] = [];
+    const groupedFieldSet = new Set<string>();
+    const groupMap = new Map<string, any[]>();
+
+    // Group columns by groupTitle
+    columns.forEach(col => {
+      if (col.groupTitle) {
+        if (!groupMap.has(col.groupTitle)) {
+          groupMap.set(col.groupTitle, []);
+        }
+        groupMap.get(col.groupTitle)!.push(col);
+        groupedFieldSet.add(col.dataIndex as string);
+      }
+    });
+
+    // Create grouped column structures
+    groupMap.forEach((childColumns, groupTitle) => {
+      grouped.push({
+        title: groupTitle,
+        children: childColumns
+      });
+    });
+
+    // Add ungrouped columns (including action column)
+    const ungroupedColumns = columns.filter(col => 
+      !groupedFieldSet.has(col.dataIndex as string)
+    );
+
+    return [...grouped, ...ungroupedColumns];
+  }, [columns]);
+
   return {
     recordIdentifierKey,
-    columns,
+    columns: finalColumns,
     listRecords,
     isLoading,
     isInitialLoad,
@@ -595,5 +636,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),
     appliedFilters,
+    setAppliedFilters,  // Expose for filter segments
+    setFetchTrigger,    // Expose to trigger refetch after state updates
   };
 };

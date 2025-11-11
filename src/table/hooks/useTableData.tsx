@@ -3,9 +3,12 @@ import { useApi, IApiConfig } from '../../core/context';
 import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig } from '../type';
-import { useFormat } from '../../core/hooks';
 import { getNestedValue } from '../../core/utils';
 import { handleApiError } from '../../core/utils/api-error-handler';
+import { NON_FILTER_URL_PARAMS } from '../constants';
+import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver';
+import { usePlaceholderContext } from './usePlaceholderContext';
+import { useFormat } from '../../core';
 
 const recordPerPage = 10;
 
@@ -94,6 +97,9 @@ export const useTableData = ({
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
+  
+  // Build placeholder context for resolving filter placeholders
+  const placeholderContext = usePlaceholderContext(routeParams);
 
   const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
   const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
@@ -115,18 +121,21 @@ export const useTableData = ({
     const sortString = getSortString();
     const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursor[ pageNumber ] || "";
 
-    const payload: any = {
-      ...getFilterPayload(appliedFilters, apiConfig.apiMethod),
+    // Resolve all placeholders in filters before sending to API
+    const resolvedFilters = resolveFilterPlaceholders(appliedFilters, placeholderContext);
+
+    const payload = {
+      ...getFilterPayload(resolvedFilters, apiConfig.apiMethod),
     };
     
     // Add non-filter query params from URL (debug, trace, mock, etc.)
     // These bypass filter structure and go directly to API
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      const INFRASTRUCTURE_PARAMS = ['f', 'page', 'cursor', 'count', 'q', 'sort', 'attributes'];
+      // Use shared constant for consistency with useTable.tsx
       urlParams.forEach((value, key) => {
         // Skip infrastructure params (they're handled separately)
-        if (INFRASTRUCTURE_PARAMS.includes(key)) {
+        if (NON_FILTER_URL_PARAMS.includes(key as any)) {
           return;
         }
         

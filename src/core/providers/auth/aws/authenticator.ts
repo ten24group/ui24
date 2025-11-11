@@ -177,8 +177,8 @@ class Authenticator implements IAuthProvider {
 
     /**
      * Request new temporary AWS credentials using current IdToken.
-     * Accepts expired IdTokens - the refresh flow will handle token renewal if server rejects.
-     * Throws error only if IdToken is completely missing or request fails.
+     * Assumes IdToken has already been validated/refreshed by caller (fetchCredentialsWithRefresh).
+     * Throws error if IdToken is missing or request fails.
      * @returns AxiosResponse with AWS credentials data.
      */
     public getNewTempAwsCredentials = async () => {
@@ -186,12 +186,6 @@ class Authenticator implements IAuthProvider {
         if (!tokenData || !tokenData.IdToken) {
             console.error('[Auth] Cannot fetch AWS credentials: no token data or IdToken present');
             throw new Error('Unauthorized: No IdToken available for AWS credentials request');
-        }
-        
-        // Check if IdToken is expired - if so, log a warning but still attempt the request
-        // The server will reject with 401/403 and trigger the refresh flow in fetchCredentialsWithRefresh
-        if (!this.isValidTokenData(tokenData)) {
-            console.warn('[Auth] IdToken appears expired, attempting request anyway - refresh flow will handle renewal if rejected');
         }
         
         try {
@@ -274,13 +268,42 @@ class Authenticator implements IAuthProvider {
     }
 
     private fetchCredentialsWithRefresh = async (): Promise<AwsCredentialIdentity> => {
+        // PROACTIVE CHECK: Check if IdToken is expired BEFORE making request
+        const tokenData = this.getCachedTokenData();
+        if (tokenData && !this.isValidTokenData(tokenData)) {
+            console.log('[Auth] IdToken is expired locally, proactively refreshing before fetching credentials');
+            try {
+                const refreshResponse = await this.refreshIdToken();
+                if (!refreshResponse.data?.IdToken) {
+                    console.error('[Auth] No IdToken in refresh response, all tokens exhausted - logging out');
+                    this.logout();
+                    throw new Error('Unauthorized: Unable to refresh IdToken - all tokens exhausted');
+                }
+                console.log('[Auth] Successfully refreshed IdToken proactively');
+                this.setToken(JSON.stringify(refreshResponse.data));
+            } catch (refreshError: any) {
+                console.error('[Auth] Failed to proactively refresh IdToken:', refreshError.response?.status || refreshError.message);
+                if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+                    console.error('[Auth] RefreshToken expired or invalid - all authentication options exhausted, logging out');
+                } else {
+                    console.error('[Auth] Unexpected error during token refresh, logging out');
+                }
+                this.logout();
+                throw new Error('Unauthorized: Failed to refresh authentication - refresh token invalid or expired');
+            }
+        }
+
         try {
             console.log('[Auth] Fetching AWS temporary credentials with current IdToken');
             return await this.fetchCredentials();
         } catch (error: any) {
-            // Only attempt refresh if we got auth-related errors (401/403)
-            if (error.response?.status === 401 || error.response?.status === 403) {
-                console.log('[Auth] Failed to fetch credentials (401/403), IdToken expired. Attempting to refresh IdToken using RefreshToken...');
+            // REACTIVE CHECK: Server rejected (401/403/500 with token expired message)
+            const isAuthError = error.response?.status === 401 || 
+                               error.response?.status === 403 ||
+                               (error.response?.status === 500 && error.response?.data?.message?.includes('Token expired'));
+            
+            if (isAuthError) {
+                console.log('[Auth] Server rejected credentials, attempting to refresh IdToken using RefreshToken...');
                 try {
                     const refreshResponse = await this.refreshIdToken();
                     if (!refreshResponse.data?.IdToken) {
