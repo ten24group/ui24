@@ -2,6 +2,8 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.11](https://github.com/ten24group/ui24/compare/v1.0.5-beta.10...v1.0.5-beta.11) (2025-11-11)
+
 ### [1.0.5-beta.10](https://github.com/ten24group/ui24/compare/v1.0.5-beta.9...v1.0.5-beta.10) (2025-11-07)
 
 ### [1.0.5-beta.9](https://github.com/ten24group/ui24/compare/v1.0.5-beta.8...v1.0.5-beta.9) (2025-11-06)
