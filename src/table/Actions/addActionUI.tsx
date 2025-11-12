@@ -28,6 +28,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         key: item.dataIndex,
         name: item.name,  // Preserve name for RelationFieldRenderer label
         fieldType: item.fieldType,
+        type: item.type,  // Preserve data type (list, map, etc.)
         isFilterable: item.isFilterable,
         isSortable: item.isSortable,
         filterConfig: item.filterConfig,

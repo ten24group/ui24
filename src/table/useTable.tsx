@@ -18,6 +18,10 @@ import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
 import { resolveFilterPlaceholders } from "../core/utils/placeholderResolver";
 import { NON_FILTER_URL_PARAMS } from "./constants";
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
+import { Button } from "antd";
+import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/icons';
+import { OpenInModal } from "../modal/Modal";
+import { IDetailsConfig } from "../detail/Details";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -500,15 +504,182 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
   
-  // Color renderer is static - create once
-  const colorRenderer = React.useMemo(() => (text: string) => (
-    <>
-      <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
-        <rect width="12" height="12" fill={text} strokeWidth={1} stroke="rgb(0,0,0)" />
-      </svg>
-      <span style={{ marginLeft: 8 }}> {text}</span>
-    </>
-  ), []);
+  // Field type renderers - create once
+  const colorRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    const colorValue = typeof text === 'string' ? text : '';
+    if (!colorValue) return <span>—</span>;
+    return (
+      <>
+        <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
+          <rect width="12" height="12" fill={colorValue} strokeWidth={1} stroke="rgb(0,0,0)" />
+        </svg>
+        <span style={{ marginLeft: 8 }}> {colorValue}</span>
+      </>
+    );
+  }, []);
+
+  const imageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    const imageUrl = typeof text === 'string' ? text : '';
+    if (!imageUrl) return <span>—</span>;
+    return (
+      <img 
+        src={imageUrl} 
+        alt="Preview" 
+        style={{ 
+          width: '40px', 
+          height: '40px', 
+          objectFit: 'cover',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+        onClick={() => window.open(imageUrl, '_blank')}
+      />
+    );
+  }, []);
+
+  const fileRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    const fileUrl = typeof text === 'string' ? text : '';
+    if (!fileUrl) return <span>—</span>;
+    return (
+      <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>
+        Download
+      </a>
+    );
+  }, []);
+
+  // Complex field renderers with modal support using existing OpenInModal component
+  const jsonRenderer = (
+    text: unknown, 
+    record: Record<string, unknown>, 
+    columnName: string, 
+    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
+  ): React.ReactNode => {
+    if (!text || (typeof text === 'object' && Object.keys(text).length === 0)) {
+      return <span>—</span>;
+    }
+    
+    const detailsConfig: IDetailsConfig = {
+      propertiesConfig: [{
+        label: columnName,
+        fieldType: 'json',
+        type: 'map',
+        column: fieldConfig.dataIndex || 'value'
+      }],
+      detailResponse: { [fieldConfig.dataIndex || 'value']: text }
+    };
+    
+    return (
+      <OpenInModal
+        modalType="details"
+        modalTitle={columnName}
+        modalWidth={800}
+        modalPageConfig={detailsConfig}
+      >
+        <Button 
+          size="small" 
+          icon={<FileTextOutlined />} 
+          type="link"
+        >
+          View JSON
+        </Button>
+      </OpenInModal>
+    );
+  };
+
+  const listRenderer = (
+    text: unknown, 
+    record: Record<string, unknown>, 
+    columnName: string, 
+    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
+  ): React.ReactNode => {
+    if (!Array.isArray(text) || text.length === 0) return <span>—</span>;
+    
+    // Simple string/number array - show inline if short
+    if (text.every(item => typeof item === 'string' || typeof item === 'number')) {
+      if (text.length === 1) return <span>{String(text[0])}</span>;
+      if (text.length <= 3) return <span>{text.join(', ')}</span>;
+    }
+    
+    // Complex array - show in modal
+    const detailsConfig: IDetailsConfig = {
+      propertiesConfig: [{
+        label: columnName,
+        type: 'list',
+        column: fieldConfig.dataIndex || 'value'
+      }],
+      detailResponse: { [fieldConfig.dataIndex || 'value']: text }
+    };
+    
+    return (
+      <OpenInModal
+        modalType="details"
+        modalTitle={columnName}
+        modalWidth={800}
+        modalPageConfig={detailsConfig}
+      >
+        <Button 
+          size="small" 
+          icon={<OrderedListOutlined />} 
+          type="link"
+        >
+          View ({text.length})
+        </Button>
+      </OpenInModal>
+    );
+  };
+
+  const richTextRenderer = (
+    text: unknown, 
+    record: Record<string, unknown>, 
+    columnName: string, 
+    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
+  ): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    
+    const detailsConfig: IDetailsConfig = {
+      propertiesConfig: [{
+        label: columnName,
+        fieldType: 'rich-text',
+        column: fieldConfig.dataIndex || 'value'
+      }],
+      detailResponse: { [fieldConfig.dataIndex || 'value']: text }
+    };
+    
+    return (
+      <OpenInModal
+        modalType="details"
+        modalTitle={columnName}
+        modalWidth={900}
+        modalPageConfig={detailsConfig}
+      >
+        <Button 
+          size="small" 
+          icon={<EyeOutlined />} 
+          type="link"
+        >
+          View Content
+        </Button>
+      </OpenInModal>
+    );
+  };
+
+  const numberRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const num = typeof text === 'number' ? text : parseFloat(String(text));
+    return isNaN(num) ? <span>—</span> : <span>{num.toLocaleString()}</span>;
+  }, []);
+
+  const rangeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    return <span>{String(text)}%</span>;
+  }, []);
+
+  const ratingRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const rating = typeof text === 'number' ? text : parseFloat(String(text));
+    if (isNaN(rating)) return <span>—</span>;
+    return <span>{'⭐'.repeat(Math.round(rating))} ({rating}/5)</span>;
+  }, []);
 
   const columns = addFilterUI(
     addActionUI(propertiesConfig, handleReload, routeParams),
@@ -542,8 +713,84 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         renderer = getTemplateRenderer(column.template);
       }
       // Priority 3: Field type specific renderers
-      else if (column.fieldType === 'color') {
-        renderer = colorRenderer;
+      else if (column.fieldType) {
+        const fieldType = column.fieldType.toLowerCase();
+        const columnName = column.name || column.title || column.dataIndex;
+        
+        // Image fields
+        if (fieldType === 'image') {
+          renderer = imageRenderer;
+        }
+        // File fields
+        else if (fieldType === 'file') {
+          renderer = fileRenderer;
+        }
+        // Color fields
+        else if (fieldType === 'color') {
+          renderer = colorRenderer;
+        }
+        // JSON/Map fields - modal-based
+        else if (fieldType === 'json' || column.type === 'map') {
+          renderer = (text: unknown, record: Record<string, unknown>) => 
+            jsonRenderer(text, record, columnName, column);
+        }
+        // List/Array fields (but not multi-select which is already formatted as string) - modal-based
+        else if (column.type === 'list' && fieldType !== 'multi-select') {
+          renderer = (text: unknown, record: Record<string, unknown>) => 
+            listRenderer(text, record, columnName, column);
+        }
+        // Rich text fields - modal-based
+        else if (fieldType === 'rich-text' || fieldType === 'wysiwyg') {
+          renderer = (text: unknown, record: Record<string, unknown>) => 
+            richTextRenderer(text, record, columnName, column);
+        }
+        // Textarea, code, markdown - modal-based for long content
+        else if (fieldType === 'textarea' || fieldType === 'code' || fieldType === 'markdown') {
+          renderer = (text: unknown, record: Record<string, unknown>): React.ReactNode => {
+            if (!text) return <span>—</span>;
+            if (typeof text === 'string' && text.length < 100) {
+              return <span>{text}</span>;
+            }
+            
+            const detailsConfig: IDetailsConfig = {
+              propertiesConfig: [{
+                label: columnName,
+                fieldType: fieldType,
+                column: column.dataIndex || 'value'
+              }],
+              detailResponse: { [column.dataIndex || 'value']: text }
+            };
+            
+            return (
+              <OpenInModal
+                modalType="details"
+                modalTitle={columnName}
+                modalWidth={800}
+                modalPageConfig={detailsConfig}
+              >
+                <Button 
+                  size="small" 
+                  icon={<FileTextOutlined />} 
+                  type="link"
+                >
+                  View Content
+                </Button>
+              </OpenInModal>
+            );
+          };
+        }
+        // Number fields
+        else if (fieldType === 'number') {
+          renderer = numberRenderer;
+        }
+        // Range fields
+        else if (fieldType === 'range') {
+          renderer = rangeRenderer;
+        }
+        // Rating fields
+        else if (fieldType === 'rating') {
+          renderer = ratingRenderer;
+        }
       }
 
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);

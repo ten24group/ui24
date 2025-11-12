@@ -1,5 +1,5 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
-import { FieldType } from "../core/types/field-types";
+import { FieldType, PropertyType } from "../core/types/field-types";
 import type { Template, VisibilityConfig } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
@@ -197,6 +197,7 @@ export interface ITablePropertiesConfig {
   isIdentifier?: boolean;
   isSortable?: boolean;
   fieldType?: FieldType;
+  type?: PropertyType;  // Data type from entity schema (list, map, object)
   placeholder?: string;
   helpText?: string;
   /**
