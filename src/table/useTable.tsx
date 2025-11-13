@@ -21,7 +21,8 @@ import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { Button } from "antd";
 import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/icons';
 import { OpenInModal } from "../modal/Modal";
-import { IDetailsConfig } from "../detail/Details";
+import { generateJsonPreview } from "../core/utils/jsonUtils";
+import { createModalConfig } from "./utils/modalConfigHelper";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -558,15 +559,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       return <span>—</span>;
     }
     
-    const detailsConfig: IDetailsConfig = {
-      propertiesConfig: [{
-        label: columnName,
-        fieldType: 'json',
-        type: 'map',
-        column: fieldConfig.dataIndex || 'value'
-      }],
-      detailResponse: { [fieldConfig.dataIndex || 'value']: text }
-    };
+    // Use shared utility for consistent preview generation (Table uses shorter strings for compact display)
+    const previewLabel = generateJsonPreview(text, { maxStringLength: 20, maxKeys: 2 });
+    const detailsConfig = createModalConfig('json', text, fieldConfig, 'map');
     
     return (
       <OpenInModal
@@ -579,8 +574,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
           size="small" 
           icon={<FileTextOutlined />} 
           type="link"
+          style={{ 
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '12px'
+          }}
         >
-          View JSON
+          {previewLabel}
         </Button>
       </OpenInModal>
     );
@@ -601,14 +600,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     }
     
     // Complex array - show in modal
-    const detailsConfig: IDetailsConfig = {
-      propertiesConfig: [{
-        label: columnName,
-        type: 'list',
-        column: fieldConfig.dataIndex || 'value'
-      }],
-      detailResponse: { [fieldConfig.dataIndex || 'value']: text }
-    };
+    const detailsConfig = createModalConfig(undefined, text, fieldConfig, 'list');
     
     return (
       <OpenInModal
@@ -636,14 +628,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   ): React.ReactNode => {
     if (!text) return <span>—</span>;
     
-    const detailsConfig: IDetailsConfig = {
-      propertiesConfig: [{
-        label: columnName,
-        fieldType: 'rich-text',
-        column: fieldConfig.dataIndex || 'value'
-      }],
-      detailResponse: { [fieldConfig.dataIndex || 'value']: text }
-    };
+    const detailsConfig = createModalConfig('rich-text', text, fieldConfig);
     
     return (
       <OpenInModal
@@ -752,14 +737,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
               return <span>{text}</span>;
             }
             
-            const detailsConfig: IDetailsConfig = {
-              propertiesConfig: [{
-                label: columnName,
-                fieldType: fieldType,
-                column: column.dataIndex || 'value'
-              }],
-              detailResponse: { [column.dataIndex || 'value']: text }
-            };
+            const detailsConfig = createModalConfig(column.fieldType, text, column);
             
             return (
               <OpenInModal

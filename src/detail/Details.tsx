@@ -38,17 +38,25 @@
  * 
  * ## Field Type Handling
  * 
- * The details component automatically handles various field types:
+ * The details component uses a unified smart rendering system:
+ * 
+ * **Complex Data (maps, lists, objects, fieldType: 'json')**
+ * - All handled by JsonDescription's smart per-property depth-based rendering:
+ *   - Shallow properties (depth ≤ 2): Formatted as table rows
+ *   - Deep properties (depth > 2): Automatically switched to JsonViewer
+ * - No manual configuration needed - automatically chooses best display per property
+ * - Works for: API responses, nested objects, arrays, metadata, etc.
+ * - Example: syncMetadata shows simple fields as rows, but deeply nested apiResponse as JSON
+ * 
+ * **Simple Field Types:**
  * - **Text**: Simple string display with URL auto-detection
  * - **Dates**: Formatted using configured date/time formats
  * - **Booleans**: Formatted as Yes/No or custom labels
- * - **JSON**: Rendered as formatted definition list or code block
  * - **Images**: Rendered as responsive images
  * - **Rich Text**: Rendered using BlockNote editor (read-only)
- * - **Code**: Rendered as formatted code blocks
+ * - **Code/Markdown**: Rendered as formatted code blocks
  * - **Relations**: Rendered with links and modal icons
- * - **Lists**: Rendered as nested definition lists or JSON
- * - **Maps**: Rendered as nested definition lists
+ * - **Numbers/Range/Rating**: Formatted with appropriate units
  * 
  * ## Usage
  * 
@@ -91,9 +99,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Descriptions, DescriptionsProps, List, Spin, Skeleton, Typography, Space, Tooltip, Button } from 'antd';
 import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import { useApi, IApiConfig, useAppContext } from '../core/context';
-import { useParams } from "react-router-dom"
+import { useParams } from "react-router-dom";
 import { useFormat, useEntityConfig } from '../core/hooks';
-import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link, ErrorFallback } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, JsonField, Link, ErrorFallback } from '../core/common';
 import { OpenInModal } from '../modal/Modal';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
@@ -233,7 +241,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
     // First, try to deserialize any JSON strings
     initialValue = deserializeJsonStrings(initialValue);
 
-    if (item?.type === "map") {
+    // Format recursively based on type
+    // JsonDescription will handle depth detection and rendering automatically
+    if (item?.type === "map" && Array.isArray(item.properties) && item.properties.length > 0) {
       initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
         //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
         acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
@@ -485,6 +495,17 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                     }
 
+                    // Only show "—" for null/undefined, not for falsy values like 0, false, "", [], {}
+                    if(value === null || value === undefined) {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <span>—</span>
+                        </div>
+                      );
+                    }
+
                     if (item.isLink && item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
@@ -496,13 +517,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
-                            <Link url={linkUrl} className="details-link">
-                              {displayText} ({value})
-                            </Link>
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <Link url={linkUrl} className="details-link">
+                            {displayText} ({value})
+                          </Link>
                         </div>
                       );
                     }
@@ -512,7 +529,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
                             <OpenInModal
                               modalType="details"
                               primaryIndex={value}
@@ -523,59 +539,35 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             >
                               {value}
                             </OpenInModal>
-                          ) : (
-                            <span>—_-</span>
-                          )}
                         </div>
                       );
                     }
 
-                    if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                    // ============================================================================
+                    // Smart Complex Data Rendering - All complex types handled by JsonField
+                    // ============================================================================
+                    // JsonField provides interactive JSON viewing with:
+                    // - Toggle between Description (formatted table) and JSON (raw) views
+                    // - Copy to clipboard button
+                    // - Smart depth-based rendering in both modes
+                    // 
+                    // Works for: fieldType: 'json', type: 'map', type: 'list', and generic objects
+                    // Example: syncMetadata with toggle to switch between views + copy button
+                    
+                    const isComplexData = 
+                      item.type === 'list' ||
+                      item.type === 'map' ||
+                      (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
+                      (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
+                    
+                    if (isComplexData && item.fieldType !== 'multi-select') {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {Array.isArray(value) && value.length > 0 ? (
-                            <JsonDescription data={value} />
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <JsonField data={value} title={item.label} maxDepth={2} />
                         </div>
                       );
-                    }
-                    if (item.type === 'map' || item.fieldType === 'json') {
-                      // Since we already deserialized JSON strings in valueFormatter,
-                      // we can directly check if it's an object
-                      if (value && typeof value === 'object' && !Array.isArray(value)) {
-                        // Show as definition list
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
-                            <JsonDescription data={value} />
-                          </div>
-                        );
-                      } else if (typeof value === 'string') {
-                        // Fallback: show as code block for non-JSON strings
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
-                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                              <code>{value ? value : '—'}</code>
-                            </pre>
-                          </div>
-                        );
-                      } else {
-                        // Show as JsonDescription for any other type
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
-                            <JsonDescription data={value} />
-                          </div>
-                        );
-                      }
                     }
 
                     if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
@@ -583,13 +575,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
                             <div className="details-fixed-block">
                               <CustomBlockNoteEditor value={value as any} readOnly={true} />
                             </div>
-                          ) : (
-                            <span>—</span>
-                          )}
                         </div>
                       );
                     }
@@ -602,13 +590,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div className="details-fixed-block">
-                            {value ? (
-                              typeof value === 'object' ? (
-                                <JsonDescription data={value} />
-                              ) : (String(value))
-                            ) : (
-                              <span>—</span>
-                            )}
+                            <JsonDescription data={value} />
                           </div>
                         </div>
                       );
@@ -618,11 +600,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
-                            <img src={value} alt={item.label} className="details-image" />
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <img src={value} alt={item.label} className="details-image" />
                         </div>
                       );
                     }
@@ -631,11 +609,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
-                            <CustomColorPicker value={value} disabled />
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <CustomColorPicker value={value} disabled />
                         </div>
                       );
                     }
@@ -645,11 +619,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div>
-                            {value !== undefined && value !== null ? (
-                              Number(value)
-                            ) : (
-                              <span>—</span>
-                            )}
+                            {Number(value)}
                           </div>
                         </div>
                       );
@@ -660,11 +630,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div>
-                            {value !== undefined && value !== null ? (
-                              `${value}%`
-                            ) : (
-                              <span>—</span>
-                            )}
+                            {`${value}%`}
                           </div>
                         </div>
                       );
@@ -675,11 +641,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div>
-                            {value !== undefined && value !== null ? (
-                              `${value}/5`
-                            ) : (
-                              <span>—</span>
-                            )}
+                            {`${value}/5`}
                           </div>
                         </div>
                       );
@@ -689,13 +651,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
                             <a href={value} target="_blank" rel="noopener noreferrer">
                               Download File
                             </a>
-                          ) : (
-                            <span>—</span>
-                          )}
                         </div>
                       );
                     }

@@ -4,4 +4,6 @@ export * from './FileUploader';
 export * from './Icons/Icons';
 export * from './ErrorFallback';
 export * from './JsonDescription';
+export * from './JsonViewer';
+export * from './JsonField';
 export * from "./Link/Link";

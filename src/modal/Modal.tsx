@@ -754,6 +754,9 @@ export const Modal = ({
           loading={loading}
           width={effectiveWidth}
           wrapClassName={`modal-depth-${currentDepth}`}
+          styles={{
+            body: { padding: 0 }
+          }}
         >
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
