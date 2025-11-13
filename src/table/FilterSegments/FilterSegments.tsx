@@ -138,7 +138,6 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
       initialLoadRef.current = false;
       onSegmentChange('initial', mergedFilters);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run only on mount
   
   // Re-apply merged filters when mode switches
@@ -151,7 +150,6 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
     if (modeChanged) {
       onSegmentChange('mode-switch', mergedFilters);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSearchMode]);
   
   // Handle segment selection within a group
@@ -195,10 +193,7 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
         theme={{
           components: {
             Segmented: {
-              itemSelectedColor: token.colorWhite,
-              itemSelectedBg: token.colorPrimary,
-              itemActiveBg: token.colorPrimary,
-              trackPadding: 6,
+              itemSelectedColor: token.colorPrimary,
             },
           },
         }}
@@ -271,7 +266,7 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
                   options={options}
                   value={activeSegmentId}
                   onChange={(value) => handleSegmentChange(group.id, String(value))}
-                  size="large"
+                  size="middle"
                 />
               </div>
             );
