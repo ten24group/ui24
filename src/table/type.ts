@@ -185,6 +185,17 @@ export interface ITableConfig {
    */
   segments?: Array<IFilterSegment | IFilterSegmentGroup>;
   
+  /**
+   * Controls how column data is fetched from the API.
+   * From backend: entitySchema.model.listPageConfig.tableConfig.fetchStrategy
+   * 
+   * - `'eager'` (default): Fetches all `isListable` columns in a single request.
+   * - `'lazy'`: Only fetches visible columns initially. Refetches when users show hidden columns.
+   * 
+   * @default 'eager'
+   */
+  fetchStrategy?: 'eager' | 'lazy';
+  
   onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
 }
 
@@ -193,6 +204,14 @@ export interface ITablePropertiesConfig {
   dataIndex: string;
   actions?: Array<IPageAction>;
   hidden?: boolean;
+  /**
+   * Controls initial visibility of the column in list pages.
+   * - true: Column is visible by default
+   * - false: Column is hidden by default but available in Column Settings
+   * - undefined: Falls back to !hidden for backward compatibility
+   * From backend: tableConfig.columns[].defaultVisible
+   */
+  defaultVisible?: boolean;
   isFilterable?: boolean;
   isIdentifier?: boolean;
   isSortable?: boolean;

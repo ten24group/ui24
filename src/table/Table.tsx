@@ -142,6 +142,7 @@ export const Table = ({
   rowSelection: rowSelectionConfig,  // Row selection configuration
   expandableConfig,  // Expandable row configuration
   segments,  // Filter segments for quick filtering
+  fetchStrategy,  // Fetch strategy from backend config
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
   // Build placeholder context for segments and filters
@@ -179,6 +180,8 @@ export const Table = ({
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
+    currentFetchStrategy,
+    handleFetchStrategyChange,
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode,
@@ -186,7 +189,8 @@ export const Table = ({
     propertiesConfig,
     apiConfig,
     routeParams,
-    defaultFilters
+    defaultFilters,
+    fetchStrategy
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
@@ -427,7 +431,13 @@ export const Table = ({
           <Tooltip title="Column Settings">
             <Dropdown
               popupRender={() => (
-                <ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />
+                <ColumnSettings 
+                  columns={columnSettings} 
+                  onColumnChange={handleColumnSettingsChange} 
+                  onReset={resetColumnSettings}
+                  fetchStrategy={currentFetchStrategy}
+                  onFetchStrategyChange={handleFetchStrategyChange}
+                />
               )}
               trigger={[ 'click' ]}
             >

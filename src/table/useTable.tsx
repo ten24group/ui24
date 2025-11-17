@@ -29,6 +29,7 @@ interface IuseTable {
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   routeParams?: Record<string, string>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
+  fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -231,7 +232,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {} }: IuseTable) => {
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager' }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
@@ -269,17 +270,33 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return convertDefaultSortToSorterResult(defaultSort);
   });
   const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(
-    propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex)
+    propertiesConfig.filter(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      if (p.hasOwnProperty('defaultVisible')) {
+        return p.defaultVisible !== false;
+      }
+      return !p.hidden;
+    }).map(p => p.dataIndex)
   );
   const [ columnSettings, setColumnSettings ] = React.useState(
-    propertiesConfig.map(p => ({
-      key: p.dataIndex,
-      title: p.name,
-      visible: !p.hidden,
-      fixed: p.actions ? 'right' : undefined,
-      isIdentifier: p.isIdentifier,
-    }))
+    propertiesConfig.map(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      const isVisible = p.hasOwnProperty('defaultVisible') 
+        ? p.defaultVisible !== false
+        : !p.hidden;
+      
+      return {
+        key: p.dataIndex,
+        title: p.name,
+        visible: isVisible,
+        fixed: p.actions ? 'right' : undefined,
+        isIdentifier: p.isIdentifier,
+      };
+    })
   );
+  
+  // Manage current fetch strategy (session-only, starts with default from config)
+  const [ currentFetchStrategy, setCurrentFetchStrategy ] = React.useState<'eager' | 'lazy'>(fetchStrategy);
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
   const [ fetchTrigger, setFetchTrigger ] = React.useState(0);
 
@@ -305,6 +322,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     propertiesConfig,
     recordIdentifierKey,
     isSearchMode,
+    fetchStrategy: currentFetchStrategy, // Use current strategy (can be changed by user)
   });
 
   const onSearch = (value: string) => {
@@ -338,14 +356,28 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Reset columns and state when entity changes (navigation between list pages)
   // Use useLayoutEffect to ensure this runs BEFORE the fetch effect
   useLayoutEffect(() => {
-    setVisibleColumns(propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex));
-    setColumnSettings(propertiesConfig.map(p => ({
-      key: p.dataIndex,
-      title: p.name,
-      visible: !p.hidden,
-      fixed: p.actions ? 'right' : undefined,
-      isIdentifier: p.isIdentifier,
-    })));
+    setVisibleColumns(propertiesConfig.filter(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      if (p.hasOwnProperty('defaultVisible')) {
+        return p.defaultVisible !== false;
+      }
+      return !p.hidden;
+    }).map(p => p.dataIndex));
+    
+    setColumnSettings(propertiesConfig.map(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      const isVisible = p.hasOwnProperty('defaultVisible') 
+        ? p.defaultVisible !== false
+        : !p.hidden;
+      
+      return {
+        key: p.dataIndex,
+        title: p.name,
+        visible: isVisible,
+        fixed: p.actions ? 'right' : undefined,
+        isIdentifier: p.isIdentifier,
+      };
+    }));
     setFacetedColumns([]);
     
     // Reset filters and search when navigating to a different entity
@@ -463,14 +495,27 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   };
 
   const resetColumnSettings = () => {
-    const defaultSettings = propertiesConfig.map(p => ({
-      key: p.dataIndex,
-      title: p.name,
-      visible: !p.hidden,
-      fixed: p.actions ? 'right' : undefined,
-      isIdentifier: p.isIdentifier,
-    }));
+    const defaultSettings = propertiesConfig.map(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      const isVisible = p.hasOwnProperty('defaultVisible') 
+        ? p.defaultVisible !== false
+        : !p.hidden;
+      
+      return {
+        key: p.dataIndex,
+        title: p.name,
+        visible: isVisible,
+        fixed: p.actions ? 'right' : undefined,
+        isIdentifier: p.isIdentifier,
+      };
+    });
     handleColumnSettingsChange(defaultSettings);
+  };
+
+  const handleFetchStrategyChange = (strategy: 'eager' | 'lazy') => {
+    setCurrentFetchStrategy(strategy);
+    // Trigger a refetch with the new strategy
+    setFetchTrigger(prev => prev + 1);
   };
 
   // Stabilize removeFilter with useCallback - memoization dependency
@@ -857,6 +902,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
+    currentFetchStrategy,
+    handleFetchStrategyChange,
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),

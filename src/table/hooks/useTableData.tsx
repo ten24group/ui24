@@ -71,6 +71,7 @@ interface IUseTableDataProps {
   propertiesConfig: ITablePropertiesConfig[];
   recordIdentifierKey: string;
   isSearchMode: boolean;
+  fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
 }
 
 export const useTableData = ({
@@ -84,6 +85,7 @@ export const useTableData = ({
   propertiesConfig,
   recordIdentifierKey,
   isSearchMode,
+  fetchStrategy = 'eager', // Default to eager fetching
 }: IUseTableDataProps) => {
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
@@ -150,11 +152,15 @@ export const useTableData = ({
     }
 
     // shared payload for both search and list APIs
-    const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
-    const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
-    if (attributes.length > 0) {
-      payload.attributes = attributes.join(',');
+    // Only send attributes parameter for lazy fetching strategy
+    if (fetchStrategy === 'lazy') {
+      const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
+      const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
+      if (attributes.length > 0) {
+        payload.attributes = attributes.join(',');
+      }
     }
+    // For eager fetching (default), omit attributes parameter to fetch all isListable columns
 
     if (isSearchActive) {
       payload.q = searchQuery;
