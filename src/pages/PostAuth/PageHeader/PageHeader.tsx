@@ -44,7 +44,7 @@ export interface IPageHeader {
      */
     pageTitle?: Template;
     pageHeaderActions?: IPageActions;
-    routeParams?: Record<string, string>;
+    routeParams?: Record<string, any>;
     onRefreshData?: () => void;  // Callback to refresh page data after modal actions
 }
 

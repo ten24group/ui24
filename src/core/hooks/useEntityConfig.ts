@@ -10,6 +10,42 @@ export interface IEntityPageColumnConfig {
 }
 
 /**
+ * API method types
+ */
+export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+/**
+ * Basic API configuration for modals and details
+ */
+export interface IModalApiConfig {
+  apiMethod: ApiMethod;
+  responseKey?: string;
+  apiUrl: string;
+}
+
+/**
+ * Extended API configuration for list pages (single mode)
+ */
+export interface IListApiConfigSingle extends IModalApiConfig {
+  useSearch?: boolean;
+  defaultSort?: { field: string; order: 'asc' | 'desc' };
+}
+
+/**
+ * Dual API configuration for list pages (search + database)
+ */
+export interface IListApiConfigDual {
+  search: IModalApiConfig;
+  database: IModalApiConfig;
+}
+
+/**
+ * Union type for all API configuration formats
+ * Matches the backend IEntityConfigReference.overrideConfig.apiConfig
+ */
+export type ApiConfigOverride = IModalApiConfig | IListApiConfigDual | IListApiConfigSingle;
+
+/**
  * Entity Configuration Reference (from fw24)
  * This type must match IEntityConfigReference in @ten24group/fw24 EXACTLY
  */
@@ -45,7 +81,30 @@ export interface IEntityConfigReference {
     
     /** Show only specific fields (mutually exclusive with hideFields) */
     showOnlyFields?: string[];
+    
+    /** 
+     * Override API configuration for fetching data.
+     * Supports multiple formats for different page types and use cases.
+     */
+    apiConfig?: ApiConfigOverride;
+    
+    /** Map parent route params to different names for the child section */
+    identifierMapping?: { source: string; target: string } | Array<{ source: string; target: string }>;
   };
+}
+
+/**
+ * Type guard to check if API config is dual (search + database)
+ */
+function isDualApiConfig(config: any): config is IListApiConfigDual {
+  return config && typeof config === 'object' && 'search' in config && 'database' in config;
+}
+
+/**
+ * Type guard to check if API config is single with extended options
+ */
+function isListApiConfigSingle(config: any): config is IListApiConfigSingle {
+  return config && typeof config === 'object' && 'apiMethod' in config && 'apiUrl' in config;
 }
 
 /**
@@ -125,6 +184,14 @@ export const useEntityConfig = () => {
         merged.detailsPageConfig.columnsConfig = overrides.columnsConfig;
       }
       
+      // API config override for view pages
+      if (overrides.apiConfig !== undefined && merged.detailsPageConfig.detailApiConfig) {
+        merged.detailsPageConfig.detailApiConfig = {
+          ...merged.detailsPageConfig.detailApiConfig,
+          ...overrides.apiConfig
+        };
+      }
+      
       // Field visibility overrides
       if (overrides.hideFields && merged.detailsPageConfig.propertiesConfig) {
         merged.detailsPageConfig.propertiesConfig = merged.detailsPageConfig.propertiesConfig.filter(
@@ -187,6 +254,30 @@ export const useEntityConfig = () => {
       }
       if (overrides.columnsConfig !== undefined) {
         merged.listPageConfig.columnsConfig = overrides.columnsConfig;
+      }
+      
+      // API config override for list pages
+      // List pages can have either single apiConfig or dual search/database configs
+      if (overrides.apiConfig !== undefined && merged.listPageConfig.apiConfig) {
+        const overrideConfig = overrides.apiConfig;
+        const baseConfig = merged.listPageConfig.apiConfig;
+        
+        if (isDualApiConfig(overrideConfig)) {
+          // Override is dual config - replace entirely
+          merged.listPageConfig.apiConfig = overrideConfig;
+        } else if (isDualApiConfig(baseConfig)) {
+          // Base has dual config, override is single - merge into both
+          merged.listPageConfig.apiConfig = {
+            search: { ...baseConfig.search, ...overrideConfig },
+            database: { ...baseConfig.database, ...overrideConfig }
+          };
+        } else {
+          // Both are single configs - simple merge
+          merged.listPageConfig.apiConfig = {
+            ...baseConfig,
+            ...overrideConfig
+          };
+        }
       }
       
       // Field visibility overrides (for columns)

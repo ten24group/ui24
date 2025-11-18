@@ -15,23 +15,25 @@ import { ErrorFallback } from '../../core/common';
 import { PageDataProvider } from '../../core/context/PageDataContext';
 import { PageStaticContextValue, PageStaticProvider } from '../../core/context/PageStaticContext';
 
-export type IPageType =  PageStaticContextValue['pageType'];
+export type IPageType = PageStaticContextValue[ 'pageType' ];
 
 export interface IRenderFromPageType extends IPageHeader {
-    identifiers?: string | number;
-    pageType?: IPageType;
-    cardStyle?: React.CSSProperties;
-    formPageConfig?: IForm;
-    listPageConfig?: ITableConfig;
-    detailsPageConfig?: IDetailsConfig;
-    accordionsPageConfig?: Record<string, IRenderFromPageType>;
-    routeParams?: Record<string, string>;
-    dashboardPageConfig?: IDashboardPageConfig;
+  identifiers?: string | number;
+  pageType?: IPageType;
+  cardStyle?: React.CSSProperties;
+  formPageConfig?: IForm;
+  listPageConfig?: ITableConfig;
+  detailsPageConfig?: IDetailsConfig;
+  accordionsPageConfig?: Record<string, IRenderFromPageType>;
+  routeParams?: Record<string, any>;
+  dashboardPageConfig?: IDashboardPageConfig;
+  /** Current nesting depth (for recursive sections) */
+  depth?: number;
 }
 
 export interface IPostAuthPage extends IRenderFromPageType {
-    CustomPageHeader?: React.ReactNode;
-    children?: React.ReactNode;
+  CustomPageHeader?: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 /**
@@ -54,40 +56,40 @@ export interface IPostAuthPage extends IRenderFromPageType {
  * PageDataProvider kept for backward compatibility with Accordion/Dashboard.
  */
 export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuthPage) => {
-  
+
   // For form/table/details pages, PageHeader is rendered by the wrapper component.
   // Only render PageHeader here for accordion/dashboard/custom pages.
   const shouldRenderPageHeaderHere = props.pageType === 'accordion' || props.pageType === 'dashboard' || props.pageType === 'custom';
-  
+
   return (
-    <PageStaticProvider 
+    <PageStaticProvider
       pageType={props.pageType || 'custom'}
       entityName={props.formPageConfig?.entityName || props.listPageConfig?.entityName || props.detailsPageConfig?.entityName}
       config={props}
     >
       {/* PageDataProvider kept for backward compatibility with Accordion/Dashboard */}
       <PageDataProvider localData={{}}>
-      <div style={{ paddingTop: "1%" }}>
-        <div className="PostAuthContainer">
+        <div style={{ paddingTop: "1%" }}>
+          <div className="PostAuthContainer">
             {/* Only render PageHeader for pages that don't have wrappers */}
             {shouldRenderPageHeaderHere && (CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />)}
-          
-          <div className="PageContent">
-            {children && children}
-            {!children && (
-              <ErrorBoundary
-                FallbackComponent={ErrorFallback}
-                onReset={() => {
-                  console.log("PostAuthPage ErrorBoundary Reset");
-                }}
-              >
+
+            <div className="PageContent">
+              {children && children}
+              {!children && (
+                <ErrorBoundary
+                  FallbackComponent={ErrorFallback}
+                  onReset={() => {
+                    console.log("PostAuthPage ErrorBoundary Reset");
+                  }}
+                >
                   <RenderFromPageType {...props} />
-              </ErrorBoundary>
-            )}
+                </ErrorBoundary>
+              )}
+            </div>
           </div>
         </div>
-      </div>
-    </PageDataProvider>
+      </PageDataProvider>
     </PageStaticProvider>
   );
 }
@@ -102,69 +104,70 @@ interface IRenderFromPageTypeProps extends IRenderFromPageType {
   identifiers?: string | number;
   routeParams?: Record<string, string>;
   dashboardPageConfig?: IDashboardPageConfig;
+  depth?: number;
 }
 
-export const RenderFromPageType = ({ 
-  pageType, 
-  cardStyle, 
-  accordionsPageConfig, 
-  formPageConfig, 
-  listPageConfig, 
-  detailsPageConfig, 
-  identifiers, 
-  routeParams, 
+export const RenderFromPageType = ({
+  pageType,
+  cardStyle,
+  accordionsPageConfig,
+  formPageConfig,
+  listPageConfig,
+  detailsPageConfig,
+  identifiers,
+  routeParams,
   dashboardPageConfig,
+  depth = 0,
   // PageHeader props from parent
   pageHeaderActions,
   pageTitle,
   breadcrumbs
 }: IRenderFromPageTypeProps) => {
 
-    // Use stable keys to prevent unnecessary remounts
-    const stableKey = identifiers || (routeParams ? Object.values(routeParams).join('|') : '') || pageType;
+  // Use stable keys to prevent unnecessary remounts
+  const stableKey = identifiers || (routeParams ? Object.values(routeParams).join('|') : '') || pageType;
 
-    switch (pageType) {
-        case "list": return (
-            <Card style={cardStyle}>
-                <TablePage 
-                    {...listPageConfig} 
-                    routeParams={routeParams}
-                    pageHeaderActions={pageHeaderActions}
-                    pageTitle={pageTitle}
-                    breadcrumbs={breadcrumbs}
-                    key={`list-${stableKey}`} 
-                />
-            </Card>
-        );
-        case "form": return (
-            <Card style={cardStyle}>
-                <FormPage 
-                    {...formPageConfig} 
-                    identifiers={identifiers} 
-                    routeParams={routeParams}
-                    pageHeaderActions={pageHeaderActions}
-                    pageTitle={pageTitle}
-                    breadcrumbs={breadcrumbs}
-                    key={`form-${stableKey}`} 
-                />
-            </Card>
-        );
-        case "details": return (
-            <Card style={cardStyle}>
-                <DetailPage 
-                    {...detailsPageConfig} 
-                    identifiers={identifiers} 
-                    routeParams={routeParams}
-                    pageHeaderActions={pageHeaderActions}
-                    pageTitle={pageTitle}
-                    breadcrumbs={breadcrumbs}
-                    key={`details-${stableKey}`} 
-                />
-            </Card>
-        );
-        case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
-        case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
-        case "custom": return <>TODO: handle custom page</>;
-        default: return <>Invalid Page Type</>;
-    }
+  switch (pageType) {
+    case "list": return (
+      <TablePage
+        {...listPageConfig}
+        routeParams={routeParams}
+        cardStyle={cardStyle}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        depth={depth}
+        key={`list-${stableKey}`}
+      />
+    );
+    case "form": return (
+      <FormPage
+        {...formPageConfig}
+        identifiers={identifiers}
+        routeParams={routeParams}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        cardStyle={cardStyle}
+        breadcrumbs={breadcrumbs}
+        depth={depth}
+        key={`form-${stableKey}`}
+      />
+    );
+    case "details": return (
+      <DetailPage
+        {...detailsPageConfig}
+        identifiers={identifiers}
+        routeParams={routeParams}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        depth={depth}
+        key={`details-${stableKey}`}
+      />
+    );
+    case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
+    case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
+    case "custom": return <>TODO: handle custom page</>;
+    default: return <>Invalid Page Type</>;
+  }
 }

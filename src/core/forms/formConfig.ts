@@ -3,6 +3,7 @@ import { ICreateButtons } from "./buttons/Buttons";
 import { IFormFieldResponse } from "./FormField/FormField";
 import { IApiConfig } from "../context";
 import { IDetailApiConfig } from "../../detail/Details";
+import { ISectionsConfig } from "../../pages/PostAuth/SectionsRenderer";
 
 interface IFormConfig {
     name?: string;
@@ -26,6 +27,14 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     identifiers ?: any;
     useDynamicIdFromParams?: boolean;
     entityName?: string;  // NEW: Entity name from backend config generation
+    /**
+     * Additional sections to display below or alongside the main form.
+     * From backend: entitySchema.model.editPageConfig.sectionsConfig or createPageConfig.sectionsConfig
+     * 
+     * Enables multi-section form pages with tabs or accordion UI.
+     * Sections have access to live formValues and record data via routeParams.
+     */
+    sectionsConfig?: ISectionsConfig;
 }
 
 

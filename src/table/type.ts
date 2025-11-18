@@ -3,6 +3,7 @@ import { FieldType, PropertyType } from "../core/types/field-types";
 import type { Template, VisibilityConfig } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
+import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 type ITablePagination = "default";
 
 /**
@@ -155,7 +156,7 @@ export interface ITableConfig {
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   records?: Array<any>;
   paginationType?: ITablePagination;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
   entityName?: string;  // Entity name from backend config generation
   bulkActions?: ReadonlyArray<IPageAction>;  // Actions shown when multiple rows selected (from backend tableConfig.bulkActions)
@@ -195,6 +196,15 @@ export interface ITableConfig {
    * @default 'eager'
    */
   fetchStrategy?: 'eager' | 'lazy';
+  
+  /**
+   * Additional sections to display below or alongside the main table.
+   * From backend: entitySchema.model.listPageConfig.sectionsConfig
+   * 
+   * Enables multi-section list pages with tabs or accordion UI.
+   * Sections have access to table state (selected records, filters) via routeParams.
+   */
+  sectionsConfig?: ISectionsConfig;
   
   onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
 }

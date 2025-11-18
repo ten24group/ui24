@@ -114,6 +114,7 @@ import './Details.css';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
+import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
@@ -134,8 +135,16 @@ export interface IDetailsConfig extends IDetailApiConfig {
   identifiers?: string | number | Array<string | number>;
   propertiesConfig: Array<IPropertiesConfig>;
   columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
+  /**
+   * Additional sections to display below or alongside the main detail view.
+   * From backend: entitySchema.model.viewPageConfig.sectionsConfig
+   * 
+   * Enables multi-section detail pages with tabs or accordion UI.
+   * Sections have access to the parent record via routeParams.
+   */
+  sectionsConfig?: ISectionsConfig;
 }
 
 /**
@@ -146,7 +155,7 @@ export interface IDetailsComponentProps extends IDetailsConfig {
   detailApiConfig?: IApiConfig;
   identifiers?: string | number;
   columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
   onDataChange?: (data: { record?: any; pageType?: string; entityName?: string }) => void;
   refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
