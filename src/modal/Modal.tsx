@@ -765,8 +765,8 @@ export const Modal = ({
                 listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
                 formPageConfig={
                   modalType === "form" ? {
-                    ...modalPageConfig,
-                    // Determine callback based on navigateTo, responseConfig, or standard
+                    ...(modalPageConfig as IForm),  // Spread all properties from modalPageConfig (including helpText)
+                    // Override specific properties
                     onSubmitSuccessCallback: navigateTo 
                       ? handleNavigationSubmit 
                       : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),

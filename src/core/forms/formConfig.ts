@@ -28,6 +28,11 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     useDynamicIdFromParams?: boolean;
     entityName?: string;  // NEW: Entity name from backend config generation
     /**
+     * Help text to display at the top of the form (below title, above fields).
+     * From backend: entitySchema.model.formPageConfig.helpText
+     */
+    helpText?: string;
+    /**
      * Additional sections to display below or alongside the main form.
      * From backend: entitySchema.model.editPageConfig.sectionsConfig or createPageConfig.sectionsConfig
      * 
