@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Tabs, Collapse, Alert, theme, Badge, ConfigProvider } from 'antd';
-import type { TabsProps, CollapseProps } from 'antd';
+import { Tabs, Collapse, Alert, theme, Badge, ConfigProvider, Skeleton } from 'antd';
+import type { TabsProps, CollapseProps, CardProps } from 'antd';
 import { CaretRightOutlined, WarningOutlined } from '@ant-design/icons';
 import * as AntIcons from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
@@ -238,11 +238,29 @@ function useSectionBadge(
  */
 const SectionContent: React.FC<{
   section: ISectionConfig;
+  sectionKey: string;
   shouldLoad: boolean;
   routeParams: Record<string, any>;
   parentData: Record<string, any>;
   depth: number;
-}> = ({ section, shouldLoad, routeParams, parentData, depth }) => {
+  isParentLoading: boolean;
+  children?: React.ReactNode;
+}> = ({ section, sectionKey, shouldLoad, routeParams, parentData, depth, isParentLoading, children }) => {
+  // Special case: Render children for __main__ section
+  if (sectionKey === '__main__' && children) {
+    return <>{children}</>;
+  }
+  
+  // CRITICAL: If parent record is still loading, show skeleton
+  // This prevents sections from making API calls with incomplete/missing filter parameters
+  if (isParentLoading) {
+    return (
+      <div style={{ padding: '24px' }}>
+        <Skeleton active paragraph={{ rows: 4 }} />
+      </div>
+    );
+  }
+
   const { resolveConfigRef } = useEntityConfig();
 
   // Resolve entityConfigRef if provided (like OpenRouteInModal does)
@@ -391,6 +409,8 @@ const SectionGroupRenderer: React.FC<{
   evaluationContext: any;
   depth: number;
   maxDepth: number;
+  isParentLoading: boolean;
+  children?: React.ReactNode;
 }> = ({
   sections,
   renderMode = 'accordion',
@@ -400,7 +420,9 @@ const SectionGroupRenderer: React.FC<{
   parentData,
   evaluationContext,
   depth,
-  maxDepth
+  maxDepth,
+  isParentLoading,
+  children
 }) => {
     const { token } = useToken();
     
@@ -427,24 +449,34 @@ const SectionGroupRenderer: React.FC<{
       });
     }, [ sections ]);
 
-    // Default to first section
-    const [ activeKey, setActiveKey ] = useState<string>(sortedSections[ 0 ]?.[ 0 ] || '');
+    // Default to first section (for tabs) or empty (for accordions)
+    const defaultActiveKey = renderMode === 'tabs' ? (sortedSections[ 0 ]?.[ 0 ] || '') : '';
+    const [ activeKey, setActiveKey ] = useState<string>(defaultActiveKey);
     
-    // Initialize loaded sections - start empty for true lazy loading
-    const [ loadedSections, setLoadedSections ] = useState<Set<string>>(new Set());
-    const [ hasInitialized, setHasInitialized ] = useState(false);
-
-    // Load first section on mount (when this component actually renders)
-    // This respects the parent card's collapsed state
-    useEffect(() => {
-      if (!hasInitialized && sortedSections.length > 0) {
-        const firstKey = sortedSections[0]?.[0];
-        if (firstKey) {
-          setLoadedSections(new Set([firstKey]));
-          setHasInitialized(true);
-        }
+    // Initialize loaded sections based on render mode, count, and lazyLoad setting
+    // If lazyLoad is false: load ALL sections immediately
+    // For single section: always load (rendered directly, no wrapper)
+    // For tabs: load first section immediately (tab is visible by default)
+    // For accordion: start empty (nothing is expanded by default)
+    const initialLoadedSections = useMemo(() => {
+      // If lazy loading is disabled, load all sections immediately
+      if (!lazyLoad) {
+        return new Set(sortedSections.map(([key]) => key));
       }
-    }, [hasInitialized, sortedSections]);
+      
+      if (sortedSections.length === 1) {
+        // Single section is rendered directly without tabs/accordion wrapper
+        const firstKey = sortedSections[0]?.[0];
+        return new Set(firstKey ? [firstKey] : []);
+      }
+      if (renderMode === 'tabs' && sortedSections.length > 0) {
+        const firstKey = sortedSections[0]?.[0];
+        return new Set(firstKey ? [firstKey] : []);
+      }
+      return new Set<string>();
+    }, [renderMode, sortedSections, lazyLoad]);
+    
+    const [ loadedSections, setLoadedSections ] = useState<Set<string>>(initialLoadedSections);
 
     const handleChange = useCallback((key: string | string[]) => {
       const newKey = Array.isArray(key) ? key[ key.length - 1 ] : key;
@@ -495,16 +527,19 @@ const SectionGroupRenderer: React.FC<{
             children: (
               <SectionContent
                 section={section}
+                sectionKey={key}
                 shouldLoad={shouldLoad}
                 routeParams={routeParams}
                 parentData={parentData}
                 depth={depth}
+                isParentLoading={isParentLoading}
+                children={children}
               />
             )
           };
         })
         .filter((item): item is NonNullable<typeof item> => item !== null);
-    }, [ sortedSections, routeParams, lazyLoad, loadedSections, parentData, evaluationContext, depth ]);
+    }, [ sortedSections, routeParams, lazyLoad, loadedSections, parentData, evaluationContext, depth, isParentLoading, children ]);
 
     // Add subtle visual feedback for nested depth
     const nestedStyle: React.CSSProperties = depth > 0 ? {
@@ -567,9 +602,9 @@ const SectionGroupRenderer: React.FC<{
     }
 
     // Render as Accordion (Collapse) - uses Ant Design's built-in motion
+    // Don't set defaultActiveKey - let user expand items manually (lazy loading)
     const collapseProps: CollapseProps = {
       items,
-      defaultActiveKey: [ activeKey ],
       onChange: (keys) => handleChange(keys),
       expandIcon: ({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />,
       expandIconPosition: 'end',
@@ -591,14 +626,118 @@ const SectionGroupRenderer: React.FC<{
   };
 
 /**
+ * Helper: Injects main content as a synthetic section group
+ * Keeps SectionsRenderer component cleaner by extracting this logic
+ */
+function injectMainContentGroup(
+  sectionsConfig: ISectionsConfig,
+  mainSectionConfig?: ISectionsRendererProps['mainSectionConfig']
+): ISectionsConfig {
+  const mainSection: ISectionConfig = {
+    label: mainSectionConfig?.label,
+    icon: mainSectionConfig?.icon,
+    sortOrder: mainSectionConfig?.sortOrder ?? 0,
+    badge: mainSectionConfig?.badge,
+    pageType: 'details',
+    detailsPageConfig: {
+      useParentData: true,
+      propertiesConfig: [] // Not used, we render children directly
+    }
+  };
+
+  // Create a dedicated synthetic group for main content
+  // This group: 
+  // 1) Always renders first (sortOrder: -1)
+  // 2) Can be collapsed/maximized interactively
+  // 3) Always starts expanded on page load
+  // 4) State is NOT saved to localStorage (always resets on reload)
+  // 5) Always loads immediately (lazyLoad: false)
+  const mainContentGroup: ISectionGroup = {
+    id: '__main_content_group__',
+    label: 'Overview',
+    icon: 'FileTextOutlined',
+    sortOrder: -1,
+    renderMode: 'tabs',
+    sections: {
+      __main__: mainSection
+    },
+    lazyLoad: false,
+    keepMounted: true,
+    defaultCollapsed: false,
+    allowCollapse: true,
+    allowMaximize: true,
+  };
+
+  // If sectionsConfig has groups, prepend main group
+  if (sectionsConfig.sectionGroups && sectionsConfig.sectionGroups.length > 0) {
+    return {
+      ...sectionsConfig,
+      sectionGroups: [mainContentGroup, ...sectionsConfig.sectionGroups]
+    };
+  } 
+  // If sectionsConfig has sections (single group mode), convert to multi-group
+  else if (sectionsConfig.sections && Object.keys(sectionsConfig.sections).length > 0) {
+    const existingGroup: ISectionGroup = {
+      id: '__existing_sections__',
+      label: '',
+      sortOrder: 0,
+      renderMode: sectionsConfig.renderMode,
+      sections: sectionsConfig.sections,
+      lazyLoad: sectionsConfig.lazyLoad,
+      keepMounted: sectionsConfig.keepMounted,
+      defaultCollapsed: false,
+      allowCollapse: true,
+      allowMaximize: true,
+    };
+
+    return {
+      ...sectionsConfig,
+      sectionGroups: [mainContentGroup, existingGroup],
+      sections: undefined
+    };
+  } 
+  // Edge case: sectionsConfig exists but is empty
+  else {
+    return {
+      ...sectionsConfig,
+      sectionGroups: [mainContentGroup]
+    };
+  }
+}
+
+/**
  * Props for SectionsRenderer component
  */
 export interface ISectionsRendererProps {
-  sectionsConfig: ISectionsConfig;
+  sectionsConfig?: ISectionsConfig;
   routeParams: Record<string, any>;
   parentData?: Record<string, any>;
   cardStyle?: React.CSSProperties;
   depth?: number; // Current nesting depth (for recursive sections)
+  /** 
+   * Indicates if parent record is still loading. 
+   * Sections will show skeleton and won't load until parent data is ready.
+   */
+  isParentLoading?: boolean;
+  /** 
+   * Main page content (e.g., Details component) to render as first section.
+   * If provided with sectionsConfig, main content becomes integrated into the sections UI.
+   */
+  children?: React.ReactNode;
+  /**
+   * Configuration for how main content (children) appears in sections UI.
+   * Only used when both children and sectionsConfig are provided.
+   */
+  mainSectionConfig?: {
+    /** Label for main section. Default: 'Overview' */
+    label?: Template;
+    /** Icon for main section. Default: 'FileTextOutlined' */
+    icon?: string;
+    /** Sort order for main section. Default: 0 (appears first) */
+    sortOrder?: number;
+    /** Badge for main section */
+    badge?: SectionBadgeConfig | ReadonlyArray<SectionBadgeConfig> | Array<SectionBadgeConfig>;
+  };
 }
 
 /**
@@ -651,8 +790,21 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
   routeParams,
   parentData = {},
   depth = 0,
-  cardStyle
+  cardStyle,
+  isParentLoading = false,
+  children,
+  mainSectionConfig
 }) => {
+  // Case 1: Only children (no sections) - render children directly
+  if (children && !sectionsConfig) {
+    return <>{children}</>;
+  }
+
+  // Case 2: No children and no sectionsConfig - return null
+  if (!sectionsConfig) {
+    return null;
+  }
+
   const maxDepth = sectionsConfig.maxDepth ?? 4;
   const rememberState = sectionsConfig.rememberState ?? true;
   const scrollSpyHighlight = sectionsConfig.scrollSpyHighlight ?? true;
@@ -664,13 +816,19 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
     record: parentData.record
   }), [baseEvaluationContext, parentData.record]);
 
-  const hasSectionGroups = !!sectionsConfig.sectionGroups;
+  // Inject main content as a synthetic section group when children exist
+  const enhancedSectionsConfig = useMemo<ISectionsConfig>(() => {
+    if (!children) return sectionsConfig;
+    return injectMainContentGroup(sectionsConfig, mainSectionConfig);
+  }, [children, sectionsConfig, mainSectionConfig]);
+
+  const hasSectionGroups = !!enhancedSectionsConfig.sectionGroups;
 
   // Sort and filter visible groups
   const visibleGroups = useMemo(() => {
     if (!hasSectionGroups) return [];
 
-    const sorted = [...(sectionsConfig.sectionGroups || [])].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    const sorted = [...(enhancedSectionsConfig.sectionGroups || [])].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 
     return sorted.filter(group => {
       if (!group.visibility) return true;
@@ -680,7 +838,7 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
         return true;
       }
     });
-  }, [hasSectionGroups, sectionsConfig.sectionGroups, evaluationContext]);
+  }, [hasSectionGroups, enhancedSectionsConfig.sectionGroups, evaluationContext]);
 
   // Stable storage key: route + record ID + depth
   const storageKey = useMemo(() => {
@@ -698,7 +856,13 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
       try {
         const stored = localStorage.getItem(storageKey);
         if (stored) {
-          return JSON.parse(stored);
+          const savedState = JSON.parse(stored);
+          // Copy saved state, but ensure main content group is always expanded
+          Object.keys(savedState).forEach(key => {
+            if (key !== '__main_content_group__') {
+              initialState[key] = savedState[key];
+            }
+          });
         }
       } catch {
         // Ignore parse errors
@@ -707,39 +871,77 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
     
     // Initialize defaults for each group
     visibleGroups.forEach((group, index) => {
-      const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
-      initialState[group.id] = defaultCollapsed;
+      // Main content group always starts expanded, never saved
+      if (group.id === '__main_content_group__') {
+        initialState[group.id] = false;
+      } 
+      // Other groups use saved state or default
+      else if (initialState[group.id] === undefined) {
+        const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
+        initialState[group.id] = defaultCollapsed;
+      }
     });
     
     return initialState;
   });
 
   // Save to localStorage whenever collapsedCards changes
+  // Exclude main content group from being saved
   useEffect(() => {
     if (rememberState) {
-      localStorage.setItem(storageKey, JSON.stringify(collapsedCards));
+      const stateToSave = { ...collapsedCards };
+      delete stateToSave['__main_content_group__']; // Never save main content group state
+      localStorage.setItem(storageKey, JSON.stringify(stateToSave));
     }
   }, [collapsedCards, rememberState, storageKey]);
 
-  // Scroll spy
+  // Scroll spy - tracks which section card is most visible
   const [highlightedCard, setHighlightedCard] = useState<string | null>(null);
+  const intersectionRatiosRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!scrollSpyHighlight || !hasSectionGroups || visibleGroups.length === 0) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
+        // Update intersection ratios for all observed cards
         entries.forEach(entry => {
-          if (entry.isIntersecting && entry.target.id) {
+          if (entry.target.id) {
             const cardId = entry.target.id.replace('section-card-', '');
-            setHighlightedCard(cardId);
+            if (entry.isIntersecting) {
+              intersectionRatiosRef.current.set(cardId, entry.intersectionRatio);
+            } else {
+              intersectionRatiosRef.current.delete(cardId);
+            }
           }
         });
+
+        // Find the card with highest intersection ratio (most visible)
+        let maxRatio = 0;
+        let mostVisibleCard: string | null = null;
+
+        intersectionRatiosRef.current.forEach((ratio, cardId) => {
+          if (ratio > maxRatio) {
+            maxRatio = ratio;
+            mostVisibleCard = cardId;
+          }
+        });
+
+        // Only update if we have a clear winner (at least 10% visible)
+        if (mostVisibleCard && maxRatio > 0.1) {
+          setHighlightedCard(mostVisibleCard);
+        } else if (intersectionRatiosRef.current.size === 0) {
+          // No cards visible - clear highlight
+          setHighlightedCard(null);
+        }
       },
-      { threshold: 0.3, rootMargin: '-80px 0px' }
+      { 
+        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], // Multiple thresholds for better granularity
+        rootMargin: '-80px 0px' // Account for fixed headers
+      }
     );
 
-    // Observe all cards directly
+    // Observe all cards
     visibleGroups.forEach(group => {
       const cardElement = document.getElementById(`section-card-${group.id}`);
       if (cardElement) {
@@ -747,7 +949,10 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
       }
     });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      intersectionRatiosRef.current.clear();
+    };
   }, [scrollSpyHighlight, hasSectionGroups, visibleGroups]);
 
   // Handle collapsed change with auto-collapse logic
@@ -779,7 +984,7 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
           const summary = group.collapsedSummary ? evaluateTemplateValue(group.collapsedSummary, routeParams) : undefined;
           const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
           const isCollapsed = collapsedCards[group.id] ?? defaultCollapsed;
-
+          
           return (
             <CollapsibleSectionCard
               key={group.id}
@@ -796,13 +1001,15 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
               <SectionGroupRenderer
                 sections={group.sections}
                 renderMode={group.renderMode}
-                lazyLoad={group.lazyLoad}
+                lazyLoad={ group.lazyLoad}
                 keepMounted={group.keepMounted}
                 routeParams={routeParams}
                 parentData={parentData}
                 evaluationContext={evaluationContext}
                 depth={depth}
                 maxDepth={maxDepth}
+                isParentLoading={isParentLoading}
+                children={children}
               />
             </CollapsibleSectionCard>
           );
@@ -812,21 +1019,23 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
   }
 
   // CASE 2: Single Group (Backward Compatible)
-  if (!sectionsConfig.sections || Object.keys(sectionsConfig.sections).length === 0) {
+  if (!enhancedSectionsConfig.sections || Object.keys(enhancedSectionsConfig.sections).length === 0) {
     return null;
   }
 
   return (
     <SectionGroupRenderer
-      sections={sectionsConfig.sections}
-      renderMode={sectionsConfig.renderMode}
-      lazyLoad={sectionsConfig.lazyLoad}
-      keepMounted={sectionsConfig.keepMounted}
+      sections={enhancedSectionsConfig.sections}
+      renderMode={enhancedSectionsConfig.renderMode}
+      lazyLoad={enhancedSectionsConfig.lazyLoad}
+      keepMounted={enhancedSectionsConfig.keepMounted}
       routeParams={routeParams}
       parentData={parentData}
       evaluationContext={evaluationContext}
       depth={depth}
       maxDepth={maxDepth}
+      isParentLoading={isParentLoading}
+      children={children}
     />
   );
 };

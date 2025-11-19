@@ -42,6 +42,9 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
   const [ localCollapsed, setLocalCollapsed ] = useState(controlledCollapsed ?? false);
   const [ maximized, setMaximized ] = useState(false);
   
+  // Track if card has ever been expanded to preserve state after first expansion
+  const [ hasBeenExpanded, setHasBeenExpanded ] = useState(!(controlledCollapsed ?? false));
+  
   // Calculate z-index based on modal depth
   // Base modal z-index: 1000
   // Each modal layer adds 100
@@ -50,10 +53,14 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
   const backdropZIndex = baseModalZIndex + (modalDepth * 100) + 50;
   const cardZIndex = backdropZIndex + 1;
 
-  // Sync with controlled collapsed prop
+  // Sync with controlled collapsed prop and track expansion
   useEffect(() => {
     if (controlledCollapsed !== undefined) {
       setLocalCollapsed(controlledCollapsed);
+      // Mark as expanded if not collapsed
+      if (!controlledCollapsed) {
+        setHasBeenExpanded(true);
+      }
     }
   }, [ controlledCollapsed ]);
 
@@ -107,6 +114,12 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
 
     const newCollapsed = !collapsed;
     setLocalCollapsed(newCollapsed);
+    
+    // Mark as expanded when user expands the card
+    if (!newCollapsed) {
+      setHasBeenExpanded(true);
+    }
+    
     onCollapsedChange?.(newCollapsed);
   }, [collapsed, maximized, onCollapsedChange]);
 
@@ -222,7 +235,7 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
         })
       };
 
-  // Body style - simple display toggle
+  // Body style - use display:none to hide after first expansion (preserves state)
   const cardBodyStyle: CardProps['styles']['body'] = maximized
     ? {
         flex: 1,
@@ -231,7 +244,7 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
       }
     : collapsed
       ? { 
-          display: 'none',
+          display: 'none', // Hide but keep mounted to preserve state after first expansion
         }
       : { 
           padding: 8,
@@ -273,7 +286,13 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
           style={cardStyle}
           styles={mergedCardStyles}
         >
-          {children}
+          {/* 
+            Smart lazy loading strategy:
+            - First load when collapsed: Don't render (save resources)
+            - After first expansion: Always render (preserve state), use CSS display:none to hide
+            - Maximized: Always render
+          */}
+          {(hasBeenExpanded || !collapsed || maximized) && children}
         </Card>
       </div>
     </ConfigProvider>

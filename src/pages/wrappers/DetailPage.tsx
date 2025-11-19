@@ -84,30 +84,29 @@ export const DetailPage: React.FC<DetailPageProps> = ({
           />
         )}
 
-        {/* Details component - pass through onDataChange and refreshRef */}
-        <Card
-          style={{ ...cardStyle, padding: 0, marginTop: 16 }}
-          size="small"
+        {/* Render main content and sections */}
+        <SectionsRenderer
+          sectionsConfig={sectionsConfig}
+          routeParams={enhancedRouteParams}
+          parentData={{ record }}
+          depth={depth + 1}
+          cardStyle={cardStyle}
+          isParentLoading={isLoading}
         >
-          <Details
-            {...detailProps}
-            routeParams={enhancedRouteParams}  // Override routeParams for to-many relations (must come after spread)
-            identifiers={identifiers}
-            onDataChange={handleDataChange}
-            refreshRef={refreshFnRef}
-          />
-        </Card>
-
-        {/* Render sections if configured */}
-        {sectionsConfig && (
-          <SectionsRenderer
-            sectionsConfig={sectionsConfig}
-            routeParams={enhancedRouteParams}
-            parentData={{ record }}
-            depth={depth + 1}
-            cardStyle={cardStyle}
-          />
-        )}
+          {/* Main content (Details) - rendered as first section if sectionsConfig exists, otherwise standalone */}
+          <Card
+            style={{ ...cardStyle, padding: 0, marginTop: sectionsConfig ? 0 : 16 }}
+            size="small"
+          >
+            <Details
+              {...detailProps}
+              routeParams={enhancedRouteParams}  // Override routeParams for to-many relations (must come after spread)
+              identifiers={identifiers}
+              onDataChange={handleDataChange}
+              refreshRef={refreshFnRef}
+            />
+          </Card>
+        </SectionsRenderer>
       </div>
     </DetailStateProvider>
   );

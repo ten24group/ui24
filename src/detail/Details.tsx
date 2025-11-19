@@ -95,26 +95,24 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Descriptions, DescriptionsProps, List, Spin, Skeleton, Typography, Space, Tooltip, Button } from 'antd';
-import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import { useApi, IApiConfig, useAppContext } from '../core/context';
+import { Descriptions, DescriptionsProps, List, Skeleton, Spin } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
-import { useFormat, useEntityConfig } from '../core/hooks';
-import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, JsonField, Link, ErrorFallback } from '../core/common';
-import { OpenInModal } from '../modal/Modal';
+import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link } from '../core/common';
+import { IApiConfig, useApi, useAppContext } from '../core/context';
+import { HelpText } from '../core/forms/FormField/components';
+import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
+import { useEntityConfig, useFormat } from '../core/hooks';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
-import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
-import { detailsStyles } from './styles';
-import { HelpText } from '../core/forms/FormField/components';
-import { ErrorBoundary } from 'react-error-boundary';
-import { evaluateTemplateValue } from '../core/utils/template';
+import { OpenInModal } from '../modal/Modal';
 import './Details.css';
+import { detailsStyles } from './styles';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
-import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
+import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
