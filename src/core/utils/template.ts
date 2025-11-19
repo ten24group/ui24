@@ -1,9 +1,11 @@
 import { getNestedValue } from "../utils";
 import type { Template, ITemplateConfig } from "../types/field-config";
+import { JSONPath } from 'jsonpath-plus';
 
 /**
  * Parse a simple template string into ITemplateConfig.
  * Extracts all {field} placeholders from the template.
+ * Supports both simple paths and JSONPath expressions.
  * 
  * @param template - Template string with {field} placeholders
  * @returns ITemplateConfig with composite fields and template
@@ -11,15 +13,61 @@ import type { Template, ITemplateConfig } from "../types/field-config";
  * @example
  * parseSimpleTemplate('{firstName} {lastName}')
  * // Returns: { composite: ['firstName', 'lastName'], template: '{firstName} {lastName}' }
+ * 
+ * @example
+ * parseSimpleTemplate('{$.lineItems.length()} items')
+ * // Returns: { composite: ['$.lineItems.length()'], template: '{$.lineItems.length()} items' }
  */
 export function parseSimpleTemplate(template: string): ITemplateConfig {
-  const composite = template.match(/\{([\w.]+)\}/g)?.map(m => m.slice(1, -1)) || [];
+  // Match both simple paths (word.word) and JSONPath expressions ($.path or $[...])
+  const composite = template.match(/\{([\w.$\[\]@?*()='"]+)\}/g)?.map(m => m.slice(1, -1)) || [];
   return { composite, template };
 }
 
 /**
+ * Evaluate a field path against context.
+ * Supports both simple dot notation and JSONPath expressions.
+ * 
+ * @param fieldPath - Field path (simple or JSONPath)
+ * @param context - Context object
+ * @returns Resolved value
+ * 
+ * @example
+ * evaluateFieldPath('team.name', { team: { name: 'Lakers' } })
+ * // Returns: "Lakers"
+ * 
+ * @example
+ * evaluateFieldPath('$.lineItems.length()', { lineItems: [{}, {}, {}] })
+ * // Returns: 3
+ * 
+ * @example
+ * evaluateFieldPath('$.lineItems[?(@.type=="subscription")].length()', { lineItems: [...] })
+ * // Returns: filtered count
+ */
+function evaluateFieldPath(fieldPath: string, context: Record<string, any>): any {
+  // Check if it's a JSONPath expression (starts with $ or contains JSONPath operators)
+  if (fieldPath.startsWith('$') || fieldPath.includes('[?') || fieldPath.includes('[*]')) {
+    try {
+      const result = JSONPath({ path: fieldPath, json: context, wrap: false });
+      return result;
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[Template] JSONPath evaluation failed for '${fieldPath}':`, error);
+      }
+      return undefined;
+    }
+  }
+  
+  // Simple dot notation
+  return getNestedValue(context, fieldPath);
+}
+
+/**
  * Interpolate a template with values from context object.
- * Supports dot notation for nested access (e.g., 'team.name').
+ * Supports:
+ * - Dot notation for nested access (e.g., 'team.name')
+ * - JSONPath expressions (e.g., '$.lineItems.length()', '$.items[?(@.status=="active")].length()')
+ * 
  * Missing fields are replaced with empty string.
  * 
  * @param templateConfig - Template configuration
@@ -32,6 +80,13 @@ export function parseSimpleTemplate(template: string): ITemplateConfig {
  *   { name: 'Lakers', team: { city: 'Los Angeles' } }
  * )
  * // Returns: "Lakers (Los Angeles)"
+ * 
+ * @example
+ * interpolateTemplate(
+ *   { composite: ['$.lineItems.length()'], template: '{$.lineItems.length()} items' },
+ *   { lineItems: [{}, {}, {}] }
+ * )
+ * // Returns: "3 items"
  */
 export function interpolateTemplate(
   templateConfig: ITemplateConfig,
@@ -41,8 +96,10 @@ export function interpolateTemplate(
   let result = template;
   
   composite.forEach((fieldPath) => {
-    const regex = new RegExp(`\\{${fieldPath.replace(/\./g, '\\.')}\\}`, 'g');
-    const value = getNestedValue(context, fieldPath);
+    // Escape special regex characters in the field path
+    const escapedPath = fieldPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`\\{${escapedPath}\\}`, 'g');
+    const value = evaluateFieldPath(fieldPath, context);
     
     if (value === undefined && process.env.NODE_ENV === 'development') {
       console.warn(`[Template] Missing field '${fieldPath}' in context for template: ${template}`);
@@ -83,7 +140,8 @@ export function evaluateTemplate(
 ): string {
   try {
     if (typeof template === 'string') {
-      return interpolateTemplate(parseSimpleTemplate(template), context);
+      const parsedTemplate = parseSimpleTemplate(template);
+      return interpolateTemplate(parsedTemplate, context);
     }
     return interpolateTemplate(template, context);
   } catch (error) {

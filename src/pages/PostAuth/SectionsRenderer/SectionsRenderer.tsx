@@ -1,7 +1,11 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { Tabs, Collapse, Card, Alert } from 'antd';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { Tabs, Collapse, Alert, theme, Badge, ConfigProvider } from 'antd';
 import type { TabsProps, CollapseProps } from 'antd';
 import { CaretRightOutlined, WarningOutlined } from '@ant-design/icons';
+import * as AntIcons from '@ant-design/icons';
+import { useLocation } from 'react-router-dom';
+
+const { useToken } = theme;
 import { evaluateTemplateValue } from '../../../core/utils/template';
 import { RenderFromPageType, IRenderFromPageType } from '../PostAuthPage';
 import type { Template } from '../../../core/types/field-config';
@@ -14,6 +18,34 @@ import type { VisibilityConfig } from '../../../core/types/evaluation';
 import type { IEntityConfigReference } from '../../../core/hooks/useEntityConfig';
 import { universalEvaluator } from '../../../core/utils/UniversalEvaluator';
 import { useEvaluationContext } from '../../../core/context/EvaluationContext';
+import { CollapsibleSectionCard } from './CollapsibleSectionCard';
+import { substituteUrlParams, useApi } from '../../../core';
+
+/**
+ * Badge configuration for sections.
+ * Supports:
+ * - Simple templates with JSONPath: '{$.lineItems.length()} items'
+ * - Advanced config: { template: '{$.items.length()}', showZero: true }
+ * - API-based counts: { apiEndpoint: '/admin/order/count', responseKey: 'count' }
+ */
+export type SectionBadgeConfig = 
+  | Template  // Template with JSONPath support: '{$.lineItems.length()} items', '{$.items[?(@.status=="active")].length()}'
+  | {
+      /** Template for badge text with JSONPath support */
+      template: Template;
+      /** Show badge even if evaluated to 0. Default: false */
+      showZero?: boolean;
+    }
+  | {
+      /** API endpoint to fetch count/value from (e.g., '/admin/order/count?userId.eq=:userId') */
+      apiEndpoint: string;
+      /** Key in response to extract value from. Supports JSONPath. Default: 'count' */
+      responseKey?: string;
+      /** Optional template for formatting the badge text (e.g., '{count} orders') */
+      template?: string;
+      /** Show badge even if count is 0. Default: false */
+      showZero?: boolean;
+    };
 
 /**
  * Section configuration interface
@@ -22,7 +54,7 @@ import { useEvaluationContext } from '../../../core/context/EvaluationContext';
 export interface ISectionConfig {
   readonly label: Template;
   readonly icon?: string;
-  readonly badge?: Template;
+  readonly badge?: SectionBadgeConfig | ReadonlyArray<SectionBadgeConfig> | Array<SectionBadgeConfig>;
   readonly visibility?: VisibilityConfig;
   readonly sortOrder?: number;
   readonly pageType: 'list' | 'details' | 'form' | 'dashboard';
@@ -64,6 +96,11 @@ export interface ISectionGroup {
   readonly lazyLoad?: boolean;
   readonly keepMounted?: boolean;
   readonly sections: Record<string, ISectionConfig>;
+  readonly defaultCollapsed?: boolean;
+  readonly collapsedSummary?: Template;
+  readonly allowCollapse?: boolean;
+  readonly allowMaximize?: boolean;
+  readonly autoCollapse?: boolean;
 }
 
 /**
@@ -87,6 +124,113 @@ export interface ISectionsConfig {
 
   // Common properties
   readonly maxDepth?: number;
+  readonly rememberState?: boolean;
+  readonly scrollSpyHighlight?: boolean;
+}
+
+/**
+ * Hook to handle badge value extraction
+ * Supports Template (with JSONPath) and API fetching
+ */
+function useSectionBadge(
+  badgeConfig: SectionBadgeConfig | undefined,
+  parentData: Record<string, any>,
+  routeParams: Record<string, any>
+): { badgeText: string | number | undefined; loading: boolean; showZero: boolean } {
+  const { callApiMethod } = useApi();
+  const [apiFetchedValue, setApiFetchedValue] = useState<number | undefined>(undefined);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!badgeConfig || typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
+      // Template type - no API fetch needed
+      return;
+    }
+
+    if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
+      // API fetch
+      let cancelled = false;
+      setLoading(true);
+
+      const fetchCount = async () => {
+        try {
+          const url = substituteUrlParams(badgeConfig.apiEndpoint, routeParams);
+          const response = await callApiMethod<any>({ apiUrl: url, apiMethod: 'GET' });
+          if (cancelled) return;
+
+          const responseData = response.data as Record<string, any>;
+          const responseKey = badgeConfig.responseKey || 'count';
+          
+          // Use evaluateTemplateValue to handle JSONPath in responseKey
+          const countValue = evaluateTemplateValue(`{${responseKey}}`, responseData);
+          const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
+
+          setApiFetchedValue(typeof numValue === 'number' && !isNaN(numValue) ? numValue : undefined);
+        } catch (error) {
+          console.warn('[useSectionBadge] API fetch failed:', error);
+          if (!cancelled) setApiFetchedValue(undefined);
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+      };
+
+      fetchCount();
+      return () => { cancelled = true; };
+    }
+  }, [badgeConfig, routeParams, callApiMethod]);
+
+  const result = useMemo(() => {
+    if (!badgeConfig) return { badgeText: undefined, showZero: false };
+
+    // Flatten parentData if it has a 'record' property (from DetailPage)
+    // This allows templates to access fields directly: $.lineItems instead of $.record.lineItems
+    const flattenedParentData = parentData.record ? parentData.record : parentData;
+    const context = { ...routeParams, ...flattenedParentData };
+
+    // 1. Simple Template (string or complex template)
+    if (typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
+      const text = evaluateTemplateValue(badgeConfig as Template, context);
+      // Don't show empty badges, but show "0" by default
+      return {
+        badgeText: text && text.trim() !== '' ? text : undefined,
+        showZero: true  // Default to showing zero for simple templates
+      };
+    }
+
+    // 2. Template config with showZero option
+    if ('template' in badgeConfig && badgeConfig.template) {
+      const text = evaluateTemplateValue(badgeConfig.template, context);
+      return {
+        badgeText: text && text.trim() !== '' ? text : undefined,
+        showZero: badgeConfig.showZero ?? false
+      };
+    }
+
+    // 3. API fetched value
+    if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
+      if (loading) return { badgeText: undefined, showZero: false };
+      if (apiFetchedValue === undefined || (apiFetchedValue === 0 && !badgeConfig.showZero)) {
+        return { badgeText: undefined, showZero: badgeConfig.showZero ?? false };
+      }
+
+      // Format with template if provided
+      let text: string | number;
+      if (badgeConfig.template) {
+        text = evaluateTemplateValue(badgeConfig.template, { count: apiFetchedValue, ...context });
+      } else {
+        text = apiFetchedValue;
+      }
+
+      return {
+        badgeText: text,
+        showZero: badgeConfig.showZero ?? false
+      };
+    }
+
+    return { badgeText: undefined, showZero: false };
+  }, [badgeConfig, parentData, routeParams, apiFetchedValue, loading]);
+
+  return { ...result, loading };
 }
 
 /**
@@ -173,6 +317,68 @@ const SectionContent: React.FC<{
 };
 
 /**
+ * Component to render section label with icon and badge(s)
+ * Extracted as a component so it can use the useSectionBadge hook
+ */
+const SectionLabelWithBadge: React.FC<{
+  section: ISectionConfig;
+  routeParams: Record<string, any>;
+  parentData: Record<string, any>;
+}> = ({ section, routeParams, parentData }) => {
+  const label = evaluateTemplateValue(section.label, routeParams);
+
+  // Render icon if provided
+  let iconNode = null;
+  if (section.icon) {
+    if (typeof section.icon === 'string') {
+      const IconComponent = (AntIcons as any)[section.icon];
+      if (IconComponent) {
+        iconNode = React.createElement(IconComponent);
+      }
+    } else if (React.isValidElement(section.icon)) {
+      iconNode = section.icon;
+    }
+  }
+
+  // Handle single or multiple badges
+  const badgeConfigs: SectionBadgeConfig[] = section.badge
+    ? Array.isArray(section.badge)
+      ? (section.badge as SectionBadgeConfig[])
+      : [section.badge as SectionBadgeConfig]
+    : [];
+
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {iconNode}
+      <span>{label}</span>
+      {badgeConfigs.map((badgeConfig, index) => (
+        <SingleBadge
+          key={index}
+          badgeConfig={badgeConfig}
+          parentData={parentData}
+          routeParams={routeParams}
+        />
+      ))}
+    </span>
+  );
+};
+
+/**
+ * Renders a single badge using the useSectionBadge hook
+ */
+const SingleBadge: React.FC<{
+  badgeConfig: SectionBadgeConfig;
+  parentData: Record<string, any>;
+  routeParams: Record<string, any>;
+}> = ({ badgeConfig, parentData, routeParams }) => {
+  const { badgeText, showZero } = useSectionBadge(badgeConfig, parentData, routeParams);
+
+  if (badgeText === undefined) return null;
+
+  return <Badge count={badgeText} showZero={showZero} />;
+};
+
+/**
  * Single section group renderer - handles tabs or accordion for one group of sections
  */
 const SectionGroupRenderer: React.FC<{
@@ -196,6 +402,8 @@ const SectionGroupRenderer: React.FC<{
   depth,
   maxDepth
 }) => {
+    const { token } = useToken();
+    
     // Check depth limit
     if (depth > maxDepth) {
       return (
@@ -221,9 +429,22 @@ const SectionGroupRenderer: React.FC<{
 
     // Default to first section
     const [ activeKey, setActiveKey ] = useState<string>(sortedSections[ 0 ]?.[ 0 ] || '');
-    const [ loadedSections, setLoadedSections ] = useState<Set<string>>(
-      new Set([ sortedSections[ 0 ]?.[ 0 ] ])
-    );
+    
+    // Initialize loaded sections - start empty for true lazy loading
+    const [ loadedSections, setLoadedSections ] = useState<Set<string>>(new Set());
+    const [ hasInitialized, setHasInitialized ] = useState(false);
+
+    // Load first section on mount (when this component actually renders)
+    // This respects the parent card's collapsed state
+    useEffect(() => {
+      if (!hasInitialized && sortedSections.length > 0) {
+        const firstKey = sortedSections[0]?.[0];
+        if (firstKey) {
+          setLoadedSections(new Set([firstKey]));
+          setHasInitialized(true);
+        }
+      }
+    }, [hasInitialized, sortedSections]);
 
     const handleChange = useCallback((key: string | string[]) => {
       const newKey = Array.isArray(key) ? key[ key.length - 1 ] : key;
@@ -256,14 +477,21 @@ const SectionGroupRenderer: React.FC<{
           }
 
           const shouldLoad = !lazyLoad || loadedSections.has(key);
-          const label = evaluateTemplateValue(section.label, routeParams);
-          const badge = section.badge ? evaluateTemplateValue(section.badge, routeParams) : undefined;
 
           if (!visible) return null;
 
+          // Build label with icon and badge using the dedicated component
+          const labelContent = (
+            <SectionLabelWithBadge
+              section={section}
+              routeParams={routeParams}
+              parentData={parentData}
+            />
+          );
+
           return {
             key,
-            label: badge ? `${label} (${badge})` : label,
+            label: labelContent,
             children: (
               <SectionContent
                 section={section}
@@ -280,33 +508,86 @@ const SectionGroupRenderer: React.FC<{
 
     // Add subtle visual feedback for nested depth
     const nestedStyle: React.CSSProperties = depth > 0 ? {
-      opacity: Math.max(0.85, 1 - (depth * 0.05)), // Subtle opacity decrease
-      filter: depth > 1 ? `grayscale(${depth * 10}%)` : undefined // Very subtle grayscale
+      opacity: Math.max(0.85, 1 - (depth * 0.05)),
+      filter: depth > 1 ? `grayscale(${depth * 10}%)` : undefined,
     } : {};
 
-    // Render as Tabs
+    // UX Enhancement: If only one section, skip Tabs/Collapse wrapper and render content directly
+    // But preserve the section's label, icon, and badge as a simple header
+    if (items.length === 1) {
+      const singleItem = items[0];
+      const singleSection = sortedSections[0]?.[1];
+      
+      // Check if we need to show a header (has icon, badge, or label different from group label)
+      const hasIconOrBadge = singleSection?.icon || singleSection?.badge;
+      
+      return (
+        <>
+          {hasIconOrBadge && (
+            <div style={{ 
+              padding: '8px 12px', 
+              borderBottom: `1px solid ${token.colorBorderSecondary}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: '14px',
+              fontWeight: 500,
+            }}>
+              {singleItem.label}
+            </div>
+          )}
+          {singleItem.children}
+        </>
+      );
+    }
+
+    // Render as Tabs - uses Ant Design's built-in motion
     if (renderMode === 'tabs') {
       const tabsProps: TabsProps = {
         items,
         activeKey,
         onChange: (key) => handleChange(key),
-        destroyInactiveTabPane: !keepMounted,
+        destroyOnHidden: !keepMounted,
+        animated: true, // Let Ant Design handle animations
         style: nestedStyle
       };
 
-      return <Tabs {...tabsProps} />;
+      return (
+        <ConfigProvider
+          theme={{
+            token: {
+              motionDurationSlow: '0.4s',
+              motionDurationMid: '0.3s',
+            },
+          }}
+        >
+          <Tabs {...tabsProps} />
+        </ConfigProvider>
+      );
     }
 
-    // Render as Accordion (Collapse)
+    // Render as Accordion (Collapse) - uses Ant Design's built-in motion
     const collapseProps: CollapseProps = {
       items,
       defaultActiveKey: [ activeKey ],
       onChange: (keys) => handleChange(keys),
       expandIcon: ({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />,
-      style: nestedStyle
+      expandIconPosition: 'end',
+      style: nestedStyle,
     };
 
-    return <Collapse {...collapseProps} />;
+    return (
+      <ConfigProvider
+        theme={{
+          token: {
+            motionDurationSlow: '0.4s',
+            motionDurationMid: '0.3s',
+          },
+        }}
+      >
+        <Collapse {...collapseProps} />
+      </ConfigProvider>
+    );
   };
 
 /**
@@ -372,71 +653,158 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
   depth = 0,
   cardStyle
 }) => {
-  const maxDepth = sectionsConfig.maxDepth ?? 4; // Default max depth is 4
+  const maxDepth = sectionsConfig.maxDepth ?? 4;
+  const rememberState = sectionsConfig.rememberState ?? true;
+  const scrollSpyHighlight = sectionsConfig.scrollSpyHighlight ?? true;
 
-  // Get full evaluation context (includes actor, queryParams, etc.)
+  const location = useLocation();
   const baseEvaluationContext = useEvaluationContext();
-
-  // Memoize evaluation context with parent record to avoid recreating on every render
   const evaluationContext = useMemo(() => ({
     ...baseEvaluationContext,
     record: parentData.record
-  }), [ baseEvaluationContext, parentData.record ]);
+  }), [baseEvaluationContext, parentData.record]);
 
-  // Check if using multiple groups format
   const hasSectionGroups = !!sectionsConfig.sectionGroups;
 
-  // CASE 1: Multiple Groups (New Format)
-  if (hasSectionGroups) {
-    // Sort groups by sortOrder
-    const sortedGroups = useMemo(() => {
-      return [ ...(sectionsConfig.sectionGroups || []) ].sort((a, b) => {
-        const orderA = a.sortOrder ?? 999;
-        const orderB = b.sortOrder ?? 999;
-        return orderA - orderB;
-      });
-    }, [ sectionsConfig.sectionGroups ]);
+  // Sort and filter visible groups
+  const visibleGroups = useMemo(() => {
+    if (!hasSectionGroups) return [];
 
-    // Filter groups by visibility
-    const visibleGroups = useMemo(() => {
-      return sortedGroups.filter(group => {
-        if (!group.visibility) return true;
+    const sorted = [...(sectionsConfig.sectionGroups || [])].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 
-        try {
-          const result = universalEvaluator.evaluateSync(group.visibility, evaluationContext);
-          return result.visible;
-        } catch (error) {
-          console.warn('[SectionsRenderer] Group visibility evaluation failed, defaulting to visible:', error);
-          return true;
+    return sorted.filter(group => {
+      if (!group.visibility) return true;
+      try {
+        return universalEvaluator.evaluateSync(group.visibility, evaluationContext).visible;
+      } catch {
+        return true;
+      }
+    });
+  }, [hasSectionGroups, sectionsConfig.sectionGroups, evaluationContext]);
+
+  // Stable storage key: route + record ID + depth
+  const storageKey = useMemo(() => {
+    const routePath = location.pathname.replace(/\//g, '_');
+    const recordId = routeParams.id || 'noId';
+    return `sections_${routePath}_${recordId}_d-${depth}`;
+  }, [location.pathname, routeParams.id, depth]);
+
+  // Collapsed state with localStorage
+  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>(() => {
+    const initialState: Record<string, boolean> = {};
+    
+    // Load from localStorage if rememberState is enabled
+    if (rememberState) {
+      try {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+          return JSON.parse(stored);
         }
-      });
-    }, [ sortedGroups, evaluationContext ]);
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    
+    // Initialize defaults for each group
+    visibleGroups.forEach((group, index) => {
+      const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
+      initialState[group.id] = defaultCollapsed;
+    });
+    
+    return initialState;
+  });
 
-    // Render each group as a card
+  // Save to localStorage whenever collapsedCards changes
+  useEffect(() => {
+    if (rememberState) {
+      localStorage.setItem(storageKey, JSON.stringify(collapsedCards));
+    }
+  }, [collapsedCards, rememberState, storageKey]);
+
+  // Scroll spy
+  const [highlightedCard, setHighlightedCard] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!scrollSpyHighlight || !hasSectionGroups || visibleGroups.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && entry.target.id) {
+            const cardId = entry.target.id.replace('section-card-', '');
+            setHighlightedCard(cardId);
+          }
+        });
+      },
+      { threshold: 0.3, rootMargin: '-80px 0px' }
+    );
+
+    // Observe all cards directly
+    visibleGroups.forEach(group => {
+      const cardElement = document.getElementById(`section-card-${group.id}`);
+      if (cardElement) {
+        observer.observe(cardElement);
+      }
+    });
+
+    return () => observer.disconnect();
+  }, [scrollSpyHighlight, hasSectionGroups, visibleGroups]);
+
+  // Handle collapsed change with auto-collapse logic
+  const handleCollapsedChange = useCallback((groupId: string, group: ISectionGroup) => {
+    return (collapsed: boolean) => {
+      setCollapsedCards(prev => {
+        const next = { ...prev, [groupId]: collapsed };
+
+        // Auto-collapse: when opening an auto-collapse group, close other auto-collapse groups
+        if (!collapsed && group.autoCollapse) {
+          visibleGroups.forEach(g => {
+            if (g.id !== groupId && g.autoCollapse) {
+              next[g.id] = true;
+            }
+          });
+        }
+
+        return next;
+      });
+    };
+  }, [visibleGroups]);
+
+  // CASE 1: Multiple Groups
+  if (hasSectionGroups) {
     return (
       <>
-        {visibleGroups.map(group => {
+        {visibleGroups.map((group, index) => {
           const groupLabel = group.label ? evaluateTemplateValue(group.label, routeParams) : undefined;
+          const summary = group.collapsedSummary ? evaluateTemplateValue(group.collapsedSummary, routeParams) : undefined;
+          const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
+          const isCollapsed = collapsedCards[group.id] ?? defaultCollapsed;
 
           return (
-              <Card
-                key={group.id}
-                title={groupLabel}
-                style={{ marginTop: 16, ...cardStyle }}
-                size="small"
-              >
-                <SectionGroupRenderer
-                  sections={group.sections}
-                  renderMode={group.renderMode}
-                  lazyLoad={group.lazyLoad}
-                  keepMounted={group.keepMounted}
-                  routeParams={routeParams}
-                  parentData={parentData}
-                  evaluationContext={evaluationContext}
-                  depth={depth}
-                  maxDepth={maxDepth}
-                />
-              </Card>
+            <CollapsibleSectionCard
+              key={group.id}
+              id={group.id}
+              title={groupLabel}
+              icon={group.icon}
+              summary={summary}
+              collapsed={isCollapsed}
+              allowCollapse={group.allowCollapse ?? true}
+              allowMaximize={group.allowMaximize ?? true}
+              isHighlighted={scrollSpyHighlight && highlightedCard === group.id}
+              onCollapsedChange={handleCollapsedChange(group.id, group)}
+            >
+              <SectionGroupRenderer
+                sections={group.sections}
+                renderMode={group.renderMode}
+                lazyLoad={group.lazyLoad}
+                keepMounted={group.keepMounted}
+                routeParams={routeParams}
+                parentData={parentData}
+                evaluationContext={evaluationContext}
+                depth={depth}
+                maxDepth={maxDepth}
+              />
+            </CollapsibleSectionCard>
           );
         })}
       </>
@@ -445,7 +813,7 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
 
   // CASE 2: Single Group (Backward Compatible)
   if (!sectionsConfig.sections || Object.keys(sectionsConfig.sections).length === 0) {
-    return null; // No sections to render
+    return null;
   }
 
   return (
