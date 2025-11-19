@@ -37,7 +37,12 @@ export const useRequestSigner = (options: UseSignerOptions) => {
         
         if(method === 'GET' && !!data && typeof data === 'object' ){
             Object.entries(data).forEach(([k,v]) => {
-                parsedUrl.searchParams.append(k, v as string);
+                // CRITICAL FIX: Skip undefined and null values to match Axios behavior
+                // Axios filters these out, so we must too to avoid signature mismatch
+                if (v === undefined || v === null) {
+                    return;
+                }
+                parsedUrl.searchParams.append(k, String(v));
             });
         }
         
