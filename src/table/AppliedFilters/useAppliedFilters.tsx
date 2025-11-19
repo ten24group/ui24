@@ -5,7 +5,8 @@ import { getFilterOperatorByValue } from "../Filters/filterOperators";
 export const useAppliedFilters = ({
   appliedFilters,
   setAppliedFilters,
-  getColumnNameByKey
+  getColumnNameByKey,
+  onFilterChange // Callback to trigger refetch after filter changes
 }) => {
   //Filter Methods
   const applyFilters = (column: string, filterOperator: string, value: string | Array<string>) => {
@@ -18,6 +19,7 @@ export const useAppliedFilters = ({
     })
   }
 
+  // Internal removeFilter for building the return API (used by filter UI for nested format)
   const removeFilter = (column: string, filterOperator: string) => {
     //find the column and remove the filter
     if (appliedFilters[ column ] && appliedFilters[ column ][ filterOperator ]) {
@@ -26,12 +28,14 @@ export const useAppliedFilters = ({
       if (Object.keys(newFilters[ column ]).length === 0) {
         delete newFilters[ column ];
       }
-      setAppliedFilters(newFilters)
+      setAppliedFilters(newFilters);
+      if (onFilterChange) onFilterChange();
     }
   }
 
   const clearAllFilters = () => {
     setAppliedFilters({});
+    // Note: onFilterChange is called by the wrapper in useTable
   };
 
   const hasActiveFilters = Object.keys(appliedFilters).length > 0;
@@ -44,6 +48,14 @@ export const useAppliedFilters = ({
    * Author Name : "eq" : "GS"
    */
   const DisplayAppliedFilters = () => {
+    // Helper to remove filter by key (for dot notation and plain value filters)
+    const removeFilterByKey = (keyToRemove: string) => {
+      const newFilters = { ...appliedFilters };
+      delete newFilters[keyToRemove];
+      setAppliedFilters(newFilters);
+      if (onFilterChange) onFilterChange();
+    };
+    
     return (
       <Fragment>
         {hasActiveFilters && Object.keys(appliedFilters).flatMap((key) => {
@@ -60,9 +72,7 @@ export const useAppliedFilters = ({
             const [field, operator] = parts;
             const handleClose = (e) => {
               e.preventDefault();
-              const newFilters = { ...appliedFilters };
-              delete newFilters[key];
-              setAppliedFilters(newFilters);
+              removeFilterByKey(key);
             };
             
             return [(
@@ -91,9 +101,7 @@ export const useAppliedFilters = ({
           // Handle plain value format (fallback): { teamId: 'value' }
           const handleClose = (e) => {
             e.preventDefault();
-            const newFilters = { ...appliedFilters };
-            delete newFilters[key];
-            setAppliedFilters(newFilters);
+            removeFilterByKey(key);
           };
           
           return [(
@@ -110,6 +118,7 @@ export const useAppliedFilters = ({
     applyFilters,
     DisplayAppliedFilters,
     clearAllFilters,
+    removeFilter,
     hasActiveFilters,
     activeFiltersCount: Object.keys(appliedFilters).length
   }

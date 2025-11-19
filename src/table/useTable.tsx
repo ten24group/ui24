@@ -429,7 +429,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const { applyFilters: _applyFilters, DisplayAppliedFilters, clearAllFilters: _clearAllFilters, hasActiveFilters, activeFiltersCount } = useAppliedFilters({
     appliedFilters,
     setAppliedFilters,
-    getColumnNameByKey
+    getColumnNameByKey,
+    onFilterChange: () => setFetchTrigger(prev => prev + 1)
   });
 
   // Wrap filter functions to trigger fetch
@@ -518,7 +519,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   };
 
-  // Stabilize removeFilter with useCallback - memoization dependency
+  // Remove entire column from filters (used by filter UI)
+  // Stabilize with useCallback - memoization dependency
   const removeFilter = React.useCallback((col: string) => {
     setAppliedFilters(prev => {
       const { [col]: _, ...rest } = prev;
