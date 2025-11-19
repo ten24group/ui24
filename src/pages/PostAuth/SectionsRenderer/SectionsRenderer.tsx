@@ -28,24 +28,24 @@ import { substituteUrlParams, useApi } from '../../../core';
  * - Advanced config: { template: '{$.items.length()}', showZero: true }
  * - API-based counts: { apiEndpoint: '/admin/order/count', responseKey: 'count' }
  */
-export type SectionBadgeConfig = 
+export type SectionBadgeConfig =
   | Template  // Template with JSONPath support: '{$.lineItems.length()} items', '{$.items[?(@.status=="active")].length()}'
   | {
-      /** Template for badge text with JSONPath support */
-      template: Template;
-      /** Show badge even if evaluated to 0. Default: false */
-      showZero?: boolean;
-    }
+    /** Template for badge text with JSONPath support */
+    template: Template;
+    /** Show badge even if evaluated to 0. Default: false */
+    showZero?: boolean;
+  }
   | {
-      /** API endpoint to fetch count/value from (e.g., '/admin/order/count?userId.eq=:userId') */
-      apiEndpoint: string;
-      /** Key in response to extract value from. Supports JSONPath. Default: 'count' */
-      responseKey?: string;
-      /** Optional template for formatting the badge text (e.g., '{count} orders') */
-      template?: string;
-      /** Show badge even if count is 0. Default: false */
-      showZero?: boolean;
-    };
+    /** API endpoint to fetch count/value from (e.g., '/admin/order/count?userId.eq=:userId') */
+    apiEndpoint: string;
+    /** Key in response to extract value from. Supports JSONPath. Default: 'count' */
+    responseKey?: string;
+    /** Optional template for formatting the badge text (e.g., '{count} orders') */
+    template?: string;
+    /** Show badge even if count is 0. Default: false */
+    showZero?: boolean;
+  };
 
 /**
  * Section configuration interface
@@ -138,8 +138,8 @@ function useSectionBadge(
   routeParams: Record<string, any>
 ): { badgeText: string | number | undefined; loading: boolean; showZero: boolean } {
   const { callApiMethod } = useApi();
-  const [apiFetchedValue, setApiFetchedValue] = useState<number | undefined>(undefined);
-  const [loading, setLoading] = useState(false);
+  const [ apiFetchedValue, setApiFetchedValue ] = useState<number | undefined>(undefined);
+  const [ loading, setLoading ] = useState(false);
 
   useEffect(() => {
     if (!badgeConfig || typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
@@ -160,7 +160,7 @@ function useSectionBadge(
 
           const responseData = response.data as Record<string, any>;
           const responseKey = badgeConfig.responseKey || 'count';
-          
+
           // Use evaluateTemplateValue to handle JSONPath in responseKey
           const countValue = evaluateTemplateValue(`{${responseKey}}`, responseData);
           const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
@@ -177,7 +177,7 @@ function useSectionBadge(
       fetchCount();
       return () => { cancelled = true; };
     }
-  }, [badgeConfig, routeParams, callApiMethod]);
+  }, [ badgeConfig, routeParams, callApiMethod ]);
 
   const result = useMemo(() => {
     if (!badgeConfig) return { badgeText: undefined, showZero: false };
@@ -228,7 +228,7 @@ function useSectionBadge(
     }
 
     return { badgeText: undefined, showZero: false };
-  }, [badgeConfig, parentData, routeParams, apiFetchedValue, loading]);
+  }, [ badgeConfig, parentData, routeParams, apiFetchedValue, loading ]);
 
   return { ...result, loading };
 }
@@ -250,7 +250,7 @@ const SectionContent: React.FC<{
   if (sectionKey === '__main__' && children) {
     return <>{children}</>;
   }
-  
+
   // CRITICAL: If parent record is still loading, show skeleton
   // This prevents sections from making API calls with incomplete/missing filter parameters
   if (isParentLoading) {
@@ -326,7 +326,7 @@ const SectionContent: React.FC<{
     detailsPageConfig: finalDetailsPageConfig,
     formPageConfig: finalFormPageConfig,
     dashboardPageConfig: finalDashboardPageConfig,
-    depth // Pass depth to nested pages
+    depth: depth + 1 // Increment depth for nested entity pages to prevent infinite section nesting
   };
 
   return (
@@ -349,7 +349,7 @@ const SectionLabelWithBadge: React.FC<{
   let iconNode = null;
   if (section.icon) {
     if (typeof section.icon === 'string') {
-      const IconComponent = (AntIcons as any)[section.icon];
+      const IconComponent = (AntIcons as any)[ section.icon ];
       if (IconComponent) {
         iconNode = React.createElement(IconComponent);
       }
@@ -362,7 +362,7 @@ const SectionLabelWithBadge: React.FC<{
   const badgeConfigs: SectionBadgeConfig[] = section.badge
     ? Array.isArray(section.badge)
       ? (section.badge as SectionBadgeConfig[])
-      : [section.badge as SectionBadgeConfig]
+      : [ section.badge as SectionBadgeConfig ]
     : [];
 
   return (
@@ -425,7 +425,7 @@ const SectionGroupRenderer: React.FC<{
   children
 }) => {
     const { token } = useToken();
-    
+
     // Check depth limit
     if (depth > maxDepth) {
       return (
@@ -452,7 +452,7 @@ const SectionGroupRenderer: React.FC<{
     // Default to first section (for tabs) or empty (for accordions)
     const defaultActiveKey = renderMode === 'tabs' ? (sortedSections[ 0 ]?.[ 0 ] || '') : '';
     const [ activeKey, setActiveKey ] = useState<string>(defaultActiveKey);
-    
+
     // Initialize loaded sections based on render mode, count, and lazyLoad setting
     // If lazyLoad is false: load ALL sections immediately
     // For single section: always load (rendered directly, no wrapper)
@@ -461,21 +461,21 @@ const SectionGroupRenderer: React.FC<{
     const initialLoadedSections = useMemo(() => {
       // If lazy loading is disabled, load all sections immediately
       if (!lazyLoad) {
-        return new Set(sortedSections.map(([key]) => key));
+        return new Set(sortedSections.map(([ key ]) => key));
       }
-      
+
       if (sortedSections.length === 1) {
         // Single section is rendered directly without tabs/accordion wrapper
-        const firstKey = sortedSections[0]?.[0];
-        return new Set(firstKey ? [firstKey] : []);
+        const firstKey = sortedSections[ 0 ]?.[ 0 ];
+        return new Set(firstKey ? [ firstKey ] : []);
       }
       if (renderMode === 'tabs' && sortedSections.length > 0) {
-        const firstKey = sortedSections[0]?.[0];
-        return new Set(firstKey ? [firstKey] : []);
+        const firstKey = sortedSections[ 0 ]?.[ 0 ];
+        return new Set(firstKey ? [ firstKey ] : []);
       }
       return new Set<string>();
-    }, [renderMode, sortedSections, lazyLoad]);
-    
+    }, [ renderMode, sortedSections, lazyLoad ]);
+
     const [ loadedSections, setLoadedSections ] = useState<Set<string>>(initialLoadedSections);
 
     const handleChange = useCallback((key: string | string[]) => {
@@ -550,17 +550,17 @@ const SectionGroupRenderer: React.FC<{
     // UX Enhancement: If only one section, skip Tabs/Collapse wrapper and render content directly
     // But preserve the section's label, icon, and badge as a simple header
     if (items.length === 1) {
-      const singleItem = items[0];
-      const singleSection = sortedSections[0]?.[1];
-      
+      const singleItem = items[ 0 ];
+      const singleSection = sortedSections[ 0 ]?.[ 1 ];
+
       // Check if we need to show a header (has icon, badge, or label different from group label)
       const hasIconOrBadge = singleSection?.icon || singleSection?.badge;
-      
+
       return (
         <>
           {hasIconOrBadge && (
-            <div style={{ 
-              padding: '8px 12px', 
+            <div style={{
+              padding: '8px 12px',
               borderBottom: `1px solid ${token.colorBorderSecondary}`,
               display: 'flex',
               alignItems: 'center',
@@ -631,7 +631,7 @@ const SectionGroupRenderer: React.FC<{
  */
 function injectMainContentGroup(
   sectionsConfig: ISectionsConfig,
-  mainSectionConfig?: ISectionsRendererProps['mainSectionConfig']
+  mainSectionConfig?: ISectionsRendererProps[ 'mainSectionConfig' ]
 ): ISectionsConfig {
   const mainSection: ISectionConfig = {
     label: mainSectionConfig?.label,
@@ -672,9 +672,9 @@ function injectMainContentGroup(
   if (sectionsConfig.sectionGroups && sectionsConfig.sectionGroups.length > 0) {
     return {
       ...sectionsConfig,
-      sectionGroups: [mainContentGroup, ...sectionsConfig.sectionGroups]
+      sectionGroups: [ mainContentGroup, ...sectionsConfig.sectionGroups ]
     };
-  } 
+  }
   // If sectionsConfig has sections (single group mode), convert to multi-group
   else if (sectionsConfig.sections && Object.keys(sectionsConfig.sections).length > 0) {
     const existingGroup: ISectionGroup = {
@@ -692,15 +692,15 @@ function injectMainContentGroup(
 
     return {
       ...sectionsConfig,
-      sectionGroups: [mainContentGroup, existingGroup],
+      sectionGroups: [ mainContentGroup, existingGroup ],
       sections: undefined
     };
-  } 
+  }
   // Edge case: sectionsConfig exists but is empty
   else {
     return {
       ...sectionsConfig,
-      sectionGroups: [mainContentGroup]
+      sectionGroups: [ mainContentGroup ]
     };
   }
 }
@@ -785,6 +785,36 @@ export interface ISectionsRendererProps {
  *   routeParams={{ teamId: '123' }}
  * />
  */
+
+/**
+ * Helper component: Pure spatial hierarchy for nested content
+ * Clean and elegant - just indentation and subtle background progression
+ */
+const DepthWrapper: React.FC<{ depth: number; token: any; children: React.ReactNode }> = React.memo(({ depth, token, children }) => {
+  if (depth === 0) return <>{children}</>;
+
+  return (
+    <div style={{
+      padding: 8,
+      paddingLeft: 16,
+      marginLeft: 8,
+      marginTop: 8,
+      borderLeft: `1px solid ${token.colorPrimary}`,
+      borderRadius: 8,
+    }}>
+      {children}
+    </div>
+  );
+});
+
+/**
+ * Helper component: Renders main content at nested depths
+ */
+const MainContentAtDepth: React.FC<{ depth: number; children?: React.ReactNode }> = React.memo(({ depth, children }) => {
+  if (depth === 0 || !children) return null;
+  return <div style={{ marginBottom: 16 }}>{children}</div>;
+});
+
 export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
   sectionsConfig,
   routeParams,
@@ -810,17 +840,43 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
   const scrollSpyHighlight = sectionsConfig.scrollSpyHighlight ?? true;
 
   const location = useLocation();
+  const { token } = useToken();
   const baseEvaluationContext = useEvaluationContext();
   const evaluationContext = useMemo(() => ({
     ...baseEvaluationContext,
     record: parentData.record
-  }), [baseEvaluationContext, parentData.record]);
+  }), [ baseEvaluationContext, parentData.record ]);
 
-  // Inject main content as a synthetic section group when children exist
+  // Inject main content as a synthetic section group at ALL depths if children exist
+  // This ensures nested entities show their main content (Details component)
+  // Allow sections up to maxDepth - 1, then clear to show only main content
   const enhancedSectionsConfig = useMemo<ISectionsConfig>(() => {
+    const effectiveMaxDepth = sectionsConfig?.maxDepth ?? 4;
+
+    // If we've reached the max nesting depth, clear all section groups
+    // This prevents infinite recursion while allowing controlled multi-level nesting
+    if (depth >= effectiveMaxDepth - 1 && sectionsConfig) {
+      return {
+        ...sectionsConfig,
+        sectionGroups: undefined,
+        sections: undefined
+      };
+    }
+
+    // Inject main content if children are provided (at any depth)
+    // At depth 0: creates "Overview" section group with no header
+    // At depth > 0: also injects main content so nested entities show their Details
     if (!children) return sectionsConfig;
-    return injectMainContentGroup(sectionsConfig, mainSectionConfig);
-  }, [children, sectionsConfig, mainSectionConfig]);
+
+    // Only inject main content group at depth 0 (top level)
+    // At deeper levels, the children will be rendered separately
+    if (depth === 0) {
+      return injectMainContentGroup(sectionsConfig, mainSectionConfig);
+    }
+
+    // At depth > 0, return config as-is, children will be rendered inline with depth indicator
+    return sectionsConfig;
+  }, [ children, sectionsConfig, mainSectionConfig, depth ]);
 
   const hasSectionGroups = !!enhancedSectionsConfig.sectionGroups;
 
@@ -828,7 +884,7 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
   const visibleGroups = useMemo(() => {
     if (!hasSectionGroups) return [];
 
-    const sorted = [...(enhancedSectionsConfig.sectionGroups || [])].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
+    const sorted = [ ...(enhancedSectionsConfig.sectionGroups || []) ].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 
     return sorted.filter(group => {
       if (!group.visibility) return true;
@@ -838,21 +894,21 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
         return true;
       }
     });
-  }, [hasSectionGroups, enhancedSectionsConfig.sectionGroups, evaluationContext]);
+  }, [ hasSectionGroups, enhancedSectionsConfig.sectionGroups, evaluationContext ]);
 
   // Stable storage key: route + record ID + depth
   const storageKey = useMemo(() => {
     const routePath = location.pathname.replace(/\//g, '_');
     const recordId = routeParams.id || 'noId';
     return `sections_${routePath}_${recordId}_d-${depth}`;
-  }, [location.pathname, routeParams.id, depth]);
+  }, [ location.pathname, routeParams.id, depth ]);
 
   // Collapsed state with localStorage
-  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>(() => {
+  const [ collapsedCards, setCollapsedCards ] = useState<Record<string, boolean>>(() => {
     const initialState: Record<string, boolean> = {};
-    
-    // Load from localStorage if rememberState is enabled
-    if (rememberState) {
+
+    // Load from localStorage if rememberState is enabled (only at depth 0)
+    if (rememberState && depth === 0) {
       try {
         const stored = localStorage.getItem(storageKey);
         if (stored) {
@@ -860,7 +916,7 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
           // Copy saved state, but ensure main content group is always expanded
           Object.keys(savedState).forEach(key => {
             if (key !== '__main_content_group__') {
-              initialState[key] = savedState[key];
+              initialState[ key ] = savedState[ key ];
             }
           });
         }
@@ -868,35 +924,40 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
         // Ignore parse errors
       }
     }
-    
+
     // Initialize defaults for each group
     visibleGroups.forEach((group, index) => {
       // Main content group always starts expanded, never saved
       if (group.id === '__main_content_group__') {
-        initialState[group.id] = false;
-      } 
-      // Other groups use saved state or default
-      else if (initialState[group.id] === undefined) {
+        initialState[ group.id ] = false;
+      }
+      // Force collapse all cards if depth >= 1 (all nested content should be compact)
+      else if (depth >= 1) {
+        initialState[ group.id ] = true;
+      }
+      // Other groups use saved state or default (only at depth 0)
+      else if (initialState[ group.id ] === undefined) {
         const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
-        initialState[group.id] = defaultCollapsed;
+        initialState[ group.id ] = defaultCollapsed;
       }
     });
-    
+
     return initialState;
   });
 
   // Save to localStorage whenever collapsedCards changes
   // Exclude main content group from being saved
+  // Only save at depth 0 (all nested sections always start collapsed)
   useEffect(() => {
-    if (rememberState) {
+    if (rememberState && depth === 0) {
       const stateToSave = { ...collapsedCards };
-      delete stateToSave['__main_content_group__']; // Never save main content group state
+      delete stateToSave[ '__main_content_group__' ]; // Never save main content group state
       localStorage.setItem(storageKey, JSON.stringify(stateToSave));
     }
-  }, [collapsedCards, rememberState, storageKey]);
+  }, [ collapsedCards, rememberState, storageKey, depth ]);
 
   // Scroll spy - tracks which section card is most visible
-  const [highlightedCard, setHighlightedCard] = useState<string | null>(null);
+  const [ highlightedCard, setHighlightedCard ] = useState<string | null>(null);
   const intersectionRatiosRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -935,8 +996,8 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
           setHighlightedCard(null);
         }
       },
-      { 
-        threshold: [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], // Multiple thresholds for better granularity
+      {
+        threshold: [ 0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0 ], // Multiple thresholds for better granularity
         rootMargin: '-80px 0px' // Account for fixed headers
       }
     );
@@ -953,19 +1014,19 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
       observer.disconnect();
       intersectionRatiosRef.current.clear();
     };
-  }, [scrollSpyHighlight, hasSectionGroups, visibleGroups]);
+  }, [ scrollSpyHighlight, hasSectionGroups, visibleGroups ]);
 
   // Handle collapsed change with auto-collapse logic
   const handleCollapsedChange = useCallback((groupId: string, group: ISectionGroup) => {
     return (collapsed: boolean) => {
       setCollapsedCards(prev => {
-        const next = { ...prev, [groupId]: collapsed };
+        const next = { ...prev, [ groupId ]: collapsed };
 
         // Auto-collapse: when opening an auto-collapse group, close other auto-collapse groups
         if (!collapsed && group.autoCollapse) {
           visibleGroups.forEach(g => {
             if (g.id !== groupId && g.autoCollapse) {
-              next[g.id] = true;
+              next[ g.id ] = true;
             }
           });
         }
@@ -973,18 +1034,22 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
         return next;
       });
     };
-  }, [visibleGroups]);
+  }, [ visibleGroups ]);
 
+  // ========================================
+  // ========================================
   // CASE 1: Multiple Groups
+  // ========================================
   if (hasSectionGroups) {
-    return (
+    const content = (
       <>
+        <MainContentAtDepth depth={depth}>{children}</MainContentAtDepth>
         {visibleGroups.map((group, index) => {
           const groupLabel = group.label ? evaluateTemplateValue(group.label, routeParams) : undefined;
           const summary = group.collapsedSummary ? evaluateTemplateValue(group.collapsedSummary, routeParams) : undefined;
           const defaultCollapsed = group.defaultCollapsed ?? (index > 0);
-          const isCollapsed = collapsedCards[group.id] ?? defaultCollapsed;
-          
+          const isCollapsed = collapsedCards[ group.id ] ?? defaultCollapsed;
+
           return (
             <CollapsibleSectionCard
               key={group.id}
@@ -1001,7 +1066,7 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
               <SectionGroupRenderer
                 sections={group.sections}
                 renderMode={group.renderMode}
-                lazyLoad={ group.lazyLoad}
+                lazyLoad={group.lazyLoad}
                 keepMounted={group.keepMounted}
                 routeParams={routeParams}
                 parentData={parentData}
@@ -1016,27 +1081,43 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
         })}
       </>
     );
+
+    return <DepthWrapper depth={depth} token={token}>{content}</DepthWrapper>;
   }
 
-  // CASE 2: Single Group (Backward Compatible)
+  // ========================================
+  // CASE 2: No Sections (Just Children)
+  // ========================================
   if (!enhancedSectionsConfig.sections || Object.keys(enhancedSectionsConfig.sections).length === 0) {
+    // If we have children but no sections (depth > 0 with sections cleared), render children directly
+    if (children) {
+      return <DepthWrapper depth={depth} token={token}>{children}</DepthWrapper>;
+    }
     return null;
   }
 
-  return (
-    <SectionGroupRenderer
-      sections={enhancedSectionsConfig.sections}
-      renderMode={enhancedSectionsConfig.renderMode}
-      lazyLoad={enhancedSectionsConfig.lazyLoad}
-      keepMounted={enhancedSectionsConfig.keepMounted}
-      routeParams={routeParams}
-      parentData={parentData}
-      evaluationContext={evaluationContext}
-      depth={depth}
-      maxDepth={maxDepth}
-      isParentLoading={isParentLoading}
-      children={children}
-    />
+  // ========================================
+  // CASE 3: Single Section Group
+  // ========================================
+  const content = (
+    <>
+      <MainContentAtDepth depth={depth}>{children}</MainContentAtDepth>
+      <SectionGroupRenderer
+        sections={enhancedSectionsConfig.sections}
+        renderMode={enhancedSectionsConfig.renderMode}
+        lazyLoad={enhancedSectionsConfig.lazyLoad}
+        keepMounted={enhancedSectionsConfig.keepMounted}
+        routeParams={routeParams}
+        parentData={parentData}
+        evaluationContext={evaluationContext}
+        depth={depth}
+        maxDepth={maxDepth}
+        isParentLoading={isParentLoading}
+        children={children}
+      />
+    </>
   );
+
+  return <DepthWrapper depth={depth} token={token}>{content}</DepthWrapper>;
 };
 

@@ -20,7 +20,7 @@ interface CollapsibleSectionCardProps {
   children: React.ReactNode;
   onCollapsedChange?: (collapsed: boolean) => void;
   size?: 'small' | 'default';
-  styles?: CardProps['styles'];
+  styles?: CardProps[ 'styles' ];
 }
 
 export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
@@ -41,10 +41,10 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
   const modalDepth = useModalDepth();
   const [ localCollapsed, setLocalCollapsed ] = useState(controlledCollapsed ?? false);
   const [ maximized, setMaximized ] = useState(false);
-  
+
   // Track if card has ever been expanded to preserve state after first expansion
   const [ hasBeenExpanded, setHasBeenExpanded ] = useState(!(controlledCollapsed ?? false));
-  
+
   // Calculate z-index based on modal depth
   // Base modal z-index: 1000
   // Each modal layer adds 100
@@ -78,7 +78,7 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
     // Lock body scroll when maximized
     const originalOverflow = document.body.style.overflow;
     const originalPaddingRight = document.body.style.paddingRight;
-    
+
     // Check if scrollbar is present
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
     if (scrollbarWidth > 0) {
@@ -87,7 +87,7 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
     document.body.style.overflow = 'hidden';
 
     document.addEventListener('keydown', handleEscape, true); // Use capture phase
-    
+
     return () => {
       document.removeEventListener('keydown', handleEscape, true);
       // Restore body scroll
@@ -102,10 +102,10 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
     e?.stopPropagation();
 
     // ignore teh header click when maximized
-    if(maximized && cardHeaderClicked) {
+    if (maximized && cardHeaderClicked) {
       return;
     }
-    
+
     // when maximized and the collapse button is clicked, minimize the card
     if (maximized) {
       setMaximized(false);
@@ -114,14 +114,14 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
 
     const newCollapsed = !collapsed;
     setLocalCollapsed(newCollapsed);
-    
+
     // Mark as expanded when user expands the card
     if (!newCollapsed) {
       setHasBeenExpanded(true);
     }
-    
+
     onCollapsedChange?.(newCollapsed);
-  }, [collapsed, maximized, onCollapsedChange]);
+  }, [ collapsed, maximized, onCollapsedChange ]);
 
   const handleToggleMaximize = useCallback((e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -197,61 +197,61 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
   // z-index is calculated based on modal depth for proper stacking
   const cardWrapperStyle: React.CSSProperties = maximized
     ? {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: backdropZIndex,
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-        padding: 16,
-        overflow: 'auto',
-      }
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: backdropZIndex,
+      backgroundColor: 'rgba(0, 0, 0, 0.45)',
+      padding: 16,
+      overflow: 'auto',
+    }
     : {};
 
   // Card style - always has marginTop when not maximized
   const cardStyle: React.CSSProperties = maximized
     ? {
-        height: '100%',
-        margin: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        zIndex: cardZIndex,
-        ...(isHighlighted && {
-          borderColor: token.colorPrimary,
-          boxShadow: `0 0 0 2px ${token.colorPrimaryBg}`,
-        })
-      }
+      height: '100%',
+      margin: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative',
+      zIndex: cardZIndex,
+      ...(isHighlighted && {
+        borderColor: token.colorPrimary,
+        boxShadow: `0 0 0 2px ${token.colorPrimaryBg}`,
+      })
+    }
     : {
-        marginTop: 16,
-        padding: 2,
-        ...(isHighlighted && {
-          borderColor: token.colorPrimary,
-          borderBottom: 'none',
-          borderLeft: 'none',
-          borderRight: 'none',
-          boxShadow: `0 0 0 2px ${token.colorPrimaryBg}`,
-        })
-      };
+      marginTop: 16,
+      padding: 2,
+      ...(isHighlighted && {
+        borderColor: token.colorPrimary,
+        borderBottom: 'none',
+        borderLeft: 'none',
+        borderRight: 'none',
+        boxShadow: `0 0 0 2px ${token.colorPrimaryBg}`,
+      })
+    };
 
   // Body style - use display:none to hide after first expansion (preserves state)
-  const cardBodyStyle: CardProps['styles']['body'] = maximized
+  const cardBodyStyle: CardProps[ 'styles' ][ 'body' ] = maximized
     ? {
-        flex: 1,
-        overflow: 'auto',
-        padding: 16,
-      }
+      flex: 1,
+      overflow: 'auto',
+      padding: 16,
+    }
     : collapsed
-      ? { 
-          display: 'none', // Hide but keep mounted to preserve state after first expansion
-        }
-      : { 
-          padding: 8,
-        };
+      ? {
+        display: 'none', // Hide but keep mounted to preserve state after first expansion
+      }
+      : {
+        padding: 8,
+      };
 
   // Merge with passed styles prop
-  const mergedCardStyles: CardProps['styles'] = {
+  const mergedCardStyles: CardProps[ 'styles' ] = {
     ...styles,
     body: cardBodyStyle
   };
@@ -261,7 +261,7 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
     if (maximized && e.target === e.currentTarget) {
       setMaximized(false);
     }
-  }, [maximized]);
+  }, [ maximized ]);
 
   return (
     <ConfigProvider

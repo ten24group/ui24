@@ -89,7 +89,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({
           sectionsConfig={sectionsConfig}
           routeParams={enhancedRouteParams}
           parentData={{ record }}
-          depth={depth + 1}
+          depth={depth}
           cardStyle={cardStyle}
           isParentLoading={isLoading}
         >
