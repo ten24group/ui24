@@ -35,7 +35,9 @@ export const useRequestSigner = (options: UseSignerOptions) => {
         
         const parsedUrl = new URL(apiUrlOrEndpoint);
         
-        if(method === 'GET' && !!data && typeof data === 'object' ){
+        // Add query parameters for methods that use them (GET, DELETE, HEAD, OPTIONS)
+        // POST/PUT/PATCH use request body instead
+        if(['GET', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) && !!data && typeof data === 'object' ){
             Object.entries(data).forEach(([k,v]) => {
                 // CRITICAL FIX: Skip undefined and null values to match Axios behavior
                 // Axios filters these out, so we must too to avoid signature mismatch
