@@ -9,8 +9,10 @@ export function CustomColorPicker(props: IColorPickerProps) {
 
   const { onChange, ...restProps } = props;
 
-  const _onChange = (value: Color, hex: string) => {
-    onChange && typeof onChange === 'function' && onChange(hex);
+  const _onChange = (value: Color) => {
+    // Always convert to hex format using the Color object's method
+    const hexValue = value.toHexString();
+    onChange && typeof onChange === 'function' && onChange(hexValue);
   }
 
   return <ColorPicker {...restProps} onChange={_onChange} />
