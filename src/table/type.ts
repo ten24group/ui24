@@ -1,6 +1,6 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType, PropertyType } from "../core/types/field-types";
-import type { Template, VisibilityConfig } from "../core/types";
+import type { Template, VisibilityConfig, IFieldTypeProperties } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
@@ -209,7 +209,7 @@ export interface ITableConfig {
   onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
 }
 
-export interface ITablePropertiesConfig {
+export interface ITablePropertiesConfig extends IFieldTypeProperties {
   name: string;
   dataIndex: string;
   actions?: Array<IPageAction>;

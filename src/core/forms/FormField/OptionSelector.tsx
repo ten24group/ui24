@@ -136,6 +136,7 @@ interface IOptionSelector {
     addNewOption?: IModalConfig, // DEPRECATED: Use addNewOptionConfig instead
     addNewOptionConfig?: IEntityConfigReference, // NEW: Entity config reference
     value?: string,
+    placeholder?: string;
 }
 
 /**
@@ -228,7 +229,8 @@ export const OptionSelector = ({
     addNewOption, 
     addNewOptionConfig,
     onOptionChange, 
-    value 
+    value,
+    placeholder
 }: IOptionSelector) => {
 
     const { callApiMethod } = useApi()
@@ -555,7 +557,7 @@ export const OptionSelector = ({
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => onOptionChange?.(value)}
                 notFoundContent={loading ? 'Loading...' : 'No options found'}
-                placeholder={hasRemoteSearch ? 'Type to search...' : 'Select an option'}
+                placeholder={placeholder || (hasRemoteSearch ? 'Type to search...' : 'Select an option')}
                 style={{ minWidth: 200, width: '100%' }}
                 popupMatchSelectWidth={false}
             />
@@ -575,7 +577,7 @@ export const OptionSelector = ({
                 onChange={(value) => onOptionChange?.(value)}
                 mode='multiple'
                 notFoundContent={loading ? 'Loading...' : 'No options found'}
-                placeholder={hasRemoteSearch ? 'Type to search...' : 'Select options'}
+                placeholder={placeholder || (hasRemoteSearch ? 'Type to search...' : 'Select options')}
                 style={{ minWidth: 200, width: '100%' }}
                 popupMatchSelectWidth={false}
             />

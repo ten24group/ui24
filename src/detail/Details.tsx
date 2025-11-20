@@ -95,7 +95,7 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Descriptions, DescriptionsProps, List, Skeleton, Spin } from 'antd';
+import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider } from 'antd';
 import React, { useEffect, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
@@ -109,6 +109,8 @@ import { handleApiError } from '../core/utils/api-error-handler';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';
 import { detailsStyles } from './styles';
+import { QRCode } from 'antd';
+import * as Icons from '@ant-design/icons';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
@@ -661,6 +663,257 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             <a href={value} target="_blank" rel="noopener noreferrer">
                               Download File
                             </a>
+                        </div>
+                      );
+                    }
+                    
+                    // URL field
+                    if (item.fieldType === 'url') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <a href={value} target="_blank" rel="noopener noreferrer">
+                            {value}
+                          </a>
+                        </div>
+                      );
+                    }
+                    
+                    // Phone field
+                    if (item.fieldType === 'phone') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <a href={`tel:${value}`}>{value}</a>
+                        </div>
+                      );
+                    }
+                    
+                    // Currency field
+                    if (item.fieldType === 'currency') {
+                      const formatted = new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: item.currencySymbol || 'USD',
+                      }).format(Number(value) || 0);
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>{formatted}</div>
+                        </div>
+                      );
+                    }
+                    
+                    // Percentage field
+                    if (item.fieldType === 'percentage') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>{Number(value)}%</div>
+                        </div>
+                      );
+                    }
+                    
+                    // Slider field (display as value with slider visual)
+                    if (item.fieldType === 'slider') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <Slider 
+                              value={Number(value)} 
+                              disabled 
+                              style={{ flex: 1 }}
+                              min={item.min}
+                              max={item.max}
+                            />
+                            <span>{value}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Duration field
+                    if (item.fieldType === 'duration') {
+                      const formatDuration = (seconds: number) => {
+                        const h = Math.floor(seconds / 3600);
+                        const m = Math.floor((seconds % 3600) / 60);
+                        const s = seconds % 60;
+                        if (h > 0) return `${h}h ${m}m ${s}s`;
+                        if (m > 0) return `${m}m ${s}s`;
+                        return `${s}s`;
+                      };
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>{formatDuration(Number(value) || 0)}</div>
+                        </div>
+                      );
+                    }
+                    
+                    // Badge field
+                    if (item.fieldType === 'badge') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Badge 
+                            status={item.status || 'default'} 
+                            text={String(value)}
+                            color={item.color}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // Tag field (single or multiple)
+                    if (item.fieldType === 'tag' || item.fieldType === 'tags') {
+                      const tags = Array.isArray(value) ? value : [value];
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            {tags.map((tag: any, i: number) => (
+                              <Tag key={i} color={item.color}>
+                                {String(tag)}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Progress field
+                    if (item.fieldType === 'progress') {
+                      const type = item.progressType || 'line';
+                      // Map badge status to progress status
+                      let progressStatus: 'success' | 'exception' | 'normal' | 'active' = 'normal';
+                      if (item.status === 'success') progressStatus = 'success';
+                      else if (item.status === 'error' || item.status === 'warning') progressStatus = 'exception';
+                      else if (item.status === 'processing') progressStatus = 'active';
+                      
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Progress 
+                            type={type}
+                            percent={Number(value) || 0}
+                            status={progressStatus}
+                            showInfo={true}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // Avatar field
+                    if (item.fieldType === 'avatar') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Avatar 
+                            src={value}
+                            size={item.size || 'default'}
+                            shape={item.shape || 'circle'}
+                            icon={item.icon ? React.createElement((Icons as any)[item.icon]) : undefined}
+                          >
+                            {item.text || String(value).charAt(0).toUpperCase()}
+                          </Avatar>
+                        </div>
+                      );
+                    }
+                    
+                    // Icon field
+                    if (item.fieldType === 'icon') {
+                      const IconComponent = (Icons as any)[String(value)];
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {IconComponent ? (
+                            <IconComponent 
+                              style={{ 
+                                fontSize: item.size || 24,
+                                color: item.color 
+                              }} 
+                            />
+                          ) : (
+                            <span>{value}</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    
+                    // Link field
+                    if (item.fieldType === 'link') {
+                      const href = item.linkConfig?.routePattern 
+                        ? substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse }, value)
+                        : value;
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <a 
+                            href={href} 
+                            target={item.target || '_blank'}
+                            rel="noopener noreferrer"
+                          >
+                            {value}
+                          </a>
+                        </div>
+                      );
+                    }
+                    
+                    // Video field
+                    if (item.fieldType === 'video') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <video 
+                            src={value} 
+                            controls={item.controls !== false}
+                            style={{ maxWidth: '100%', maxHeight: '400px' }}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // Audio field
+                    if (item.fieldType === 'audio') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <audio 
+                            src={value} 
+                            controls={item.controls !== false}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // QR Code field
+                    if (item.fieldType === 'qrcode') {
+                      const qrSize = typeof item.size === 'number' ? item.size : 128;
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <QRCode 
+                            value={String(value)}
+                            size={qrSize}
+                            errorLevel={item.errorLevel || 'M'}
+                            icon={item.logoImage}
+                          />
                         </div>
                       );
                     }

@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
 import { IApiConfig } from "../core/context";
-import { Pagination as AntPagination } from "antd";
+import { Pagination as AntPagination, Badge, Tag, Progress, Avatar, Rate } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
@@ -10,7 +10,7 @@ import { addFilterUI } from "./Filters/addFilterUI";
 import { usePagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
-import { FilterFilled } from "@ant-design/icons";
+import { FilterFilled, PlayCircleOutlined, AudioOutlined, QrcodeOutlined } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
@@ -23,6 +23,7 @@ import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/
 import { OpenInModal } from "../modal/Modal";
 import { generateJsonPreview } from "../core/utils/jsonUtils";
 import { createModalConfig } from "./utils/modalConfigHelper";
+import * as Icons from '@ant-design/icons';
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -710,7 +711,132 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     if (text === null || text === undefined) return <span>—</span>;
     const rating = typeof text === 'number' ? text : parseFloat(String(text));
     if (isNaN(rating)) return <span>—</span>;
-    return <span>{'⭐'.repeat(Math.round(rating))} ({rating}/5)</span>;
+    return <Rate disabled value={rating} style={{ fontSize: 14 }} />;
+  }, []);
+
+  // NEW field type renderers
+  const urlRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    const url = String(text);
+    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>{url.length > 30 ? url.substring(0, 30) + '...' : url}</a>;
+  }, []);
+
+  const phoneRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return <a href={`tel:${text}`} style={{ color: '#1677ff' }}>{String(text)}</a>;
+  }, []);
+
+  const currencyRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const num = typeof text === 'number' ? text : parseFloat(String(text));
+    if (isNaN(num)) return <span>—</span>;
+    return <span>${num.toFixed(2)}</span>;
+  }, []);
+
+  const percentageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    return <span>{Number(text)}%</span>;
+  }, []);
+
+  const sliderRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    return <span>{String(text)}</span>;
+  }, []);
+
+  const durationRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const seconds = typeof text === 'number' ? text : parseInt(String(text));
+    if (isNaN(seconds)) return <span>—</span>;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return <span>{h}h {m}m</span>;
+    if (m > 0) return <span>{m}m {s}s</span>;
+    return <span>{s}s</span>;
+  }, []);
+
+  const badgeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return <Badge status="default" text={String(text)} />;
+  }, []);
+
+  const tagRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    if (Array.isArray(text)) {
+      return (
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {text.map((tag: any, i: number) => (
+            <Tag key={i}>{String(tag)}</Tag>
+          ))}
+        </div>
+      );
+    }
+    return <Tag>{String(text)}</Tag>;
+  }, []);
+
+  const progressRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const value = typeof text === 'number' ? text : parseFloat(String(text));
+    if (isNaN(value)) return <span>—</span>;
+    return <Progress percent={value} size="small" style={{ width: 120 }} />;
+  }, []);
+
+  const avatarRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return <Avatar src={String(text)} size="small" />;
+  }, []);
+
+  const iconRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    const IconComponent = (Icons as any)[String(text)];
+    return IconComponent ? <IconComponent style={{ fontSize: 18 }} /> : <span>{String(text)}</span>;
+  }, []);
+
+  const linkRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    const url = String(text);
+    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>Link</a>;
+  }, []);
+
+  const videoRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return (
+      <Button 
+        size="small" 
+        icon={<PlayCircleOutlined />}
+        type="link"
+        onClick={() => window.open(String(text), '_blank')}
+      >
+        Video
+      </Button>
+    );
+  }, []);
+
+  const audioRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return (
+      <Button 
+        size="small" 
+        icon={<AudioOutlined />}
+        type="link"
+        onClick={() => window.open(String(text), '_blank')}
+      >
+        Audio
+      </Button>
+    );
+  }, []);
+
+  const qrcodeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return (
+      <Button 
+        size="small" 
+        icon={<QrcodeOutlined />}
+        type="link"
+      >
+        QR
+      </Button>
+    );
   }, []);
 
   const columns = addFilterUI(
@@ -815,6 +941,66 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         // Rating fields
         else if (fieldType === 'rating') {
           renderer = ratingRenderer;
+        }
+        // URL fields
+        else if (fieldType === 'url') {
+          renderer = urlRenderer;
+        }
+        // Phone fields
+        else if (fieldType === 'phone') {
+          renderer = phoneRenderer;
+        }
+        // Currency fields
+        else if (fieldType === 'currency') {
+          renderer = currencyRenderer;
+        }
+        // Percentage fields
+        else if (fieldType === 'percentage') {
+          renderer = percentageRenderer;
+        }
+        // Slider fields
+        else if (fieldType === 'slider') {
+          renderer = sliderRenderer;
+        }
+        // Duration fields
+        else if (fieldType === 'duration') {
+          renderer = durationRenderer;
+        }
+        // Badge fields
+        else if (fieldType === 'badge') {
+          renderer = badgeRenderer;
+        }
+        // Tag fields
+        else if (fieldType === 'tag' || fieldType === 'tags') {
+          renderer = tagRenderer;
+        }
+        // Progress fields
+        else if (fieldType === 'progress') {
+          renderer = progressRenderer;
+        }
+        // Avatar fields
+        else if (fieldType === 'avatar') {
+          renderer = avatarRenderer;
+        }
+        // Icon fields
+        else if (fieldType === 'icon') {
+          renderer = iconRenderer;
+        }
+        // Link fields
+        else if (fieldType === 'link') {
+          renderer = linkRenderer;
+        }
+        // Video fields
+        else if (fieldType === 'video') {
+          renderer = videoRenderer;
+        }
+        // Audio fields
+        else if (fieldType === 'audio') {
+          renderer = audioRenderer;
+        }
+        // QR Code fields
+        else if (fieldType === 'qrcode') {
+          renderer = qrcodeRenderer;
         }
       }
 
