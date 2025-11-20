@@ -12,8 +12,6 @@ import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFi
 const { TextArea } = Input;
 const { Text } = Typography;
 
-
-
 const MakeFormItem = ({
     fieldType = "text",
     namePrefixPath,
@@ -91,7 +89,7 @@ const MakeFormItem = ({
                 setFormValue && setFormValue({ name, value: newSelections })
             }} />}
 
-            {fieldType === 'color' && <CustomColorPicker />}
+            {fieldType === 'color' && <CustomColorPicker format="hex" showText />}
             {fieldType === 'range' && <Input type="range" placeholder={placeholder} />}
             {fieldType === 'hidden' && <Input type="hidden" />}
             {fieldType === 'custom' && <Input placeholder={placeholder} />}
