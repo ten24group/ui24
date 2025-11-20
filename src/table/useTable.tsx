@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
 import { IApiConfig } from "../core/context";
-import { Pagination as AntPagination } from "antd";
+import { Pagination as AntPagination, Badge, Tag, Progress, Avatar, Rate } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
@@ -10,7 +10,7 @@ import { addFilterUI } from "./Filters/addFilterUI";
 import { usePagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
-import { FilterFilled } from "@ant-design/icons";
+import { FilterFilled, PlayCircleOutlined, AudioOutlined, QrcodeOutlined } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
@@ -18,12 +18,19 @@ import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
 import { resolveFilterPlaceholders } from "../core/utils/placeholderResolver";
 import { NON_FILTER_URL_PARAMS } from "./constants";
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
+import { Button } from "antd";
+import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/icons';
+import { OpenInModal } from "../modal/Modal";
+import { generateJsonPreview } from "../core/utils/jsonUtils";
+import { createModalConfig } from "./utils/modalConfigHelper";
+import * as Icons from '@ant-design/icons';
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   routeParams?: Record<string, string>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
+  fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -226,7 +233,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {} }: IuseTable) => {
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager' }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
@@ -264,17 +271,33 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return convertDefaultSortToSorterResult(defaultSort);
   });
   const [ visibleColumns, setVisibleColumns ] = React.useState<string[]>(
-    propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex)
+    propertiesConfig.filter(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      if (p.hasOwnProperty('defaultVisible')) {
+        return p.defaultVisible !== false;
+      }
+      return !p.hidden;
+    }).map(p => p.dataIndex)
   );
   const [ columnSettings, setColumnSettings ] = React.useState(
-    propertiesConfig.map(p => ({
-      key: p.dataIndex,
-      title: p.name,
-      visible: !p.hidden,
-      fixed: p.actions ? 'right' : undefined,
-      isIdentifier: p.isIdentifier,
-    }))
+    propertiesConfig.map(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      const isVisible = p.hasOwnProperty('defaultVisible') 
+        ? p.defaultVisible !== false
+        : !p.hidden;
+      
+      return {
+        key: p.dataIndex,
+        title: p.name,
+        visible: isVisible,
+        fixed: p.actions ? 'right' : undefined,
+        isIdentifier: p.isIdentifier,
+      };
+    })
   );
+  
+  // Manage current fetch strategy (session-only, starts with default from config)
+  const [ currentFetchStrategy, setCurrentFetchStrategy ] = React.useState<'eager' | 'lazy'>(fetchStrategy);
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
   const [ fetchTrigger, setFetchTrigger ] = React.useState(0);
 
@@ -300,6 +323,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     propertiesConfig,
     recordIdentifierKey,
     isSearchMode,
+    fetchStrategy: currentFetchStrategy, // Use current strategy (can be changed by user)
   });
 
   const onSearch = (value: string) => {
@@ -333,14 +357,28 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Reset columns and state when entity changes (navigation between list pages)
   // Use useLayoutEffect to ensure this runs BEFORE the fetch effect
   useLayoutEffect(() => {
-    setVisibleColumns(propertiesConfig.filter(p => !p.hidden).map(p => p.dataIndex));
-    setColumnSettings(propertiesConfig.map(p => ({
-      key: p.dataIndex,
-      title: p.name,
-      visible: !p.hidden,
-      fixed: p.actions ? 'right' : undefined,
-      isIdentifier: p.isIdentifier,
-    })));
+    setVisibleColumns(propertiesConfig.filter(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      if (p.hasOwnProperty('defaultVisible')) {
+        return p.defaultVisible !== false;
+      }
+      return !p.hidden;
+    }).map(p => p.dataIndex));
+    
+    setColumnSettings(propertiesConfig.map(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      const isVisible = p.hasOwnProperty('defaultVisible') 
+        ? p.defaultVisible !== false
+        : !p.hidden;
+      
+      return {
+        key: p.dataIndex,
+        title: p.name,
+        visible: isVisible,
+        fixed: p.actions ? 'right' : undefined,
+        isIdentifier: p.isIdentifier,
+      };
+    }));
     setFacetedColumns([]);
     
     // Reset filters and search when navigating to a different entity
@@ -392,7 +430,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const { applyFilters: _applyFilters, DisplayAppliedFilters, clearAllFilters: _clearAllFilters, hasActiveFilters, activeFiltersCount } = useAppliedFilters({
     appliedFilters,
     setAppliedFilters,
-    getColumnNameByKey
+    getColumnNameByKey,
+    onFilterChange: () => setFetchTrigger(prev => prev + 1)
   });
 
   // Wrap filter functions to trigger fetch
@@ -458,17 +497,31 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   };
 
   const resetColumnSettings = () => {
-    const defaultSettings = propertiesConfig.map(p => ({
-      key: p.dataIndex,
-      title: p.name,
-      visible: !p.hidden,
-      fixed: p.actions ? 'right' : undefined,
-      isIdentifier: p.isIdentifier,
-    }));
+    const defaultSettings = propertiesConfig.map(p => {
+      // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
+      const isVisible = p.hasOwnProperty('defaultVisible') 
+        ? p.defaultVisible !== false
+        : !p.hidden;
+      
+      return {
+        key: p.dataIndex,
+        title: p.name,
+        visible: isVisible,
+        fixed: p.actions ? 'right' : undefined,
+        isIdentifier: p.isIdentifier,
+      };
+    });
     handleColumnSettingsChange(defaultSettings);
   };
 
-  // Stabilize removeFilter with useCallback - memoization dependency
+  const handleFetchStrategyChange = (strategy: 'eager' | 'lazy') => {
+    setCurrentFetchStrategy(strategy);
+    // Trigger a refetch with the new strategy
+    setFetchTrigger(prev => prev + 1);
+  };
+
+  // Remove entire column from filters (used by filter UI)
+  // Stabilize with useCallback - memoization dependency
   const removeFilter = React.useCallback((col: string) => {
     setAppliedFilters(prev => {
       const { [col]: _, ...rest } = prev;
@@ -500,15 +553,291 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
   
-  // Color renderer is static - create once
-  const colorRenderer = React.useMemo(() => (text: string) => (
-    <>
-      <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
-        <rect width="12" height="12" fill={text} strokeWidth={1} stroke="rgb(0,0,0)" />
-      </svg>
-      <span style={{ marginLeft: 8 }}> {text}</span>
-    </>
-  ), []);
+  // Field type renderers - create once
+  const colorRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    const colorValue = typeof text === 'string' ? text : '';
+    if (!colorValue) return <span>—</span>;
+    return (
+      <>
+        <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
+          <rect width="12" height="12" fill={colorValue} strokeWidth={1} stroke="rgb(0,0,0)" />
+        </svg>
+        <span style={{ marginLeft: 8 }}> {colorValue}</span>
+      </>
+    );
+  }, []);
+
+  const imageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    const imageUrl = typeof text === 'string' ? text : '';
+    if (!imageUrl) return <span>—</span>;
+    return (
+      <img 
+        src={imageUrl} 
+        alt="Preview" 
+        style={{ 
+          width: '40px', 
+          height: '40px', 
+          objectFit: 'cover',
+          borderRadius: '4px',
+          cursor: 'pointer'
+        }}
+        onClick={() => window.open(imageUrl, '_blank')}
+      />
+    );
+  }, []);
+
+  const fileRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    const fileUrl = typeof text === 'string' ? text : '';
+    if (!fileUrl) return <span>—</span>;
+    return (
+      <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>
+        Download
+      </a>
+    );
+  }, []);
+
+  // Complex field renderers with modal support using existing OpenInModal component
+  const jsonRenderer = (
+    text: unknown, 
+    record: Record<string, unknown>, 
+    columnName: string, 
+    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
+  ): React.ReactNode => {
+    if (!text || (typeof text === 'object' && Object.keys(text).length === 0)) {
+      return <span>—</span>;
+    }
+    
+    // Use shared utility for consistent preview generation (Table uses shorter strings for compact display)
+    const previewLabel = generateJsonPreview(text, { maxStringLength: 20, maxKeys: 2 });
+    const detailsConfig = createModalConfig('json', text, fieldConfig, 'map');
+    
+    return (
+      <OpenInModal
+        modalType="details"
+        modalTitle={columnName}
+        modalWidth={800}
+        modalPageConfig={detailsConfig}
+      >
+        <Button 
+          size="small" 
+          icon={<FileTextOutlined />} 
+          type="link"
+          style={{ 
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            fontSize: '12px'
+          }}
+        >
+          {previewLabel}
+        </Button>
+      </OpenInModal>
+    );
+  };
+
+  const listRenderer = (
+    text: unknown, 
+    record: Record<string, unknown>, 
+    columnName: string, 
+    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
+  ): React.ReactNode => {
+    if (!Array.isArray(text) || text.length === 0) return <span>—</span>;
+    
+    // Simple string/number array - show inline if short
+    if (text.every(item => typeof item === 'string' || typeof item === 'number')) {
+      if (text.length === 1) return <span>{String(text[0])}</span>;
+      if (text.length <= 3) return <span>{text.join(', ')}</span>;
+    }
+    
+    // Complex array - show in modal
+    const detailsConfig = createModalConfig(undefined, text, fieldConfig, 'list');
+    
+    return (
+      <OpenInModal
+        modalType="details"
+        modalTitle={columnName}
+        modalWidth={800}
+        modalPageConfig={detailsConfig}
+      >
+        <Button 
+          size="small" 
+          icon={<OrderedListOutlined />} 
+          type="link"
+        >
+          View ({text.length})
+        </Button>
+      </OpenInModal>
+    );
+  };
+
+  const richTextRenderer = (
+    text: unknown, 
+    record: Record<string, unknown>, 
+    columnName: string, 
+    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
+  ): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    
+    const detailsConfig = createModalConfig('rich-text', text, fieldConfig);
+    
+    return (
+      <OpenInModal
+        modalType="details"
+        modalTitle={columnName}
+        modalWidth={900}
+        modalPageConfig={detailsConfig}
+      >
+        <Button 
+          size="small" 
+          icon={<EyeOutlined />} 
+          type="link"
+        >
+          View Content
+        </Button>
+      </OpenInModal>
+    );
+  };
+
+  const numberRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const num = typeof text === 'number' ? text : parseFloat(String(text));
+    return isNaN(num) ? <span>—</span> : <span>{num.toLocaleString()}</span>;
+  }, []);
+
+  const rangeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    return <span>{String(text)}%</span>;
+  }, []);
+
+  const ratingRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const rating = typeof text === 'number' ? text : parseFloat(String(text));
+    if (isNaN(rating)) return <span>—</span>;
+    return <Rate disabled value={rating} style={{ fontSize: 14 }} />;
+  }, []);
+
+  // NEW field type renderers
+  const urlRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    const url = String(text);
+    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>{url.length > 30 ? url.substring(0, 30) + '...' : url}</a>;
+  }, []);
+
+  const phoneRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return <a href={`tel:${text}`} style={{ color: '#1677ff' }}>{String(text)}</a>;
+  }, []);
+
+  const currencyRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const num = typeof text === 'number' ? text : parseFloat(String(text));
+    if (isNaN(num)) return <span>—</span>;
+    return <span>${num.toFixed(2)}</span>;
+  }, []);
+
+  const percentageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    return <span>{Number(text)}%</span>;
+  }, []);
+
+  const sliderRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    return <span>{String(text)}</span>;
+  }, []);
+
+  const durationRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const seconds = typeof text === 'number' ? text : parseInt(String(text));
+    if (isNaN(seconds)) return <span>—</span>;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return <span>{h}h {m}m</span>;
+    if (m > 0) return <span>{m}m {s}s</span>;
+    return <span>{s}s</span>;
+  }, []);
+
+  const badgeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return <Badge status="default" text={String(text)} />;
+  }, []);
+
+  const tagRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    if (Array.isArray(text)) {
+      return (
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {text.map((tag: any, i: number) => (
+            <Tag key={i}>{String(tag)}</Tag>
+          ))}
+        </div>
+      );
+    }
+    return <Tag>{String(text)}</Tag>;
+  }, []);
+
+  const progressRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (text === null || text === undefined) return <span>—</span>;
+    const value = typeof text === 'number' ? text : parseFloat(String(text));
+    if (isNaN(value)) return <span>—</span>;
+    return <Progress percent={value} size="small" style={{ width: 120 }} />;
+  }, []);
+
+  const avatarRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return <Avatar src={String(text)} size="small" />;
+  }, []);
+
+  const iconRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    const IconComponent = (Icons as any)[String(text)];
+    return IconComponent ? <IconComponent style={{ fontSize: 18 }} /> : <span>{String(text)}</span>;
+  }, []);
+
+  const linkRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    const url = String(text);
+    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>Link</a>;
+  }, []);
+
+  const videoRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return (
+      <Button 
+        size="small" 
+        icon={<PlayCircleOutlined />}
+        type="link"
+        onClick={() => window.open(String(text), '_blank')}
+      >
+        Video
+      </Button>
+    );
+  }, []);
+
+  const audioRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return (
+      <Button 
+        size="small" 
+        icon={<AudioOutlined />}
+        type="link"
+        onClick={() => window.open(String(text), '_blank')}
+      >
+        Audio
+      </Button>
+    );
+  }, []);
+
+  const qrcodeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
+    if (!text) return <span>—</span>;
+    return (
+      <Button 
+        size="small" 
+        icon={<QrcodeOutlined />}
+        type="link"
+      >
+        QR
+      </Button>
+    );
+  }, []);
 
   const columns = addFilterUI(
     addActionUI(propertiesConfig, handleReload, routeParams),
@@ -542,8 +871,137 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         renderer = getTemplateRenderer(column.template);
       }
       // Priority 3: Field type specific renderers
-      else if (column.fieldType === 'color') {
-        renderer = colorRenderer;
+      else if (column.fieldType) {
+        const fieldType = column.fieldType.toLowerCase();
+        const columnName = column.name || column.title || column.dataIndex;
+        
+        // Image fields
+        if (fieldType === 'image') {
+          renderer = imageRenderer;
+        }
+        // File fields
+        else if (fieldType === 'file') {
+          renderer = fileRenderer;
+        }
+        // Color fields
+        else if (fieldType === 'color') {
+          renderer = colorRenderer;
+        }
+        // JSON/Map fields - modal-based
+        else if (fieldType === 'json' || column.type === 'map') {
+          renderer = (text: unknown, record: Record<string, unknown>) => 
+            jsonRenderer(text, record, columnName, column);
+        }
+        // List/Array fields (but not multi-select which is already formatted as string) - modal-based
+        else if (column.type === 'list' && fieldType !== 'multi-select') {
+          renderer = (text: unknown, record: Record<string, unknown>) => 
+            listRenderer(text, record, columnName, column);
+        }
+        // Rich text fields - modal-based
+        else if (fieldType === 'rich-text' || fieldType === 'wysiwyg') {
+          renderer = (text: unknown, record: Record<string, unknown>) => 
+            richTextRenderer(text, record, columnName, column);
+        }
+        // Textarea, code, markdown - modal-based for long content
+        else if (fieldType === 'textarea' || fieldType === 'code' || fieldType === 'markdown') {
+          renderer = (text: unknown, record: Record<string, unknown>): React.ReactNode => {
+            if (!text) return <span>—</span>;
+            if (typeof text === 'string' && text.length < 100) {
+              return <span>{text}</span>;
+            }
+            
+            const detailsConfig = createModalConfig(column.fieldType, text, column);
+            
+            return (
+              <OpenInModal
+                modalType="details"
+                modalTitle={columnName}
+                modalWidth={800}
+                modalPageConfig={detailsConfig}
+              >
+                <Button 
+                  size="small" 
+                  icon={<FileTextOutlined />} 
+                  type="link"
+                >
+                  View Content
+                </Button>
+              </OpenInModal>
+            );
+          };
+        }
+        // Number fields
+        else if (fieldType === 'number') {
+          renderer = numberRenderer;
+        }
+        // Range fields
+        else if (fieldType === 'range') {
+          renderer = rangeRenderer;
+        }
+        // Rating fields
+        else if (fieldType === 'rating') {
+          renderer = ratingRenderer;
+        }
+        // URL fields
+        else if (fieldType === 'url') {
+          renderer = urlRenderer;
+        }
+        // Phone fields
+        else if (fieldType === 'phone') {
+          renderer = phoneRenderer;
+        }
+        // Currency fields
+        else if (fieldType === 'currency') {
+          renderer = currencyRenderer;
+        }
+        // Percentage fields
+        else if (fieldType === 'percentage') {
+          renderer = percentageRenderer;
+        }
+        // Slider fields
+        else if (fieldType === 'slider') {
+          renderer = sliderRenderer;
+        }
+        // Duration fields
+        else if (fieldType === 'duration') {
+          renderer = durationRenderer;
+        }
+        // Badge fields
+        else if (fieldType === 'badge') {
+          renderer = badgeRenderer;
+        }
+        // Tag fields
+        else if (fieldType === 'tag' || fieldType === 'tags') {
+          renderer = tagRenderer;
+        }
+        // Progress fields
+        else if (fieldType === 'progress') {
+          renderer = progressRenderer;
+        }
+        // Avatar fields
+        else if (fieldType === 'avatar') {
+          renderer = avatarRenderer;
+        }
+        // Icon fields
+        else if (fieldType === 'icon') {
+          renderer = iconRenderer;
+        }
+        // Link fields
+        else if (fieldType === 'link') {
+          renderer = linkRenderer;
+        }
+        // Video fields
+        else if (fieldType === 'video') {
+          renderer = videoRenderer;
+        }
+        // Audio fields
+        else if (fieldType === 'audio') {
+          renderer = audioRenderer;
+        }
+        // QR Code fields
+        else if (fieldType === 'qrcode') {
+          renderer = qrcodeRenderer;
+        }
       }
 
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
@@ -632,6 +1090,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
+    currentFetchStrategy,
+    handleFetchStrategyChange,
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),

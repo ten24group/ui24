@@ -60,6 +60,9 @@ interface CognitoTokenPayload {
  */
 class Authenticator implements IAuthProvider {
 
+    // Promise to track ongoing credential fetch to prevent multiple concurrent fetches
+    private credentialsFetchPromise: Promise<AwsCredentialIdentity> | null = null;
+
     constructor(
         private readonly awsSigner: RequestSigner,
         private readonly axiosInstance: AxiosInstance,
@@ -132,14 +135,21 @@ class Authenticator implements IAuthProvider {
 
         try {
             // parse cached credentials
-            const creds = JSON.parse(cached) as AwsCredentialIdentity;
+            const parsedCreds = JSON.parse(cached) as AwsCredentialIdentity;
+
+            // CRITICAL FIX: Convert expiration from string (from JSON) back to Date object
+            // Without this, .getTime() calls on expiration will fail
+            // Create a new object since expiration is read-only
+            const creds: AwsCredentialIdentity = {
+                ...parsedCreds,
+                expiration: parsedCreds.expiration ? new Date(parsedCreds.expiration) : undefined
+            };
 
             // validate credentials
             if (!this.isValidCredentials(creds)) {
                 this.removeCredentials();
                 return null;
             }
-
             // return valid credentials
             return creds;
 
@@ -334,13 +344,31 @@ class Authenticator implements IAuthProvider {
 
     // --- public API ---
     public getCredentials = async (): Promise<AwsCredentialIdentity> => {
+        // First check cache
         const cached = await this.getCachedCredentials();
         if (cached) {
-            console.log('[Auth] Using cached AWS temporary credentials');
+            const expiresIn = cached.expiration 
+                ? Math.floor((cached.expiration.getTime() - Date.now()) / 1000) 
+                : 'unknown';
+            console.log(`[Auth] Using cached AWS temporary credentials: ${cached.accessKeyId.substring(0, 10) + '...'} ${expiresIn + 's'}`);
             return cached;
         }
+
+        // If there's already a fetch in progress, wait for it instead of starting a new one
+        if (this.credentialsFetchPromise) {
+            console.log('[Auth] Waiting for existing credential fetch to complete');
+            return await this.credentialsFetchPromise;
+        }
+
+        // No cache and no ongoing fetch - start a new one
         console.log('[Auth] No valid cached credentials, fetching new ones');
-        return await this.fetchCredentialsWithRefresh();
+        this.credentialsFetchPromise = this.fetchCredentialsWithRefresh()
+            .finally(() => {
+                // Clear the promise once complete (success or failure)
+                this.credentialsFetchPromise = null;
+            });
+        
+        return await this.credentialsFetchPromise;
     }
 
     /**
@@ -539,14 +567,36 @@ class Authenticator implements IAuthProvider {
      * First tries with current IdToken, then refreshes IdToken if needed.
      */
     public refreshAuth = async (): Promise<void> => {
+        // If there's already a refresh in progress, wait for it
+        if (this.credentialsFetchPromise) {
+            console.log('[Auth] refreshAuth: Waiting for existing refresh to complete');
+            try {
+                await this.credentialsFetchPromise;
+                console.log('[Auth] refreshAuth: Existing refresh completed successfully');
+                return;
+            } catch (error) {
+                console.error('[Auth] refreshAuth: Existing refresh failed:', error);
+                throw error;
+            }
+        }
+
         try {
             console.log('[Auth] refreshAuth called - clearing cached credentials');
-            // force new credentials (clears cache)
-            this.removeCredentials();
-            await this.fetchCredentialsWithRefresh();
+            
+            // Clear cache and set the promise lock BEFORE fetching
+            this.storage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
+            
+            // Start the fetch and track it
+            this.credentialsFetchPromise = this.fetchCredentialsWithRefresh()
+                .finally(() => {
+                    this.credentialsFetchPromise = null;
+                });
+            
+            await this.credentialsFetchPromise;
             console.log('[Auth] refreshAuth completed successfully');
         } catch (error) {
             console.error('[Auth] refreshAuth failed:', error);
+            this.credentialsFetchPromise = null;
             this.logout();
             throw error;
         }
@@ -556,6 +606,7 @@ class Authenticator implements IAuthProvider {
      * Logout user
      */
     public logout = (): void => {
+        this.credentialsFetchPromise = null;
         this.removeCredentials();
         this.removeToken();
     }

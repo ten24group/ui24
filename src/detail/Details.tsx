@@ -38,17 +38,25 @@
  * 
  * ## Field Type Handling
  * 
- * The details component automatically handles various field types:
+ * The details component uses a unified smart rendering system:
+ * 
+ * **Complex Data (maps, lists, objects, fieldType: 'json')**
+ * - All handled by JsonDescription's smart per-property depth-based rendering:
+ *   - Shallow properties (depth ≤ 2): Formatted as table rows
+ *   - Deep properties (depth > 2): Automatically switched to JsonViewer
+ * - No manual configuration needed - automatically chooses best display per property
+ * - Works for: API responses, nested objects, arrays, metadata, etc.
+ * - Example: syncMetadata shows simple fields as rows, but deeply nested apiResponse as JSON
+ * 
+ * **Simple Field Types:**
  * - **Text**: Simple string display with URL auto-detection
  * - **Dates**: Formatted using configured date/time formats
  * - **Booleans**: Formatted as Yes/No or custom labels
- * - **JSON**: Rendered as formatted definition list or code block
  * - **Images**: Rendered as responsive images
  * - **Rich Text**: Rendered using BlockNote editor (read-only)
- * - **Code**: Rendered as formatted code blocks
+ * - **Code/Markdown**: Rendered as formatted code blocks
  * - **Relations**: Rendered with links and modal icons
- * - **Lists**: Rendered as nested definition lists or JSON
- * - **Maps**: Rendered as nested definition lists
+ * - **Numbers/Range/Rating**: Formatted with appropriate units
  * 
  * ## Usage
  * 
@@ -87,24 +95,25 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Descriptions, DescriptionsProps, List, Spin, Skeleton, Typography, Space, Tooltip, Button } from 'antd';
-import { EyeOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import { useApi, IApiConfig, useAppContext } from '../core/context';
-import { useParams } from "react-router-dom"
-import { useFormat, useEntityConfig } from '../core/hooks';
-import { CustomBlockNoteEditor, CustomColorPicker, JsonDescription, Link, ErrorFallback } from '../core/common';
-import { OpenInModal } from '../modal/Modal';
+import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { ErrorBoundary } from 'react-error-boundary';
+import { useParams } from "react-router-dom";
+import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link } from '../core/common';
+import { IApiConfig, useApi, useAppContext } from '../core/context';
+import { HelpText } from '../core/forms/FormField/components';
+import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
+import { useEntityConfig, useFormat } from '../core/hooks';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
-import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
-import { detailsStyles } from './styles';
-import { HelpText } from '../core/forms/FormField/components';
-import { ErrorBoundary } from 'react-error-boundary';
-import { evaluateTemplateValue } from '../core/utils/template';
+import { OpenInModal } from '../modal/Modal';
 import './Details.css';
+import { detailsStyles } from './styles';
+import { QRCode } from 'antd';
+import * as Icons from '@ant-design/icons';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
+import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 
 // For backwards compatibility, alias the old name
@@ -126,8 +135,16 @@ export interface IDetailsConfig extends IDetailApiConfig {
   identifiers?: string | number | Array<string | number>;
   propertiesConfig: Array<IPropertiesConfig>;
   columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
+  /**
+   * Additional sections to display below or alongside the main detail view.
+   * From backend: entitySchema.model.viewPageConfig.sectionsConfig
+   * 
+   * Enables multi-section detail pages with tabs or accordion UI.
+   * Sections have access to the parent record via routeParams.
+   */
+  sectionsConfig?: ISectionsConfig;
 }
 
 /**
@@ -138,7 +155,7 @@ export interface IDetailsComponentProps extends IDetailsConfig {
   detailApiConfig?: IApiConfig;
   identifiers?: string | number;
   columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
   onDataChange?: (data: { record?: any; pageType?: string; entityName?: string }) => void;
   refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
@@ -233,7 +250,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
     // First, try to deserialize any JSON strings
     initialValue = deserializeJsonStrings(initialValue);
 
-    if (item?.type === "map") {
+    // Format recursively based on type
+    // JsonDescription will handle depth detection and rendering automatically
+    if (item?.type === "map" && Array.isArray(item.properties) && item.properties.length > 0) {
       initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
         //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
         acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
@@ -485,6 +504,17 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                     }
 
+                    // Only show "—" for null/undefined, not for falsy values like 0, false, "", [], {}
+                    if(value === null || value === undefined) {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <span>—</span>
+                        </div>
+                      );
+                    }
+
                     if (item.isLink && item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
@@ -496,13 +526,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
-                            <Link url={linkUrl} className="details-link">
-                              {displayText} ({value})
-                            </Link>
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <Link url={linkUrl} className="details-link">
+                            {displayText} ({value})
+                          </Link>
                         </div>
                       );
                     }
@@ -512,7 +538,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
                             <OpenInModal
                               modalType="details"
                               primaryIndex={value}
@@ -523,59 +548,35 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             >
                               {value}
                             </OpenInModal>
-                          ) : (
-                            <span>—_-</span>
-                          )}
                         </div>
                       );
                     }
 
-                    if (item.type === 'list' && item.fieldType !== 'multi-select') {
+                    // ============================================================================
+                    // Smart Complex Data Rendering - All complex types handled by JsonField
+                    // ============================================================================
+                    // JsonField provides interactive JSON viewing with:
+                    // - Toggle between Description (formatted table) and JSON (raw) views
+                    // - Copy to clipboard button
+                    // - Smart depth-based rendering in both modes
+                    // 
+                    // Works for: fieldType: 'json', type: 'map', type: 'list', and generic objects
+                    // Example: syncMetadata with toggle to switch between views + copy button
+                    
+                    const isComplexData = 
+                      item.type === 'list' ||
+                      item.type === 'map' ||
+                      (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
+                      (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
+                    
+                    if (isComplexData && item.fieldType !== 'multi-select') {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {Array.isArray(value) && value.length > 0 ? (
-                            <JsonDescription data={value} />
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <JsonField data={value} title={item.label} maxDepth={2} />
                         </div>
                       );
-                    }
-                    if (item.type === 'map' || item.fieldType === 'json') {
-                      // Since we already deserialized JSON strings in valueFormatter,
-                      // we can directly check if it's an object
-                      if (value && typeof value === 'object' && !Array.isArray(value)) {
-                        // Show as definition list
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
-                            <JsonDescription data={value} />
-                          </div>
-                        );
-                      } else if (typeof value === 'string') {
-                        // Fallback: show as code block for non-JSON strings
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
-                            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                              <code>{value ? value : '—'}</code>
-                            </pre>
-                          </div>
-                        );
-                      } else {
-                        // Show as JsonDescription for any other type
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
-                            <JsonDescription data={value} />
-                          </div>
-                        );
-                      }
                     }
 
                     if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
@@ -583,13 +584,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
                             <div className="details-fixed-block">
                               <CustomBlockNoteEditor value={value as any} readOnly={true} />
                             </div>
-                          ) : (
-                            <span>—</span>
-                          )}
                         </div>
                       );
                     }
@@ -602,13 +599,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div className="details-fixed-block">
-                            {value ? (
-                              typeof value === 'object' ? (
-                                <JsonDescription data={value} />
-                              ) : (String(value))
-                            ) : (
-                              <span>—</span>
-                            )}
+                            <JsonDescription data={value} />
                           </div>
                         </div>
                       );
@@ -618,11 +609,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
-                            <img src={value} alt={item.label} className="details-image" />
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <img src={value} alt={item.label} className="details-image" />
                         </div>
                       );
                     }
@@ -631,11 +618,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
-                            <CustomColorPicker value={value} disabled />
-                          ) : (
-                            <span>—</span>
-                          )}
+                          <CustomColorPicker value={value} disabled />
                         </div>
                       );
                     }
@@ -645,11 +628,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div>
-                            {value !== undefined && value !== null ? (
-                              Number(value)
-                            ) : (
-                              <span>—</span>
-                            )}
+                            {Number(value)}
                           </div>
                         </div>
                       );
@@ -660,11 +639,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div>
-                            {value !== undefined && value !== null ? (
-                              `${value}%`
-                            ) : (
-                              <span>—</span>
-                            )}
+                            {`${value}%`}
                           </div>
                         </div>
                       );
@@ -675,11 +650,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div>
-                            {value !== undefined && value !== null ? (
-                              `${value}/5`
-                            ) : (
-                              <span>—</span>
-                            )}
+                            {`${value}/5`}
                           </div>
                         </div>
                       );
@@ -689,13 +660,260 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          {value ? (
                             <a href={value} target="_blank" rel="noopener noreferrer">
                               Download File
                             </a>
+                        </div>
+                      );
+                    }
+                    
+                    // URL field
+                    if (item.fieldType === 'url') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <a href={value} target="_blank" rel="noopener noreferrer">
+                            {value}
+                          </a>
+                        </div>
+                      );
+                    }
+                    
+                    // Phone field
+                    if (item.fieldType === 'phone') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <a href={`tel:${value}`}>{value}</a>
+                        </div>
+                      );
+                    }
+                    
+                    // Currency field
+                    if (item.fieldType === 'currency') {
+                      const formatted = new Intl.NumberFormat('en-US', {
+                        style: 'currency',
+                        currency: item.currencySymbol || 'USD',
+                      }).format(Number(value) || 0);
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>{formatted}</div>
+                        </div>
+                      );
+                    }
+                    
+                    // Percentage field
+                    if (item.fieldType === 'percentage') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>{Number(value)}%</div>
+                        </div>
+                      );
+                    }
+                    
+                    // Slider field (display as value with slider visual)
+                    if (item.fieldType === 'slider') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <Slider 
+                              value={Number(value)} 
+                              disabled 
+                              style={{ flex: 1 }}
+                              min={item.min}
+                              max={item.max}
+                            />
+                            <span>{value}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Duration field
+                    if (item.fieldType === 'duration') {
+                      const formatDuration = (seconds: number) => {
+                        const h = Math.floor(seconds / 3600);
+                        const m = Math.floor((seconds % 3600) / 60);
+                        const s = seconds % 60;
+                        if (h > 0) return `${h}h ${m}m ${s}s`;
+                        if (m > 0) return `${m}m ${s}s`;
+                        return `${s}s`;
+                      };
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div>{formatDuration(Number(value) || 0)}</div>
+                        </div>
+                      );
+                    }
+                    
+                    // Badge field
+                    if (item.fieldType === 'badge') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Badge 
+                            status={item.status || 'default'} 
+                            text={String(value)}
+                            color={item.color}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // Tag field (single or multiple)
+                    if (item.fieldType === 'tag' || item.fieldType === 'tags') {
+                      const tags = Array.isArray(value) ? value : [value];
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            {tags.map((tag: any, i: number) => (
+                              <Tag key={i} color={item.color}>
+                                {String(tag)}
+                              </Tag>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Progress field
+                    if (item.fieldType === 'progress') {
+                      const type = item.progressType || 'line';
+                      // Map badge status to progress status
+                      let progressStatus: 'success' | 'exception' | 'normal' | 'active' = 'normal';
+                      if (item.status === 'success') progressStatus = 'success';
+                      else if (item.status === 'error' || item.status === 'warning') progressStatus = 'exception';
+                      else if (item.status === 'processing') progressStatus = 'active';
+                      
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Progress 
+                            type={type}
+                            percent={Number(value) || 0}
+                            status={progressStatus}
+                            showInfo={true}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // Avatar field
+                    if (item.fieldType === 'avatar') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Avatar 
+                            src={value}
+                            size={item.size || 'default'}
+                            shape={item.shape || 'circle'}
+                            icon={item.icon ? React.createElement((Icons as any)[item.icon]) : undefined}
+                          >
+                            {item.text || String(value).charAt(0).toUpperCase()}
+                          </Avatar>
+                        </div>
+                      );
+                    }
+                    
+                    // Icon field
+                    if (item.fieldType === 'icon') {
+                      const IconComponent = (Icons as any)[String(value)];
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          {IconComponent ? (
+                            <IconComponent 
+                              style={{ 
+                                fontSize: item.size || 24,
+                                color: item.color 
+                              }} 
+                            />
                           ) : (
-                            <span>—</span>
+                            <span>{value}</span>
                           )}
+                        </div>
+                      );
+                    }
+                    
+                    // Link field
+                    if (item.fieldType === 'link') {
+                      const href = item.linkConfig?.routePattern 
+                        ? substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse }, value)
+                        : value;
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <a 
+                            href={href} 
+                            target={item.target || '_blank'}
+                            rel="noopener noreferrer"
+                          >
+                            {value}
+                          </a>
+                        </div>
+                      );
+                    }
+                    
+                    // Video field
+                    if (item.fieldType === 'video') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <video 
+                            src={value} 
+                            controls={item.controls !== false}
+                            style={{ maxWidth: '100%', maxHeight: '400px' }}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // Audio field
+                    if (item.fieldType === 'audio') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <audio 
+                            src={value} 
+                            controls={item.controls !== false}
+                            style={{ width: '100%' }}
+                          />
+                        </div>
+                      );
+                    }
+                    
+                    // QR Code field
+                    if (item.fieldType === 'qrcode') {
+                      const qrSize = typeof item.size === 'number' ? item.size : 128;
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <QRCode 
+                            value={String(value)}
+                            size={qrSize}
+                            errorLevel={item.errorLevel || 'M'}
+                            icon={item.logoImage}
+                          />
                         </div>
                       );
                     }

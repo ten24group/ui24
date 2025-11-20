@@ -18,6 +18,7 @@
  * - **Column Settings**: Show/hide columns, adjust widths, reorder columns
  * - **Placeholder Resolution**: Automatic resolution of placeholders in filters (`:actor.actorId`, `:startOfMonth`, etc.)
  * - **Relation Rendering**: Automatic rendering of relation fields with links and modals
+ * - **Rich Field Types**: Specialized renderers for images, files, colors, JSON, rich text, ratings, and more
  * 
  * ## Architecture
  * 
@@ -27,6 +28,25 @@
  * 3. **useTableData.tsx**: API calls and data transformation
  * 4. **FilterSegments**: Quick filter tabs with placeholder resolution
  * 5. **ColumnSettings**: Column visibility and configuration
+ * 
+ * ## Field Type Rendering
+ * 
+ * The table automatically applies specialized renderers based on field type:
+ * 
+ * **Simple Inline Renderers:**
+ * - **image**: Thumbnail preview (40x40) with click-to-expand
+ * - **file**: Download link
+ * - **color**: Color swatch with hex value
+ * - **number**: Formatted with thousand separators
+ * - **range**: Value with percentage
+ * - **rating**: Star display with numeric value
+ * - **relation**: Link/modal with template-based display
+ * 
+ * **Modal-Based Renderers (for complex content):**
+ * - **json/map**: "View JSON" button → Opens formatted JSON in modal
+ * - **list**: "View (count)" button → Opens array items in modal (simple arrays shown inline if ≤3 items)
+ * - **rich-text/wysiwyg**: "View Content" button → Opens BlockNote editor in modal
+ * - **textarea/code/markdown**: Shows inline if <100 chars, otherwise "View Content" button → Opens in modal
  * 
  * ## Placeholder Resolution
  * 
@@ -122,6 +142,7 @@ export const Table = ({
   rowSelection: rowSelectionConfig,  // Row selection configuration
   expandableConfig,  // Expandable row configuration
   segments,  // Filter segments for quick filtering
+  fetchStrategy,  // Fetch strategy from backend config
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
   // Build placeholder context for segments and filters
@@ -159,6 +180,8 @@ export const Table = ({
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
+    currentFetchStrategy,
+    handleFetchStrategyChange,
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode,
@@ -166,7 +189,8 @@ export const Table = ({
     propertiesConfig,
     apiConfig,
     routeParams,
-    defaultFilters
+    defaultFilters,
+    fetchStrategy
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
@@ -407,7 +431,13 @@ export const Table = ({
           <Tooltip title="Column Settings">
             <Dropdown
               popupRender={() => (
-                <ColumnSettings columns={columnSettings} onColumnChange={handleColumnSettingsChange} onReset={resetColumnSettings} />
+                <ColumnSettings 
+                  columns={columnSettings} 
+                  onColumnChange={handleColumnSettingsChange} 
+                  onReset={resetColumnSettings}
+                  fetchStrategy={currentFetchStrategy}
+                  onFetchStrategyChange={handleFetchStrategyChange}
+                />
               )}
               trigger={[ 'click' ]}
             >

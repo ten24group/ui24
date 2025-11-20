@@ -60,6 +60,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (!headers[ 'Content-Type' ] && !headers[ 'content-type' ]) {
                 headers[ 'Content-Type' ] = 'application/json';
             }
+            
+            // Skip authentication if this is a retry that's already been signed
+            // (to avoid double-signing which causes AWS signature mismatches)
+            if ((config as any)._isAuthenticatedRetry) {
+                console.log('[ApiContext] Skipping re-authentication for pre-signed retry:', config.url);
+                return config;
+            }
+            
             // Attach auth headers or signatures
             return await auth.authenticateRequest(config);
         },
@@ -97,9 +105,27 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         async (error) => {
             const orig = error.config;
 
-            const shouldRetry = auth.shouldRefreshAuth(error, orig)
+            // Guard: Some errors (network errors, cancelled requests) may not have config
+            if (!orig) {
+                console.error('[ApiContext] Error without request config:', {
+                    message: error.message,
+                    code: error.code
+                });
+                return Promise.reject(error);
+            }
 
-            if (shouldRetry && (orig._retryCount || 0) === 0) {
+            const shouldRetry = auth.shouldRefreshAuth(error, orig);
+            const retryCount = orig._retryCount || 0;
+
+            console.log('[ApiContext] Request failed:', {
+                url: orig.url,
+                status: error.response?.status,
+                shouldRetry,
+                retryCount,
+                hasHeaders: !!orig.headers
+            });
+
+            if (shouldRetry && retryCount === 0) {
                 orig._retryCount = (orig._retryCount || 0) + 1;
                 if (!refreshPromise) {
                     refreshPromise = auth.refreshAuth()
@@ -108,10 +134,38 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
                 try {
                     await refreshPromise;
-                    // Retry original request with fresh auth
-                    const newConfig = await auth.authenticateRequest(orig);
-                    return axiosInstance(newConfig);
+                    
+                    // CRITICAL: Create a FRESH config object without stale auth headers
+                    // Axios's AxiosHeaders class has internal state that makes header deletion unreliable
+                    // Creating a new AxiosHeaders instance ensures no stale headers remain
+                    
+                    // Create new config with only non-auth headers
+                    const freshConfig: InternalAxiosRequestConfig = {
+                        ...orig,
+                        headers: {} as any,
+                        _retryCount: orig._retryCount
+                    };
+                    
+                    // Copy non-auth headers to fresh config
+                    if (orig.headers) {
+                        const authHeaderPrefixes = ['auth', 'x-amz'];
+                        Object.keys(orig.headers).forEach(key => {
+                            const lowerKey = key.toLowerCase();
+                            const isAuthHeader = authHeaderPrefixes.some(prefix => lowerKey.startsWith(prefix));
+                            if (!isAuthHeader && orig.headers[key] !== undefined) {
+                                freshConfig.headers[key] = orig.headers[key];
+                            }
+                        });
+                    }
+                    
+                    // Sign the fresh config
+                    const signedConfig = await auth.authenticateRequest(freshConfig);
+                    
+                    // Mark as pre-signed retry to avoid double-signing in request interceptor
+                    (signedConfig as any)._isAuthenticatedRetry = true;
+                    return axiosInstance(signedConfig);
                 } catch (refreshError) {
+                    console.error('[ApiContext] Retry failed:', refreshError);
                     // On refresh failure, logout has already been called by the auth provider.
                     // The state change will trigger a redirect. We should not propagate
                     // the error further, as the original request is now irrelevant.

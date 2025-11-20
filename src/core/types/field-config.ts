@@ -46,9 +46,70 @@ export interface IOptions {
 export type IPreDefinedValidations = "required" | "email" | `match:${string}`;
 
 /**
+ * Field-specific properties for all field types.
+ * 100% parity with backend PropertyConfig in fw24/src/ui-config-gen/templates/custom-page.ts
+ * 
+ * These properties configure the behavior and appearance of specific field types
+ * across forms, details, and tables.
+ */
+export interface IFieldTypeProperties {
+  // Number field properties
+  min?: number;
+  max?: number;
+  step?: number;
+  precision?: number;
+  
+  // Currency field properties
+  currencySymbol?: string;
+  symbolPosition?: 'prefix' | 'suffix';
+  
+  // Slider field properties
+  marks?: Record<number, string | { label: string; style?: React.CSSProperties }>;
+  vertical?: boolean;
+  
+  // Duration field properties
+  durationFormat?: 'hms' | 'hm' | 'ms' | 'seconds' | 'minutes' | 'hours';
+  
+  // Badge field properties
+  status?: 'success' | 'processing' | 'error' | 'warning' | 'default';
+  color?: string;
+  count?: number;
+  text?: string;
+  
+  // Tag field properties (icon name as string, matching backend)
+  icon?: string;
+  
+  // Progress field properties
+  progressType?: 'line' | 'circle' | 'dashboard';
+  
+  // Avatar field properties
+  shape?: 'circle' | 'square';
+  size?: number | 'large' | 'small' | 'default';
+  
+  // Icon field properties
+  library?: 'antd' | 'fontawesome' | 'material' | 'custom';
+  
+  // Link field properties
+  target?: '_blank' | '_self' | '_parent' | '_top';
+  
+  // Video/Audio field properties
+  controls?: boolean;
+  autoplay?: boolean;
+  
+  // QRCode field properties
+  errorLevel?: 'L' | 'M' | 'Q' | 'H';
+  logoImage?: string;
+  
+  // Text format properties (for url, phone, email)
+  format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage';
+  mask?: string;
+  maxLength?: number;
+}
+
+/**
  * Base field configuration - shared properties across all field types
  */
-export interface IBaseFieldConfig {
+export interface IBaseFieldConfig extends IFieldTypeProperties {
   // Identification
   id?: string;
   name?: string;  // Field name / property path (supports dot notation)
@@ -107,8 +168,10 @@ export interface IFormFieldResponse extends IBaseFieldConfig {
 /**
  * Form-specific field configuration
  * Used internally by Form components after conversion from IFormFieldResponse
+ * 
+ * Omits 'icon' from base to allow ReactNode for form-specific rendering
  */
-export interface IFormField extends IBaseFieldConfig {
+export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
   // Form-specific properties
   namePrefixPath?: any[]; // For nested form fields
   validationRules?: Array<any>; // Ant Design validation rules
@@ -130,6 +193,9 @@ export interface IFormField extends IBaseFieldConfig {
   listType?: string;
   getSignedUploadUrlAPIConfig?: GetSignedUploadUrlAPIConfig;
   withImageCrop?: boolean;
+  
+  // Override icon to support ReactNode in forms (for Tag fields, etc.)
+  icon?: string | ReactNode;
   
   // Nested structures
   properties?: Array<IFormField>;

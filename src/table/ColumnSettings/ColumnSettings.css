@@ -34,4 +34,10 @@
 .drag-handle {
   cursor: grab;
   color: #999;
+}
+
+.column-settings-fetch-strategy {
+  padding: 8px;
+  background-color: #fafafa;
+  border-radius: 4px;
 } 

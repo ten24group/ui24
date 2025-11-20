@@ -66,6 +66,8 @@ export const renderSingleAction = ({
       <OpenInModal
         key={key}
         {...action.modalConfig}
+        modalWidth={action.modalWidth}  // Pass modalWidth from action level
+        modalTitle={action.modalTitle}  // Pass modalTitle from action level (if set)
         primaryIndex={primaryIndex || routeParams.id}
         identifiers={primaryIndex || routeParams.id}  // Pass identifiers for Form component
         routeParams={finalRouteParams}  // Include record data for template resolution

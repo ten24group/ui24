@@ -1,36 +1,71 @@
 /**
- * Field types that are consistent with the backend base-entity.ts
- * These types match exactly with the FieldMetadata types in base-entity.ts
+ * Field types that are consistent with the backend ConfigFieldType in fw24/src/ui-config-gen/templates/custom-page.ts
+ * MUST maintain 100% parity with backend - DO NOT ADD OR REMOVE TYPES without updating backend first
  */
 export type FieldType = 
+  // Basic text input
   | "text" 
   | "textarea" 
   | "password" 
-  | "email"
+  | "email" 
+  | "url"
+  | "phone"
+  | "hidden"
+  
+  // Numeric input
   | "number" 
+  | "currency"
+  | "percentage"
+  | "range" 
+  | "slider"
+  | "rating"
+  
+  // Date & time
   | "date" 
   | "time" 
-  | "datetime" 
+  | "datetime"
+  | "duration"
+  
+  // Boolean & toggle
   | "boolean" 
   | "switch" 
-  | "toggle" 
+  | "toggle"
+  | "checkbox"
+  
+  // Selection & options
   | "select" 
   | "multi-select" 
   | "autocomplete" 
-  | "radio" 
-  | "checkbox" 
-  | "color" 
-  | "range" 
-  | "hidden" 
-  | "custom" 
-  | "rating" 
-  | "file" 
-  | "image" 
-  | "rich-text" 
-  | "wysiwyg" 
+  | "radio"
+  
+  // Visual & display
+  | "badge"
+  | "tag"
+  | "tags"
+  | "progress"
+  | "avatar"
+  | "color"
+  | "icon"
+  
+  // Structured data
+  | "json"
   | "code" 
-  | "markdown" 
-  | "json";
+  | "markdown"
+  | "rich-text" 
+  | "wysiwyg"
+  
+  // Links & navigation
+  | "link"
+  
+  // Files & media
+  | "file" 
+  | "image"
+  | "video"
+  | "audio"
+  | "qrcode"
+  
+  // Special
+  | "custom";
 
 /**
  * Property types for complex field structures

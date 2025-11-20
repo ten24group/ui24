@@ -59,7 +59,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [ rememberMe, setRememberMe ] = useState<boolean>(false);
   const { selectConfig } = useUi24Config();
   const providerName = selectConfig((config) => "aws");
-  const authProvider = getProvider(providerName, rememberMe);
+  
+  // CRITICAL FIX: Memoize authProvider to prevent creating new instances on every render
+  // Creating multiple Authenticator instances breaks the credential fetch locking mechanism
+  const authProvider = useMemo(() => getProvider(providerName, rememberMe), [providerName, rememberMe]);
+  
   const [ isLoggedIn, setIsLoggedIn ] = useState(authProvider.getToken() ? true : false);
 
   // FIXED: Decode JWT token to extract user information

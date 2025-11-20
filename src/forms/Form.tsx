@@ -105,7 +105,7 @@
  * @see {@link useApi} for API integration
  */
 
-import { Form as AntForm, Spin, Skeleton } from 'antd';
+import { Form as AntForm, Spin, Skeleton, Alert } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -182,6 +182,7 @@ export function Form({
   defaultValues = {},
   entityName,  // From backend config
   onDataChange,  // Callback to lift state to wrapper
+  helpText,  // Help text to display above form fields
 }: IFormWithColumnsConfig) {
   const navigate = useCoreNavigator();
 
@@ -686,6 +687,14 @@ export function Form({
             onFinish={onFinish}
             disabled={loader}
           >
+            {helpText && (
+              <Alert
+                message={helpText}
+                type="info"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
+            )}
             {columns.length > 1 ? (
               <FormContainer>
                 {columns.map((columnItems, colIdx) => (

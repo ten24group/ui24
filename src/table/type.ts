@@ -1,8 +1,9 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
-import { FieldType } from "../core/types/field-types";
-import type { Template, VisibilityConfig } from "../core/types";
+import { FieldType, PropertyType } from "../core/types/field-types";
+import type { Template, VisibilityConfig, IFieldTypeProperties } from "../core/types";
 import { IModalConfig } from "../modal/Modal";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
+import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 type ITablePagination = "default";
 
 /**
@@ -155,7 +156,7 @@ export interface ITableConfig {
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   records?: Array<any>;
   paginationType?: ITablePagination;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
   entityName?: string;  // Entity name from backend config generation
   bulkActions?: ReadonlyArray<IPageAction>;  // Actions shown when multiple rows selected (from backend tableConfig.bulkActions)
@@ -185,18 +186,47 @@ export interface ITableConfig {
    */
   segments?: Array<IFilterSegment | IFilterSegmentGroup>;
   
+  /**
+   * Controls how column data is fetched from the API.
+   * From backend: entitySchema.model.listPageConfig.tableConfig.fetchStrategy
+   * 
+   * - `'eager'` (default): Fetches all `isListable` columns in a single request.
+   * - `'lazy'`: Only fetches visible columns initially. Refetches when users show hidden columns.
+   * 
+   * @default 'eager'
+   */
+  fetchStrategy?: 'eager' | 'lazy';
+  
+  /**
+   * Additional sections to display below or alongside the main table.
+   * From backend: entitySchema.model.listPageConfig.sectionsConfig
+   * 
+   * Enables multi-section list pages with tabs or accordion UI.
+   * Sections have access to table state (selected records, filters) via routeParams.
+   */
+  sectionsConfig?: ISectionsConfig;
+  
   onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
 }
 
-export interface ITablePropertiesConfig {
+export interface ITablePropertiesConfig extends IFieldTypeProperties {
   name: string;
   dataIndex: string;
   actions?: Array<IPageAction>;
   hidden?: boolean;
+  /**
+   * Controls initial visibility of the column in list pages.
+   * - true: Column is visible by default
+   * - false: Column is hidden by default but available in Column Settings
+   * - undefined: Falls back to !hidden for backward compatibility
+   * From backend: tableConfig.columns[].defaultVisible
+   */
+  defaultVisible?: boolean;
   isFilterable?: boolean;
   isIdentifier?: boolean;
   isSortable?: boolean;
   fieldType?: FieldType;
+  type?: PropertyType;  // Data type from entity schema (list, map, object)
   placeholder?: string;
   helpText?: string;
   /**

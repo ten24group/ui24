@@ -353,21 +353,15 @@ export const Modal = ({
         
         notifySuccess(message);
 
-        // Check if parent should be refreshed
-        if (refreshParentOnSuccess && onSuccessCallback) {
-          onSuccessCallback(responseDataFromApi);
-        }
-        
         // Check if response should be displayed in modal
         if (responseConfig?.showModal) {
-          // Show response modal - delay redirect and callback until modal closes
+          // Show response modal - callbacks will be executed when modal closes
           showResponseModal(responseDataFromApi);
           // Note: Action modal stays open, will be closed when response modal closes
-          // onConfirmCallback will be called in response modal's onClose handler
+          // IMPORTANT: Don't call onSuccessCallback here - it will be called when response modal closes
         } else {
-          // Standard behavior: callback + redirect
-          // Note: Don't call onSuccessCallback again if already called above
-          if (!refreshParentOnSuccess && onSuccessCallback) {
+          // Standard behavior: refresh parent and/or call callback immediately
+          if (onSuccessCallback) {
             onSuccessCallback(responseDataFromApi);
           }
           if (submitSuccessRedirect) {
@@ -674,8 +668,9 @@ export const Modal = ({
               hideResponseModal();
               
               // Execute callback and redirect after modal closes
-              // Note: Don't call callback if refreshParentOnSuccess already called it
-              if (!refreshParentOnSuccess && onSuccessCallback) {
+              // Since we delayed the callback to show the response modal,
+              // we must call it now regardless of refreshParentOnSuccess
+              if (onSuccessCallback) {
                 onSuccessCallback(responseData);
               }
               if (submitSuccessRedirect) {
@@ -701,17 +696,14 @@ export const Modal = ({
     // Extract response data (Form.tsx passes full response object)
     const responseDataFromForm = response?.data || response;
     
-    // Check if parent should be refreshed
-    if (refreshParentOnSuccess && onSuccessCallback) {
-      onSuccessCallback(responseDataFromForm);
-    }
-    
     if (responseConfig?.showModal) {
+      // Show response modal - callbacks will be executed when modal closes
       showResponseModal(responseDataFromForm);
       // Note: Action modal stays open, will be closed when response modal closes
+      // IMPORTANT: Don't call onSuccessCallback here - it will be called when response modal closes
     } else {
-      // Standard behavior - only call callback if not already called above
-      if (!refreshParentOnSuccess && onSuccessCallback) {
+      // Standard behavior: refresh parent and/or call callback immediately
+      if (onSuccessCallback) {
         onSuccessCallback(responseDataFromForm);
       }
     }
@@ -754,6 +746,9 @@ export const Modal = ({
           loading={loading}
           width={effectiveWidth}
           wrapClassName={`modal-depth-${currentDepth}`}
+          styles={{
+            body: { padding: 0 }
+          }}
         >
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
@@ -770,8 +765,8 @@ export const Modal = ({
                 listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
                 formPageConfig={
                   modalType === "form" ? {
-                    ...modalPageConfig,
-                    // Determine callback based on navigateTo, responseConfig, or standard
+                    ...(modalPageConfig as IForm),  // Spread all properties from modalPageConfig (including helpText)
+                    // Override specific properties
                     onSubmitSuccessCallback: navigateTo 
                       ? handleNavigationSubmit 
                       : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),

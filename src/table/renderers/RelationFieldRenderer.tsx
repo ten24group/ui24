@@ -372,7 +372,7 @@ export const RelationFieldRenderer: React.FC<RelationFieldRendererProps> = ({
             <Tooltip title={`Go to ${label} page`}>
               <Link url={resolvedUrl}>
                 <Button
-                  type="text"
+                  type="link"
                   size="small"
                   icon={<IconComponent />}
                   style={{ padding: '0 4px' }}
@@ -393,7 +393,7 @@ export const RelationFieldRenderer: React.FC<RelationFieldRendererProps> = ({
                 modalTitle={effectiveModalTitle}
               >
                 <Button
-                  type="text"
+                  type="link"
                   size="small"
                   icon={<EyeOutlined />}
                   style={{ padding: '0 4px' }}
@@ -415,7 +415,7 @@ export const RelationFieldRenderer: React.FC<RelationFieldRendererProps> = ({
             return (
               <Tooltip key={idx} title={customActionLabel}>
                 <Button
-                  type="text"
+                  type="link"
                   size="small"
                   onClick={() => {
                     // Execute custom onClick handler (string as function reference)
