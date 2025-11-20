@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
+import { Spin } from 'antd';
 import { StatWidget } from './widgets/StatWidget';
-import { ChartWidget } from './widgets/ChartWidget';
 import { ListWidget } from './widgets/ListWidget';
 import { ActionWidget } from './widgets/ActionWidget';
 import { DetailWidget } from './widgets/DetailWidget';
@@ -15,6 +15,9 @@ import { TimePeriodSelectorProps } from './widgets/TimePeriodSelector';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 
+// Lazy load ChartWidget to reduce initial bundle (includes @ant-design/plots ~600KB)
+const ChartWidget = lazy(() => import('./widgets/ChartWidget').then(module => ({ default: module.ChartWidget })));
+
 export const WidgetRenderer: React.FC<{
   widget: IDashboardWidgetConfig;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
@@ -25,7 +28,11 @@ export const WidgetRenderer: React.FC<{
       case 'stat':
         return <StatWidget {...widget} dashboardTimePeriod={dashboardTimePeriod} />;
       case 'chart':
-        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} />;
+        return (
+          <Suspense fallback={<div style={{ padding: '20px', textAlign: 'center' }}><Spin tip="Loading chart..." /></div>}>
+            <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} />
+          </Suspense>
+        );
       case 'list': {
         const { propertiesConfig = [], apiConfig = { apiUrl: '', apiMethod: 'GET' }, ...rest } = widget.options || {};
         return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} {...rest} />;

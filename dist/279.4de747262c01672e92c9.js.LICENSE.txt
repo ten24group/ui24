@@ -1,0 +1,26 @@
+/*!
+ * @antv/g-math
+ * @description Geometry util
+ * @version 3.0.1
+ * @date 5/9/2025, 8:18:51 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
+ * @antv/g-plugin-canvas-path-generator
+ * @description A G plugin of path generator with Canvas2D API
+ * @version 2.1.22
+ * @date 7/30/2025, 1:35:25 PM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/**
+ * @license
+ * Lodash <https://lodash.com/>
+ * Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+ * Released under MIT license <https://lodash.com/license>
+ * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
+ * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
+ */
