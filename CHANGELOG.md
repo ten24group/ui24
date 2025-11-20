@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.13](https://github.com/ten24group/ui24/compare/v1.0.5-beta.12...v1.0.5-beta.13) (2025-11-20)
+
+
+### Bug Fixes
+
+* color picker converting hex to rgb ([ad5391b](https://github.com/ten24group/ui24/commit/ad5391b72fe8124dd138a5ebf7402d95c1839063))
+
 ### [1.0.5-beta.12](https://github.com/ten24group/ui24/compare/v1.0.5-beta.11...v1.0.5-beta.12) (2025-11-20)
 
 ### [1.0.5-beta.11](https://github.com/ten24group/ui24/compare/v1.0.5-beta.10...v1.0.5-beta.11) (2025-11-11)
