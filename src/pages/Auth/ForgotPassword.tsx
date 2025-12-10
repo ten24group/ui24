@@ -6,6 +6,8 @@ import { useAppContext } from '../../core/context/AppContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import { handleApiError } from '../../core/utils/api-error-handler';
+import { useCoreNavigator } from '../../routes/Navigation';
 
 export const ForgotPasswordPage = () => {
     return (
@@ -14,7 +16,8 @@ export const ForgotPasswordPage = () => {
 };
 
 export const ForgotPasswordForm = () => {
-    const navigate = useNavigate();
+    const navigate = useCoreNavigator();
+
     const { notifySuccess, notifyError } = useAppContext();
     const { propertiesConfig, apiConfig } = usePageConfig("/forgot-password");
     const { callApiMethod } = useApi();
@@ -25,11 +28,15 @@ export const ForgotPasswordForm = () => {
             if (response.status === 200) {
                 notifySuccess(response?.message || response?.data?.message || 'Password reset email sent');
                 handleResetPassword();
-            } else {
-                notifyError(response?.message || response?.error)
+            } else if (response.status >= 400) {
+                // Handle error response using consolidated error handler
+                const errorResult = handleApiError(response, 'Password reset failed');
+                notifyError(errorResult.formattedErrors.join('\n'));
             }
         } catch (error: any) {
-            notifyError(error?.message || 'An unexpected error occurred');
+            // Handle network errors or other exceptions
+            const errorResult = handleApiError(error, 'An unexpected error occurred');
+            notifyError(errorResult.formattedErrors.join('\n'));
         }
     }
 

@@ -3,6 +3,7 @@ import React from 'react';
 import { Collapse, theme } from 'antd';
 import { IRenderFromPageType } from '../PostAuthPage';
 import { RenderFromPageType } from '../PostAuthPage';
+import { PageDataProvider } from '../../../core/context/PageDataContext';
 
 export type IAccordionPageConfig = Record<string, IRenderFromPageType>
 
@@ -11,7 +12,10 @@ export interface IAccordionProps {
   routeParams?: Record<string, string>;
 }
 
-export const Accordion = ({ accordionsPageConfig, routeParams = {} }: IAccordionProps) => {
+export const Accordion = ({ 
+  accordionsPageConfig, 
+  routeParams = {}
+}: IAccordionProps) => {
   const { token } = theme.useToken();
 
   // Add null check for accordionsPageConfig
@@ -26,7 +30,18 @@ export const Accordion = ({ accordionsPageConfig, routeParams = {} }: IAccordion
     return {
       key: index.toString(),
       label: pageTitle || key,
-      children: <RenderFromPageType {...accordion} routeParams={routeParams} />,
+      // Each panel gets ISOLATED context to prevent state interference
+      children: (
+        <PageDataProvider 
+          localData={{}} 
+          isolated={true}
+        >
+          <RenderFromPageType 
+            {...accordion} 
+            routeParams={routeParams}
+          />
+        </PageDataProvider>
+      ),
     };
   });
 

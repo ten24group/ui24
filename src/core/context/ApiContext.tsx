@@ -29,7 +29,6 @@ const ApiContext = createContext<IApiContext | undefined>(undefined);
 
 export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, config } = useUi24Config()
-    const { notifyError } = useAppContext()
     const auth = useAuth();
 
     // Track ongoing requests to prevent duplicates (e.g., due to StrictMode double mount)
@@ -61,6 +60,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (!headers[ 'Content-Type' ] && !headers[ 'content-type' ]) {
                 headers[ 'Content-Type' ] = 'application/json';
             }
+            
+            // Skip authentication if this is a retry that's already been signed
+            // (to avoid double-signing which causes AWS signature mismatches)
+            if ((config as any)._isAuthenticatedRetry) {
+                console.log('[ApiContext] Skipping re-authentication for pre-signed retry:', config.url);
+                return config;
+            }
+            
             // Attach auth headers or signatures
             return await auth.authenticateRequest(config);
         },
@@ -70,15 +77,55 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     axiosInstance.interceptors.response.use(
         (response) => {
             // Process any new tokens or credentials
-            auth.processResponse?.(response as any);
+            try {
+                auth.processResponse?.(response as any);
+            } catch (error) {
+                // If token processing fails (e.g., authorization error), 
+                // reject with the error message properly attached
+                console.error('Token processing failed:', error);
+                const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
+                return Promise.reject({
+                    message: errorMessage,
+                    response: {
+                        status: 403,
+                        statusText: 'Forbidden',
+                        data: {
+                            message: errorMessage,
+                            details: {
+                                message: errorMessage
+                            }
+                        },
+                        headers: response.headers,
+                        config: response.config
+                    }
+                });
+            }
             return response;
         },
         async (error) => {
             const orig = error.config;
 
-            const shouldRetry = auth.shouldRefreshAuth(error, orig)
+            // Guard: Some errors (network errors, cancelled requests) may not have config
+            if (!orig) {
+                console.error('[ApiContext] Error without request config:', {
+                    message: error.message,
+                    code: error.code
+                });
+                return Promise.reject(error);
+            }
 
-            if (shouldRetry && (orig._retryCount || 0) === 0) {
+            const shouldRetry = auth.shouldRefreshAuth(error, orig);
+            const retryCount = orig._retryCount || 0;
+
+            console.log('[ApiContext] Request failed:', {
+                url: orig.url,
+                status: error.response?.status,
+                shouldRetry,
+                retryCount,
+                hasHeaders: !!orig.headers
+            });
+
+            if (shouldRetry && retryCount === 0) {
                 orig._retryCount = (orig._retryCount || 0) + 1;
                 if (!refreshPromise) {
                     refreshPromise = auth.refreshAuth()
@@ -87,15 +134,43 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
                 try {
                     await refreshPromise;
-                    // Retry original request with fresh auth
-                    const newConfig = await auth.authenticateRequest(orig);
-                    return axiosInstance(newConfig);
+                    
+                    // CRITICAL: Create a FRESH config object without stale auth headers
+                    // Axios's AxiosHeaders class has internal state that makes header deletion unreliable
+                    // Creating a new AxiosHeaders instance ensures no stale headers remain
+                    
+                    // Create new config with only non-auth headers
+                    const freshConfig: InternalAxiosRequestConfig = {
+                        ...orig,
+                        headers: {} as any,
+                        _retryCount: orig._retryCount
+                    };
+                    
+                    // Copy non-auth headers to fresh config
+                    if (orig.headers) {
+                        const authHeaderPrefixes = ['auth', 'x-amz'];
+                        Object.keys(orig.headers).forEach(key => {
+                            const lowerKey = key.toLowerCase();
+                            const isAuthHeader = authHeaderPrefixes.some(prefix => lowerKey.startsWith(prefix));
+                            if (!isAuthHeader && orig.headers[key] !== undefined) {
+                                freshConfig.headers[key] = orig.headers[key];
+                            }
+                        });
+                    }
+                    
+                    // Sign the fresh config
+                    const signedConfig = await auth.authenticateRequest(freshConfig);
+                    
+                    // Mark as pre-signed retry to avoid double-signing in request interceptor
+                    (signedConfig as any)._isAuthenticatedRetry = true;
+                    return axiosInstance(signedConfig);
                 } catch (refreshError) {
+                    console.error('[ApiContext] Retry failed:', refreshError);
                     // On refresh failure, logout has already been called by the auth provider.
                     // The state change will trigger a redirect. We should not propagate
                     // the error further, as the original request is now irrelevant.
                     // We return a new, non-rejecting promise to prevent uncaught promise errors.
-                    return new Promise(() => { });
+                    return Promise.reject(refreshError);
                 }
             }
             return Promise.reject(error);
@@ -132,7 +207,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const callApiMethod = async <T,>(apiConfig: IApiConfig & { dedupe?: boolean }): Promise<AxiosResponse<T>> => {
-        const method = apiConfig.apiMethod.toUpperCase();
+        const method = (apiConfig.apiMethod ?? 'GET').toUpperCase();
         // Only dedupe GET requests by default; opt-out by setting dedupe: false or opt-in for others by dedupe: true
         const shouldDedupe = apiConfig.dedupe !== false && (method === 'GET');
         // Build stable key from method, url, payload, headers
@@ -187,35 +262,99 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
                 if (!response) {
                     throw {
-                        message: 'No response received from API call',
-                        response: { status: 503, data: { message: 'Service Unavailable' } },
+                        message: 'No response received from API call - this should not happen',
+                        response: { 
+                            status: 503, 
+                            data: { 
+                                message: 'No response from server',
+                                errorType: 'NO_RESPONSE',
+                                details: {
+                                    message: 'The API method did not return a response. This is likely a framework bug.',
+                                    method,
+                                    url: apiConfig.apiUrl
+                                }
+                            } 
+                        },
                     };
                 }
 
                 return response;
 
             } catch (error: any) {
-                // propagate normalized errors
+                // Network errors, timeouts, and other non-response errors
                 if (!error.response) {
-                    throw {
-                        message: error.message || 'Network error: No response received',
-                        response: { status: 503, data: { message: 'Service Unavailable' } },
+                    // Determine error type and create user-friendly message
+                    let errorMessage = error.message || 'Network error occurred';
+                    let errorType = 'NETWORK_ERROR';
+                    
+                    // Categorize common error types for better user feedback
+                    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+                        errorType = 'TIMEOUT';
+                        errorMessage = `Request timeout: ${error.message || 'The server took too long to respond'}`;
+                    } else if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
+                        errorType = 'NETWORK_ERROR';
+                        errorMessage = `Network error: ${error.message || 'Unable to connect to the server'}`;
+                    } else if (error.code === 'ERR_CANCELED') {
+                        errorType = 'CANCELED';
+                        errorMessage = 'Request was canceled';
+                    } else if (error.message?.includes('ECONNREFUSED')) {
+                        errorType = 'CONNECTION_REFUSED';
+                        errorMessage = 'Connection refused: Unable to connect to the server';
+                    } else if (error.message?.includes('ENOTFOUND')) {
+                        errorType = 'DNS_ERROR';
+                        errorMessage = 'DNS error: Could not resolve server address';
+                    }
+                    
+                    const normalizedError = {
+                        message: errorMessage,
+                        code: error.code || errorType,
+                        originalError: error.message,
+                        response: { 
+                            status: 503, 
+                            data: { 
+                                message: errorMessage,
+                                errorType,
+                                code: error.code,
+                                details: {
+                                    message: errorMessage,
+                                    originalMessage: error.message,
+                                    code: error.code,
+                                    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                                }
+                            } 
+                        },
                     };
+                    return Promise.reject(normalizedError);
                 }
 
-                // For all other API errors, normalize the error object.
+                // HTTP errors with response from server
                 const status = error.response.status;
                 const responseData = error.response.data;
+                
+                // Extract the most specific error message available
                 const parsedErrorMessage = responseData?.details?.message
                     || responseData?.message
                     || responseData?.error
                     || error.message
-                    || 'An unexpected error occurred';
+                    || `HTTP ${status} error occurred`;
 
-                throw {
+                const normalizedError = {
                     message: parsedErrorMessage,
-                    response: { status, data: { message: parsedErrorMessage, ...responseData } },
+                    code: responseData?.code || responseData?.errorCode,
+                    response: { 
+                        status, 
+                        data: { 
+                            message: parsedErrorMessage, 
+                            ...responseData,
+                            // Ensure details are preserved
+                            details: {
+                                ...responseData?.details,
+                                message: responseData?.details?.message || parsedErrorMessage,
+                            }
+                        } 
+                    },
                 };
+                return Promise.reject(normalizedError);
             }
         };
 

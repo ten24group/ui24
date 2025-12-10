@@ -143,3 +143,101 @@ export const formatKey = (key: string): string => {
   return result.charAt(0).toUpperCase() + result.slice(1);
 };
 
+/**
+ * Evaluates template strings in an object against a context object.
+ * Used for pre-filling form fields from route params or record data.
+ * 
+ * Template syntax:
+ * - Simple: `'{fieldName}'` → gets context.fieldName
+ * - Nested: `'{team.name}'` → gets context.team.name
+ * - Static: any non-template value is returned as-is
+ * 
+ * @param template - Object with potential template strings as values
+ * @param context - Context object containing values (routeParams, record data, etc.)
+ * @returns Object with template strings replaced by actual values
+ * 
+ * @example
+ * const template = { teamId: '{teamId}', sport: '{sport}', isActive: true };
+ * const context = { teamId: '123', sport: 'basketball' };
+ * evaluateTemplateObject(template, context);
+ * // Returns: { teamId: '123', sport: 'basketball', isActive: true }
+ * 
+ * @example
+ * // Nested paths
+ * const template = { teamName: '{team.name}', teamId: '{team.teamId}' };
+ * const context = { team: { name: 'Lakers', teamId: 'lakers-123' } };
+ * evaluateTemplateObject(template, context);
+ * // Returns: { teamName: 'Lakers', teamId: 'lakers-123' }
+ */
+export const evaluateTemplateObject = (
+  template: Record<string, any>,
+  context: Record<string, any>
+): Record<string, any> => {
+  if (!template || typeof template !== 'object') {
+    return {};
+  }
+
+  return Object.entries(template).reduce((acc, [key, value]) => {
+    // Check if value is a template string: '{fieldName}' or '{field.nested.path}'
+    if (typeof value === 'string' && value.match(/^\{[\w.]+\}$/)) {
+      // Extract path from template: '{team.name}' → 'team.name'
+      const path = value.slice(1, -1);
+      
+      // Try to get value from context
+      const evaluatedValue = getNestedValue(context, path);
+      
+      // Only set the value if it's not undefined (allow null, false, 0, '')
+      if (evaluatedValue !== undefined) {
+        acc[key] = evaluatedValue;
+      } else {
+        // Template couldn't be evaluated, log warning
+        console.warn(`[evaluateTemplateObject] Could not resolve template '${value}' for field '${key}'`);
+      }
+    } else {
+      // Not a template string, use value as-is (static values, numbers, booleans, etc.)
+      acc[key] = value;
+    }
+    
+    return acc;
+  }, {} as Record<string, any>);
+};
+
+/**
+ * Matches a URL path against a route pattern
+ * @param pattern - Route pattern with parameters, e.g., "/user/:userId/posts/:postId"
+ * @param path - Actual URL path, e.g., "/user/123/posts/456"
+ * @returns Object with extracted parameters or null if no match
+ * @example
+ * matchRoutePattern("/user/:userId", "/user/123") // { userId: "123" }
+ * matchRoutePattern("/user/:userId/posts", "/user/123/orders") // null (no match)
+ */
+export function matchRoutePattern(pattern: string, path: string): Record<string, string> | null {
+  // Remove leading and trailing slashes and split into segments
+  const patternParts = pattern.replace(/^\/+|\/+$/g, '').split('/');
+  const pathParts = path.replace(/^\/+|\/+$/g, '').split('/');
+  
+  // If the number of segments doesn't match, this isn't a match
+  if (patternParts.length !== pathParts.length) {
+    return null;
+  }
+
+  const params: Record<string, string> = {};
+  
+  // Check each segment
+  for (let i = 0; i < patternParts.length; i++) {
+    const patternPart = patternParts[i];
+    const pathPart = pathParts[i];
+    
+    if (patternPart.startsWith(':')) {
+      // This is a parameter - capture it
+      const paramName = patternPart.slice(1);
+      params[paramName] = pathPart;
+    } else if (patternPart !== pathPart) {
+      // Static segment doesn't match
+      return null;
+    }
+  }
+
+  return params;
+}
+

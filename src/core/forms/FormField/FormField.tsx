@@ -1,50 +1,16 @@
-import React, { ReactNode, useEffect } from 'react';
-import { Button, Card, Checkbox, DatePicker, Form, Input, Radio, Switch, TimePicker, Select as AntSelect, Typography } from 'antd';
-import { OptionSelector, IFieldOptions, IOptions } from './OptionSelector';
-import { useApi, useUi24Config } from '../../context';
+import React from 'react';
+import { Button, Card, Form, Input, DatePicker, TimePicker, Typography, Switch, InputNumber, Slider, Badge, Tag, Progress, Avatar, Rate } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
+import { OptionSelector, IOptions } from './OptionSelector';
+import { useUi24Config } from '../../context';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
-import { IModalConfig } from '../../../modal/Modal';
-
-import { FileUploader, GetSignedUploadUrlAPIConfig, CustomBlockNoteEditor } from '../../common/';
-import { FieldType, PropertyType, ValidationType } from '../../types/field-types';
+import { FileUploader, CustomBlockNoteEditor } from '../../common/';
 import { HelpText, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
-
-
-
-interface IFormField {
-    namePrefixPath?: any[];
-    id?: string;
-    column?: string;
-    name: string; //unique identifier, should be without spaces
-    validationRules?: Array<any>; //rules matching ant design convention
-    placeholder: string; //placeholder text
-    helpText?: string; //help text for the field
-    prefixIcon?: ReactNode; //prefix icon as a react component
-    fieldType?: FieldType; //field type
-    timezone?: string;
-    options?: IFieldOptions; //options for select, radio, checkbox
-    addNewOption?: IModalConfig; //add new option for select, multi-select
-    label: string;
-    style?: React.CSSProperties;
-    initialValue?: any;
-    setFormValue?: Function;
-    hidden?: boolean; //whether to hide this field from display
-
-    // for list and map fields
-    type?: PropertyType;
-    properties?: Array<IFormField>
-    items?: {
-        type: PropertyType,
-        properties?: Array<IFormField>
-    }
-}
+import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFieldOptions } from '../../types/field-config';
 
 const { TextArea } = Input;
 const { Text } = Typography;
-
-
 
 const MakeFormItem = ({
     fieldType = "text",
@@ -71,7 +37,6 @@ const MakeFormItem = ({
             rules={validationRules}
             label={label}
             style={style}
-            initialValue={initialValue}
             valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
         >
 
@@ -79,25 +44,106 @@ const MakeFormItem = ({
             {fieldType === "textarea" && <TextArea placeholder={placeholder} />}
             {fieldType === "password" && <Input.Password type={fieldType || "password"} prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "email" && <Input type={fieldType || "email"} prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "url" && <Input type="url" prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "phone" && <Input type="tel" prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "number" && <Input type="number" prefix={prefixIcon} placeholder={placeholder} />}
+            {fieldType === "currency" && <InputNumber 
+              prefix={restFormItemProps.currencySymbol || '$'} 
+              placeholder={placeholder}
+              style={{ width: '100%' }}
+              precision={restFormItemProps.precision || 2}
+            />}
+            {fieldType === "percentage" && <InputNumber 
+              min={restFormItemProps.min || 0}
+              max={restFormItemProps.max || 100}
+              formatter={(value) => `${value}%`}
+              parser={(value) => {
+                const parsed = value?.replace('%', '');
+                return parsed ? Number(parsed) : 0;
+              }}
+              placeholder={placeholder}
+              style={{ width: '100%' }}
+            />}
+            {fieldType === "slider" && <Slider 
+              min={restFormItemProps.min || 0}
+              max={restFormItemProps.max || 100}
+              step={restFormItemProps.step || 1}
+              marks={restFormItemProps.marks}
+              vertical={restFormItemProps.vertical}
+            />}
+            {fieldType === "duration" && <InputNumber 
+              placeholder="Duration in seconds"
+              style={{ width: '100%' }}
+              min={0}
+            />}
             {fieldType === "autocomplete" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
                 setFormValue && setFormValue({ name, value: newSelections })
             }} />}
 
             {fieldType === "checkbox" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
             {fieldType === "radio" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
-            {fieldType === "select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
+            {fieldType === "select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} addNewOptionConfig={restFormItemProps.addNewOptionConfig} onOptionChange={(newSelections) => {
                 setFormValue && setFormValue({ name, value: newSelections })
             }} />}
-            {fieldType === "multi-select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
+            {fieldType === "multi-select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} addNewOptionConfig={restFormItemProps.addNewOptionConfig} onOptionChange={(newSelections) => {
                 setFormValue && setFormValue({ name, value: newSelections })
             }} />}
 
-            {fieldType === 'color' && <CustomColorPicker />}
+            {fieldType === 'color' && <CustomColorPicker format="hex" showText />}
             {fieldType === 'range' && <Input type="range" placeholder={placeholder} />}
             {fieldType === 'hidden' && <Input type="hidden" />}
             {fieldType === 'custom' && <Input placeholder={placeholder} />}
-            {fieldType === 'rating' && <Input type="number" min={1} max={5} placeholder={placeholder} />}
+            {fieldType === 'rating' && <Rate allowHalf />}
+            
+            {/* New field types */}
+            {fieldType === 'badge' && <Input placeholder={placeholder} addonAfter={<Badge status={restFormItemProps.status || 'default'} />} />}
+            {fieldType === 'tag' && <Input placeholder={placeholder} />}
+            {fieldType === 'tags' && <OptionSelector 
+              value={initialValue} 
+              fieldType="multi-select" 
+              options={options}
+              onOptionChange={(newSelections) => {
+                setFormValue && setFormValue({ name, value: newSelections })
+              }}
+            />}
+            {fieldType === 'progress' && <InputNumber 
+              min={restFormItemProps.min || 0}
+              max={restFormItemProps.max || 100}
+              formatter={(value) => `${value}%`}
+              parser={(value) => {
+                const parsed = value?.replace('%', '');
+                return parsed ? Number(parsed) : 0;
+              }}
+              placeholder={placeholder}
+              style={{ width: '100%' }}
+            />}
+            {fieldType === 'avatar' && <FileUploader
+              accept="image/*"
+              listType="picture-card"
+              withImageCrop={true}
+              fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'avatar-'}
+              getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
+            />}
+            {fieldType === 'icon' && <OptionSelector 
+              value={initialValue} 
+              fieldType="select" 
+              options={options}
+              placeholder="Select icon"
+            />}
+            {fieldType === 'link' && <Input type="url" prefix={prefixIcon} placeholder={placeholder || "Enter URL"} />}
+            {fieldType === 'video' && <FileUploader
+              accept={restFormItemProps.accept ?? 'video/*'}
+              listType="picture-card"
+              fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'video-'}
+              getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
+            />}
+            {fieldType === 'audio' && <FileUploader
+              accept={restFormItemProps.accept ?? 'audio/*'}
+              listType="text"
+              fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'audio-'}
+              getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
+            />}
+            {fieldType === 'qrcode' && <Input placeholder={placeholder || "Enter value for QR code"} />}
 
             {fieldType === "date" && <DatePicker format={formatConfig.date} />}
             {fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
@@ -116,7 +162,7 @@ const MakeFormItem = ({
             {fieldType === "file" &&
                 <FileUploader
                     accept={restFormItemProps[ 'accept' ] ?? undefined}
-                    listType={restFormItemProps[ 'listType' ] ?? 'picture-card'}
+                    listType={(restFormItemProps[ 'listType' ] as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
                     // config for the default image uploader
                     fileNamePrefix={restFormItemProps[ 'fileNamePrefix' ] ?? undefined}
                     getSignedUploadUrlAPIConfig={restFormItemProps[ 'getSignedUploadUrlAPIConfig' ] ?? undefined}
@@ -126,7 +172,7 @@ const MakeFormItem = ({
             {fieldType === "image" &&
                 <FileUploader
                     accept={restFormItemProps[ 'accept' ] ?? 'image/*'}
-                    listType={restFormItemProps[ 'listType' ] ?? 'picture-card'}
+                    listType={(restFormItemProps[ 'listType' ] as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
                     withImageCrop={restFormItemProps[ 'withImageCrop' ] ?? true}
 
                     // config for the default image uploader
@@ -175,7 +221,6 @@ const MakeFormListItem = ({
         <Form.List
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
-            initialValue={initialValue}
         >
             {(fields, { add, remove }) => {
                 return <div style={formStyles.listContainer}>
@@ -279,34 +324,6 @@ export function FormField(formField: IFormField) {
     </div>
 }
 
-type IPreDefinedValidations = "required" | "email" | `match:${string}`;
-interface IFormFieldResponse {
-    column: string;
-    label: string;
-    placeholder: string;
-    helpText?: string;
-    validations: Array<IPreDefinedValidations>;
-    fieldType?: FieldType;
-    options?: Array<IOptions>;
-    addNewOption?: IModalConfig;
-    hidden?: boolean; //whether to hide this field from display
-
-    //for image and file
-    accept?: string;
-    fileNamePrefix?: string;
-    listType?: string;
-    getSignedUploadUrlAPIConfig?: GetSignedUploadUrlAPIConfig,
-    withImageCrop?: boolean;
-
-    // list and map fields
-    type?: PropertyType;
-    properties?: Array<IFormFieldResponse>
-    items?: {
-        type: PropertyType,
-        properties?: Array<IFormFieldResponse>
-    }
-}
-
 const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) => {
     return (validationRules ?? []).map(validationRule => {
         let antValidationRule = {}
@@ -332,14 +349,17 @@ const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) 
 export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormFieldResponse>): Array<IFormField> => {
     return columnsConfig.map(columnConfig => {
         return {
+            ...columnConfig, // Spread all base properties to include field type metadata (min, max, step, etc.)
             name: columnConfig.column, //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
             validationRules: convertValidationRules(columnConfig.validations),
             label: columnConfig.label,
             placeholder: columnConfig.placeholder ?? columnConfig.label,
             helpText: columnConfig.helpText,
             fieldType: columnConfig.fieldType ?? "text",
+            defaultValue: columnConfig.defaultValue, // Pass through default value from backend
             options: columnConfig.options ?? [],
             addNewOption: columnConfig?.addNewOption,
+            addNewOptionConfig: columnConfig?.addNewOptionConfig,
             hidden: columnConfig.hidden,
 
             // for image and files

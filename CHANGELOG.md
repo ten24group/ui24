@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.14](https://github.com/ten24group/ui24/compare/v1.0.5-beta.13...v1.0.5-beta.14) (2025-11-20)
+
+
+### Bug Fixes
+
+* color picker converting hex to rgb ([1dcfb41](https://github.com/ten24group/ui24/commit/1dcfb419d30e09ba6bfb0ea3fc4fc8dfd381130a))
+
+### [1.0.5-beta.13](https://github.com/ten24group/ui24/compare/v1.0.5-beta.12...v1.0.5-beta.13) (2025-11-20)
+
+
+### Bug Fixes
+
+* color picker converting hex to rgb ([ad5391b](https://github.com/ten24group/ui24/commit/ad5391b72fe8124dd138a5ebf7402d95c1839063))
+
+### [1.0.5-beta.12](https://github.com/ten24group/ui24/compare/v1.0.5-beta.11...v1.0.5-beta.12) (2025-11-20)
+
+### [1.0.5-beta.11](https://github.com/ten24group/ui24/compare/v1.0.5-beta.10...v1.0.5-beta.11) (2025-11-11)
+
+### [1.0.5-beta.10](https://github.com/ten24group/ui24/compare/v1.0.5-beta.9...v1.0.5-beta.10) (2025-11-07)
+
+### [1.0.5-beta.9](https://github.com/ten24group/ui24/compare/v1.0.5-beta.8...v1.0.5-beta.9) (2025-11-06)
+
+### [1.0.5-beta.8](https://github.com/ten24group/ui24/compare/v1.0.5-beta.7...v1.0.5-beta.8) (2025-11-06)
+
+### [1.0.5-beta.7](https://github.com/ten24group/ui24/compare/v1.0.5-beta.6...v1.0.5-beta.7) (2025-11-06)
+
+### [1.0.5-beta.6](https://github.com/ten24group/ui24/compare/v1.0.5-beta.5...v1.0.5-beta.6) (2025-11-06)
+
+### [1.0.5-beta.5](https://github.com/ten24group/ui24/compare/v1.0.5-beta.4...v1.0.5-beta.5) (2025-11-05)
+
+### [1.0.5-beta.4](https://github.com/ten24group/ui24/compare/v1.0.5-beta.3...v1.0.5-beta.4) (2025-11-05)
+
+### [1.0.5-beta.3](https://github.com/ten24group/ui24/compare/v1.0.5-beta.2...v1.0.5-beta.3) (2025-11-05)
+
+
+### Bug Fixes
+
+* cancel-button functionality in forms icon style in dropdowns, and react warnings ([2ae73fc](https://github.com/ten24group/ui24/commit/2ae73fc3d30e6eac5cec16812ef0872ea297fad1))
+
+### [1.0.5-beta.2](https://github.com/ten24group/ui24/compare/v1.0.5-beta.1...v1.0.5-beta.2) (2025-11-04)
+
+### [1.0.5-beta.1](https://github.com/ten24group/ui24/compare/v1.0.5-beta.0...v1.0.5-beta.1) (2025-11-04)
+
+
+### Bug Fixes
+
+* default sorting for tables ([a35198b](https://github.com/ten24group/ui24/commit/a35198ba8d87b38297f2189c1ca1795c35c65990))
+
+### [1.0.5-beta.0](https://github.com/ten24group/ui24/compare/v1.0.2-beta.3...v1.0.5-beta.0) (2025-10-27)
+
+
+### Bug Fixes
+
+* DetailWidget type issue and consolidated renderSingleAction ([998d728](https://github.com/ten24group/ui24/commit/998d7283a7fc63dfaa2d669813c980817341a7be))
+* dropdown actions not handling modals ([f7fb57a](https://github.com/ten24group/ui24/commit/f7fb57a49eb6d7c5f28725adbdf35fddd78e514c))
+* title for modals ([31e0617](https://github.com/ten24group/ui24/commit/31e06173fa1d97e71ef8ecb2f5020a30b91e3931))
+
+### [1.0.3](https://github.com/ten24group/ui24/compare/v1.0.2...v1.0.3) (2025-07-28)
+
+### [1.0.2](https://github.com/ten24group/ui24/compare/v1.0.1...v1.0.2) (2025-06-12)
+
 ### [1.0.2-beta.3](https://github.com/ten24group/ui24/compare/v1.0.2-beta.2...v1.0.2-beta.3) (2025-08-14)
 
 ### [1.0.2-beta.2](https://github.com/ten24group/ui24/compare/v1.0.2-beta.1...v1.0.2-beta.2) (2025-08-14)
@@ -14,6 +75,9 @@ All notable changes to this project will be documented in this file. See [standa
 ### Features
 
 * smart column layout on forms and details page ([6238639](https://github.com/ten24group/ui24/commit/6238639d7204ee7e0d4f275afb988df94ba6e323))
+### [1.0.3](https://github.com/ten24group/ui24/compare/v1.0.2...v1.0.3) (2025-07-28)
+
+### [1.0.2](https://github.com/ten24group/ui24/compare/v1.0.1...v1.0.2) (2025-06-12)
 
 
 ### Bug Fixes
@@ -32,6 +96,7 @@ All notable changes to this project will be documented in this file. See [standa
 * form not handling simple list items properly ([210e673](https://github.com/ten24group/ui24/commit/210e673c305f00446559c209f69088bea7d620e7))
 * pagination and column selection for dynamo-db based api ([0031612](https://github.com/ten24group/ui24/commit/003161260280dddafa2eee61007888b6708b2eef))
 * route placeholders ([14cfb73](https://github.com/ten24group/ui24/commit/14cfb73a72affbef4cb4896060d02dd504cc96ba))
+* errors not coming-up in the UI on some pages ([1713a3a](https://github.com/ten24group/ui24/commit/1713a3a64bd7be51f40f80719743260363ae6aec))
 
 ### [1.0.1](https://github.com/ten24group/ui24/compare/v1.0.0...v1.0.1) (2025-05-19)
 

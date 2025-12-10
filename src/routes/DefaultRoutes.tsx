@@ -5,6 +5,7 @@ import { IRoutes } from './types';
 import { useAuth } from '../core/context';
 import { useNavigate } from 'react-router-dom';
 import { SetNewPasswordPage } from '../pages/Auth/SetNewPassword';
+import { useCoreNavigator } from './Navigation';
 
 /**
  * AppNavigator component to redirect the base / route based on auth status.
@@ -14,7 +15,7 @@ import { SetNewPasswordPage } from '../pages/Auth/SetNewPassword';
  */
 export const AppNavigator = () => {
   const { isLoggedIn } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
   // this is used to prevent multiple navigation due to react strict mode rendering components multiple times
   const hasNavigatedRef = useRef(false);
 

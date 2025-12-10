@@ -1,11 +1,13 @@
 import React from 'react';
-import { Button, Checkbox, Space, Tooltip, Divider } from 'antd';
+import { Button, Checkbox, Space, Tooltip, Divider, Switch, Typography } from 'antd';
 import type { CheckboxChangeEvent } from 'antd/es/checkbox';
-import { HolderOutlined, VerticalAlignTopOutlined, VerticalAlignBottomOutlined, VerticalLeftOutlined, VerticalRightOutlined } from '@ant-design/icons';
+import { HolderOutlined, VerticalAlignTopOutlined, VerticalAlignBottomOutlined, VerticalLeftOutlined, VerticalRightOutlined, ThunderboltOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import './ColumnSettings.css';
+
+const { Text } = Typography;
 
 interface ColumnSetting {
   key: string;
@@ -19,6 +21,8 @@ interface ColumnSettingsProps {
   columns: ColumnSetting[];
   onColumnChange: (columns: ColumnSetting[]) => void;
   onReset: () => void;
+  fetchStrategy?: 'eager' | 'lazy';
+  onFetchStrategyChange?: (strategy: 'eager' | 'lazy') => void;
 }
 
 interface SortableItemProps {
@@ -69,7 +73,7 @@ const SortableItem: React.FC<SortableItemProps> = ({ id, col, handleVisibilityCh
   );
 };
 
-export const ColumnSettings: React.FC<ColumnSettingsProps> = ({ columns, onColumnChange, onReset }) => {
+export const ColumnSettings: React.FC<ColumnSettingsProps> = ({ columns, onColumnChange, onReset, fetchStrategy = 'eager', onFetchStrategyChange }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -145,6 +149,41 @@ export const ColumnSettings: React.FC<ColumnSettingsProps> = ({ columns, onColum
           </div>
         </SortableContext>
       </DndContext>
+      {onFetchStrategyChange && (
+        <>
+          <Divider style={{ margin: '12px 0' }} />
+          <div className="column-settings-fetch-strategy">
+            <Space align="center" style={{ width: '100%', justifyContent: 'space-between' }}>
+              <Space>
+                {fetchStrategy === 'eager' ? <ThunderboltOutlined /> : <ClockCircleOutlined />}
+                <Text strong style={{ fontSize: '12px' }}>
+                  {fetchStrategy === 'eager' ? 'Eager Fetching' : 'Lazy Fetching'}
+                </Text>
+              </Space>
+              <Tooltip 
+                title={fetchStrategy === 'eager' 
+                  ? 'Fetches all columns upfront. Toggle for lazy fetching (fetch only visible).' 
+                  : 'Fetches only visible columns. Toggle for eager fetching (fetch all).'
+                }
+              >
+                <Switch
+                  size="small"
+                  checked={fetchStrategy === 'eager'}
+                  onChange={(checked) => onFetchStrategyChange(checked ? 'eager' : 'lazy')}
+                  checkedChildren="All"
+                  unCheckedChildren="Visible"
+                />
+              </Tooltip>
+            </Space>
+            <Text type="secondary" style={{ fontSize: '11px', display: 'block', marginTop: '4px' }}>
+              {fetchStrategy === 'eager' 
+                ? 'Fetching all columns for instant toggling' 
+                : 'Fetching only visible columns (refetch on show)'
+              }
+            </Text>
+          </div>
+        </>
+      )}
     </div>
   );
 }; 

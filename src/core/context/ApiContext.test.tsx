@@ -109,4 +109,88 @@ describe('ApiContext interceptors', () => {
     await expect(callApiMethod({ apiUrl: '/fail', apiMethod: 'GET' })).rejects.toBeDefined();
     expect(refreshAuth).not.toHaveBeenCalled();
   });
+});
+
+describe('ApiContext error handling', () => {
+  let mock: MockAdapter;
+
+  beforeEach(() => {
+    authenticateRequest.mockClear();
+    processResponse.mockClear();
+    shouldRefreshAuth.mockClear();
+    refreshAuth.mockClear();
+    logout.mockClear();
+    mock = new MockAdapter(mockInstance);
+  });
+
+  afterEach(() => {
+    mock.reset();
+  });
+
+  it('preserves details.message over generic message for server errors', async () => {
+    mock.onGet('/specific-error').reply(500, {
+      message: 'Internal Server Error',
+      details: {
+        message: 'Database connection failed - specific error'
+      }
+    });
+
+    await act(async () => {
+      render(
+        <Ui24ConfigProvider initConfig={dummyUi24Config as any}>
+          <ApiProvider><TestComp /></ApiProvider>
+        </Ui24ConfigProvider>
+      );
+    });
+
+    try {
+      await callApiMethod({ apiUrl: '/specific-error', apiMethod: 'GET' });
+      fail('Should have thrown an error');
+    } catch (error: any) {
+      // Should get the specific message from details, not the generic one
+      expect(error.message).toBe('Database connection failed - specific error');
+    }
+  });
+
+  it('extracts error message from response.data.error field', async () => {
+    mock.onGet('/error-field').reply(404, { error: 'Resource not found' });
+
+    await act(async () => {
+      render(
+        <Ui24ConfigProvider initConfig={dummyUi24Config as any}>
+          <ApiProvider><TestComp /></ApiProvider>
+        </Ui24ConfigProvider>
+      );
+    });
+
+    try {
+      await callApiMethod({ apiUrl: '/error-field', apiMethod: 'GET' });
+      fail('Should have thrown');
+    } catch (error: any) {
+      expect(error.message).toBe('Resource not found');
+    }
+  });
+
+  it('network errors have proper structure with status 503', async () => {
+    mock.onGet('/network-error').networkError();
+
+    await act(async () => {
+      render(
+        <Ui24ConfigProvider initConfig={dummyUi24Config as any}>
+          <ApiProvider><TestComp /></ApiProvider>
+        </Ui24ConfigProvider>
+      );
+    });
+
+    try {
+      await callApiMethod({ apiUrl: '/network-error', apiMethod: 'GET' });
+      fail('Should have thrown');
+    } catch (error: any) {
+      // Network errors get normalized to 503
+      expect(error.response).toBeDefined();
+      expect(error.response.status).toBe(503);
+      // Message should not be generic "Service Unavailable"
+      expect(error.message).not.toBe('Service Unavailable');
+    }
+  });
 }); 

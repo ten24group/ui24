@@ -9,6 +9,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { useAuth } from '../../core/context/AuthContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { useUi24Config } from '../../core/context';
+import { handleApiError } from '../../core/utils/api-error-handler';
 
 export const LoginPage = () => {
   return (<LoginForm />);
@@ -63,11 +64,15 @@ const LoginForm = () => {
         notifySuccess("Login Successful!");
         // After login, navigate to root so AppNavigator can handle redirect
         navigate('/');
-      } else if (response?.error) {
-        notifyError(response?.error)
+      } else if (response.status >= 400) {
+        // Handle error response using consolidated error handler
+        const errorResult = handleApiError(response, 'Login failed');
+        notifyError(errorResult.formattedErrors.join('\n'));
       }
     } catch (error: any) {
-      notifyError(error?.message || 'An error occurred during login');
+      // Handle network errors or other exceptions
+      const errorResult = handleApiError(error, 'An error occurred during login');
+      notifyError(errorResult.formattedErrors.join('\n'));
     } finally {
       setLoader(false)
     }
@@ -95,12 +100,13 @@ const LoginForm = () => {
       });
       if (response.status === 200 && (response.data as any)?.[ provider ]?.authorizationUrl) {
         window.location.href = (response.data as any)[ provider ].authorizationUrl;
-      } else {
-        notifyError(`${provider} sign-in is not available.`);
+      } else if (response.status >= 400) {
+        const errorResult = handleApiError(response, `${provider} sign-in is not available`);
+        notifyError(errorResult.errorMessage);
       }
-    } catch (e) {
-      console.error(e);
-      notifyError(`Failed to initiate ${provider} sign-in.`);
+    } catch (error: any) {
+      const errorResult = handleApiError(error, `Failed to initiate ${provider} sign-in`);
+      notifyError(errorResult.errorMessage);
     } finally {
       setLoader(false);
     }

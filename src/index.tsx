@@ -1,4 +1,5 @@
 import 'antd-css-utilities/utility.min.css';
+// import '@ant-design/v5-patch-for-react-19';
 import "./global.css";
 
 export { UI24 } from "./UI24";

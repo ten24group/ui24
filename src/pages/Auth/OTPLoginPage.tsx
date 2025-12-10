@@ -7,6 +7,7 @@ import { useAppContext } from '../../core/context/AppContext';
 import { AuthForm } from '../../forms/Layout/AuthForm';
 import { Link } from '../../core/common';
 import { useUi24Config } from '../../core/context';
+import { handleApiError } from '../../core/utils/api-error-handler';
 
 export const OTPLoginPage = () => {
   return <OTPLoginForm />;
@@ -51,15 +52,17 @@ const OTPLoginForm = () => {
         });
         if (otpResp.status === 200 && otpResp.data?.session) {
           navigate('/otp-login/verify', { state: { email: payload.email, session: otpResp.data.session } });
-        } else {
-          notifyError(otpResp?.error || 'Failed to initiate OTP authentication.');
+        } else if (otpResp.status >= 400) {
+          const errorResult = handleApiError(otpResp, 'Failed to initiate OTP authentication');
+          notifyError(errorResult.errorMessage);
         }
-      } else {
-        notifyError(response?.error || 'Unable to initiate OTP login.');
+      } else if (response.status >= 400) {
+        const errorResult = handleApiError(response, 'Unable to initiate OTP login');
+        notifyError(errorResult.errorMessage);
       }
     } catch (error: any) {
-      console.error('otpResp error', error);
-      notifyError(error?.message || 'An error occurred during OTP login');
+      const errorResult = handleApiError(error, 'An error occurred during OTP login');
+      notifyError(errorResult.errorMessage);
     } finally {
       setLoader(false);
     }

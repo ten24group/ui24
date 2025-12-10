@@ -4,10 +4,13 @@ import { useApi } from '../../core/context';
 import { useAppContext } from '../../core/context/AppContext';
 import { useUi24Config } from '../../core/context';
 import { useAuth } from '../../core/context/AuthContext';
+import { handleApiError } from '../../core/utils/api-error-handler';
+import { useCoreNavigator } from '../../routes/Navigation';
 
 export const AuthCallbackPage = () => {
   const location = useLocation();
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
+
   const { callApiMethod } = useApi();
   const { notifyError, notifySuccess } = useAppContext();
   const { selectConfig } = useUi24Config();
@@ -60,13 +63,16 @@ export const AuthCallbackPage = () => {
           processToken(response);
           notifySuccess('Login successful!');
           navigate('/');
-        } else {
-          notifyError(data?.message || 'Social login failed');
+        } else if (response.status >= 400) {
+          // Handle error response using consolidated error handler
+          const errorResult = handleApiError(response, 'Social login failed');
+          notifyError(errorResult.errorMessage);
           navigate('/login');
         }
       }).catch((error: any) => {
-        console.log('error', error);
-        notifyError(error.message || 'Social login failed');
+        // Handle network errors or other exceptions
+        const errorResult = handleApiError(error, 'Social login failed');
+        notifyError(errorResult.errorMessage);
         navigate('/login');
       });
     } else {

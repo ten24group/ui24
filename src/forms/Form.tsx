@@ -1,5 +1,112 @@
-import { Form as AntForm, Spin } from 'antd';
-import React, { useState, useEffect } from 'react';
+/**
+ * @fileoverview Form Component for FW24 Framework
+ * 
+ * This is the main form component that provides comprehensive form functionality
+ * for creating and editing records. It supports multi-column layouts, field validation,
+ * nested objects/arrays, API integration, and automatic data loading for edit mode.
+ * 
+ * ## Key Features
+ * 
+ * - **Create & Edit Modes**: Automatically detects mode based on presence of record data
+ * - **Multi-Column Layouts**: Flexible column layouts (1-3 columns) with automatic responsive behavior
+ * - **Field Validation**: Client-side and server-side validation with inline error display
+ * - **Nested Data**: Support for nested objects (maps) and arrays (lists)
+ * - **Data Type Handling**: Automatic conversion of dates, numbers, booleans, JSON, etc.
+ * - **API Integration**: Automatic data loading (edit mode) and submission (create/update)
+ * - **Error Handling**: Comprehensive error handling with field-level and form-level errors
+ * - **Success Redirects**: Configurable redirects after successful submission
+ * - **State Lifting**: Lifts form state to parent for visibility conditions and context
+ * 
+ * ## Architecture
+ * 
+ * The Form component follows a layered architecture:
+ * 1. **Form.tsx** (this file): Form orchestration, data loading, submission
+ * 2. **FormField.tsx**: Individual field rendering with validation
+ * 3. **Field Components**: Specialized components for each field type (text, select, date, etc.)
+ * 4. **API Integration**: Uses `useApi` hook for data fetching and submission
+ * 
+ * ## Data Flow
+ * 
+ * ### Create Mode
+ * 1. Load schema defaults from `propertiesConfig`
+ * 2. Merge with `defaultValues` prop (from modal navigation, etc.)
+ * 3. Render form with initial values
+ * 4. On submit, POST data to API
+ * 5. Redirect or callback on success
+ * 
+ * ### Edit Mode
+ * 1. Fetch existing record from `detailApiConfig`
+ * 2. Format record data for form display (dates, booleans, JSON, etc.)
+ * 3. Set as `initialValue` for each field
+ * 4. Render form with initial values
+ * 5. On submit, PUT/PATCH data to API
+ * 6. Redirect or callback on success
+ * 
+ * ## Field Type Handling
+ * 
+ * The form automatically handles data conversion for various field types:
+ * - **Dates**: Converts to/from ISO strings and dayjs objects
+ * - **Numbers**: Converts string inputs to numbers
+ * - **Booleans**: Converts to boolean type
+ * - **JSON**: Parses JSON strings for submission, stringifies for display
+ * - **Maps**: Recursively processes nested objects
+ * - **Lists**: Handles array fields with dynamic add/remove
+ * 
+ * ## Error Handling
+ * 
+ * The form handles errors at multiple levels:
+ * - **Field-level errors**: Displayed inline under each field
+ * - **Form-level errors**: Displayed as toast notifications
+ * - **Network errors**: Displayed with user-friendly messages
+ * - **Validation errors**: Parsed from API response and mapped to fields
+ * 
+ * ## Usage
+ * 
+ * @example
+ * ```tsx
+ * // Create form
+ * <Form
+ *   propertiesConfig={[
+ *     { name: 'teamName', label: 'Name', fieldType: 'text', required: true },
+ *     { name: 'city', label: 'City', fieldType: 'text', required: true }
+ *   ]}
+ *   apiConfig={{
+ *     apiMethod: 'POST',
+ *     apiUrl: '/api/team',
+ *     responseKey: 'data'
+ *   }}
+ *   formButtons={[
+ *     { text: 'Save', action: 'submit' },
+ *     { text: 'Cancel', action: 'cancel', url: '/list-team' }
+ *   ]}
+ *   submitSuccessRedirect="/list-team"
+ * />
+ * 
+ * // Edit form
+ * <Form
+ *   propertiesConfig={[...]}
+ *   detailApiConfig={{
+ *     apiMethod: 'GET',
+ *     apiUrl: '/api/team/:teamId',
+ *     responseKey: 'data'
+ *   }}
+ *   apiConfig={{
+ *     apiMethod: 'PUT',
+ *     apiUrl: '/api/team/:teamId',
+ *     responseKey: 'data'
+ *   }}
+ *   identifiers="123"
+ *   formButtons={[...]}
+ *   submitSuccessRedirect="/list-team"
+ * />
+ * ```
+ * 
+ * @see {@link FormField} for individual field rendering
+ * @see {@link useApi} for API integration
+ */
+
+import { Form as AntForm, Spin, Skeleton, Alert } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { dayjsCustom } from '../core/dayjs';
@@ -13,33 +120,54 @@ import { useApi } from '../core/context';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
-import { substituteUrlParams } from '../core/utils';
+import { substituteUrlParams, getNestedValue } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { formStyles } from '../core/forms/FormField/styles';
-import { determineColumnLayout, splitIntoColumns } from '../core/forms/shared/utils';
+import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
+import { ErrorBoundary } from 'react-error-boundary';
+import { ErrorFallback } from '../core/common';
+import { handleApiError } from '../core/utils/api-error-handler';
+import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
+import { useCoreNavigator } from '../routes/Navigation';
 
-// Add types for columnsConfig
-interface IColumnLayoutConfig {
-  sortOrder: number;
-  fields: string[];
-}
-interface IColumnsConfig {
-  numColumns?: number;
-  columns: IColumnLayoutConfig[];
-}
-
-// Extend IForm to accept columnsConfig
+/**
+ * Extended form configuration with column layout support and state lifting.
+ */
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
   routeParams?: Record<string, string>;
+  entityName?: string;  // From backend config generation
+  onDataChange?: (data: { record?: any; formValues?: Record<string, any>; pageType?: string; entityName?: string }) => void;
 }
 
+/**
+ * Main Form component for creating and editing records.
+ * 
+ * Provides a complete form solution with data loading, validation, submission,
+ * error handling, and multi-column layouts. Supports both create and edit modes.
+ * 
+ * @param props - Form configuration props
+ * @param props.propertiesConfig - Field configurations from backend
+ * @param props.apiConfig - API configuration for form submission
+ * @param props.detailApiConfig - API configuration for loading existing data (edit mode)
+ * @param props.formButtons - Form action buttons (submit, cancel, etc.)
+ * @param props.columnsConfig - Multi-column layout configuration
+ * @param props.submitSuccessRedirect - URL to redirect to after successful submission
+ * @param props.identifiers - Record identifier for edit mode
+ * @param props.routeParams - Route parameters for URL substitution
+ * @param props.defaultValues - Default values for form fields (from modal navigation, etc.)
+ * @param props.entityName - Entity name for context
+ * @param props.onDataChange - Callback to lift form state to parent
+ * 
+ * @returns Rendered form component
+ */
 export function Form({
-  formConfig = { name: "customForm-" + uuidv4() },
+  formConfig,
   propertiesConfig = [],
   onSubmit,
   onSubmitSuccessCallback,
+  onCancelCallback,
   formButtons = [],
   children,
   apiConfig,
@@ -51,9 +179,20 @@ export function Form({
   useDynamicIdFromParams = true,
   columnsConfig,
   routeParams = {},
+  defaultValues = {},
+  entityName,  // From backend config
+  onDataChange,  // Callback to lift state to wrapper
+  helpText,  // Help text to display above form fields
 }: IFormWithColumnsConfig) {
-  const navigate = useNavigate();
+  const navigate = useCoreNavigator();
+
   const { notifyError, notifySuccess } = useAppContext()
+  
+  // Generate STABLE formConfig name - CRITICAL: Must not change across re-renders!
+  // Otherwise React will destroy and recreate the form, losing all field errors
+  const stableFormConfig = React.useMemo(() => {
+    return formConfig || { name: "customForm-" + uuidv4() };
+  }, [formConfig]);
 
   // TODO: remove the dynamic-id option from here and use the identifiers prop instead
   const { dynamicID = "" } = useParams()
@@ -63,7 +202,15 @@ export function Form({
   const { callApiMethod } = useApi();
   const [ loader, setLoader ] = useState<boolean>(false)
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
+  const [ isRefreshing, setIsRefreshing ] = useState<boolean>(false)  // Separate loading state for refresh
   const [ identifiersToUse, setIdentifiersToUse ] = useState<string | number | undefined>(useDynamicIdFromParams ? dynamicID : identifiers);
+  
+  // Track initial record (for edit mode)
+  const [initialRecord, setInitialRecord] = useState<any>(null);
+  
+  // Track previous values to detect actual changes (not just re-renders)
+  const prevFormPropertiesConfigRef = React.useRef<IFormField[] | null>(null);
+  const prevDefaultValuesRef = React.useRef<Record<string, any> | null>(null);
 
   useEffect(() => {
     setLoader(disabled)
@@ -81,74 +228,65 @@ export function Form({
     }
   }, [ identifiers, dynamicID ])
 
-  useEffect(() => {
-
-    const loadAndFormatData = async () => {
-      setLoader(true)
-
-      // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
-      const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
-      const recordData = shouldFetchRecord ? await fetchRecordInfo() : {};
-      
-      const itemValueFormatter = (item: IFormField, itemValue: any) => {
-
-        if (!itemValue) {
-          return itemValue;
-        }
-
-        const { name, fieldType, type } = item;
-
-        if (type === "map") {
-          itemValue = item.properties.reduce((acc, prop: IFormField) => {
-            acc[ prop.name ] = itemValueFormatter(prop, itemValue[ prop.name ]);
-            return acc;
-          }, {});
-        }
-
-        if (type === "list") {
-          itemValue = itemValue || [];
-          itemValue = itemValue.map(it => itemValueFormatter(item.items as any, it));
-        }
-
-        if (fieldType === "datetime" || fieldType === "date" || fieldType === "time") {
-          // if the value starts with 0, then it is a timestamp and we need to convert it to a date
-          if (itemValue.toString().startsWith('0')) {
-            itemValue = dayjsCustom.tz(
-              new Date(parseInt(itemValue)).toISOString(),
-              item.timezone
-            );
-          } else {
-            itemValue = dayjsCustom.tz(
-              itemValue,
-              item.timezone
-            );
-          }
-        } else if ([ 'boolean', 'toggle', 'switch' ].includes(fieldType)) {
-          itemValue = itemValue;
-        } else if (fieldType === "color") {
-          itemValue = itemValue ?? "#FFA500";
-        } else if (fieldType === "json") {
-          itemValue = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
-        }
-
-        return itemValue;
-      }
-
-      if (recordData) {
-
-        const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-          const itemValue = itemValueFormatter(item, recordData[ item.column || item.name || item.id ])
-          return { ...item, initialValue: itemValue }
-        });
-
-        setFormPropertiesConfig(updatedFieldsWithInitialValues);
-      }
-
-      setLoader(false)
-      setDataLoadedFromView(true);
+  // Helper: Format item values for form display
+  const itemValueFormatter = React.useCallback((item: IFormField, itemValue: any) => {
+    if (!itemValue) {
+      return itemValue;
     }
 
-    const fetchRecordInfo = async () => {
+    const { name, fieldType, type } = item;
+
+    if (type === "map") {
+      itemValue = item.properties.reduce((acc, prop: IFormField) => {
+        acc[ prop.name ] = itemValueFormatter(prop, itemValue[ prop.name ]);
+        return acc;
+      }, {});
+    }
+
+    if (type === "list") {
+      itemValue = itemValue || [];
+      itemValue = itemValue.map(it => itemValueFormatter(item.items as any, it));
+    }
+
+    if (fieldType === "datetime" || fieldType === "date" || fieldType === "time") {
+      // if the value starts with 0, then it is a timestamp and we need to convert it to a date
+      if (itemValue.toString().startsWith('0')) {
+        itemValue = dayjsCustom.tz(
+          new Date(parseInt(itemValue)).toISOString(),
+          item.timezone
+        );
+      } else {
+        itemValue = dayjsCustom.tz(
+          itemValue,
+          item.timezone
+        );
+      }
+    } else if ([ 'boolean', 'toggle', 'switch' ].includes(fieldType)) {
+      itemValue = itemValue;
+    } else if (fieldType === "color") {
+      itemValue = itemValue ?? "#FFA500";
+    } else if (fieldType === "json") {
+      itemValue = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
+    }
+
+    return itemValue;
+  }, []);
+
+  // Store updated field values for form refresh
+  const updatedFieldValuesRef = React.useRef<Record<string, any> | null>(null);
+  
+  // Standard data fetch function (can be called on mount or on-demand)
+  const loadAndFormatData = React.useCallback(async (showLoader = true) => {
+    if (showLoader) {
+      setIsRefreshing(true);
+      setLoader(true);
+    }
+
+    // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
+    const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
+    
+    let recordData = {};
+    if (shouldFetchRecord) {
       try {
         let apiUrl = detailApiConfig.apiUrl;
         
@@ -159,16 +297,51 @@ export function Form({
 
         if (response.status === 200) {
           const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
-          return detailResponse;
+          
+          // Store initial record for state lifting
+          setInitialRecord(detailResponse);
+          recordData = detailResponse;
         } else {
-          notifyError(response.message || response.error || 'An unexpected error occurred');
+          // Handle error response using consolidated error handler
+          const errorResult = handleApiError(response, 'Failed to load record');
+          notifyError(errorResult.formattedErrors.join('\n'));
         }
       } catch (error: any) {
-        notifyError(error?.message || 'An unexpected error occurred');
+        // Handle network errors or other exceptions using consolidated error handler
+        const errorResult = handleApiError(error, 'Failed to load record');
+        notifyError(errorResult.formattedErrors.join('\n'));
+      }
+    }
+    
+    if (recordData && Object.keys(recordData).length > 0) {
+      const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
+        const fieldPath = item.column || item.name || item.id;
+        // Use getNestedValue to handle dot-notation paths (e.g., 'leaguesConfig.enabled')
+        const itemValue = itemValueFormatter(item, getNestedValue(recordData, fieldPath))
+        return { ...item, initialValue: itemValue }
+      });
+
+      setFormPropertiesConfig(updatedFieldsWithInitialValues);
+      
+      // Store values for form update (applied after form is available)
+      // Use showLoader param, not isRefreshing state (which is stale in async context)
+      if (showLoader) {
+        const refreshedValues = updatedFieldsWithInitialValues.reduce((acc, item) => {
+          acc[ item.name ] = item.initialValue;
+          return acc;
+        }, {});
+        updatedFieldValuesRef.current = refreshedValues;
       }
     }
 
-    loadAndFormatData();
+    setLoader(false);
+    setIsRefreshing(false);
+    setDataLoadedFromView(true);
+  }, [detailApiConfig, identifiersToUse, routeParams, callApiMethod, notifyError, formPropertiesConfig, itemValueFormatter]);
+  
+  // Initial load
+  useEffect(() => {
+    loadAndFormatData(false);  // Don't show refresh loader on initial load
   }, [])
 
   const onFinish = async (values: any) => {
@@ -271,15 +444,73 @@ export function Form({
             navigate(formattedSubmitSuccessRedirect)
           }
           onSubmitSuccessCallback && onSubmitSuccessCallback(response)
-        } else if (response.status >= 400 || response.status <= 500) {
-          const errorMessage = response.message || response.error.message || response.error;
-          notifyError(errorMessage)
+        } else if (response.status >= 400 && response.status < 600) {
+          
+          // Handle error response using consolidated error handler
+          const errorResult = handleApiError(response, 'An error occurred');
+                    
+          if (errorResult.isValidationError && errorResult.validationErrors) {
+            // Set field-level errors in the form
+            if (errorResult.validationErrors.fieldErrors.length > 0) {
+              form.setFields(errorResult.validationErrors.fieldErrors);              
+            }
+            
+            // Show form-level errors as toast
+            if (errorResult.validationErrors.formErrors.length > 0) {
+              notifyError(errorResult.validationErrors.formErrors.join('; '));
+            } else if (errorResult.validationErrors.fieldErrors.length > 0) {
+              // Show specific field errors in toast as well (field errors also shown inline)
+              const fieldErrorMessages = errorResult.validationErrors.fieldErrors.map(fe => {
+                const fieldName = Array.isArray(fe.name) ? fe.name.join('.') : fe.name;
+                return `${fieldName}: ${fe.errors[0]}`;
+              });
+              notifyError(fieldErrorMessages.join('\n'));
+            } else {
+              // Fallback to generic error message
+              notifyError(errorResult.errorMessage);
+            }
+          } else {
+            // Not a validation error, just show the error message
+            notifyError(errorResult.errorMessage);
+          }
         }
       } catch (error: any) {
-        notifyError(error?.message || 'An unexpected error occurred');
+        
+        // Handle network errors or other exceptions using consolidated error handler
+        const errorResult = handleApiError(error, 'An unexpected error occurred');
+                
+        if (errorResult.isValidationError && errorResult.validationErrors) {
+          // Set field-level errors
+          if (errorResult.validationErrors.fieldErrors.length > 0) {
+            form.setFields(errorResult.validationErrors.fieldErrors);
+          }
+          
+          // Show form-level errors
+          if (errorResult.validationErrors.formErrors.length > 0) {
+            notifyError(errorResult.validationErrors.formErrors.join('; '));
+          } else if (errorResult.validationErrors.fieldErrors.length > 0) {
+            // Show specific field errors in toast as well (field errors also shown inline)
+            const fieldErrorMessages = errorResult.validationErrors.fieldErrors.map(fe => {
+              const fieldName = Array.isArray(fe.name) ? fe.name.join('.') : fe.name;
+              return `${fieldName}: ${fe.errors[0]}`;
+            });
+            notifyError(fieldErrorMessages.join('\n'));
+          } else {
+            notifyError(errorResult.errorMessage);
+          }
+        } else {
+          // Non-validation error (network error, 404, 500, etc.)
+          notifyError(errorResult.errorMessage);
+        }
       } finally {
         setBtnLoader(false)
         setLoader(false)
+      }
+    } else {
+      // NO API CALL (navigation-only or custom submission)
+      // Call onSubmitSuccessCallback directly (for navigation-only modals)
+      if (onSubmitSuccessCallback) {
+        onSubmitSuccessCallback(values);
       }
     }
 
@@ -288,7 +519,38 @@ export function Form({
   }
 
   const [ form ] = AntForm.useForm();
-
+  
+  // Apply refreshed values to form (when refresh completes)
+  useEffect(() => {
+    if (updatedFieldValuesRef.current) {
+      form.setFieldsValue(updatedFieldValuesRef.current);
+      updatedFieldValuesRef.current = null; // Clear after applying
+    }
+  }, [form, isRefreshing]);
+  
+  // Watch form values
+  const formValues = AntForm.useWatch([], form) || form.getFieldsValue(true);
+  
+  // NEW: Determine pageType from initialRecord
+  const pageType = useMemo(() => {
+    return initialRecord ? 'edit' : 'create';
+  }, [initialRecord]);
+  
+  // NEW: Debounce formValues LOCALLY to avoid effect running on every keystroke
+  const debouncedFormValues = useDebounce(formValues, 200);
+  
+  // Lift form state to wrapper (if callback provided)
+  useEffect(() => {
+    if (!onDataChange) return;
+    
+    onDataChange({
+      record: initialRecord,
+      formValues: debouncedFormValues || {},
+      pageType,
+      entityName
+    });
+  }, [initialRecord, debouncedFormValues, pageType, entityName, onDataChange]);
+  
   // Determine columns to render
   let columns: IFormField[][] = [];
   const items = formPropertiesConfig.filter(item => !item.hidden);
@@ -306,7 +568,7 @@ export function Form({
       properties: columnProps,
     }]);
   } else {
-    columns = determineColumnLayout(items, columnsConfig, 2);
+    columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 2);
   }
 
   const renderFormField = (item: IFormField, index: number) => (
@@ -328,46 +590,133 @@ export function Form({
     </React.Fragment>
   );
 
+  // Set initial form values - run when data loads OR when props actually change
+  // CRITICAL: Must detect actual changes vs re-renders to preserve user input after validation errors
   useEffect(() => {
-    if (dataLoadedFromView) {
+    if (!dataLoadedFromView) {
+      return; // Wait for data to load
+    }
+
+    // Check if formPropertiesConfig actually changed (not just a re-render)
+    const formPropsChanged = prevFormPropertiesConfigRef.current !== null && 
+      JSON.stringify(prevFormPropertiesConfigRef.current) !== JSON.stringify(formPropertiesConfig);
+    
+    // Check if defaultValues actually changed
+    const defaultValuesChanged = prevDefaultValuesRef.current !== null &&
+      JSON.stringify(prevDefaultValuesRef.current) !== JSON.stringify(defaultValues);
+
+    // Only update if this is the first run OR if values actually changed
+    const isFirstRun = prevFormPropertiesConfigRef.current === null;
+    const shouldUpdate = isFirstRun || formPropsChanged || defaultValuesChanged;
+
+    if (shouldUpdate) {
       //loop over formPropertiesConfig and create an object where key is the name of the field and value is the value of the field
       //this is used to set the initial values of the form
-      const initialValues = formPropertiesConfig.reduce((acc, item) => {
-        acc[ item.name ] = item.initialValue
-        return acc
-      }, {})
+      
+      // Recursive function to extract initial/default values from nested structures
+      // Priority: initialValue (from API in edit mode) > defaultValue (schema default)
+      const extractDefaultValues = (fields: any[]): any => {
+        return fields.reduce((acc, item) => {
+          // For map fields with nested properties, recursively extract values
+          if (item.type === 'map' && item.properties && item.properties.length > 0) {
+            // If we have initialValue for this map (from API), use it
+            if (item.initialValue !== undefined) {
+              acc[item.name] = item.initialValue;
+            } else {
+              // Otherwise, recursively extract from nested properties
+              const nestedDefaults = extractDefaultValues(item.properties);
+              // Only set if there are actual values in nested properties
+              if (Object.keys(nestedDefaults).length > 0) {
+                acc[item.name] = nestedDefaults;
+              }
+            }
+          }
+          // For list fields, use initialValue first, then defaultValue
+          else if (item.type === 'list') {
+            if (item.initialValue !== undefined) {
+              acc[item.name] = item.initialValue;
+            } else if (item.defaultValue !== undefined) {
+              acc[item.name] = item.defaultValue;
+            }
+          }
+          // For regular fields, prioritize initialValue over defaultValue
+          else if (item.initialValue !== undefined || item.defaultValue !== undefined) {
+            acc[item.name] = item.initialValue ?? item.defaultValue;
+          }
+          
+          return acc;
+        }, {});
+      };
+      
+      const initialValues = extractDefaultValues(formPropertiesConfig);
 
-      form.setFieldsValue(initialValues)
+      // Merge with defaultValues (from modal navigation or other sources)
+      // defaultValues take precedence over initialValues
+      const mergedValues = { ...initialValues, ...defaultValues };
+
+      form.setFieldsValue(mergedValues);
+      
+      // Update refs to track current values
+      prevFormPropertiesConfigRef.current = formPropertiesConfig;
+      prevDefaultValuesRef.current = defaultValues;
     }
+  }, [dataLoadedFromView, formPropertiesConfig, defaultValues, form])
 
-  }, [ dataLoadedFromView, formPropertiesConfig ])
 
-
-  return <Spin spinning={!dataLoadedFromView}>
-    {dataLoadedFromView && <AntForm
-      key={`form-${formConfig.name}`}
-      form={form}
-      {...formConfig}
-      layout="vertical"
-      onFinish={onFinish}
-      disabled={loader}
-    >
-      {columns.length > 1 ? (
-        <FormContainer>
-          {columns.map((columnItems, colIdx) => (
-            <FormColumn key={colIdx}>
-              {columnItems.map(renderFormField)}
-            </FormColumn>
-          ))}
-        </FormContainer>
-      ) : (
-        <div style={{ maxWidth: 600 }}>
-          {columns[ 0 ].map(renderFormField)}
+  return (
+    <>
+      {!dataLoadedFromView ? (
+        // Show skeleton loader on initial load for instant page transition
+        <div>
+          <Skeleton active paragraph={{ rows: 10 }} />
         </div>
+      ) : (
+        <ErrorBoundary
+          FallbackComponent={ErrorFallback}
+          onReset={() => {
+            // Optional: You might want to reload data or reset form state here
+            // For now, a simple re-render by the ErrorBoundary is sufficient.
+            console.log("Form ErrorBoundary Reset");
+          }}
+        >
+          <AntForm
+            key={`form-${stableFormConfig.name}`}
+            form={form}
+            {...stableFormConfig}
+            layout="vertical"
+            onFinish={onFinish}
+            disabled={loader}
+          >
+            {helpText && (
+              <Alert
+                message={helpText}
+                type="info"
+                showIcon
+                style={{ marginBottom: 24 }}
+              />
+            )}
+            {columns.length > 1 ? (
+              <FormContainer>
+                {columns.map((columnItems, colIdx) => (
+                  <FormColumn key={colIdx}>
+                    {columnItems.map(renderFormField)}
+                  </FormColumn>
+                ))}
+              </FormContainer>
+            ) : (
+              <div style={{ maxWidth: 600 }}>
+                {columns[0].map(renderFormField)}
+              </div>
+            )}
+            {children}
+            {formButtons.length > 0 && (
+              <div style={{ display: "flex" }}>
+                <CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} onCancelCallback={onCancelCallback} />
+              </div>
+            )}
+          </AntForm>
+        </ErrorBoundary>
       )}
-      {children}
-      {formButtons.length > 0 && <div style={{ display: "flex" }}><CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} /></div>}
-    </AntForm>
-    }
-  </Spin>
-}
+    </>
+  );
+};
