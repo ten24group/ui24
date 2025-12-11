@@ -289,10 +289,13 @@ export const Table = ({
           const resolvedApiUrl = substituteUrlParams(apiUrl, expandedRouteParams);
 
           // Resolve default filters using placeholder resolver with record context
-          const nestedPlaceholderContext = usePlaceholderContext(expandedRouteParams, {
+          // NOTE: Can't use usePlaceholderContext hook here (inside callback), so build context manually
+          const nestedPlaceholderContext = {
+            ...placeholderContext,  // Reuse actor, now from top-level hook
+            routeParams: expandedRouteParams,
             record,  // Current row data
             parent: record,  // Parent record for nested context
-          });
+          };
           const resolvedDefaultFilters = resolveFilterPlaceholders(nestedDefaultFilters, nestedPlaceholderContext);
 
           // Filter columns if specific fields are requested

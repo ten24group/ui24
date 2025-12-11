@@ -38,7 +38,7 @@ const isDualApiConfig = (config: ITableApiConfig | IDualTableApiConfig): config 
   return 'search' in config && 'database' in config;
 };
 
-const getCurrentApiConfig = (apiConfig: ITableApiConfig | IDualTableApiConfig, isSearchMode: boolean): IApiConfig => {
+const getCurrentApiConfig = (apiConfig: ITableApiConfig | IDualTableApiConfig, isSearchMode: boolean): ITableApiConfig => {
   if (isDualApiConfig(apiConfig)) {
     return isSearchMode ? apiConfig.search : apiConfig.database;
   }
@@ -63,7 +63,7 @@ const canToggleSearchMode = (apiConfig: ITableApiConfig | IDualTableApiConfig): 
  */
 const convertDefaultSortToSorterResult = (defaultSort: SortConfig | undefined): SorterResult<any>[] => {
   if (!defaultSort) return [];
-  
+
   // Handle string format: 'asc' | 'desc'
   // This is for DynamoDB and indicates index order, NOT an actual sortable field
   // Return empty array since we don't have a field to sort by
@@ -72,7 +72,7 @@ const convertDefaultSortToSorterResult = (defaultSort: SortConfig | undefined): 
     // No field specified, so we can't create a sorter
     return [];
   }
-  
+
   // Handle array format (multi-column sort for search mode)
   if (Array.isArray(defaultSort)) {
     return defaultSort.map(s => ({
@@ -80,12 +80,12 @@ const convertDefaultSortToSorterResult = (defaultSort: SortConfig | undefined): 
       order: s.order === 'asc' ? 'ascend' : 'descend'
     } as SorterResult<any>));
   }
-  
+
   // Handle object format (single column sort for search mode)
-  return [{
+  return [ {
     field: defaultSort.field,
     order: defaultSort.order === 'asc' ? 'ascend' : 'descend'
-  } as SorterResult<any>];
+  } as SorterResult<any> ];
 };
 
 /**
@@ -111,22 +111,22 @@ const getDefaultSortFromApiConfig = (apiConfig: ITableApiConfig | IDualTableApiC
  */
 const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Record<string, any> => {
   const queryParams = new URLSearchParams(location.search);
-  
+
   // System/infrastructure params that should NOT be in filters
   // (defined in ./constants.ts for consistency across table code)
-  
+
   // Filter operators supported by backend
-  const OPERATORS = ['eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'contains', 'notContains', 'beginsWith'];
-  
+  const OPERATORS = [ 'eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'bt', 'contains', 'notContains', 'beginsWith', 'startsWith', 'endsWith', 'like', 'exists', 'notExists', 'isEmpty', 'isNull', 'notEmpty', 'notNull' ];
+
   // Helper to parse key with operator (e.g., "sport.neq" → {field: "sport", operator: "neq"})
   const parseKeyOperator = (key: string): { field: string; operator?: string } => {
     const parts = key.split('.');
-    if (parts.length === 2 && OPERATORS.includes(parts[1])) {
-      return { field: parts[0], operator: parts[1] };
+    if (parts.length === 2 && OPERATORS.includes(parts[ 1 ])) {
+      return { field: parts[ 0 ], operator: parts[ 1 ] };
     }
     return { field: key };
   };
-  
+
   // Check for sessionStorage filter key (useLargeParamStorage pattern)
   const filterKey = queryParams.get('f');
   if (filterKey) {
@@ -136,19 +136,19 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
         const parsed = JSON.parse(storedData);
         // Convert flat query params to filter structure
         const filters: Record<string, any> = {};
-        
-        Object.entries(parsed).forEach(([key, value]) => {
+
+        Object.entries(parsed).forEach(([ key, value ]) => {
           // Skip non-filter params (infrastructure)
           if (NON_FILTER_URL_PARAMS.includes(key as any)) {
             return;
           }
-          
+
           // Parse key to check if it has an operator
           const { field, operator } = parseKeyOperator(key);
-          
+
           // Deserialize value types
           let deserializedValue: any = value;
-          
+
           if (typeof value === 'string') {
             // Try to detect arrays, booleans, numbers
             if (value.startsWith('[') && value.endsWith(']')) {
@@ -167,17 +167,17 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
               deserializedValue = value;
             }
           }
-          
+
           // Build filter structure (ALWAYS with operator for UI!)
           if (operator) {
             // Key already has operator
-            if (!filters[field]) {
-              filters[field] = {};
+            if (!filters[ field ]) {
+              filters[ field ] = {};
             }
-            filters[field][operator] = deserializedValue;
+            filters[ field ][ operator ] = deserializedValue;
           } else {
             // Plain key - WRAP in {eq: value} for UI!
-            filters[field] = { eq: deserializedValue };
+            filters[ field ] = { eq: deserializedValue };
           }
         });
         return filters;
@@ -186,19 +186,19 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
       console.error('Failed to restore filters from sessionStorage:', error);
     }
   }
-  
+
   // Otherwise, parse regular query params as filters
   const filters: Record<string, any> = {};
-  
+
   queryParams.forEach((value, key) => {
     // Skip non-filter params (infrastructure like page, cursor, etc.)
     if (NON_FILTER_URL_PARAMS.includes(key as any)) {
       return;
     }
-    
+
     // Parse key to check if it has an operator (e.g., "sport.neq")
     const { field, operator } = parseKeyOperator(key);
-    
+
     // Deserialize value
     let deserializedValue: any;
     if (value.startsWith('[') && value.endsWith(']')) {
@@ -216,20 +216,20 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
     } else {
       deserializedValue = value;
     }
-    
+
     // Build filter structure (ALWAYS with operator for UI!)
     if (operator) {
       // Key already has operator: sport.neq=football → {sport: {neq: "football"}}
-      if (!filters[field]) {
-        filters[field] = {};
+      if (!filters[ field ]) {
+        filters[ field ] = {};
       }
-      filters[field][operator] = deserializedValue;
+      filters[ field ][ operator ] = deserializedValue;
     } else {
       // Plain key: sport=basketball → {sport: {eq: "basketball"}} (UI needs this!)
-      filters[field] = { eq: deserializedValue };
+      filters[ field ] = { eq: deserializedValue };
     }
   });
-  
+
   return filters;
 };
 
@@ -240,21 +240,21 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Memoize resolved defaultFilters using new placeholder resolver
   // Build placeholder context once
   const placeholderContext = usePlaceholderContext(routeParams);
-  
+
   const resolvedDefaultFilters = React.useMemo(() => {
     // Resolve all placeholders in defaultFilters
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
-  }, [defaultFilters, placeholderContext]);
+  }, [ defaultFilters, placeholderContext ]);
 
   // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
     const urlFilters = getInitialFiltersFromUrl(location);
-    
+
     // Merge: URL filters take precedence over defaultFilters
     return { ...resolvedDefaultFilters, ...urlFilters };
   });
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
-  
+
   // Determine initial mode FIRST (needed to get correct defaultSort)
   const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
     if (isDualApiConfig(apiConfig)) {
@@ -262,7 +262,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     }
     return apiConfig.useSearch || false;
   });
-  
+
   // Then initialize sort based on the current mode
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>(() => {
     // Determine initial mode to get correct defaultSort
@@ -282,10 +282,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const [ columnSettings, setColumnSettings ] = React.useState(
     propertiesConfig.map(p => {
       // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
-      const isVisible = p.hasOwnProperty('defaultVisible') 
+      const isVisible = p.hasOwnProperty('defaultVisible')
         ? p.defaultVisible !== false
         : !p.hidden;
-      
+
       return {
         key: p.dataIndex,
         title: p.name,
@@ -295,7 +295,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       };
     })
   );
-  
+
   // Manage current fetch strategy (session-only, starts with default from config)
   const [ currentFetchStrategy, setCurrentFetchStrategy ] = React.useState<'eager' | 'lazy'>(fetchStrategy);
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
@@ -346,7 +346,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       setAppliedFilters(resolvedDefaultFilters);
       setFetchTrigger(prev => prev + 1);
     }
-  }, [apiConfig, resolvedDefaultFilters]);
+  }, [ apiConfig, resolvedDefaultFilters ]);
 
   const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
@@ -364,13 +364,13 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       }
       return !p.hidden;
     }).map(p => p.dataIndex));
-    
+
     setColumnSettings(propertiesConfig.map(p => {
       // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
-      const isVisible = p.hasOwnProperty('defaultVisible') 
+      const isVisible = p.hasOwnProperty('defaultVisible')
         ? p.defaultVisible !== false
         : !p.hidden;
-      
+
       return {
         key: p.dataIndex,
         title: p.name,
@@ -380,41 +380,41 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       };
     }));
     setFacetedColumns([]);
-    
+
     // Reset filters and search when navigating to a different entity
     // (but preserve URL-based filters through location query params)
     const urlFilters = getInitialFiltersFromUrl(location);
     // Use the memoized resolvedDefaultFilters
     setAppliedFilters({ ...resolvedDefaultFilters, ...urlFilters });
     setSearchQuery('');
-    
+
     // Reset sort to default for the current mode
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, isSearchMode);
     setSort(convertDefaultSortToSorterResult(defaultSort));
-    
+
     // Trigger fetch with new state
     setFetchTrigger(prev => prev + 1);
-  }, [getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, propertiesConfig.map(p => p.dataIndex).join(',')]);
+  }, [ getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, propertiesConfig.map(p => p.dataIndex).join(',') ]);
 
   // Fetch data when trigger changes
   useEffect(() => {
     fetchRecords(1);
-  }, [fetchTrigger]);
+  }, [ fetchTrigger ]);
 
   const handleRefresh = React.useCallback(() => {
     // Reset to defaultFilters instead of clearing everything
     // This preserves pre-applied filters (e.g., awayTeamId from relation modals)
     setAppliedFilters(resolvedDefaultFilters);
     setSearchQuery('');
-    
+
     // Reset to initial mode
     const resetMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
     setIsSearchMode(resetMode);
-    
+
     // Reset sort to defaultSort for the reset mode
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, resetMode);
     setSort(convertDefaultSortToSorterResult(defaultSort));
-    
+
     fetchRecords(1, "");
   }, [ fetchRecords, apiConfig, resolvedDefaultFilters ]);
 
@@ -438,17 +438,17 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const applyFilters = React.useCallback((column: string, filterOperator: string, value: string | Array<string>) => {
     _applyFilters(column, filterOperator, value);
     setFetchTrigger(prev => prev + 1);
-  }, [_applyFilters]);
+  }, [ _applyFilters ]);
 
   const clearAllFilters = React.useCallback(() => {
     _clearAllFilters();
     setFetchTrigger(prev => prev + 1);
-  }, [_clearAllFilters]);
+  }, [ _clearAllFilters ]);
 
   // Stabilize with useCallback - memoization dependency
   const getAppliedFilterForColumn = React.useCallback((column: string) => {
     return appliedFilters[ column ] || {};
-  }, [appliedFilters]);
+  }, [ appliedFilters ]);
 
   const toggleFacetedColumn = React.useCallback((dataIndex: string) => {
     setFacetedColumns(prev =>
@@ -469,7 +469,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const clearAllSorts = React.useCallback(() => {
     _clearAllSorts();
     setFetchTrigger(prev => prev + 1);
-  }, [_clearAllSorts]);
+  }, [ _clearAllSorts ]);
 
   //Pagination
   const { Pagination: CursorPagination } = usePagination({
@@ -499,10 +499,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const resetColumnSettings = () => {
     const defaultSettings = propertiesConfig.map(p => {
       // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
-      const isVisible = p.hasOwnProperty('defaultVisible') 
+      const isVisible = p.hasOwnProperty('defaultVisible')
         ? p.defaultVisible !== false
         : !p.hidden;
-      
+
       return {
         key: p.dataIndex,
         title: p.name,
@@ -524,7 +524,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Stabilize with useCallback - memoization dependency
   const removeFilter = React.useCallback((col: string) => {
     setAppliedFilters(prev => {
-      const { [col]: _, ...rest } = prev;
+      const { [ col ]: _, ...rest } = prev;
       return rest;
     });
     setFetchTrigger(prev => prev + 1);
@@ -533,10 +533,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // OPTIMIZATION: Cache column renderers to avoid creating new functions
   // Template renderers are pure functions - same template always produces same renderer
   const rendererCache = React.useRef<Map<string, (text: any, record: any) => any>>(new Map());
-  
+
   const getTemplateRenderer = React.useCallback((template: string | object) => {
     const cacheKey = typeof template === 'string' ? template : JSON.stringify(template);
-    
+
     if (!rendererCache.current.has(cacheKey)) {
       rendererCache.current.set(cacheKey, (text: any, record: any) => {
         try {
@@ -549,10 +549,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         }
       });
     }
-    
+
     return rendererCache.current.get(cacheKey)!;
   }, []);
-  
+
   // Field type renderers - create once
   const colorRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
     const colorValue = typeof text === 'string' ? text : '';
@@ -571,12 +571,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     const imageUrl = typeof text === 'string' ? text : '';
     if (!imageUrl) return <span>—</span>;
     return (
-      <img 
-        src={imageUrl} 
-        alt="Preview" 
-        style={{ 
-          width: '40px', 
-          height: '40px', 
+      <img
+        src={imageUrl}
+        alt="Preview"
+        style={{
+          width: '40px',
+          height: '40px',
           objectFit: 'cover',
           borderRadius: '4px',
           cursor: 'pointer'
@@ -598,19 +598,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   // Complex field renderers with modal support using existing OpenInModal component
   const jsonRenderer = (
-    text: unknown, 
-    record: Record<string, unknown>, 
-    columnName: string, 
+    text: unknown,
+    record: Record<string, unknown>,
+    columnName: string,
     fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
   ): React.ReactNode => {
     if (!text || (typeof text === 'object' && Object.keys(text).length === 0)) {
       return <span>—</span>;
     }
-    
+
     // Use shared utility for consistent preview generation (Table uses shorter strings for compact display)
     const previewLabel = generateJsonPreview(text, { maxStringLength: 20, maxKeys: 2 });
     const detailsConfig = createModalConfig('json', text, fieldConfig, 'map');
-    
+
     return (
       <OpenInModal
         modalType="details"
@@ -618,11 +618,11 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         modalWidth={800}
         modalPageConfig={detailsConfig}
       >
-        <Button 
-          size="small" 
-          icon={<FileTextOutlined />} 
+        <Button
+          size="small"
+          icon={<FileTextOutlined />}
           type="link"
-          style={{ 
+          style={{
             fontFamily: 'Consolas, Monaco, "Courier New", monospace',
             fontSize: '12px'
           }}
@@ -634,22 +634,22 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   };
 
   const listRenderer = (
-    text: unknown, 
-    record: Record<string, unknown>, 
-    columnName: string, 
+    text: unknown,
+    record: Record<string, unknown>,
+    columnName: string,
     fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
   ): React.ReactNode => {
     if (!Array.isArray(text) || text.length === 0) return <span>—</span>;
-    
+
     // Simple string/number array - show inline if short
     if (text.every(item => typeof item === 'string' || typeof item === 'number')) {
-      if (text.length === 1) return <span>{String(text[0])}</span>;
+      if (text.length === 1) return <span>{String(text[ 0 ])}</span>;
       if (text.length <= 3) return <span>{text.join(', ')}</span>;
     }
-    
+
     // Complex array - show in modal
     const detailsConfig = createModalConfig(undefined, text, fieldConfig, 'list');
-    
+
     return (
       <OpenInModal
         modalType="details"
@@ -657,9 +657,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         modalWidth={800}
         modalPageConfig={detailsConfig}
       >
-        <Button 
-          size="small" 
-          icon={<OrderedListOutlined />} 
+        <Button
+          size="small"
+          icon={<OrderedListOutlined />}
           type="link"
         >
           View ({text.length})
@@ -669,15 +669,15 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   };
 
   const richTextRenderer = (
-    text: unknown, 
-    record: Record<string, unknown>, 
-    columnName: string, 
+    text: unknown,
+    record: Record<string, unknown>,
+    columnName: string,
     fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
   ): React.ReactNode => {
     if (!text) return <span>—</span>;
-    
+
     const detailsConfig = createModalConfig('rich-text', text, fieldConfig);
-    
+
     return (
       <OpenInModal
         modalType="details"
@@ -685,9 +685,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         modalWidth={900}
         modalPageConfig={detailsConfig}
       >
-        <Button 
-          size="small" 
-          icon={<EyeOutlined />} 
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
           type="link"
         >
           View Content
@@ -788,7 +788,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const iconRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
     if (!text) return <span>—</span>;
-    const IconComponent = (Icons as any)[String(text)];
+    const IconComponent = (Icons as any)[ String(text) ];
     return IconComponent ? <IconComponent style={{ fontSize: 18 }} /> : <span>{String(text)}</span>;
   }, []);
 
@@ -801,8 +801,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const videoRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
     if (!text) return <span>—</span>;
     return (
-      <Button 
-        size="small" 
+      <Button
+        size="small"
         icon={<PlayCircleOutlined />}
         type="link"
         onClick={() => window.open(String(text), '_blank')}
@@ -815,8 +815,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const audioRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
     if (!text) return <span>—</span>;
     return (
-      <Button 
-        size="small" 
+      <Button
+        size="small"
         icon={<AudioOutlined />}
         type="link"
         onClick={() => window.open(String(text), '_blank')}
@@ -829,8 +829,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const qrcodeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
     if (!text) return <span>—</span>;
     return (
-      <Button 
-        size="small" 
+      <Button
+        size="small"
         icon={<QrcodeOutlined />}
         type="link"
       >
@@ -874,7 +874,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       else if (column.fieldType) {
         const fieldType = column.fieldType.toLowerCase();
         const columnName = column.name || column.title || column.dataIndex;
-        
+
         // Image fields
         if (fieldType === 'image') {
           renderer = imageRenderer;
@@ -889,17 +889,17 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         }
         // JSON/Map fields - modal-based
         else if (fieldType === 'json' || column.type === 'map') {
-          renderer = (text: unknown, record: Record<string, unknown>) => 
+          renderer = (text: unknown, record: Record<string, unknown>) =>
             jsonRenderer(text, record, columnName, column);
         }
         // List/Array fields (but not multi-select which is already formatted as string) - modal-based
         else if (column.type === 'list' && fieldType !== 'multi-select') {
-          renderer = (text: unknown, record: Record<string, unknown>) => 
+          renderer = (text: unknown, record: Record<string, unknown>) =>
             listRenderer(text, record, columnName, column);
         }
         // Rich text fields - modal-based
         else if (fieldType === 'rich-text' || fieldType === 'wysiwyg') {
-          renderer = (text: unknown, record: Record<string, unknown>) => 
+          renderer = (text: unknown, record: Record<string, unknown>) =>
             richTextRenderer(text, record, columnName, column);
         }
         // Textarea, code, markdown - modal-based for long content
@@ -909,9 +909,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
             if (typeof text === 'string' && text.length < 100) {
               return <span>{text}</span>;
             }
-            
+
             const detailsConfig = createModalConfig(column.fieldType, text, column);
-            
+
             return (
               <OpenInModal
                 modalType="details"
@@ -919,9 +919,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
                 modalWidth={800}
                 modalPageConfig={detailsConfig}
               >
-                <Button 
-                  size="small" 
-                  icon={<FileTextOutlined />} 
+                <Button
+                  size="small"
+                  icon={<FileTextOutlined />}
                   type="link"
                 >
                   View Content
@@ -1059,12 +1059,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     });
 
     // Add ungrouped columns (including action column)
-    const ungroupedColumns = columns.filter(col => 
+    const ungroupedColumns = columns.filter(col =>
       !groupedFieldSet.has(col.dataIndex as string)
     );
 
-    return [...grouped, ...ungroupedColumns];
-  }, [columns]);
+    return [ ...grouped, ...ungroupedColumns ];
+  }, [ columns ]);
 
   return {
     recordIdentifierKey,

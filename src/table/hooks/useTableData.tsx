@@ -2,7 +2,7 @@ import React from 'react';
 import { useApi, IApiConfig } from '../../core/context';
 import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
-import { ITablePropertiesConfig } from '../type';
+import { ITablePropertiesConfig, ITableApiConfig } from '../type';
 import { getNestedValue } from '../../core/utils';
 import { handleApiError } from '../../core/utils/api-error-handler';
 import { NON_FILTER_URL_PARAMS } from '../constants';
@@ -20,10 +20,10 @@ const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
 const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
   if (apiMethod === "GET") {
     let transformedFilters: Record<string, any> = {};
-    
+
     for (let key in filters) {
-      const value = filters[key];
-      
+      const value = filters[ key ];
+
       // Check if value is an object with operators
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         // Nested structure with operators
@@ -31,27 +31,27 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
           if (operator === 'eq') {
             // Special case: .eq operator outputs as plain param (no .eq suffix)
             // {sport: {eq: "basketball"}} → sport=basketball
-            if (Array.isArray(value[operator])) {
-              transformedFilters[key] = value[operator].join(",");
+            if (Array.isArray(value[ operator ])) {
+              transformedFilters[ key ] = value[ operator ].join(",");
             } else {
-              transformedFilters[key] = value[operator];
+              transformedFilters[ key ] = value[ operator ];
             }
           } else {
             // Other operators: keep the operator suffix
             // {sport: {neq: "football"}} → sport.neq=football
-            if (Array.isArray(value[operator])) {
-              transformedFilters[ `${key}.${operator}` ] = value[operator].join(",");
+            if (Array.isArray(value[ operator ])) {
+              transformedFilters[ `${key}.${operator}` ] = value[ operator ].join(",");
             } else {
-              transformedFilters[ `${key}.${operator}` ] = value[operator];
+              transformedFilters[ `${key}.${operator}` ] = value[ operator ];
             }
           }
         }
       } else {
         // Plain value (shouldn't happen now, but handle it)
         if (Array.isArray(value)) {
-          transformedFilters[key] = value.join(",");
+          transformedFilters[ key ] = value.join(",");
         } else {
-          transformedFilters[key] = value;
+          transformedFilters[ key ] = value;
         }
       }
     }
@@ -61,7 +61,7 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
 };
 
 interface IUseTableDataProps {
-  apiConfig: IApiConfig;
+  apiConfig: ITableApiConfig;  // Extended config with defaultSort support
   routeParams?: Record<string, string>;
   appliedFilters: Record<string, any>;
   searchQuery: string;
@@ -99,7 +99,7 @@ export const useTableData = ({
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
-  
+
   // Build placeholder context for resolving filter placeholders
   const placeholderContext = usePlaceholderContext(routeParams);
 
@@ -129,7 +129,7 @@ export const useTableData = ({
     const payload = {
       ...getFilterPayload(resolvedFilters, apiConfig.apiMethod),
     };
-    
+
     // Add non-filter query params from URL (debug, trace, mock, etc.)
     // These bypass filter structure and go directly to API
     if (typeof window !== 'undefined') {
@@ -140,14 +140,14 @@ export const useTableData = ({
         if (NON_FILTER_URL_PARAMS.includes(key as any)) {
           return;
         }
-        
+
         // Skip filter params (already in appliedFilters)
-        if (appliedFilters[key] || key.includes('.')) {
+        if (appliedFilters[ key ] || key.includes('.')) {
           return;
         }
-        
+
         // This is a pass-through param (like debug, trace, mock) - add it!
-        payload[key] = value;
+        payload[ key ] = value;
       });
     }
 
@@ -175,6 +175,14 @@ export const useTableData = ({
     } else {
       payload.cursor = currentPageCursor;
       payload.count = recordPerPage;
+      // Database mode: send order direction (DynamoDB sorts by index SK)
+      // Priority: 1. User-selected sort, 2. apiConfig.defaultSort (string), 3. default 'asc'
+      if (sort.length > 0 && sort[ 0 ].order) {
+        payload.order = sort[ 0 ].order === 'ascend' ? 'asc' : 'desc';
+      } else if (typeof apiConfig.defaultSort === 'string') {
+        // Database mode defaultSort is just 'asc' | 'desc'
+        payload.order = apiConfig.defaultSort;
+      }
     }
 
     setIsLoading(true);
@@ -205,15 +213,15 @@ export const useTableData = ({
           formattingColumns.forEach((property) => {
             // Use getNestedValue to handle nested data paths
             const nestedValue = getNestedValue(record, property.dataIndex);
-            
+
             if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
               record[ property.dataIndex ] = '';
               return;
             }
-            
+
             // Store the nested value in the record for the table to access
             record[ property.dataIndex ] = nestedValue;
-            
+
             if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
               const itemValue = nestedValue.toString().startsWith('0') ?
                 new Date(parseInt(nestedValue)).toISOString() :
@@ -256,7 +264,7 @@ export const useTableData = ({
       // Use handleApiError to extract proper error message from API response
       const errorResult = handleApiError(error, 'Failed to fetch records');
       notifyError(errorResult.errorMessage);
-      
+
       console.error('Error fetching records:', error);
       // Log additional error details for debugging
       if (error && typeof error === 'object') {
