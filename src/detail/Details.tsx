@@ -115,6 +115,7 @@ import * as Icons from '@ant-design/icons';
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
+import { formatDuration } from '../core/utils/duration';
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
@@ -505,7 +506,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     }
 
                     // Only show "—" for null/undefined, not for falsy values like 0, false, "", [], {}
-                    if(value === null || value === undefined) {
+                    if (value === null || value === undefined) {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
@@ -538,16 +539,16 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                            <OpenInModal
-                              modalType="details"
-                              primaryIndex={value}
-                              modalPageConfig={{
-                                pageTitle: item.label,
-                                propertiesConfig: [ item ],
-                              }}
-                            >
-                              {value}
-                            </OpenInModal>
+                          <OpenInModal
+                            modalType="details"
+                            primaryIndex={value}
+                            modalPageConfig={{
+                              pageTitle: item.label,
+                              propertiesConfig: [ item ],
+                            }}
+                          >
+                            {value}
+                          </OpenInModal>
                         </div>
                       );
                     }
@@ -562,13 +563,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // 
                     // Works for: fieldType: 'json', type: 'map', type: 'list', and generic objects
                     // Example: syncMetadata with toggle to switch between views + copy button
-                    
-                    const isComplexData = 
+
+                    const isComplexData =
                       item.type === 'list' ||
                       item.type === 'map' ||
                       (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
                       (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
-                    
+
                     if (isComplexData && item.fieldType !== 'multi-select') {
                       return (
                         <div key={index} className="details-field-container">
@@ -584,9 +585,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                            <div className="details-fixed-block">
-                              <CustomBlockNoteEditor value={value as any} readOnly={true} />
-                            </div>
+                          <div className="details-fixed-block">
+                            <CustomBlockNoteEditor value={value as any} readOnly={true} />
+                          </div>
                         </div>
                       );
                     }
@@ -660,13 +661,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                            <a href={value} target="_blank" rel="noopener noreferrer">
-                              Download File
-                            </a>
+                          <a href={value} target="_blank" rel="noopener noreferrer">
+                            Download File
+                          </a>
                         </div>
                       );
                     }
-                    
+
                     // URL field
                     if (item.fieldType === 'url') {
                       return (
@@ -679,7 +680,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Phone field
                     if (item.fieldType === 'phone') {
                       return (
@@ -690,7 +691,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Currency field
                     if (item.fieldType === 'currency') {
                       const formatted = new Intl.NumberFormat('en-US', {
@@ -705,7 +706,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Percentage field
                     if (item.fieldType === 'percentage') {
                       return (
@@ -716,7 +717,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Slider field (display as value with slider visual)
                     if (item.fieldType === 'slider') {
                       return (
@@ -724,9 +725,9 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <Slider 
-                              value={Number(value)} 
-                              disabled 
+                            <Slider
+                              value={Number(value)}
+                              disabled
                               style={{ flex: 1 }}
                               min={item.min}
                               max={item.max}
@@ -736,44 +737,36 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
-                    // Duration field
+
+                    // Duration field - uses durationUnit from field config (default: seconds)
                     if (item.fieldType === 'duration') {
-                      const formatDuration = (seconds: number) => {
-                        const h = Math.floor(seconds / 3600);
-                        const m = Math.floor((seconds % 3600) / 60);
-                        const s = seconds % 60;
-                        if (h > 0) return `${h}h ${m}m ${s}s`;
-                        if (m > 0) return `${m}m ${s}s`;
-                        return `${s}s`;
-                      };
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <div>{formatDuration(Number(value) || 0)}</div>
+                          <div>{formatDuration(value, item.durationUnit || 'seconds')}</div>
                         </div>
                       );
                     }
-                    
+
                     // Badge field
                     if (item.fieldType === 'badge') {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <Badge 
-                            status={item.status || 'default'} 
+                          <Badge
+                            status={item.status || 'default'}
                             text={String(value)}
                             color={item.color}
                           />
                         </div>
                       );
                     }
-                    
+
                     // Tag field (single or multiple)
                     if (item.fieldType === 'tag' || item.fieldType === 'tags') {
-                      const tags = Array.isArray(value) ? value : [value];
+                      const tags = Array.isArray(value) ? value : [ value ];
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
@@ -788,7 +781,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Progress field
                     if (item.fieldType === 'progress') {
                       const type = item.progressType || 'line';
@@ -797,12 +790,12 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       if (item.status === 'success') progressStatus = 'success';
                       else if (item.status === 'error' || item.status === 'warning') progressStatus = 'exception';
                       else if (item.status === 'processing') progressStatus = 'active';
-                      
+
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <Progress 
+                          <Progress
                             type={type}
                             percent={Number(value) || 0}
                             status={progressStatus}
@@ -811,38 +804,38 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Avatar field
                     if (item.fieldType === 'avatar') {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <Avatar 
+                          <Avatar
                             src={value}
                             size={item.size || 'default'}
                             shape={item.shape || 'circle'}
-                            icon={item.icon ? React.createElement((Icons as any)[item.icon]) : undefined}
+                            icon={item.icon ? React.createElement((Icons as any)[ item.icon ]) : undefined}
                           >
                             {item.text || String(value).charAt(0).toUpperCase()}
                           </Avatar>
                         </div>
                       );
                     }
-                    
+
                     // Icon field
                     if (item.fieldType === 'icon') {
-                      const IconComponent = (Icons as any)[String(value)];
+                      const IconComponent = (Icons as any)[ String(value) ];
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           {IconComponent ? (
-                            <IconComponent 
-                              style={{ 
+                            <IconComponent
+                              style={{
                                 fontSize: item.size || 24,
-                                color: item.color 
-                              }} 
+                                color: item.color
+                              }}
                             />
                           ) : (
                             <span>{value}</span>
@@ -850,18 +843,18 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Link field
                     if (item.fieldType === 'link') {
-                      const href = item.linkConfig?.routePattern 
+                      const href = item.linkConfig?.routePattern
                         ? substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse }, value)
                         : value;
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <a 
-                            href={href} 
+                          <a
+                            href={href}
                             target={item.target || '_blank'}
                             rel="noopener noreferrer"
                           >
@@ -870,37 +863,37 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    
+
                     // Video field
                     if (item.fieldType === 'video') {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <video 
-                            src={value} 
+                          <video
+                            src={value}
                             controls={item.controls !== false}
                             style={{ maxWidth: '100%', maxHeight: '400px' }}
                           />
                         </div>
                       );
                     }
-                    
+
                     // Audio field
                     if (item.fieldType === 'audio') {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <audio 
-                            src={value} 
+                          <audio
+                            src={value}
                             controls={item.controls !== false}
                             style={{ width: '100%' }}
                           />
                         </div>
                       );
                     }
-                    
+
                     // QR Code field
                     if (item.fieldType === 'qrcode') {
                       const qrSize = typeof item.size === 'number' ? item.size : 128;
@@ -908,7 +901,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <QRCode 
+                          <QRCode
                             value={String(value)}
                             size={qrSize}
                             errorLevel={item.errorLevel || 'M'}

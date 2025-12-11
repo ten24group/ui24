@@ -58,48 +58,49 @@ export interface IFieldTypeProperties {
   max?: number;
   step?: number;
   precision?: number;
-  
+
   // Currency field properties
   currencySymbol?: string;
   symbolPosition?: 'prefix' | 'suffix';
-  
+
   // Slider field properties
   marks?: Record<number, string | { label: string; style?: React.CSSProperties }>;
   vertical?: boolean;
-  
+
   // Duration field properties
-  durationFormat?: 'hms' | 'hm' | 'ms' | 'seconds' | 'minutes' | 'hours';
-  
+  /** Input unit of the stored duration value. Renderer converts to human-readable. Default: 'seconds' */
+  durationUnit?: 'ms' | 'seconds' | 'minutes' | 'hours';
+
   // Badge field properties
   status?: 'success' | 'processing' | 'error' | 'warning' | 'default';
   color?: string;
   count?: number;
   text?: string;
-  
+
   // Tag field properties (icon name as string, matching backend)
   icon?: string;
-  
+
   // Progress field properties
   progressType?: 'line' | 'circle' | 'dashboard';
-  
+
   // Avatar field properties
   shape?: 'circle' | 'square';
   size?: number | 'large' | 'small' | 'default';
-  
+
   // Icon field properties
   library?: 'antd' | 'fontawesome' | 'material' | 'custom';
-  
+
   // Link field properties
   target?: '_blank' | '_self' | '_parent' | '_top';
-  
+
   // Video/Audio field properties
   controls?: boolean;
   autoplay?: boolean;
-  
+
   // QRCode field properties
   errorLevel?: 'L' | 'M' | 'Q' | 'H';
   logoImage?: string;
-  
+
   // Text format properties (for url, phone, email)
   format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage';
   mask?: string;
@@ -115,20 +116,20 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
   name?: string;  // Field name / property path (supports dot notation)
   column?: string; // Column name (legacy, prefer 'name')
   label: string;
-  
+
   // Display
   placeholder?: string;
   helpText?: string;
   hidden?: boolean;
-  
+
   // Type & Behavior
   fieldType?: FieldType;
   type?: PropertyType; // For complex types (list, map)
-  
+
   // Values
   defaultValue?: any; // Default value from backend entity schema (for new records)
   initialValue?: any; // Initial value for editing (from API response)
-  
+
   // Nested structures (for list/map types)
   properties?: Array<any>; // Will be properly typed in specific interfaces
   items?: {
@@ -145,18 +146,18 @@ export interface IFormFieldResponse extends IBaseFieldConfig {
   column: string; // Required in backend response
   validations?: Array<IPreDefinedValidations>;
   options?: Array<IOptions>;
-  
+
   // Modal/Entity references
   addNewOption?: IModalConfig; // DEPRECATED: Use addNewOptionConfig
   addNewOptionConfig?: IEntityConfigReference;
-  
+
   // File/Image fields
   accept?: string;
   fileNamePrefix?: string;
   listType?: string;
   getSignedUploadUrlAPIConfig?: GetSignedUploadUrlAPIConfig;
   withImageCrop?: boolean;
-  
+
   // Nested structures
   properties?: Array<IFormFieldResponse>;
   items?: {
@@ -179,24 +180,24 @@ export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
   style?: React.CSSProperties;
   setFormValue?: Function; // Callback for custom value updates
   timezone?: string; // For date/time fields
-  
+
   // Options for select/radio/checkbox
   options?: Array<IOptions>;
-  
+
   // Modal/Entity references
   addNewOption?: IModalConfig; // DEPRECATED: Use addNewOptionConfig
   addNewOptionConfig?: IEntityConfigReference;
-  
+
   // File/Image fields
   accept?: string;
   fileNamePrefix?: string;
   listType?: string;
   getSignedUploadUrlAPIConfig?: GetSignedUploadUrlAPIConfig;
   withImageCrop?: boolean;
-  
+
   // Override icon to support ReactNode in forms (for Tag fields, etc.)
   icon?: string | ReactNode;
-  
+
   // Nested structures
   properties?: Array<IFormField>;
   items?: {
@@ -211,30 +212,30 @@ export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
  */
 export interface IDetailFieldConfig extends IBaseFieldConfig {
   timezone?: string; // For date/time formatting
-  
+
   // Link configuration
   isLink?: boolean;
   linkConfig?: {
     routePattern: string;
     displayText?: string;
   };
-  
+
   // Modal configuration
   openInModal?: boolean;
-  
+
   // Raw relation data (from backend schema)
   relation?: {
     entityName: string;
     type: string;
     identifiers: any;
   };
-  
+
   // Entity config reference for relation fields
   relationConfig?: {
     routePattern: string;
-    identifierMapping?: 
-      | { source: string; target: string; }
-      | Array<{ source: string; target: string; }>;
+    identifierMapping?:
+    | { source: string; target: string; }
+    | Array<{ source: string; target: string; }>;
     modalConfigRef?: {
       entityName: string;
       pageType: 'view' | 'create' | 'list';
@@ -251,7 +252,7 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
        * @example template: { composite: ['name', 'city'], template: '{name} ({city})' }
        */
       template?: Template;
-      
+
       /**
        * Fallback configuration for when only ID is available (not fully hydrated).
        */
@@ -260,22 +261,22 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
         linkText?: string; // Text for link action, e.g., "View Team"
         modalButtonText?: string; // Text for modal button, e.g., "Open Team Details"
       };
-      
+
       /**
        * Icon for the relation field (uses entity metadata or defaults).
        */
       icon?: string;
-      
+
       /**
        * Whether to show the relation value as a link (default: true).
        */
       showLink?: boolean;
-      
+
       /**
        * Whether to show the modal icon button (default: true).
        */
       showModalIcon?: boolean;
-      
+
       /**
        * Action configuration for relation display.
        */
@@ -291,10 +292,10 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
       };
     };
   };
-  
+
   // Entity config reference for addNewOption
   addNewOptionConfig?: IEntityConfigReference;
-  
+
   // Nested structures
   properties?: Array<IDetailFieldConfig>;
   items?: {

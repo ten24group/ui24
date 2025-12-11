@@ -24,6 +24,7 @@ import { OpenInModal } from "../modal/Modal";
 import { generateJsonPreview } from "../core/utils/jsonUtils";
 import { createModalConfig } from "./utils/modalConfigHelper";
 import * as Icons from '@ant-design/icons';
+import { formatDuration, DurationUnit } from "../core/utils/duration";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -743,16 +744,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return <span>{String(text)}</span>;
   }, []);
 
-  const durationRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const seconds = typeof text === 'number' ? text : parseInt(String(text));
-    if (isNaN(seconds)) return <span>—</span>;
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    if (h > 0) return <span>{h}h {m}m</span>;
-    if (m > 0) return <span>{m}m {s}s</span>;
-    return <span>{s}s</span>;
+  // Duration renderer - uses shared formatDuration utility with unit support from field config
+  const createDurationRenderer = React.useCallback((unit: DurationUnit = 'seconds') => {
+    return (text: unknown): React.ReactNode => <span>{formatDuration(text, unit)}</span>;
   }, []);
 
   const badgeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
@@ -962,9 +956,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         else if (fieldType === 'slider') {
           renderer = sliderRenderer;
         }
-        // Duration fields
+        // Duration fields - use durationUnit from column config (default: seconds)
         else if (fieldType === 'duration') {
-          renderer = durationRenderer;
+          renderer = createDurationRenderer(column.durationUnit || 'seconds');
         }
         // Badge fields
         else if (fieldType === 'badge') {
