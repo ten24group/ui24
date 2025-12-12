@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.15](https://github.com/ten24group/ui24/compare/v1.0.5-beta.14...v1.0.5-beta.15) (2025-12-12)
+
+
+### Bug Fixes
+
+* redundant and wrong api calls on listing when there are segments ([5572e18](https://github.com/ten24group/ui24/commit/5572e189aa4e1984b61c298b2714b753e2dec3ab))
+
 ### [1.0.5-beta.14](https://github.com/ten24group/ui24/compare/v1.0.5-beta.13...v1.0.5-beta.14) (2025-11-20)
 
 
