@@ -92,7 +92,7 @@
  * @see {@link FilterSegments} for quick filter tabs
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
@@ -147,12 +147,12 @@ export const Table = ({
 }: ITableConfig) => {
   // Build placeholder context for segments and filters
   const placeholderContext = usePlaceholderContext(routeParams);
-  
+
   // Track resolved defaultFilters for segment merging
   const resolvedDefaultFilters = useMemo(() => {
     if (!defaultFilters) return {};
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
-  }, [defaultFilters, placeholderContext]);
+  }, [ defaultFilters, placeholderContext ]);
 
   const {
     recordIdentifierKey,
@@ -194,20 +194,41 @@ export const Table = ({
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
-  
+
   // NEW: Track selected row keys
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  
+  const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
+
   // Calculate selectedRecords only when selectedRowKeys change (not on data refetch)
-  const selectedRecords = useMemo(() => 
-    listRecords.filter(record => selectedRowKeys.includes(record[recordIdentifierKey])),
-    [selectedRowKeys, listRecords, recordIdentifierKey]
+  const selectedRecords = useMemo(() =>
+    listRecords.filter(record => selectedRowKeys.includes(record[ recordIdentifierKey ])),
+    [ selectedRowKeys, listRecords, recordIdentifierKey ]
   );
-  
+
+  // Trigger initial fetch if there are no filter segments
+  // (When segments exist, FilterSegments component handles initial fetch)
+  const initialFetchTriggeredRef = useRef(false);
+  useEffect(() => {
+    const hasSegments = segments && segments.length > 0;
+    if (!hasSegments && !initialFetchTriggeredRef.current) {
+      initialFetchTriggeredRef.current = true;
+      setFetchTrigger(prev => prev + 1);
+    }
+  }, []); // Only run on mount
+
+  // Trigger fetch when search mode changes (only if no segments exist)
+  // When segments exist, FilterSegments handles mode change fetching
+  useEffect(() => {
+    const hasSegments = segments && segments.length > 0;
+    // Skip initial mount (handled by initialFetchTriggeredRef above)
+    if (!hasSegments && initialFetchTriggeredRef.current) {
+      setFetchTrigger(prev => prev + 1);
+    }
+  }, [ isSearchMode ]);
+
   // Lift table state to wrapper (if callback provided)
   useEffect(() => {
     if (!onDataChange) return;
-    
+
     onDataChange({
       selectedRecords,
       selectedRowKeys,
@@ -216,12 +237,12 @@ export const Table = ({
       pageType: 'list',
       entityName
     });
-  }, [selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange]);
+  }, [ selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange ]);
 
   // Extract visibility configs from bulk actions for batch evaluation
-  const bulkActionsVisibilityConfigs = useMemo(() => 
+  const bulkActionsVisibilityConfigs = useMemo(() =>
     bulkActions ? bulkActions.map(action => action.visibility) : [],
-    [bulkActions]
+    [ bulkActions ]
   );
 
   // Evaluate all bulk actions in batch
@@ -233,19 +254,19 @@ export const Table = ({
   // Merge evaluation results with actions and filter visible ones
   const visibleBulkActions = useMemo(() => {
     if (!bulkActions || bulkActions.length === 0) return [];
-    
+
     return bulkActions
       .map((action, index) => ({
         ...action,
-        _evaluated: bulkActionsEvaluationResults[index]
+        _evaluated: bulkActionsEvaluationResults[ index ]
       }))
       .filter(action => action._evaluated?.visible !== false);
-  }, [bulkActions, bulkActionsEvaluationResults]);
+  }, [ bulkActions, bulkActionsEvaluationResults ]);
 
   // Row selection configuration for AntTable - using AntD's native row selection API
   const rowSelection = useMemo(() => {
     if (!rowSelectionConfig?.enabled) return undefined;
-    
+
     return {
       type: 'checkbox' as const,
       selectedRowKeys,
@@ -257,7 +278,7 @@ export const Table = ({
         // disabled: record.someField === 'value',
       }),
     };
-  }, [rowSelectionConfig, selectedRowKeys]);
+  }, [ rowSelectionConfig, selectedRowKeys ]);
 
   // Expandable row configuration - reuses existing Table component for nested tables
   const expandable = useMemo(() => {
@@ -273,8 +294,8 @@ export const Table = ({
 
         // Mode 1: Nested Table (reuses existing Table component)
         if (expandableConfig.mode === 'nested-table' && expandableConfig.tableConfig) {
-          const { 
-            apiUrl, 
+          const {
+            apiUrl,
             apiMethod = 'GET',
             responseKey = 'data',
             columns: columnFields,
@@ -333,7 +354,7 @@ export const Table = ({
             ...col,
             label: col.name,  // Map name to label for details
             dataIndex: col.dataIndex,
-            initialValue: record[col.dataIndex],  // Set value from expanded record
+            initialValue: record[ col.dataIndex ],  // Set value from expanded record
           }));
 
           return (
@@ -345,7 +366,7 @@ export const Table = ({
                   propertiesConfig: detailFields,
                   columnsConfig: {
                     numColumns,
-                    columns: [{ sortOrder: 0, fields: detailFields.map(c => c.dataIndex) }]
+                    columns: [ { sortOrder: 0, fields: detailFields.map(c => c.dataIndex) } ]
                   }
                 }}
                 routeParams={expandedRouteParams}
@@ -372,7 +393,7 @@ export const Table = ({
         // Fallback: Show JSON
         return <pre style={{ margin: '8px 16px' }}>{JSON.stringify(record, null, 2)}</pre>;
       },
-      
+
       // Conditional row expansion based on visibility config
       // TODO: Integrate with visibility evaluation system
       rowExpandable: (record: any) => {
@@ -380,11 +401,11 @@ export const Table = ({
         // In future, evaluate expandableConfig.rowExpandable with visibility system
         return true;
       },
-      
+
       // Optional: Custom indent size
       indentSize: expandableConfig.indentSize,
     };
-  }, [expandableConfig, routeParams, propertiesConfig, entityName]);
+  }, [ expandableConfig, routeParams, propertiesConfig, entityName ]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -409,8 +430,8 @@ export const Table = ({
         // Optionally, trigger a table data reload
         handleReload();
       }}
-    >      
-      
+    >
+
       <div className="table-toolbar">
         <div style={{ flex: 1 }}>
           {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
@@ -418,8 +439,8 @@ export const Table = ({
         <div style={{ display: 'flex', gap: '8px' }}>
           {canToggleSearchMode && (
             <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
-              <Button 
-                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />} 
+              <Button
+                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
                 onClick={toggleSearchMode}
                 type={isSearchMode ? "default" : "primary"}
               />
@@ -434,9 +455,9 @@ export const Table = ({
           <Tooltip title="Column Settings">
             <Dropdown
               popupRender={() => (
-                <ColumnSettings 
-                  columns={columnSettings} 
-                  onColumnChange={handleColumnSettingsChange} 
+                <ColumnSettings
+                  columns={columnSettings}
+                  onColumnChange={handleColumnSettingsChange}
                   onReset={resetColumnSettings}
                   fetchStrategy={currentFetchStrategy}
                   onFetchStrategyChange={handleFetchStrategyChange}
@@ -454,12 +475,12 @@ export const Table = ({
           </Tooltip>
         </div>
       </div>
-      
+
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
       {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
-        <div style={{ 
-          padding: '12px 16px', 
-          background: '#e6f7ff', 
+        <div style={{
+          padding: '12px 16px',
+          background: '#e6f7ff',
           borderRadius: '4px',
           marginBottom: '16px',
           display: 'flex',
@@ -468,8 +489,8 @@ export const Table = ({
         }}>
           <div style={{ fontWeight: 500 }}>
             {selectedRowKeys.length} {selectedRowKeys.length === 1 ? 'item' : 'items'} selected
-            <Button 
-              type="link" 
+            <Button
+              type="link"
               size="small"
               onClick={() => setSelectedRowKeys([])}
               style={{ marginLeft: '8px' }}
@@ -506,11 +527,11 @@ export const Table = ({
             // This preserves pre-applied filters like :teamId from route params
             const mergedFilters = { ...resolvedDefaultFilters, ...segmentFilters };
             setAppliedFilters(mergedFilters);
-            
+
             // Trigger table refetch AFTER state updates
             // Use setFetchTrigger instead of handleReload to ensure filters are updated first
             setFetchTrigger(prev => prev + 1);
-          }, [resolvedDefaultFilters, setAppliedFilters, setFetchTrigger])}
+          }, [ resolvedDefaultFilters, setAppliedFilters, setFetchTrigger ])}
           placeholderContext={placeholderContext}
         />
       )}

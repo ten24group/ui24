@@ -45,10 +45,14 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
   placeholderContext,
   className = '',
 }) => {
-  
+  // Don't render if no segments provided
+  if (!segments || segments.length === 0) {
+    return null;
+  }
+
   // Detect if segments are grouped or flat
-  const isGrouped = segments.length > 0 && isSegmentGroup(segments[0]);
-  
+  const isGrouped = segments.length > 0 && isSegmentGroup(segments[ 0 ]);
+
   // Normalize to grouped format for consistent handling
   const segmentGroups: Array<IFilterSegmentGroup> = useMemo(() => {
     if (isGrouped) {
@@ -56,42 +60,42 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
       return segments as Array<IFilterSegmentGroup>;
     } else {
       // Flat segments - wrap in a single group
-      return [{
+      return [ {
         id: 'default-group',
         label: '', // No label for backwards compatibility
         segments: segments as Array<IFilterSegment>
-      }];
+      } ];
     }
-  }, [segments, isGrouped]);
-  
+  }, [ segments, isGrouped ]);
+
   // Flatten all segments for visibility evaluation
   const allSegments = useMemo(() => {
     return segmentGroups.flatMap(group => group.segments);
-  }, [segmentGroups]);
-  
+  }, [ segmentGroups ]);
+
   // Evaluate visibility for all segments
   const visibilityResults = useEvaluationBatch(
     allSegments.map(segment => segment.visibility)
   );
-  
+
   // Create visibility map
   const visibilityMap = useMemo(() => {
     const map = new Map<string, boolean>();
     allSegments.forEach((segment, index) => {
-      const result = visibilityResults[index];
+      const result = visibilityResults[ index ];
       map.set(segment.id, result?.visible !== false);
     });
     return map;
-  }, [allSegments, visibilityResults]);
-  
+  }, [ allSegments, visibilityResults ]);
+
   // Filter visible groups and their segments
   const visibleGroups = useMemo(() => {
     return segmentGroups.map(group => ({
       ...group,
       segments: group.segments.filter(seg => visibilityMap.get(seg.id) !== false)
     })).filter(group => group.segments.length > 0);
-  }, [segmentGroups, visibilityMap]);
-  
+  }, [ segmentGroups, visibilityMap ]);
+
   // Resolve placeholders in all segments
   const resolvedGroups = useMemo(() => {
     return visibleGroups.map(group => ({
@@ -101,37 +105,37 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
         resolvedFilters: resolveFilterPlaceholders(segment.filters, placeholderContext),
       }))
     }));
-  }, [visibleGroups, placeholderContext]);
-  
+  }, [ visibleGroups, placeholderContext ]);
+
   // Track active segment per group (Record<groupId, segmentId>)
-  const [activeSegmentsByGroup, setActiveSegmentsByGroup] = React.useState<Record<string, string>>(() => {
+  const [ activeSegmentsByGroup, setActiveSegmentsByGroup ] = React.useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     resolvedGroups.forEach(group => {
-      const defaultSegment = group.segments.find(s => s.default) || group.segments[0];
+      const defaultSegment = group.segments.find(s => s.default) || group.segments[ 0 ];
       if (defaultSegment) {
-        initial[group.id] = defaultSegment.id;
+        initial[ group.id ] = defaultSegment.id;
       }
     });
     return initial;
   });
-  
+
   // Merge filters from all active segments
   const mergedFilters = useMemo(() => {
     let merged: Record<string, any> = {};
     resolvedGroups.forEach(group => {
-      const activeSegmentId = activeSegmentsByGroup[group.id];
+      const activeSegmentId = activeSegmentsByGroup[ group.id ];
       const activeSegment = group.segments.find(s => s.id === activeSegmentId);
       if (activeSegment) {
         merged = { ...merged, ...activeSegment.resolvedFilters };
       }
     });
     return merged;
-  }, [resolvedGroups, activeSegmentsByGroup]);
-  
+  }, [ resolvedGroups, activeSegmentsByGroup ]);
+
   // Track previous mode to re-apply filters when switching modes
   const prevModeRef = React.useRef(isSearchMode);
   const initialLoadRef = React.useRef(true);
-  
+
   // Apply initial merged filters on mount
   useEffect(() => {
     if (initialLoadRef.current) {
@@ -139,52 +143,52 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
       onSegmentChange('initial', mergedFilters);
     }
   }, []); // Run only on mount
-  
+
   // Re-apply merged filters when mode switches
   useEffect(() => {
     // Check if mode changed
     const modeChanged = prevModeRef.current !== isSearchMode;
     prevModeRef.current = isSearchMode;
-    
+
     // Only re-apply when mode changes (not on initial load)
     if (modeChanged) {
       onSegmentChange('mode-switch', mergedFilters);
     }
-  }, [isSearchMode]);
-  
+  }, [ isSearchMode ]);
+
   // Handle segment selection within a group
   const handleSegmentChange = (groupId: string, segmentId: string) => {
     // Update active segment for this group
     setActiveSegmentsByGroup(prev => ({
       ...prev,
-      [groupId]: segmentId
+      [ groupId ]: segmentId
     }));
-    
+
     // Find the selected segment and merge all filters
     const group = resolvedGroups.find(g => g.id === groupId);
     const segment = group?.segments.find(s => s.id === segmentId);
-    
+
     if (segment) {
       // Merge filters from all groups (with this group's new selection)
       let merged: Record<string, any> = {};
       resolvedGroups.forEach(g => {
-        const activeId = g.id === groupId ? segmentId : activeSegmentsByGroup[g.id];
+        const activeId = g.id === groupId ? segmentId : activeSegmentsByGroup[ g.id ];
         const activeSeg = g.segments.find(s => s.id === activeId);
         if (activeSeg) {
           merged = { ...merged, ...activeSeg.resolvedFilters };
         }
       });
-      
+
       // Apply merged filters
       onSegmentChange(segmentId, merged);
     }
   };
-  
+
   // Don't render if no visible groups
   if (visibleGroups.length === 0) {
     return null;
   }
-  
+
   const { token } = theme.useToken();
 
   return (
@@ -198,7 +202,7 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
           },
         }}
       >
-        <div 
+        <div
           className="filter-segments-container"
           style={{
             display: 'flex',
@@ -218,7 +222,7 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
                   label: (
                     <span className="filter-segment-label">
                       <span>{segment.label}</span>
-                      <Badge 
+                      <Badge
                         count={segment.badge}
                         status={segment.badgeStatus}
                         showZero={false}
@@ -229,19 +233,19 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
                   value: segment.id,
                 };
               }
-              
+
               // Simple label without badge
               return {
                 label: segment.label,
                 value: segment.id,
               };
             });
-            
-            const activeSegmentId = activeSegmentsByGroup[group.id];
-            
+
+            const activeSegmentId = activeSegmentsByGroup[ group.id ];
+
             return (
-              <div 
-                key={group.id} 
+              <div
+                key={group.id}
                 className="filter-segment-group"
                 style={{
                   display: 'flex',
@@ -250,10 +254,10 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
                 }}
               >
                 {group.label && (
-                  <span 
+                  <span
                     className="filter-segment-group-label"
-                    style={{ 
-                      fontSize: '13px', 
+                    style={{
+                      fontSize: '13px',
                       fontWeight: 500,
                       color: token.colorTextSecondary,
                       whiteSpace: 'nowrap',

@@ -1,4 +1,5 @@
 import { useUi24Config } from '../context/UI24Context';
+import { IFilterSegment, IFilterSegmentGroup } from '../../table/type';
 
 /**
  * Column configuration for entity pages.
@@ -52,42 +53,42 @@ export type ApiConfigOverride = IModalApiConfig | IListApiConfigDual | IListApiC
 export interface IEntityConfigReference {
   /** Entity name (e.g., 'team', 'game', 'user') */
   entityName: string;
-  
+
   /** Which page config to reference: 'view', 'create', or 'list' */
   pageType: 'view' | 'create' | 'list';
-  
+
   /** Optional overrides to apply to the referenced config */
   overrideConfig?: {
     /** Override page title */
     pageTitle?: string;
-    
+
     /** Override columns configuration (for view pages) */
     columnsConfig?: IEntityPageColumnConfig;
-    
+
     /** Override breadcrumbs */
     breadcrumbs?: Array<{ label: string; url?: string }>;
-    
+
     /** Override form success redirect (for create pages) */
     submitSuccessRedirect?: string;
-    
+
     /** Override form buttons (for create pages) */
     formButtons?: Array<{ text: string; action: string; url?: string }>;
-    
+
     /** Add default filters (for list pages) */
     defaultFilters?: Record<string, any>;
-    
+
     /** Hide specific fields from rendering */
     hideFields?: string[];
-    
+
     /** Show only specific fields (mutually exclusive with hideFields) */
     showOnlyFields?: string[];
-    
+
     /** 
      * Override API configuration for fetching data.
      * Supports multiple formats for different page types and use cases.
      */
     apiConfig?: ApiConfigOverride;
-    
+
     /** Map parent route params to different names for the child section */
     identifierMapping?: { source: string; target: string } | Array<{ source: string; target: string }>;
   };
@@ -125,7 +126,7 @@ function isListApiConfigSingle(config: any): config is IListApiConfigSingle {
  */
 export const useEntityConfig = () => {
   const { getPageConfig } = useUi24Config();
-  
+
   /**
    * Resolve entity config reference and apply overrides
    * @param configRef - Entity config reference with optional overrides
@@ -133,27 +134,27 @@ export const useEntityConfig = () => {
    */
   const resolveConfigRef = (configRef: IEntityConfigReference): any | null => {
     const { entityName, pageType, overrideConfig } = configRef;
-    
+
     // Generate config key: "view-team", "create-team", "list-team"
     const configKey = `${pageType}-${entityName.toLowerCase()}`;
-    
+
     // Get base config from entity registry
     const baseConfig = getPageConfig(configKey);
-    
+
     if (!baseConfig) {
       console.warn(`[useEntityConfig] Config not found for key: ${configKey}`);
       return null;
     }
-    
+
     // If no overrides, return base config as-is
     if (!overrideConfig || Object.keys(overrideConfig).length === 0) {
       return baseConfig;
     }
-    
+
     // Apply overrides based on page type
     return mergeConfigOverrides(baseConfig, overrideConfig, pageType);
   };
-  
+
   /**
    * Merge override config into base config
    * Handles page-type-specific merging logic
@@ -161,7 +162,7 @@ export const useEntityConfig = () => {
   const mergeConfigOverrides = (baseConfig: any, overrides: any, pageType: string): any => {
     // Deep clone base config to prevent mutation
     const merged = JSON.parse(JSON.stringify(baseConfig));
-    
+
     // Top-level overrides (common to all page types)
     if (overrides.pageTitle !== undefined) {
       merged.pageTitle = overrides.pageTitle;
@@ -169,7 +170,7 @@ export const useEntityConfig = () => {
     if (overrides.breadcrumbs !== undefined) {
       merged.breadcrumbs = overrides.breadcrumbs;
     }
-    
+
     // Page-type-specific overrides
     if (pageType === 'view') {
       if (!merged.detailsPageConfig) {
@@ -178,12 +179,12 @@ export const useEntityConfig = () => {
         );
         return merged;
       }
-      
+
       // View page overrides
       if (overrides.columnsConfig !== undefined) {
         merged.detailsPageConfig.columnsConfig = overrides.columnsConfig;
       }
-      
+
       // API config override for view pages
       if (overrides.apiConfig !== undefined && merged.detailsPageConfig.detailApiConfig) {
         merged.detailsPageConfig.detailApiConfig = {
@@ -191,7 +192,7 @@ export const useEntityConfig = () => {
           ...overrides.apiConfig
         };
       }
-      
+
       // Field visibility overrides
       if (overrides.hideFields && merged.detailsPageConfig.propertiesConfig) {
         merged.detailsPageConfig.propertiesConfig = merged.detailsPageConfig.propertiesConfig.filter(
@@ -204,7 +205,7 @@ export const useEntityConfig = () => {
         );
       }
     }
-    
+
     if (pageType === 'create') {
       if (!merged.formPageConfig) {
         console.warn(
@@ -212,7 +213,7 @@ export const useEntityConfig = () => {
         );
         return merged;
       }
-      
+
       // Create page overrides
       if (overrides.submitSuccessRedirect !== undefined) {
         merged.formPageConfig.submitSuccessRedirect = overrides.submitSuccessRedirect;
@@ -223,7 +224,7 @@ export const useEntityConfig = () => {
       if (overrides.columnsConfig !== undefined) {
         merged.formPageConfig.columnsConfig = overrides.columnsConfig;
       }
-      
+
       // Field visibility overrides
       if (overrides.hideFields && merged.formPageConfig.propertiesConfig) {
         merged.formPageConfig.propertiesConfig = merged.formPageConfig.propertiesConfig.filter(
@@ -236,7 +237,7 @@ export const useEntityConfig = () => {
         );
       }
     }
-    
+
     if (pageType === 'list') {
       if (!merged.listPageConfig) {
         console.warn(
@@ -244,7 +245,7 @@ export const useEntityConfig = () => {
         );
         return merged;
       }
-      
+
       // List page overrides
       if (overrides.defaultFilters !== undefined) {
         merged.listPageConfig.defaultFilters = {
@@ -255,13 +256,20 @@ export const useEntityConfig = () => {
       if (overrides.columnsConfig !== undefined) {
         merged.listPageConfig.columnsConfig = overrides.columnsConfig;
       }
-      
+
+      // Segments override - allows disabling or replacing segments
+      // Setting segments: [] is useful in modal/section contexts where segments
+      // conflict with explicit defaultFilters (e.g., Child Spans section)
+      if (overrides.segments !== undefined) {
+        merged.listPageConfig.segments = overrides.segments;
+      }
+
       // API config override for list pages
       // List pages can have either single apiConfig or dual search/database configs
       if (overrides.apiConfig !== undefined && merged.listPageConfig.apiConfig) {
         const overrideConfig = overrides.apiConfig;
         const baseConfig = merged.listPageConfig.apiConfig;
-        
+
         if (isDualApiConfig(overrideConfig)) {
           // Override is dual config - replace entirely
           merged.listPageConfig.apiConfig = overrideConfig;
@@ -279,7 +287,7 @@ export const useEntityConfig = () => {
           };
         }
       }
-      
+
       // Field visibility overrides (for columns)
       if (overrides.hideFields && merged.listPageConfig.columnsConfig) {
         merged.listPageConfig.columnsConfig = merged.listPageConfig.columnsConfig.filter(
@@ -292,10 +300,10 @@ export const useEntityConfig = () => {
         );
       }
     }
-    
+
     return merged;
   };
-  
+
   return { resolveConfigRef };
 };
 

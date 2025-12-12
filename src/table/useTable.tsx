@@ -302,6 +302,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
   const [ fetchTrigger, setFetchTrigger ] = React.useState(0);
 
+  // Track if this is the initial mount to prevent premature fetching
+  const isInitialMountRef = React.useRef(true);
+
   const {
     listRecords,
     isLoading,
@@ -345,7 +348,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       // Reset to defaultFilters instead of clearing everything
       // This preserves pre-applied filters (e.g., awayTeamId from relation modals)
       setAppliedFilters(resolvedDefaultFilters);
-      setFetchTrigger(prev => prev + 1);
+      // NOTE: Don't trigger fetch here - FilterSegments will detect mode change
+      // and re-apply segment filters with a fetch. This prevents double fetching.
+      // If there are no segments, the mode change in isSearchMode dependency
+      // in useTableData will trigger a fetch automatically.
     }
   }, [ apiConfig, resolvedDefaultFilters ]);
 
@@ -358,6 +364,13 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Reset columns and state when entity changes (navigation between list pages)
   // Use useLayoutEffect to ensure this runs BEFORE the fetch effect
   useLayoutEffect(() => {
+    // Skip on initial mount - let FilterSegments trigger the first fetch with default segment filters
+    // This prevents race condition where initial fetch happens before segment defaults are applied
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
     setVisibleColumns(propertiesConfig.filter(p => {
       // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
       if (p.hasOwnProperty('defaultVisible')) {
@@ -383,10 +396,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFacetedColumns([]);
 
     // Reset filters and search when navigating to a different entity
-    // (but preserve URL-based filters through location query params)
-    const urlFilters = getInitialFiltersFromUrl(location);
-    // Use the memoized resolvedDefaultFilters
-    setAppliedFilters({ ...resolvedDefaultFilters, ...urlFilters });
+    // IMPORTANT: Don't read URL filters here - they're only applied on initial mount
+    // This prevents filters from sticking when navigating between pages
+    setAppliedFilters(resolvedDefaultFilters);
     setSearchQuery('');
 
     // Reset sort to default for the current mode
