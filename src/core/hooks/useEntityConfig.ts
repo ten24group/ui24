@@ -77,6 +77,53 @@ export interface IEntityConfigReference {
     /** Add default filters (for list pages) */
     defaultFilters?: Record<string, any>;
 
+    /**
+     * Override filter segments completely (for list pages).
+     * When provided, replaces all segments from base config.
+     * Set to empty array [] to disable segments entirely.
+     * 
+     * @example
+     * // Disable segments (useful in modal/section contexts)
+     * segments: []
+     * 
+     * @example
+     * // Replace with custom segments
+     * segments: [
+     *   { id: 'active', label: 'Active', filters: { status: { eq: 'active' } } },
+     *   { id: 'inactive', label: 'Inactive', filters: { status: { eq: 'inactive' } } }
+     * ]
+     */
+    segments?: ReadonlyArray<IFilterSegment | IFilterSegmentGroup> | Array<IFilterSegment | IFilterSegmentGroup>;
+
+    /**
+     * Hide specific segments by ID (for list pages).
+     * Keeps all other segments from base config.
+     * 
+     * @example
+     * hideSegments: ['root-only', 'child-only']
+     */
+    hideSegments?: ReadonlyArray<string> | Array<string>;
+
+    /**
+     * Show only these segments by ID (for list pages).
+     * Mutually exclusive with hideSegments.
+     * 
+     * @example
+     * showOnlySegments: ['all-levels', 'errors']
+     */
+    showOnlySegments?: ReadonlyArray<string> | Array<string>;
+
+    /**
+     * Add additional segments to base config (for list pages).
+     * Merged with base segments using ID-based override logic.
+     * 
+     * @example
+     * additionalSegments: [
+     *   { id: 'archived', label: 'Archived', filters: { archived: { eq: true } } }
+     * ]
+     */
+    additionalSegments?: ReadonlyArray<IFilterSegment | IFilterSegmentGroup> | Array<IFilterSegment | IFilterSegmentGroup>;
+
     /** Hide specific fields from rendering */
     hideFields?: string[];
 
@@ -106,6 +153,74 @@ function isDualApiConfig(config: any): config is IListApiConfigDual {
  */
 function isListApiConfigSingle(config: any): config is IListApiConfigSingle {
   return config && typeof config === 'object' && 'apiMethod' in config && 'apiUrl' in config;
+}
+
+/**
+ * Merges segments using ID-based override logic (same pattern as buttons/actions).
+ * Custom segments with matching IDs override defaults, new segments are appended.
+ */
+function mergeSegments<T extends { id: string }>(
+  defaults: Array<T>,
+  customs: ReadonlyArray<T> | Array<T> = []
+): Array<T> {
+  const customsArray = [ ...customs ];
+  const customMap = new Map(customsArray.map(c => [ c.id, c ]));
+
+  // Start with defaults, replace if custom has same id
+  const merged = defaults.map(defaultSeg =>
+    customMap.has(defaultSeg.id) ? customMap.get(defaultSeg.id)! : defaultSeg
+  );
+
+  // Add custom segments that don't override defaults
+  customsArray.forEach(customSeg => {
+    if (!defaults.some(d => d.id === customSeg.id)) {
+      merged.push(customSeg);
+    }
+  });
+
+  return merged;
+}
+
+/**
+ * Gets all segment IDs from a mixed array of segments and segment groups
+ */
+function getAllSegmentIds(segments: Array<IFilterSegment | IFilterSegmentGroup>): string[] {
+  const ids: string[] = [];
+  segments.forEach(item => {
+    if ('segments' in item) {
+      // It's a group - add the group id and all segment ids within it
+      ids.push(item.id);
+      item.segments.forEach(seg => ids.push(seg.id));
+    } else {
+      // It's a flat segment
+      ids.push(item.id);
+    }
+  });
+  return ids;
+}
+
+/**
+ * Filters segments by ID (supports both flat segments and groups)
+ */
+function filterSegmentsByIds(
+  segments: Array<IFilterSegment | IFilterSegmentGroup>,
+  idsToKeep: Set<string>
+): Array<IFilterSegment | IFilterSegmentGroup> {
+  return segments
+    .map(item => {
+      if ('segments' in item) {
+        // It's a group - check if the group itself should be kept first
+        if (!idsToKeep.has(item.id)) return null; // Remove entire group if group id not in idsToKeep
+        // Then filter segments within it
+        const filteredSegments = item.segments.filter(seg => idsToKeep.has(seg.id));
+        if (filteredSegments.length === 0) return null; // Remove empty groups
+        return { ...item, segments: filteredSegments };
+      } else {
+        // It's a flat segment
+        return idsToKeep.has(item.id) ? item : null;
+      }
+    })
+    .filter((item): item is IFilterSegment | IFilterSegmentGroup => item !== null);
 }
 
 /**
@@ -257,11 +372,26 @@ export const useEntityConfig = () => {
         merged.listPageConfig.columnsConfig = overrides.columnsConfig;
       }
 
-      // Segments override - allows disabling or replacing segments
-      // Setting segments: [] is useful in modal/section contexts where segments
-      // conflict with explicit defaultFilters (e.g., Child Spans section)
+      // Segment overrides - flexible control over filter segments
+      // Priority: segments (full override) > hideSegments/showOnlySegments (filter) > additionalSegments (merge)
+      const baseSegments = merged.listPageConfig.segments || [];
+
       if (overrides.segments !== undefined) {
+        // Complete override - replaces all segments (or disables with [])
         merged.listPageConfig.segments = overrides.segments;
+      } else if (overrides.showOnlySegments !== undefined) {
+        // Show only specific segments by ID
+        const idsToShow = new Set<string>(overrides.showOnlySegments as string[]);
+        merged.listPageConfig.segments = filterSegmentsByIds(baseSegments, idsToShow);
+      } else if (overrides.hideSegments !== undefined) {
+        // Hide specific segments by ID  
+        const allIds = getAllSegmentIds(baseSegments);
+        const hideIds = new Set<string>(overrides.hideSegments as string[]);
+        const idsToKeep = new Set<string>(allIds.filter(id => !hideIds.has(id)));
+        merged.listPageConfig.segments = filterSegmentsByIds(baseSegments, idsToKeep);
+      } else if (overrides.additionalSegments !== undefined) {
+        // Merge additional segments with base (ID-based override)
+        merged.listPageConfig.segments = mergeSegments(baseSegments, overrides.additionalSegments);
       }
 
       // API config override for list pages

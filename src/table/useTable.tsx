@@ -102,13 +102,18 @@ const getDefaultSortFromApiConfig = (apiConfig: ITableApiConfig | IDualTableApiC
 };
 
 /**
- * Parse filters from URL query params or sessionStorage
+ * Parse filters from URL query params or sessionStorage (one-time read on mount)
  * Supports both direct query params and large param storage (f=key)
  * 
- * CRITICAL: Internal structure MUST use operators for UI compatibility!
- * - Plain values: sport=basketball → {sport: {eq: "basketball"}} (UI needs this!)
- * - Already has operator: sport.neq=football → {sport: {neq: "football"}}
- * - System params (debug, trace, etc.) are IGNORED here, added separately to API
+ * URL filters are treated as "deep link" parameters:
+ * - Read ONCE on initial page load
+ * - NOT synced back when other filters change (one-way read)
+ * - Merged with default/segment filters on initialization
+ * 
+ * Internal structure ALWAYS uses operator format for UI compatibility:
+ * - Plain values: sport=basketball → {sport: {eq: "basketball"}}
+ * - With operator: sport.neq=football → {sport: {neq: "football"}}
+ * - System params (debug, trace, mock) are IGNORED here, passed directly to API
  */
 const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Record<string, any> => {
   const queryParams = new URLSearchParams(location.search);
@@ -238,20 +243,21 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
-  // Memoize resolved defaultFilters using new placeholder resolver
-  // Build placeholder context once
+  // Build placeholder context once for resolving dynamic filter values
   const placeholderContext = usePlaceholderContext(routeParams);
 
+  // Resolve placeholders in defaultFilters (from prop, includes segment defaults from Table.tsx)
   const resolvedDefaultFilters = React.useMemo(() => {
-    // Resolve all placeholders in defaultFilters
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
   }, [ defaultFilters, placeholderContext ]);
 
-  // Initialize filters from URL query params + defaultFilters (for modal navigation pattern)
+  // Initialize appliedFilters with layered merge (lowest to highest priority):
+  // 1. resolvedDefaultFilters (prop defaults + segment defaults)
+  // 2. URL filters (one-time read for deep linking)
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
     const urlFilters = getInitialFiltersFromUrl(location);
 
-    // Merge: URL filters take precedence over defaultFilters
+    // URL filters take precedence (deep link behavior)
     return { ...resolvedDefaultFilters, ...urlFilters };
   });
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
@@ -297,13 +303,13 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     })
   );
 
-  // Manage current fetch strategy (session-only, starts with default from config)
+  // Manage current fetch strategy (session-only, user can change in Column Settings)
   const [ currentFetchStrategy, setCurrentFetchStrategy ] = React.useState<'eager' | 'lazy'>(fetchStrategy);
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
-  const [ fetchTrigger, setFetchTrigger ] = React.useState(0);
 
-  // Track if this is the initial mount to prevent premature fetching
-  const isInitialMountRef = React.useRef(true);
+  // fetchTrigger starts at 1 to trigger initial fetch on mount
+  // This ensures tables load data immediately after initialization (with merged defaults + URL filters)
+  const [ fetchTrigger, setFetchTrigger ] = React.useState(1);
 
   const {
     listRecords,
@@ -339,19 +345,18 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     if (canToggleSearchMode(apiConfig)) {
       setIsSearchMode(prev => {
         const newMode = !prev;
-        // Reset sort to defaultSort
+        // Reset sort to defaultSort for the new mode
         const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
         setSort(convertDefaultSortToSorterResult(defaultSort));
         return newMode;
       });
       setSearchQuery('');
-      // Reset to defaultFilters instead of clearing everything
-      // This preserves pre-applied filters (e.g., awayTeamId from relation modals)
+      // Reset to defaultFilters (preserves pre-applied filters like relation defaults)
       setAppliedFilters(resolvedDefaultFilters);
-      // NOTE: Don't trigger fetch here - FilterSegments will detect mode change
-      // and re-apply segment filters with a fetch. This prevents double fetching.
-      // If there are no segments, the mode change in isSearchMode dependency
-      // in useTableData will trigger a fetch automatically.
+      // NOTE: Don't trigger fetch here:
+      // - If segments exist, FilterSegments detects mode change and re-applies filters
+      // - If no segments, Table.tsx useEffect on isSearchMode triggers fetch
+      // This prevents double fetching
     }
   }, [ apiConfig, resolvedDefaultFilters ]);
 
@@ -361,15 +366,30 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   };
 
-  // Reset columns and state when entity changes (navigation between list pages)
-  // Use useLayoutEffect to ensure this runs BEFORE the fetch effect
+  // Determine stable API URL for entity identification
+  // This prevents resetting filters when switching between search/database modes (which change current API URL)
+  const stableApiUrl = isDualApiConfig(apiConfig) ? apiConfig.database?.apiUrl : apiConfig.apiUrl;
+
+  // Track initial dependencies to detect actual entity changes (vs React Strict Mode re-mount)
+  const initialDepsRef = React.useRef({
+    url: stableApiUrl,
+    cols: propertiesConfig.map(p => p.dataIndex).join(',')
+  });
+
+  // Reset table state when navigating between different entities
+  // Use useLayoutEffect to run BEFORE fetch effect (prevents double fetch)
   useLayoutEffect(() => {
-    // Skip on initial mount - let FilterSegments trigger the first fetch with default segment filters
-    // This prevents race condition where initial fetch happens before segment defaults are applied
-    if (isInitialMountRef.current) {
-      isInitialMountRef.current = false;
+    const currentCols = propertiesConfig.map(p => p.dataIndex).join(',');
+
+    // Check if configuration actually changed (not just Strict Mode double-invocation)
+    // Using value comparison (url + columns) instead of boolean flag prevents reset on re-mount
+    if (stableApiUrl === initialDepsRef.current.url && currentCols === initialDepsRef.current.cols) {
+      // Same entity, don't reset (could be Strict Mode or initial mount)
       return;
     }
+
+    // Different entity detected, update refs for next comparison
+    initialDepsRef.current = { url: stableApiUrl, cols: currentCols };
 
     setVisibleColumns(propertiesConfig.filter(p => {
       // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
@@ -396,8 +416,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFacetedColumns([]);
 
     // Reset filters and search when navigating to a different entity
-    // IMPORTANT: Don't read URL filters here - they're only applied on initial mount
-    // This prevents filters from sticking when navigating between pages
+    // IMPORTANT: Don't read URL filters here - they're only applied on initial mount (one-time read)
+    // This prevents old filters from sticking when navigating between pages
     setAppliedFilters(resolvedDefaultFilters);
     setSearchQuery('');
 
@@ -407,12 +427,15 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
     // Trigger fetch with new state
     setFetchTrigger(prev => prev + 1);
-  }, [ getCurrentApiConfig(apiConfig, isSearchMode).apiUrl, propertiesConfig.map(p => p.dataIndex).join(',') ]);
+  }, [ stableApiUrl, propertiesConfig.map(p => p.dataIndex).join(',') ]);
 
-  // Fetch data when trigger changes
-  useEffect(() => {
+  // Fetch data when fetchTrigger changes
+  // fetchTrigger starts at 1, so this triggers the initial fetch on mount
+  // Subsequent increments trigger refetch (from filters, search, sort, etc.)
+  React.useEffect(() => {
     fetchRecords(1);
-  }, [ fetchTrigger ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ fetchTrigger ]); // Depend on fetchTrigger, not appliedFilters (avoids circular updates)
 
   const handleRefresh = React.useCallback(() => {
     // Reset to defaultFilters instead of clearing everything
@@ -1102,7 +1125,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     toggleSearchMode,
     canToggleSearchMode: canToggleSearchMode(apiConfig),
     appliedFilters,
-    setAppliedFilters,  // Expose for filter segments
-    setFetchTrigger,    // Expose to trigger refetch after state updates
+    setAppliedFilters,  // Exposed for FilterSegments to update filters
+    setFetchTrigger,    // Exposed to trigger refetch after state updates
+    fetchRecords,       // Exposed to allow immediate fetch with filtersOverride (bypasses React async setState)
   };
 };

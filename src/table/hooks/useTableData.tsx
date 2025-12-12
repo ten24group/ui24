@@ -103,6 +103,15 @@ export const useTableData = ({
   // Build placeholder context for resolving filter placeholders
   const placeholderContext = usePlaceholderContext(routeParams);
 
+  // Reset pagination when filters or sort change
+  // This prevents stale pagination cursors from being used with new filter sets
+  // Without this, changing filters and then paginating would send old filter values to the API
+  // Note: The fetch is triggered by useTable.tsx via fetchTrigger when appliedFilters/sort change
+  React.useEffect(() => {
+    setPageCursor({ 1: "" });
+    setCurrentPage(1);
+  }, [ appliedFilters, sort ]);
+
   const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
   const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
     [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle', 'json' ]
@@ -117,42 +126,49 @@ export const useTableData = ({
       .join(',');
   };
 
-  const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string) => {
+  const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string, filtersOverride?: Record<string, any>) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
     const isSearchActive = isSearchMode;
     const sortString = getSortString();
     const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursor[ pageNumber ] || "";
 
+    // Use filtersOverride if provided, otherwise use appliedFilters from state
+    // filtersOverride is critical for segment changes: allows immediate fetch with new filters
+    // without waiting for React's setState to complete (avoids stale closure issues)
+    const effectiveFilters = filtersOverride !== undefined ? filtersOverride : appliedFilters;
+
     // Resolve all placeholders in filters before sending to API
-    const resolvedFilters = resolveFilterPlaceholders(appliedFilters, placeholderContext);
+    const resolvedFilters = resolveFilterPlaceholders(effectiveFilters, placeholderContext);
+
+    const filterPayload = getFilterPayload(resolvedFilters, apiConfig.apiMethod);
 
     const payload = {
-      ...getFilterPayload(resolvedFilters, apiConfig.apiMethod),
+      ...filterPayload,
     };
 
-    // Add non-filter query params from URL (debug, trace, mock, etc.)
-    // These bypass filter structure and go directly to API
+    // Add non-filter pass-through params from URL (debug, trace, mock, etc.)
+    // These are system params that bypass filter structure and go directly to API
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-      // Use shared constant for consistency with useTable.tsx
       urlParams.forEach((value, key) => {
-        // Skip infrastructure params (they're handled separately)
+        // Skip infrastructure params (cursor, page, count, etc.)
         if (NON_FILTER_URL_PARAMS.includes(key as any)) {
           return;
         }
 
-        // Skip filter params (already in appliedFilters)
+        // Skip filter params (already in appliedFilters and processed above)
         if (appliedFilters[ key ] || key.includes('.')) {
           return;
         }
 
-        // This is a pass-through param (like debug, trace, mock) - add it!
+        // This is a pass-through param (debug, trace, mock) - pass to API as-is
         payload[ key ] = value;
       });
     }
 
-    // shared payload for both search and list APIs
-    // Only send attributes parameter for lazy fetching strategy
+    // Column fetching strategy (controlled by user in Column Settings)
+    // lazy: Only fetch visible columns (refetch when columns shown/hidden)
+    // eager: Fetch all isListable columns upfront (default, better for frequent column toggling)
     if (fetchStrategy === 'lazy') {
       const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
       const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
@@ -160,7 +176,7 @@ export const useTableData = ({
         payload.attributes = attributes.join(',');
       }
     }
-    // For eager fetching (default), omit attributes parameter to fetch all isListable columns
+    // For eager fetching (default), omit attributes param to fetch all isListable columns
 
     if (isSearchActive) {
       payload.q = searchQuery;

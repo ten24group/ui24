@@ -154,6 +154,42 @@ export const Table = ({
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
   }, [ defaultFilters, placeholderContext ]);
 
+  // Compute default segment filters to merge with prop defaultFilters
+  // This ensures segments marked with `default: true` are applied on initial page load
+  // These defaults are then passed to useTable, which merges them with URL filters
+  const segmentDefaultFilters = useMemo(() => {
+    if (!segments || segments.length === 0) return {};
+
+    let defaults: Record<string, any> = {};
+
+    // Normalize segments to grouped format
+    const isGrouped = segments.length > 0 && ('segments' in segments[ 0 ]);
+    const groups = isGrouped
+      ? segments
+      : [ { id: 'default-group', segments: segments } ];
+
+    groups.forEach((group: any) => {
+      // Find segment with explicit default=true flag
+      // NOTE: Only explicit defaults are used; we don't fallback to first segment
+      const defaultSeg = group.segments.find((s: any) => s.default);
+
+      if (defaultSeg && defaultSeg.filters && Object.keys(defaultSeg.filters).length > 0) {
+        // Resolve placeholders (e.g., :actor.actorId) before merging
+        const resolved = resolveFilterPlaceholders(defaultSeg.filters, placeholderContext);
+        Object.assign(defaults, resolved);
+      }
+    });
+
+    return defaults;
+  }, [ segments, placeholderContext ]);
+
+  // Merge all default filters for useTable initialization
+  // Priority: segmentDefaultFilters < resolvedDefaultFilters < URL filters (handled in useTable)
+  const initialFiltersForTable = useMemo(() => ({
+    ...segmentDefaultFilters,
+    ...resolvedDefaultFilters // Prop defaults override segment defaults if keys conflict
+  }), [ segmentDefaultFilters, resolvedDefaultFilters ]);
+
   const {
     recordIdentifierKey,
     columns,
@@ -177,6 +213,7 @@ export const Table = ({
     appliedFilters,  // NEW: Now exposed from useTable
     setAppliedFilters,  // NEW: For filter segments
     setFetchTrigger,  // NEW: To trigger refetch after state updates
+    fetchRecords,  // NEW: To allow direct fetch after state updates
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
@@ -189,13 +226,17 @@ export const Table = ({
     propertiesConfig,
     apiConfig,
     routeParams,
-    defaultFilters,
+    defaultFilters: initialFiltersForTable, // Pass merged defaults here
     fetchStrategy
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
 
-  // NEW: Track selected row keys
+  // Ref to always access latest appliedFilters in callbacks (avoids stale closures)
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
+
+  // Track selected row keys for bulk actions and row selection
   const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
 
   // Calculate selectedRecords only when selectedRowKeys change (not on data refetch)
@@ -204,26 +245,22 @@ export const Table = ({
     [ selectedRowKeys, listRecords, recordIdentifierKey ]
   );
 
-  // Trigger initial fetch if there are no filter segments
-  // (When segments exist, FilterSegments component handles initial fetch)
-  const initialFetchTriggeredRef = useRef(false);
-  useEffect(() => {
-    const hasSegments = segments && segments.length > 0;
-    if (!hasSegments && !initialFetchTriggeredRef.current) {
-      initialFetchTriggeredRef.current = true;
-      setFetchTrigger(prev => prev + 1);
-    }
-  }, []); // Only run on mount
+  // Initial fetch behavior:
+  // useTable now handles the initial fetch automatically on mount because:
+  // 1. segmentDefaultFilters + resolvedDefaultFilters are merged into initialFiltersForTable
+  // 2. useTable initializes appliedFilters with these defaults + URL filters
+  // 3. fetchTrigger starts at 1, which triggers the initial fetch
+  // 
+  // This eliminates the need for separate initial fetch logic here
 
-  // Trigger fetch when search mode changes (only if no segments exist)
-  // When segments exist, FilterSegments handles mode change fetching
+  // Trigger fetch when search mode changes (for tables without segments)
+  // Tables with segments don't need this because FilterSegments re-applies filters on mode change
   useEffect(() => {
     const hasSegments = segments && segments.length > 0;
-    // Skip initial mount (handled by initialFetchTriggeredRef above)
-    if (!hasSegments && initialFetchTriggeredRef.current) {
+    if (!hasSegments) {
       setFetchTrigger(prev => prev + 1);
     }
-  }, [ isSearchMode ]);
+  }, [ isSearchMode, segments ]);
 
   // Lift table state to wrapper (if callback provided)
   useEffect(() => {
@@ -522,16 +559,40 @@ export const Table = ({
         <FilterSegments
           segments={segments}
           isSearchMode={isSearchMode}
-          onSegmentChange={useCallback((segmentId: string, segmentFilters: Record<string, any>) => {
-            // IMPORTANT: Merge segment filters WITH defaultFilters
-            // This preserves pre-applied filters like :teamId from route params
-            const mergedFilters = { ...resolvedDefaultFilters, ...segmentFilters };
-            setAppliedFilters(mergedFilters);
+          appliedFilters={appliedFilters}
+          onSegmentChange={useCallback((segmentId: string, filtersToAdd: Record<string, any>, filtersToRemove: Record<string, any>) => {
+            // Use ref to get latest filters (avoids stale closures)
+            const currentFilters = appliedFiltersRef.current;
+            let newFilters = { ...currentFilters };
 
-            // Trigger table refetch AFTER state updates
-            // Use setFetchTrigger instead of handleReload to ensure filters are updated first
-            setFetchTrigger(prev => prev + 1);
-          }, [ resolvedDefaultFilters, setAppliedFilters, setFetchTrigger ])}
+            // 1. Remove filters from previous segment
+            // These are the keys controlled by the segment we're switching away from
+            if (filtersToRemove) {
+              Object.keys(filtersToRemove).forEach(key => {
+                delete newFilters[ key ];
+              });
+            }
+
+            // 2. Add filters from new segment
+            // If switching to "All" (empty filters), this step does nothing
+            if (filtersToAdd) {
+              Object.assign(newFilters, filtersToAdd);
+            }
+
+            // 3. Restore default filters for removed keys (if they exist)
+            // Example: Switching from "Active" (status=active) to "All" (empty)
+            // If defaultFilters has status=pending, restore it
+            Object.keys(filtersToRemove || {}).forEach(key => {
+              if (resolvedDefaultFilters[ key ] !== undefined && newFilters[ key ] === undefined) {
+                newFilters[ key ] = resolvedDefaultFilters[ key ];
+              }
+            });
+
+            // 4. Update state and fetch immediately with new filters
+            // fetchRecords accepts filtersOverride to bypass React's async setState
+            setAppliedFilters(newFilters);
+            fetchRecords(1, undefined, newFilters);
+          }, [ resolvedDefaultFilters, setAppliedFilters, fetchRecords ])}
           placeholderContext={placeholderContext}
         />
       )}

@@ -4,6 +4,7 @@ import type { Template, VisibilityConfig, IFieldTypeProperties } from "../core/t
 import { IModalConfig } from "../modal/Modal";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
+import type { IEntityConfigReference } from "../core/hooks/useEntityConfig";
 type ITablePagination = "default";
 
 /**
@@ -58,7 +59,7 @@ export interface ITableExpandableConfig {
  *    Note: For DynamoDB, this indicates the expected index order direction,
  *    not an actual sort parameter (DynamoDB returns data in index PK/SK order)
  */
-export type SortConfig = 
+export type SortConfig =
   | { field: string; order: 'asc' | 'desc' }           // Single column sort (search mode)
   | Array<{ field: string; order: 'asc' | 'desc' }>    // Multi-column sort (search mode)
   | 'asc' | 'desc';                                     // Index order direction (DynamoDB mode)
@@ -172,7 +173,7 @@ export interface ITableConfig {
    * Uses existing Table component for nested-table mode, providing full table features.
    */
   expandableConfig?: ITableExpandableConfig;
-  
+
   /**
    * Filter segments (quick filter tabs).
    * From backend: entitySchema.model.listPageConfig.tableConfig.segments
@@ -183,9 +184,12 @@ export interface ITableConfig {
    * 
    * Displayed as tabs above the table for quick access to common filter sets.
    * Supports placeholder resolution (`:actor.actorId`, `:startOfToday`, etc.)
+   * 
+   * Segment selection is reactive: UI automatically updates when filters change from any source
+   * (URL, column filters, applied filters removal, or segment clicks).
    */
   segments?: Array<IFilterSegment | IFilterSegmentGroup>;
-  
+
   /**
    * Controls how column data is fetched from the API.
    * From backend: entitySchema.model.listPageConfig.tableConfig.fetchStrategy
@@ -196,7 +200,7 @@ export interface ITableConfig {
    * @default 'eager'
    */
   fetchStrategy?: 'eager' | 'lazy';
-  
+
   /**
    * Additional sections to display below or alongside the main table.
    * From backend: entitySchema.model.listPageConfig.sectionsConfig
@@ -205,7 +209,7 @@ export interface ITableConfig {
    * Sections have access to table state (selected records, filters) via routeParams.
    */
   sectionsConfig?: ISectionsConfig;
-  
+
   onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
 }
 
@@ -235,7 +239,7 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * From backend: tableConfig.columns[].groupTitle
    */
   groupTitle?: string;
-  
+
   /**
    * Template for rendering column values.
    * Supports nested paths and composite templates.
@@ -253,7 +257,7 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * }
    */
   template?: Template;
-  
+
   /**
    * Relation field configuration for rendering related entities.
    * 
@@ -297,7 +301,7 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * }
    */
   relationConfig?: IRelationFieldConfig;
-  
+
   // Filter configuration options
   filterConfig?: {
     defaultOperator?: string; // Default filter operator (e.g., 'contains', 'eq', 'in')
@@ -324,39 +328,80 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
 export type IPageAction = {
 
   id?: string;
-  
+
   label: string;
-  
+
   /**
    * Dynamic label template (evaluated from routeParams or record context).
    * If provided, overrides static `label` field.
    * Can be a simple string like '{teamName}' or complex object.
    */
   template?: Template;
-  
+
+  /**
+   * Tooltip text (shown on hover).
+   * Can be static string or dynamic template evaluated from routeParams/record context.
+   * 
+   * @example
+   * // Static tooltip
+   * tooltip: 'View all child spans'
+   * 
+   * @example
+   * // Dynamic tooltip
+   * tooltip: 'View trace for {correlationId}'
+   * 
+   * @example
+   * // Complex template
+   * tooltip: {
+   *   composite: ['teamName', 'status'],
+   *   template: 'Edit {teamName} (Status: {status})'
+   * }
+   */
+  tooltip?: Template;
+
   url?: string;
   icon?: string;
   type?: 'button' | 'dropdown';
   items?: Array<Omit<IPageAction, 'items'>>;  // Items cannot have sub-items
-  
+
   /** Open action in modal instead of navigating */
   openInModal?: boolean;
-  
+
   /** Modal configuration (inline config or resolved from url) */
   modalConfig?: IModalConfig;
-  
+
+  /** 
+   * Entity config reference for modal route resolution (when using openInModal without modalConfig).
+   * Provides overrideConfig support for defaultFilters, hideSegments, etc.
+   * Used by OpenRouteInModal component.
+   * 
+   * @example
+   * {
+   *   openInModal: true,
+   *   modalConfigRef: {
+   *     entityName: 'observabilityLog',
+   *     pageType: 'list',
+   *     overrideConfig: {
+   *       defaultFilters: { parentId: ':id' },
+   *       hideSegments: ['hierarchy-group']
+   *     }
+   *   }
+   * }
+   */
+  modalConfigRef?: IEntityConfigReference;
+
   /** Custom modal width. Default: auto-detect from page type */
   modalWidth?: number | string;
-  
+
   /** Override resolved page title when opened in modal */
   modalTitle?: string;
-  
+
   /** Hide this action when rendered inside a modal. Default: false */
   hideInModal?: boolean;
-  
+
   /** Only open in modal on specified screen size. Default: always */
   openInModalCondition?: 'sm' | 'md' | 'lg' | 'xl';
-  
+
   /**
    * Visibility configuration for conditional rendering.
    * Controls visibility and enablement based on actor roles, record state, context, and custom logic.

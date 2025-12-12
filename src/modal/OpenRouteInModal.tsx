@@ -38,19 +38,23 @@ import { useCoreNavigator } from '../routes/Navigation';
 import { useModalDepth, ModalDepthContext } from './Modal';
 
 export interface OpenRouteInModalProps {
-  /** URL to resolve and open in modal (e.g., "/view-user/:id") */
-  url: string;
+  /** 
+   * URL to resolve and open in modal (e.g., "/view-user/:id")
+   * Optional when modalConfigRef is provided.
+   */
+  url?: string;
 
   /** Route parameters to substitute in URL */
   routeParams?: Record<string, string>;
 
   /** Primary identifier (fallback for :id param) */
   primaryIndex?: string;
-  
+
   /**
    * Entity config reference with overrideConfig support (optional).
    * If provided, uses resolveConfigRef() instead of route resolution.
    * This ensures overrideConfig (defaultFilters, hideFields, etc.) is properly applied.
+   * When using modalConfigRef, url is optional.
    * 
    * @example
    * modalConfigRef={{
@@ -194,28 +198,28 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   const location = useLocation();
   const navigate = useCoreNavigator();
   const initialLocation = useRef(location.pathname);
-  
+
   // Track modal depth for stack effect
   const currentDepth = useModalDepth();
   const nextDepth = currentDepth + 1;
-  
+
   // Resolution strategy:
   // 1. If modalConfigRef provided, use it (supports overrideConfig for defaultFilters, hideFields, etc.)
   // 2. Otherwise, fall back to URL resolution (backward compatible)
   const { resolveConfigRef } = useEntityConfig();
-  
+
   // Resolve via modalConfigRef (preferred - supports overrideConfig)
   const resolvedFromRef = React.useMemo(() => {
     if (!modalConfigRef) return null;
     return resolveConfigRef(modalConfigRef);
-  }, [modalConfigRef, resolveConfigRef]);
-  
-  // Resolve via URL (fallback - backward compatible)
+  }, [ modalConfigRef, resolveConfigRef ]);
+
+  // Resolve via URL (fallback - backward compatible, only if url is provided)
   const { found: foundViaUrl, pageConfig: pageConfigViaUrl, params, queryParams } = useResolveRoute(
-    url,
+    url || '', // Empty string if url not provided (when using modalConfigRef)
     { ...routeParams, ...(primaryIndex ? { id: primaryIndex } : {}) }
   );
-  
+
   // Use resolved config (prioritize modalConfigRef, fallback to URL resolution)
   const found = modalConfigRef ? !!resolvedFromRef : foundViaUrl;
   const pageConfig = modalConfigRef ? resolvedFromRef : pageConfigViaUrl;
@@ -251,7 +255,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
     // Show loading while resolving config
     setLoading(true);
     setOpening(true);
-    
+
     // Small delay for config resolution (if needed)
     setTimeout(() => {
       if (!found) {
@@ -262,7 +266,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
         setOpening(false);
         return;
       }
-      
+
       setOpen(true);
       setLoading(false);
       setOpening(false);
@@ -281,10 +285,10 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   // Use centralized width calculation
   const finalWidth = React.useMemo(() => {
     if (!pageConfig) return getDefaultModalWidth('details', modalWidth);
-    
+
     return getDefaultModalWidth(pageConfig.pageType as any, modalWidth);
   }, [ pageConfig, modalWidth ]);
-  
+
   // Merge route params: original routeParams + resolved params from URL + query params
   // This ensures custom params (like teamId, homeTeamId from identifierMapping) are preserved
   // Memoized to prevent unnecessary re-renders and duplicate API calls
@@ -292,13 +296,13 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
     ...routeParams,  // Include original route params (important for filters and record data)
     ...params,        // Override with params extracted from URL pattern
     ...Object.fromEntries(queryParams.entries())  // Add query params
-  }), [routeParams, params, queryParams]);
-  
+  }), [ routeParams, params, queryParams ]);
+
   // Evaluate modalTitle template if provided, otherwise use page title
   // Use finalRouteParams (includes record data) instead of just params
   const finalTitle = React.useMemo(() => {
     const pageTitleFallback = pageConfig?.pageTitle;
-    return modalTitle 
+    return modalTitle
       ? evaluateTemplateValue(modalTitle, finalRouteParams, pageTitleFallback)
       : pageTitleFallback;
   }, [ modalTitle, finalRouteParams, pageConfig?.pageTitle ]);
@@ -311,12 +315,12 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
 
       {/* Loading state while resolving config */}
       {loading && (
-        <div style={{ 
-          position: 'fixed', 
-          top: '50%', 
-          left: '50%', 
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
           transform: 'translate(-50%, -50%)',
-          zIndex: 1000 
+          zIndex: 1000
         }}>
           <Spin size="large" />
         </div>
