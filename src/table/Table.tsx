@@ -144,6 +144,7 @@ export const Table = ({
   expandableConfig,  // Expandable row configuration
   segments,  // Filter segments for quick filtering
   fetchStrategy,  // Fetch strategy from backend config
+  pageSize: initialPageSize,  // Default page size from backend config
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
   // Build placeholder context for segments and filters
@@ -228,7 +229,8 @@ export const Table = ({
     apiConfig,
     routeParams,
     defaultFilters: initialFiltersForTable, // Pass merged defaults here
-    fetchStrategy
+    fetchStrategy,
+    initialPageSize // Pass backend page size config
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);

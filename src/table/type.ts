@@ -202,6 +202,16 @@ export interface ITableConfig {
   fetchStrategy?: 'eager' | 'lazy';
 
   /**
+   * Default number of records per page.
+   * From backend: entitySchema.model.listPageConfig.tableConfig.pageSize
+   * 
+   * Users can change this via the pagination controls (options: 10, 20, 50, 100).
+   * 
+   * @default 10
+   */
+  pageSize?: number;
+
+  /**
    * Additional sections to display below or alongside the main table.
    * From backend: entitySchema.model.listPageConfig.sectionsConfig
    * 

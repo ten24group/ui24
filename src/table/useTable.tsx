@@ -32,6 +32,7 @@ interface IuseTable {
   routeParams?: Record<string, string>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
   fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
+  initialPageSize?: number; // Default page size from backend config
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -239,7 +240,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager' }: IuseTable) => {
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10 }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
@@ -307,6 +308,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const [ currentFetchStrategy, setCurrentFetchStrategy ] = React.useState<'eager' | 'lazy'>(fetchStrategy);
   const [ facetedColumns, setFacetedColumns ] = React.useState<string[]>([]);
 
+  // Page size state (records per page) - user can change via pagination controls
+  // Initialize with backend config or default to 10
+  const [ pageSize, setPageSize ] = React.useState(initialPageSize);
+
   // fetchTrigger starts at 1 to trigger initial fetch on mount
   // This ensures tables load data immediately after initialization (with merged defaults + URL filters)
   const [ fetchTrigger, setFetchTrigger ] = React.useState(1);
@@ -321,7 +326,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     totalRecords,
     facetResults,
     fetchRecords,
-    recordPerPage
+    pageSize: currentPageSize
   } = useTableData({
     apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
     routeParams,
@@ -334,6 +339,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     recordIdentifierKey,
     isSearchMode,
     fetchStrategy: currentFetchStrategy, // Use current strategy (can be changed by user)
+    pageSize,
   });
 
   const onSearch = (value: string) => {
@@ -507,21 +513,38 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   }, [ _clearAllSorts ]);
 
+  // Handle page size change - reset to page 1 and trigger fetch
+  const handlePageSizeChange = React.useCallback((newSize: number) => {
+    setPageSize(newSize);
+    fetchRecords(1);
+  }, [ fetchRecords ]);
+
   //Pagination
   const { Pagination: CursorPagination } = usePagination({
     pageCursor,
     getRecords: fetchRecords,
     currentPage,
-    isLastPage
+    isLastPage,
+    pageSize,
+    onPageSizeChange: handlePageSizeChange
   });
 
   const NumericalPagination = () => (
     <AntPagination
       current={currentPage}
       total={totalRecords}
-      pageSize={recordPerPage}
-      onChange={(page) => fetchRecords(page)}
-      showSizeChanger={false}
+      pageSize={currentPageSize}
+      onChange={(page, newPageSize) => {
+        if (newPageSize !== currentPageSize) {
+          handlePageSizeChange(newPageSize);
+        } else {
+          fetchRecords(page);
+        }
+      }}
+      onShowSizeChange={(_, size) => handlePageSizeChange(size)}
+      showSizeChanger
+      showTotal={(total, range) => `${range[ 0 ]}-${range[ 1 ]} of ${total}`}
+      pageSizeOptions={[ '10', '20', '50', '100' ]}
     />
   );
 

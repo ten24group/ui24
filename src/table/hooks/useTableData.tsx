@@ -10,8 +10,6 @@ import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver'
 import { usePlaceholderContext } from './usePlaceholderContext';
 import { useFormat } from '../../core';
 
-const recordPerPage = 10;
-
 // Utility to replace URL parameters with values
 const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
   return url.replace(/:(\w+)/g, (_, param) => params[ param ] || `:${param}`);
@@ -72,6 +70,7 @@ interface IUseTableDataProps {
   recordIdentifierKey: string;
   isSearchMode: boolean;
   fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
+  pageSize: number; // Number of records per page
 }
 
 export const useTableData = ({
@@ -86,6 +85,7 @@ export const useTableData = ({
   recordIdentifierKey,
   isSearchMode,
   fetchStrategy = 'eager', // Default to eager fetching
+  pageSize,
 }: IUseTableDataProps) => {
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
@@ -181,7 +181,7 @@ export const useTableData = ({
     if (isSearchActive) {
       payload.q = searchQuery;
       payload.page = pageNumber;
-      payload.hitsPerPage = recordPerPage;
+      payload.hitsPerPage = pageSize;
       if (sortString) {
         payload.sort = sortString;
       }
@@ -190,7 +190,7 @@ export const useTableData = ({
       }
     } else {
       payload.cursor = currentPageCursor;
-      payload.count = recordPerPage;
+      payload.count = pageSize;
       // Database mode: send order direction (DynamoDB sorts by index SK)
       // Priority: 1. User-selected sort, 2. apiConfig.defaultSort (string), 3. default 'asc'
       if (sort.length > 0 && sort[ 0 ].order) {
@@ -310,6 +310,6 @@ export const useTableData = ({
     totalRecords,
     facetResults,
     fetchRecords,
-    recordPerPage
+    pageSize
   };
 }; 
