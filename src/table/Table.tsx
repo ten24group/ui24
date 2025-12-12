@@ -110,6 +110,7 @@ import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
+import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
 
 /**
  * Main Table component for rendering data tables with advanced features.
@@ -427,8 +428,26 @@ export const Table = ({
           );
         }
 
-        // Fallback: Show JSON
-        return <pre style={{ margin: '8px 16px' }}>{JSON.stringify(record, null, 2)}</pre>;
+        // Mode 4: JSON or fallback to JsonViewer (raw JSON view of the entire record using JsonViewer)
+        // Use __raw__ to show original unformatted data (before date/boolean formatting)
+        // Fall back to record if __raw__ doesn't exist
+        const rawData = record.__raw__ || record;
+
+        // Remove table-specific metadata fields
+        const { __recordIdentifierKey__, ...cleanData } = rawData;
+
+        return (
+          <div style={{ padding: '8px 16px' }}>
+            <JsonViewer
+              data={cleanData}
+              title="Record Data"
+              defaultExpanded={true}
+              showCopy={true}
+              showStats={true}
+              showModalButton={true}
+            />
+          </div>
+        );
       },
 
       // Conditional row expansion based on visibility config

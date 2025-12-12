@@ -13,7 +13,7 @@ type ITablePagination = "default";
  * Matches backend type from fw24/src/entity/base-entity.ts (ITableExpandableConfig)
  */
 export interface ITableExpandableConfig {
-  mode: 'nested-table' | 'details' | 'custom';
+  mode: 'nested-table' | 'details' | 'custom' | 'json';
   relationField?: string;
   tableConfig?: {
     apiUrl: string;
