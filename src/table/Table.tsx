@@ -94,7 +94,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
-import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -240,6 +240,9 @@ export const Table = ({
   // Track selected row keys for bulk actions and row selection
   const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
 
+  // Track expanded row keys for expand/collapse all functionality
+  const [ expandedRowKeys, setExpandedRowKeys ] = useState<React.Key[]>([]);
+
   // Calculate selectedRecords only when selectedRowKeys change (not on data refetch)
   const selectedRecords = useMemo(() =>
     listRecords.filter(record => selectedRowKeys.includes(record[ recordIdentifierKey ])),
@@ -262,6 +265,11 @@ export const Table = ({
       setFetchTrigger(prev => prev + 1);
     }
   }, [ isSearchMode, segments ]);
+
+  // Reset expanded rows when data changes (pagination, filters, etc.)
+  useEffect(() => {
+    setExpandedRowKeys([]);
+  }, [ listRecords ]);
 
   // Lift table state to wrapper (if callback provided)
   useEffect(() => {
@@ -318,11 +326,27 @@ export const Table = ({
     };
   }, [ rowSelectionConfig, selectedRowKeys ]);
 
+  // Expand/Collapse all rows functionality
+  const handleExpandAll = useCallback(() => {
+    const allKeys = listRecords.map(record => record[ recordIdentifierKey ]);
+    setExpandedRowKeys(allKeys);
+  }, [ listRecords, recordIdentifierKey ]);
+
+  const handleCollapseAll = useCallback(() => {
+    setExpandedRowKeys([]);
+  }, []);
+
+  const hasExpandableConfig = !!expandableConfig;
+  const allExpanded = hasExpandableConfig && expandedRowKeys.length === listRecords.length && listRecords.length > 0;
+  const someExpanded = hasExpandableConfig && expandedRowKeys.length > 0;
+
   // Expandable row configuration - reuses existing Table component for nested tables
   const expandable = useMemo(() => {
     if (!expandableConfig) return undefined;
 
     return {
+      expandedRowKeys,
+      onExpandedRowsChange: (keys: React.Key[]) => setExpandedRowKeys(keys),
       expandedRowRender: (record: any) => {
         // Build route params with parent record data for placeholder substitution
         const expandedRouteParams = {
@@ -363,7 +387,7 @@ export const Table = ({
             : propertiesConfig;
 
           return (
-            <div style={{ padding: '8px 0' }}>
+            <div>
               <Table
                 propertiesConfig={filteredPropertiesConfig}
                 apiConfig={{
@@ -396,7 +420,7 @@ export const Table = ({
           }));
 
           return (
-            <div style={{ padding: '8px 16px' }}>
+            <div>
               <RenderFromPageType
                 pageType="details"
                 detailsPageConfig={{
@@ -418,7 +442,7 @@ export const Table = ({
           const { pageType, pageConfig } = expandableConfig.customConfig;
 
           return (
-            <div style={{ padding: '8px 16px' }}>
+            <div>
               <RenderFromPageType
                 pageType={pageType}
                 {...pageConfig}
@@ -437,13 +461,13 @@ export const Table = ({
         const { __recordIdentifierKey__, ...cleanData } = rawData;
 
         return (
-          <div style={{ padding: '8px 16px' }}>
+          <div style={{ margin: 0, padding: 0 }}>
             <JsonViewer
               data={cleanData}
               title="Record Data"
               defaultExpanded={true}
-              showCopy={true}
-              showStats={true}
+              showCopy={false}
+              showStats={false}
               showModalButton={true}
             />
           </div>
@@ -461,7 +485,7 @@ export const Table = ({
       // Optional: Custom indent size
       indentSize: expandableConfig.indentSize,
     };
-  }, [ expandableConfig, routeParams, propertiesConfig, entityName ]);
+  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys ]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -499,6 +523,15 @@ export const Table = ({
                 icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
                 onClick={toggleSearchMode}
                 type={isSearchMode ? "default" : "primary"}
+              />
+            </Tooltip>
+          )}
+          {hasExpandableConfig && (
+            <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>
+              <Button
+                icon={allExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
+                onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+                type={someExpanded ? "primary" : "default"}
               />
             </Tooltip>
           )}
