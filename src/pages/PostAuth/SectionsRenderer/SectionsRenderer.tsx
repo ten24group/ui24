@@ -541,6 +541,25 @@ const SectionGroupRenderer: React.FC<{
         .filter((item): item is NonNullable<typeof item> => item !== null);
     }, [ sortedSections, routeParams, lazyLoad, loadedSections, parentData, evaluationContext, depth, isParentLoading, children ]);
 
+    // Update activeKey if current active tab becomes invisible or if no tab is active
+    // This ensures we always have a valid active tab in tabs mode
+    useEffect(() => {
+      if (renderMode === 'tabs' && items.length > 0) {
+        const currentActiveExists = items.some(item => item.key === activeKey);
+        if (!currentActiveExists || !activeKey) {
+          // Current active tab is hidden or no tab is active, switch to first visible tab
+          const firstVisibleKey = items[ 0 ]?.key;
+          if (firstVisibleKey && firstVisibleKey !== activeKey) {
+            setActiveKey(firstVisibleKey);
+            // Also mark it as loaded if lazy loading is enabled
+            if (lazyLoad) {
+              setLoadedSections(prev => new Set([ ...Array.from(prev), firstVisibleKey ]));
+            }
+          }
+        }
+      }
+    }, [ items, activeKey, renderMode, lazyLoad ]);
+
     // Add subtle visual feedback for nested depth
     const nestedStyle: React.CSSProperties = depth > 0 ? {
       opacity: Math.max(0.85, 1 - (depth * 0.05)),
@@ -580,9 +599,10 @@ const SectionGroupRenderer: React.FC<{
     if (renderMode === 'tabs') {
       const tabsProps: TabsProps = {
         items,
-        activeKey,
+        defaultActiveKey, // Set default for initial render
+        activeKey, // Control after initial render
         onChange: (key) => handleChange(key),
-        destroyOnHidden: !keepMounted,
+        destroyInactiveTabPane: !keepMounted, // Use destroyInactiveTabPane instead of destroyOnHidden (deprecated)
         animated: true, // Let Ant Design handle animations
         style: nestedStyle
       };

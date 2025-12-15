@@ -56,12 +56,26 @@ export const renderSingleAction = ({
   const context = record || routeParams;
   const evaluatedLabel = evaluateTemplateValue(action.template, context, action.label);
 
+  // Evaluate tooltip if provided
+  // IMPORTANT: Only show tooltip if explicitly provided or if disabled with message
+  // Do NOT use evaluatedLabel as fallback - that would show IDs and other unwanted text
+  const evaluatedTooltip = action.tooltip
+    ? evaluateTemplateValue(action.tooltip, context)
+    : (isDisabled && disabledMessage ? disabledMessage : undefined);
+
+  // Helper to wrap content with Tooltip only if tooltip value exists
+  // Wraps content in span to ensure Tooltip has a proper DOM element to attach to
+  const wrapWithTooltip = (content: React.ReactNode) => {
+    if (!evaluatedTooltip) return content;
+    return <Tooltip title={evaluatedTooltip}><span style={{ display: 'inline-block' }}>{content}</span></Tooltip>;
+  };
+
   // Pattern 1: Modal with inline config
   if (action.openInModal && action.modalConfig) {
     // Merge record data with routeParams for template resolution (initialValues)
     // Priority: record data overrides routeParams
     const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
-    
+
     const modalTrigger = (
       <OpenInModal
         key={key}
@@ -73,16 +87,16 @@ export const renderSingleAction = ({
         routeParams={finalRouteParams}  // Include record data for template resolution
         onSuccessCallback={onSuccessCallback}
       >
-        <Tooltip title={disabledMessage}>
-          {isDropdownItem ? (
+        {wrapWithTooltip(
+          isDropdownItem ? (
             // For dropdown items, don't include icon in label - MenuItem handles it separately
             evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "delete"} />
           ) : (
             <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
-          )}
-        </Tooltip>
+          )
+        )}
       </OpenInModal>
     );
 
@@ -97,32 +111,34 @@ export const renderSingleAction = ({
   }
 
   // Pattern 2: Modal with route resolution (NEW)
-  if (action.openInModal && action.url && !action.modalConfig) {
+  // Supports both URL-based resolution and modalConfigRef
+  if (action.openInModal && (action.url || action.modalConfigRef) && !action.modalConfig) {
     // Merge record data with routeParams for template resolution
     // Priority: record data overrides routeParams
     const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
-    
+
     const modalTrigger = (
       <OpenRouteInModal
         key={key}
         url={action.url}
         routeParams={finalRouteParams}
         primaryIndex={primaryIndex}
+        modalConfigRef={action.modalConfigRef}
         modalWidth={action.modalWidth}
         modalTitle={action.modalTitle}
         openInModalCondition={action.openInModalCondition}
         onSuccessCallback={onSuccessCallback}
       >
-        <Tooltip title={disabledMessage}>
-          {isDropdownItem ? (
+        {wrapWithTooltip(
+          isDropdownItem ? (
             // For dropdown items, don't include icon in label - MenuItem handles it separately
             evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "eye"} />
           ) : (
             <Button type="primary">{evaluatedLabel}</Button>
-          )}
-        </Tooltip>
+          )
+        )}
       </OpenRouteInModal>
     );
 
@@ -159,27 +175,23 @@ export const renderSingleAction = ({
 
   // For table rows, return Link with Icon
   if (isTableRowAction) {
-    return (
-      <Tooltip title={disabledMessage}>
-        <a href={ isDisabled ? undefined : url} onClick={(e) => { e.preventDefault(); onNavigate?.(url); }}>
-          <Icon iconName={action.icon} />
-        </a>
-      </Tooltip>
+    return wrapWithTooltip(
+      <a href={isDisabled ? undefined : url} onClick={(e) => { e.preventDefault(); onNavigate?.(url); }}>
+        <Icon iconName={action.icon} />
+      </a>
     );
   }
 
   // For page headers, return Button
-  return (
-    <Tooltip title={disabledMessage}>
-      <Button
-        key={key}
-        type="primary"
-        disabled={isDisabled}
-        onClick={() => onNavigate?.(url)}
-      >
-        {evaluatedLabel}
-      </Button>
-    </Tooltip>
+  return wrapWithTooltip(
+    <Button
+      key={key}
+      type="primary"
+      disabled={isDisabled}
+      onClick={() => onNavigate?.(url)}
+    >
+      {evaluatedLabel}
+    </Button>
   );
 };
 

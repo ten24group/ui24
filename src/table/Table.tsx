@@ -92,9 +92,9 @@
  * @see {@link FilterSegments} for quick filter tabs
  */
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
-import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { ReloadOutlined, ColumnWidthOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons';
 import { useTable } from "./useTable";
 import { ITableConfig } from "./type";
 import { Search } from './Search/Search';
@@ -110,6 +110,7 @@ import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
+import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
 
 /**
  * Main Table component for rendering data tables with advanced features.
@@ -143,16 +144,53 @@ export const Table = ({
   expandableConfig,  // Expandable row configuration
   segments,  // Filter segments for quick filtering
   fetchStrategy,  // Fetch strategy from backend config
+  pageSize: initialPageSize,  // Default page size from backend config
   onDataChange,  // Callback to lift state to wrapper
 }: ITableConfig) => {
   // Build placeholder context for segments and filters
   const placeholderContext = usePlaceholderContext(routeParams);
-  
+
   // Track resolved defaultFilters for segment merging
   const resolvedDefaultFilters = useMemo(() => {
     if (!defaultFilters) return {};
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
-  }, [defaultFilters, placeholderContext]);
+  }, [ defaultFilters, placeholderContext ]);
+
+  // Compute default segment filters to merge with prop defaultFilters
+  // This ensures segments marked with `default: true` are applied on initial page load
+  // These defaults are then passed to useTable, which merges them with URL filters
+  const segmentDefaultFilters = useMemo(() => {
+    if (!segments || segments.length === 0) return {};
+
+    let defaults: Record<string, any> = {};
+
+    // Normalize segments to grouped format
+    const isGrouped = segments.length > 0 && ('segments' in segments[ 0 ]);
+    const groups = isGrouped
+      ? segments
+      : [ { id: 'default-group', segments: segments } ];
+
+    groups.forEach((group: any) => {
+      // Find segment with explicit default=true flag
+      // NOTE: Only explicit defaults are used; we don't fallback to first segment
+      const defaultSeg = group.segments.find((s: any) => s.default);
+
+      if (defaultSeg && defaultSeg.filters && Object.keys(defaultSeg.filters).length > 0) {
+        // Resolve placeholders (e.g., :actor.actorId) before merging
+        const resolved = resolveFilterPlaceholders(defaultSeg.filters, placeholderContext);
+        Object.assign(defaults, resolved);
+      }
+    });
+
+    return defaults;
+  }, [ segments, placeholderContext ]);
+
+  // Merge all default filters for useTable initialization
+  // Priority: segmentDefaultFilters < resolvedDefaultFilters < URL filters (handled in useTable)
+  const initialFiltersForTable = useMemo(() => ({
+    ...segmentDefaultFilters,
+    ...resolvedDefaultFilters // Prop defaults override segment defaults if keys conflict
+  }), [ segmentDefaultFilters, resolvedDefaultFilters ]);
 
   const {
     recordIdentifierKey,
@@ -177,6 +215,7 @@ export const Table = ({
     appliedFilters,  // NEW: Now exposed from useTable
     setAppliedFilters,  // NEW: For filter segments
     setFetchTrigger,  // NEW: To trigger refetch after state updates
+    fetchRecords,  // NEW: To allow direct fetch after state updates
     columnSettings,
     handleColumnSettingsChange,
     resetColumnSettings,
@@ -189,25 +228,55 @@ export const Table = ({
     propertiesConfig,
     apiConfig,
     routeParams,
-    defaultFilters,
-    fetchStrategy
+    defaultFilters: initialFiltersForTable, // Pass merged defaults here
+    fetchStrategy,
+    initialPageSize // Pass backend page size config
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
-  
-  // NEW: Track selected row keys
-  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  
+
+  // Ref to always access latest appliedFilters in callbacks (avoids stale closures)
+  const appliedFiltersRef = useRef(appliedFilters);
+  appliedFiltersRef.current = appliedFilters;
+
+  // Track selected row keys for bulk actions and row selection
+  const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
+
+  // Track expanded row keys for expand/collapse all functionality
+  const [ expandedRowKeys, setExpandedRowKeys ] = useState<React.Key[]>([]);
+
   // Calculate selectedRecords only when selectedRowKeys change (not on data refetch)
-  const selectedRecords = useMemo(() => 
-    listRecords.filter(record => selectedRowKeys.includes(record[recordIdentifierKey])),
-    [selectedRowKeys, listRecords, recordIdentifierKey]
+  const selectedRecords = useMemo(() =>
+    listRecords.filter(record => selectedRowKeys.includes(record[ recordIdentifierKey ])),
+    [ selectedRowKeys, listRecords, recordIdentifierKey ]
   );
-  
+
+  // Initial fetch behavior:
+  // useTable now handles the initial fetch automatically on mount because:
+  // 1. segmentDefaultFilters + resolvedDefaultFilters are merged into initialFiltersForTable
+  // 2. useTable initializes appliedFilters with these defaults + URL filters
+  // 3. fetchTrigger starts at 1, which triggers the initial fetch
+  // 
+  // This eliminates the need for separate initial fetch logic here
+
+  // Trigger fetch when search mode changes (for tables without segments)
+  // Tables with segments don't need this because FilterSegments re-applies filters on mode change
+  useEffect(() => {
+    const hasSegments = segments && segments.length > 0;
+    if (!hasSegments) {
+      setFetchTrigger(prev => prev + 1);
+    }
+  }, [ isSearchMode, segments ]);
+
+  // Reset expanded rows when data changes (pagination, filters, etc.)
+  useEffect(() => {
+    setExpandedRowKeys([]);
+  }, [ listRecords ]);
+
   // Lift table state to wrapper (if callback provided)
   useEffect(() => {
     if (!onDataChange) return;
-    
+
     onDataChange({
       selectedRecords,
       selectedRowKeys,
@@ -216,12 +285,12 @@ export const Table = ({
       pageType: 'list',
       entityName
     });
-  }, [selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange]);
+  }, [ selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange ]);
 
   // Extract visibility configs from bulk actions for batch evaluation
-  const bulkActionsVisibilityConfigs = useMemo(() => 
+  const bulkActionsVisibilityConfigs = useMemo(() =>
     bulkActions ? bulkActions.map(action => action.visibility) : [],
-    [bulkActions]
+    [ bulkActions ]
   );
 
   // Evaluate all bulk actions in batch
@@ -233,19 +302,19 @@ export const Table = ({
   // Merge evaluation results with actions and filter visible ones
   const visibleBulkActions = useMemo(() => {
     if (!bulkActions || bulkActions.length === 0) return [];
-    
+
     return bulkActions
       .map((action, index) => ({
         ...action,
-        _evaluated: bulkActionsEvaluationResults[index]
+        _evaluated: bulkActionsEvaluationResults[ index ]
       }))
       .filter(action => action._evaluated?.visible !== false);
-  }, [bulkActions, bulkActionsEvaluationResults]);
+  }, [ bulkActions, bulkActionsEvaluationResults ]);
 
   // Row selection configuration for AntTable - using AntD's native row selection API
   const rowSelection = useMemo(() => {
     if (!rowSelectionConfig?.enabled) return undefined;
-    
+
     return {
       type: 'checkbox' as const,
       selectedRowKeys,
@@ -257,13 +326,29 @@ export const Table = ({
         // disabled: record.someField === 'value',
       }),
     };
-  }, [rowSelectionConfig, selectedRowKeys]);
+  }, [ rowSelectionConfig, selectedRowKeys ]);
+
+  // Expand/Collapse all rows functionality
+  const handleExpandAll = useCallback(() => {
+    const allKeys = listRecords.map(record => record[ recordIdentifierKey ]);
+    setExpandedRowKeys(allKeys);
+  }, [ listRecords, recordIdentifierKey ]);
+
+  const handleCollapseAll = useCallback(() => {
+    setExpandedRowKeys([]);
+  }, []);
+
+  const hasExpandableConfig = !!expandableConfig;
+  const allExpanded = hasExpandableConfig && expandedRowKeys.length === listRecords.length && listRecords.length > 0;
+  const someExpanded = hasExpandableConfig && expandedRowKeys.length > 0;
 
   // Expandable row configuration - reuses existing Table component for nested tables
   const expandable = useMemo(() => {
     if (!expandableConfig) return undefined;
 
     return {
+      expandedRowKeys,
+      onExpandedRowsChange: (keys: React.Key[]) => setExpandedRowKeys(keys),
       expandedRowRender: (record: any) => {
         // Build route params with parent record data for placeholder substitution
         const expandedRouteParams = {
@@ -273,8 +358,8 @@ export const Table = ({
 
         // Mode 1: Nested Table (reuses existing Table component)
         if (expandableConfig.mode === 'nested-table' && expandableConfig.tableConfig) {
-          const { 
-            apiUrl, 
+          const {
+            apiUrl,
             apiMethod = 'GET',
             responseKey = 'data',
             columns: columnFields,
@@ -289,10 +374,13 @@ export const Table = ({
           const resolvedApiUrl = substituteUrlParams(apiUrl, expandedRouteParams);
 
           // Resolve default filters using placeholder resolver with record context
-          const nestedPlaceholderContext = usePlaceholderContext(expandedRouteParams, {
+          // NOTE: Can't use usePlaceholderContext hook here (inside callback), so build context manually
+          const nestedPlaceholderContext = {
+            ...placeholderContext,  // Reuse actor, now from top-level hook
+            routeParams: expandedRouteParams,
             record,  // Current row data
             parent: record,  // Parent record for nested context
-          });
+          };
           const resolvedDefaultFilters = resolveFilterPlaceholders(nestedDefaultFilters, nestedPlaceholderContext);
 
           // Filter columns if specific fields are requested
@@ -301,7 +389,7 @@ export const Table = ({
             : propertiesConfig;
 
           return (
-            <div style={{ padding: '8px 0' }}>
+            <div>
               <Table
                 propertiesConfig={filteredPropertiesConfig}
                 apiConfig={{
@@ -330,11 +418,11 @@ export const Table = ({
             ...col,
             label: col.name,  // Map name to label for details
             dataIndex: col.dataIndex,
-            initialValue: record[col.dataIndex],  // Set value from expanded record
+            initialValue: record[ col.dataIndex ],  // Set value from expanded record
           }));
 
           return (
-            <div style={{ padding: '8px 16px' }}>
+            <div>
               <RenderFromPageType
                 pageType="details"
                 detailsPageConfig={{
@@ -342,7 +430,7 @@ export const Table = ({
                   propertiesConfig: detailFields,
                   columnsConfig: {
                     numColumns,
-                    columns: [{ sortOrder: 0, fields: detailFields.map(c => c.dataIndex) }]
+                    columns: [ { sortOrder: 0, fields: detailFields.map(c => c.dataIndex) } ]
                   }
                 }}
                 routeParams={expandedRouteParams}
@@ -356,7 +444,7 @@ export const Table = ({
           const { pageType, pageConfig } = expandableConfig.customConfig;
 
           return (
-            <div style={{ padding: '8px 16px' }}>
+            <div>
               <RenderFromPageType
                 pageType={pageType}
                 {...pageConfig}
@@ -366,10 +454,28 @@ export const Table = ({
           );
         }
 
-        // Fallback: Show JSON
-        return <pre style={{ margin: '8px 16px' }}>{JSON.stringify(record, null, 2)}</pre>;
+        // Mode 4: JSON or fallback to JsonViewer (raw JSON view of the entire record using JsonViewer)
+        // Use __raw__ to show original unformatted data (before date/boolean formatting)
+        // Fall back to record if __raw__ doesn't exist
+        const rawData = record.__raw__ || record;
+
+        // Remove table-specific metadata fields
+        const { __recordIdentifierKey__, ...cleanData } = rawData;
+
+        return (
+          <div style={{ margin: 0, padding: 0 }}>
+            <JsonViewer
+              data={cleanData}
+              title="Record Data"
+              defaultExpanded={true}
+              showCopy={false}
+              showStats={false}
+              showModalButton={true}
+            />
+          </div>
+        );
       },
-      
+
       // Conditional row expansion based on visibility config
       // TODO: Integrate with visibility evaluation system
       rowExpandable: (record: any) => {
@@ -377,11 +483,11 @@ export const Table = ({
         // In future, evaluate expandableConfig.rowExpandable with visibility system
         return true;
       },
-      
+
       // Optional: Custom indent size
       indentSize: expandableConfig.indentSize,
     };
-  }, [expandableConfig, routeParams, propertiesConfig, entityName]);
+  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys ]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -406,8 +512,8 @@ export const Table = ({
         // Optionally, trigger a table data reload
         handleReload();
       }}
-    >      
-      
+    >
+
       <div className="table-toolbar">
         <div style={{ flex: 1 }}>
           {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
@@ -415,10 +521,19 @@ export const Table = ({
         <div style={{ display: 'flex', gap: '8px' }}>
           {canToggleSearchMode && (
             <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
-              <Button 
-                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />} 
+              <Button
+                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
                 onClick={toggleSearchMode}
                 type={isSearchMode ? "default" : "primary"}
+              />
+            </Tooltip>
+          )}
+          {hasExpandableConfig && (
+            <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>
+              <Button
+                icon={allExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
+                onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+                type={someExpanded ? "primary" : "default"}
               />
             </Tooltip>
           )}
@@ -431,9 +546,9 @@ export const Table = ({
           <Tooltip title="Column Settings">
             <Dropdown
               popupRender={() => (
-                <ColumnSettings 
-                  columns={columnSettings} 
-                  onColumnChange={handleColumnSettingsChange} 
+                <ColumnSettings
+                  columns={columnSettings}
+                  onColumnChange={handleColumnSettingsChange}
                   onReset={resetColumnSettings}
                   fetchStrategy={currentFetchStrategy}
                   onFetchStrategyChange={handleFetchStrategyChange}
@@ -451,12 +566,12 @@ export const Table = ({
           </Tooltip>
         </div>
       </div>
-      
+
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
       {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
-        <div style={{ 
-          padding: '12px 16px', 
-          background: '#e6f7ff', 
+        <div style={{
+          padding: '12px 16px',
+          background: '#e6f7ff',
           borderRadius: '4px',
           marginBottom: '16px',
           display: 'flex',
@@ -465,8 +580,8 @@ export const Table = ({
         }}>
           <div style={{ fontWeight: 500 }}>
             {selectedRowKeys.length} {selectedRowKeys.length === 1 ? 'item' : 'items'} selected
-            <Button 
-              type="link" 
+            <Button
+              type="link"
               size="small"
               onClick={() => setSelectedRowKeys([])}
               style={{ marginLeft: '8px' }}
@@ -498,16 +613,40 @@ export const Table = ({
         <FilterSegments
           segments={segments}
           isSearchMode={isSearchMode}
-          onSegmentChange={useCallback((segmentId: string, segmentFilters: Record<string, any>) => {
-            // IMPORTANT: Merge segment filters WITH defaultFilters
-            // This preserves pre-applied filters like :teamId from route params
-            const mergedFilters = { ...resolvedDefaultFilters, ...segmentFilters };
-            setAppliedFilters(mergedFilters);
-            
-            // Trigger table refetch AFTER state updates
-            // Use setFetchTrigger instead of handleReload to ensure filters are updated first
-            setFetchTrigger(prev => prev + 1);
-          }, [resolvedDefaultFilters, setAppliedFilters, setFetchTrigger])}
+          appliedFilters={appliedFilters}
+          onSegmentChange={useCallback((segmentId: string, filtersToAdd: Record<string, any>, filtersToRemove: Record<string, any>) => {
+            // Use ref to get latest filters (avoids stale closures)
+            const currentFilters = appliedFiltersRef.current;
+            let newFilters = { ...currentFilters };
+
+            // 1. Remove filters from previous segment
+            // These are the keys controlled by the segment we're switching away from
+            if (filtersToRemove) {
+              Object.keys(filtersToRemove).forEach(key => {
+                delete newFilters[ key ];
+              });
+            }
+
+            // 2. Add filters from new segment
+            // If switching to "All" (empty filters), this step does nothing
+            if (filtersToAdd) {
+              Object.assign(newFilters, filtersToAdd);
+            }
+
+            // 3. Restore default filters for removed keys (if they exist)
+            // Example: Switching from "Active" (status=active) to "All" (empty)
+            // If defaultFilters has status=pending, restore it
+            Object.keys(filtersToRemove || {}).forEach(key => {
+              if (resolvedDefaultFilters[ key ] !== undefined && newFilters[ key ] === undefined) {
+                newFilters[ key ] = resolvedDefaultFilters[ key ];
+              }
+            });
+
+            // 4. Update state and fetch immediately with new filters
+            // fetchRecords accepts filtersOverride to bypass React's async setState
+            setAppliedFilters(newFilters);
+            fetchRecords(1, undefined, newFilters);
+          }, [ resolvedDefaultFilters, setAppliedFilters, fetchRecords ])}
           placeholderContext={placeholderContext}
         />
       )}

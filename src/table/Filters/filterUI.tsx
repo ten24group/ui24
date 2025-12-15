@@ -28,16 +28,18 @@ export const filterUI = (
   toggleFacetedColumn: (dataIndex: string) => void,
   enableFacetFilters: boolean = false
 ) => {
+  // Ensure title is a string (could be React node from column config)
+  const safeTitle = typeof title === 'string' ? title : (dataIndex || 'Filter');
 
   const FilterDropdownComponent = ({ close, confirm }) => {
     const nonTextualTypes = [ 'number', 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle' ];
     const isTextColumn = fieldType ? !nonTextualTypes.includes(fieldType.toLowerCase()) : true;
-    
+
     // Use filterConfig.defaultOperator if provided, otherwise fall back to fieldType-based logic
     const defaultOperator = filterConfig?.defaultOperator || (isTextColumn ? 'contains' : 'eq');
 
     // Get available operators - use filterConfig.availableOperators if provided, otherwise use all operators
-    const availableOperators = filterConfig?.availableOperators 
+    const availableOperators = filterConfig?.availableOperators
       ? filterOperators.filter(op => filterConfig.availableOperators!.includes(op.value))
       : filterOperators;
 
@@ -49,8 +51,10 @@ export const filterUI = (
     const [ errors, setErrors ] = React.useState<Record<string, string>>({})
     const isListFilter = filterOperator === "in" || filterOperator === "nin"
     const isBetweenFilter = filterOperator === "bt"
-    const isFilterValueRequired = filterOperator !== "isEmpty" && filterOperator !== "isNull" && filterOperator !== "in" && filterOperator !== "nin"
-    const hideFilterValue = filterOperator === "isEmpty" || filterOperator === "isNull"
+    // Operators that don't require a value input (existence checks)
+    const noValueOperators = [ "exists", "notExists", "isEmpty", "isNull", "notEmpty", "notNull" ];
+    const isFilterValueRequired = !noValueOperators.includes(filterOperator) && filterOperator !== "in" && filterOperator !== "nin"
+    const hideFilterValue = noValueOperators.includes(filterOperator)
     const [ showAdvanced, setShowAdvanced ] = React.useState<boolean>(false);
     const [ isFilterActive, setIsFilterActive ] = React.useState<boolean>(false);
     const columnFacets = facetResults?.[ dataIndex ] ?? {};
@@ -90,8 +94,11 @@ export const filterUI = (
           } else {
             setFilterInList(value);
           }
+        } else if (typeof value === 'boolean' || typeof value === 'object') {
+          // Boolean/object value (e.g., exists: true) - don't show in input
+          setFilterValue('');
         } else {
-          setFilterValue(value);
+          setFilterValue(String(value ?? ''));
         }
       } else if (filterType === 'datetime') {
         // Prefill datetime fields with current date when no previous filter exists
@@ -122,7 +129,8 @@ export const filterUI = (
         //apply filter
         // NOTE: Placeholder resolution (e.g., :startOfMonth → actual date) happens in useTableData
         // before sending to API. This allows filters to work with all placeholder types (dates, actor, etc.)
-        const filterToApply = selectedFacets.length > 0 ? selectedFacets : isListFilter ? filterInList : filterValue;
+        const isExistenceOperator = noValueOperators.includes(filterOperator);
+        const filterToApply = selectedFacets.length > 0 ? selectedFacets : isListFilter ? filterInList : isExistenceOperator ? true : filterValue;
         const operatorToApply = selectedFacets.length > 0 ? 'in' : filterOperator;
         applyFilters(dataIndex, operatorToApply, isBetweenFilter ? [ filterValue, filterEndValue ] : filterToApply)
         resetState()
@@ -177,7 +185,7 @@ export const filterUI = (
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <Select
-                  placeholder={`Select ${title}`}
+                  placeholder={`Select ${safeTitle}`}
                   value={filterValue}
                   onChange={(value) => {
                     if (value === 'custom') {
@@ -195,17 +203,17 @@ export const filterUI = (
                 />
                 <Input
                   type="datetime-local"
-                  placeholder={`${title}`}
+                  placeholder={`${safeTitle}`}
                   value={filterValue === 'custom' ? '' : filterValue}
                   onChange={(e) => setFilterValue(e.target.value)}
                 />
               </div>
             );
           }
-          
+
           return (
             <Select
-              placeholder={`Select ${title}`}
+              placeholder={`Select ${safeTitle}`}
               value={filterValue || undefined}
               onChange={(value) => setFilterValue(value)}
               style={{ width: '100%' }}
@@ -217,12 +225,12 @@ export const filterUI = (
             />
           );
         }
-        
+
         // Default datetime-local input
         return (
           <Input
             type="datetime-local"
-            placeholder={`${title}`}
+            placeholder={`${safeTitle}`}
             value={filterValue}
             onChange={(e) => setFilterValue(e.target.value)}
           />
@@ -233,7 +241,7 @@ export const filterUI = (
         return (
           <Input
             type="number"
-            placeholder={`${title}`}
+            placeholder={`${safeTitle}`}
             value={filterValue}
             onChange={(e) => setFilterValue(e.target.value)}
           />
@@ -247,17 +255,16 @@ export const filterUI = (
               checked={filterValue === 'true' || filterValue === 'True'}
               onChange={(e) => setFilterValue(e.target.checked ? 'true' : 'false')}
             >
-              {title}
+              {safeTitle}
             </Checkbox>
           </div>
         );
       }
 
-
       // Default text input
       return (
         <Input
-          placeholder={`${title}`}
+          placeholder={`${safeTitle}`}
           value={filterValue}
           onChange={(e) => setFilterValue(e.target.value)}
         />
@@ -308,7 +315,7 @@ export const filterUI = (
               </div>
               <Alert message={errors.filterValue} type="error" style={{ display: errors.filterValue ? "block" : "none", marginBottom: '8px' }} />
               {isBetweenFilter && <><Input
-                placeholder={`${title} End Value`}
+                placeholder={`${safeTitle} End Value`}
                 value={filterEndValue}
                 onChange={(e) =>
                   setFilterEndValue(e.target.value)

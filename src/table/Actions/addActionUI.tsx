@@ -35,6 +35,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         relationConfig: item.relationConfig,  // For relation field rendering
         template: item.template,  // For template-based rendering
         groupTitle: item.groupTitle,  // For column grouping
+        durationUnit: item.durationUnit,  // For duration field rendering
       }
 
       return column;

@@ -51,37 +51,37 @@ export const useAppliedFilters = ({
     // Helper to remove filter by key (for dot notation and plain value filters)
     const removeFilterByKey = (keyToRemove: string) => {
       const newFilters = { ...appliedFilters };
-      delete newFilters[keyToRemove];
+      delete newFilters[ keyToRemove ];
       setAppliedFilters(newFilters);
       if (onFilterChange) onFilterChange();
     };
-    
+
     return (
       <Fragment>
         {hasActiveFilters && Object.keys(appliedFilters).flatMap((key) => {
-          const filterValue = appliedFilters[key];
-          
+          const filterValue = appliedFilters[ key ];
+
           // Backend sends filters in dot notation: { 'teamId.eq': 'value' }
           // Parse key to extract field and operator
-          const OPERATORS = ['eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'contains', 'notContains', 'beginsWith'];
+          const OPERATORS = [ 'eq', 'ne', 'neq', 'in', 'nin', 'gte', 'gt', 'lte', 'lt', 'contains', 'notContains', 'beginsWith', 'startsWith', 'endsWith', 'like', 'bt', 'exists', 'notExists', 'isEmpty', 'isNull', 'notEmpty', 'notNull' ];
           const parts = key.split('.');
-          const hasDotOperator = parts.length === 2 && OPERATORS.includes(parts[1]);
-          
+          const hasDotOperator = parts.length === 2 && OPERATORS.includes(parts[ 1 ]);
+
           if (hasDotOperator) {
             // Format: 'teamId.eq' with primitive value
-            const [field, operator] = parts;
+            const [ field, operator ] = parts;
             const handleClose = (e) => {
               e.preventDefault();
               removeFilterByKey(key);
             };
-            
-            return [(
+
+            return [ (
               <Tag key={key} color="blue" closable onClose={handleClose}>
                 {getColumnNameByKey(field)} : {getFilterOperatorByValue(operator)} : {JSON.stringify(filterValue)}
               </Tag>
-            )];
+            ) ];
           }
-          
+
           // Handle nested format: { teamId: { eq: 'value' } }
           if (typeof filterValue === 'object' && filterValue !== null && !Array.isArray(filterValue)) {
             return Object.keys(filterValue).map((operator) => {
@@ -92,23 +92,23 @@ export const useAppliedFilters = ({
 
               return (
                 <Tag key={`${key}-${operator}`} color="blue" closable onClose={handleClose}>
-                  {getColumnNameByKey(key)} : {getFilterOperatorByValue(operator)} : {JSON.stringify(filterValue[operator])}
+                  {getColumnNameByKey(key)} : {getFilterOperatorByValue(operator)} : {JSON.stringify(filterValue[ operator ])}
                 </Tag>
               );
             });
           }
-          
+
           // Handle plain value format (fallback): { teamId: 'value' }
           const handleClose = (e) => {
             e.preventDefault();
             removeFilterByKey(key);
           };
-          
-          return [(
+
+          return [ (
             <Tag key={`${key}-eq`} color="blue" closable onClose={handleClose}>
               {getColumnNameByKey(key)} : eq : {JSON.stringify(filterValue)}
             </Tag>
-          )];
+          ) ];
         })}
       </Fragment>
     );
