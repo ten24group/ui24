@@ -3,6 +3,7 @@ import { Line, Bar, Area, Column, Pie, LineConfig, BarConfig, AreaConfig, Column
 import './ChartWidget.css';
 import { useApi } from '../../core/context';
 import { TimePeriodSelector, TimePeriodSelectorProps } from './TimePeriodSelector';
+import { substituteUrlParams } from '../../core/utils';
 
 export type ChartType = 'line' | 'bar' | 'area' | 'pie';
 
@@ -71,11 +72,6 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
   const [error, setError] = useState<string | null>(null);
   const { callApiMethod } = useApi();
 
-  // Replace URL parameters with routeParams
-  const replaceUrlParams = (url: string, params: Record<string, any> = {}) => {
-    return url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
-  };
-
   // Compute effective payload with time period if present
   const effectivePayload = React.useMemo(() => {
     let basePayload = dataConfig?.payload || {};
@@ -103,7 +99,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
       setError(null);
       try {
         const apiMethod = dataConfig.apiMethod || 'GET';
-        const apiUrl = replaceUrlParams(dataConfig.apiUrl, routeParams);
+        const apiUrl = substituteUrlParams(dataConfig.apiUrl, routeParams);
         const response = await callApiMethod({
           apiUrl,
           apiMethod,

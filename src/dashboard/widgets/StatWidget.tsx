@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as AntIcons from '@ant-design/icons';
 import './StatWidget.css';
 import { useApi } from '../../core/context';
+import { substituteUrlParams } from '../../core/utils';
 
 export interface ITrendConfig {
   direction: 'up' | 'down';
@@ -63,11 +64,6 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
   const [error, setError] = useState<string | null>(null);
   const { callApiMethod } = useApi();
 
-  // Replace URL parameters with routeParams
-  const replaceUrlParams = (url: string, params: Record<string, any> = {}) => {
-    return url.replace(/:(\w+)/g, (_, param) => params[param] || `:${param}`);
-  };
-
   // Compute effective payload with dashboard time period if present
   const effectivePayload = React.useMemo(() => {
     let basePayload = dataConfig?.payload || {};
@@ -95,7 +91,7 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
       try {
         let data;
         const apiMethod = dataConfig.apiMethod || 'GET';
-        const apiUrl = replaceUrlParams(dataConfig.apiUrl, routeParams);
+        const apiUrl = substituteUrlParams(dataConfig.apiUrl, routeParams);
         const response = await callApiMethod({
           apiUrl,
           apiMethod,
