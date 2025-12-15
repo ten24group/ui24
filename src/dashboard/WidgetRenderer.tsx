@@ -19,13 +19,14 @@ export const WidgetRenderer: React.FC<{
   widget: IDashboardWidgetConfig;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
   dashboardTimePeriod?: { period: string; range: [ any, any ] };
-}> = ({ widget, timePeriodSelectorProps, dashboardTimePeriod }) => {
+  routeParams?: Record<string, any>;
+}> = ({ widget, timePeriodSelectorProps, dashboardTimePeriod, routeParams }) => {
   const renderWidgetContent = () => {
     switch (widget.type) {
       case 'stat':
-        return <StatWidget {...widget} dashboardTimePeriod={dashboardTimePeriod} />;
+        return <StatWidget {...widget} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} />;
       case 'chart':
-        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} />;
+        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} routeParams={routeParams} />;
       case 'list': {
         const { propertiesConfig = [], apiConfig = { apiUrl: '', apiMethod: 'GET' }, ...rest } = widget.options || {};
         return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} {...rest} />;
