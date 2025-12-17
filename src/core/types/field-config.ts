@@ -217,7 +217,8 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
   isLink?: boolean;
   linkConfig?: {
     routePattern: string;
-    displayText?: string;
+    /** Display text for the link - supports templates like "View {entityName}: {entityId}" */
+    displayText?: Template;
   };
 
   // Modal configuration

@@ -116,6 +116,7 @@ import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 import { formatDuration } from '../core/utils/duration';
+import { evaluateTemplate } from '../core/utils/template';
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
@@ -516,13 +517,23 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                     }
 
-                    if (item.isLink && item.linkConfig) {
+                    // If linkConfig exists, treat as link (isLink is optional/redundant)
+                    if (item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
                         { ...routeParams, ...detailResponse },
                         value
                       );
-                      const displayText = item.linkConfig.displayText || value;
+
+                      // Evaluate template in displayText if it's a Template type
+                      // Context includes routeParams and full record data for placeholder resolution
+                      const templateContext = { ...routeParams, ...detailResponse };
+                      const displayText = item.linkConfig.displayText
+                        ? (typeof item.linkConfig.displayText === 'string'
+                          ? evaluateTemplate(item.linkConfig.displayText, templateContext)
+                          : evaluateTemplate(item.linkConfig.displayText, templateContext))
+                        : value;
+
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
