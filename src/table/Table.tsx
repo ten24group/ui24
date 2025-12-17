@@ -108,6 +108,8 @@ import { substituteUrlParams } from '../core/utils';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
+import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
+import { AutoRefreshSelector } from '../core/components/AutoRefreshSelector';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
@@ -231,6 +233,13 @@ export const Table = ({
     defaultFilters: initialFiltersForTable, // Pass merged defaults here
     fetchStrategy,
     initialPageSize // Pass backend page size config
+  });
+
+  // Auto-refresh functionality
+  const autoRefresh = useAutoRefresh({
+    onRefresh: handleReload,
+    enabled: false,
+    defaultInterval: 30
   });
 
   const [ showFilters, setShowFilters ] = React.useState(false);
@@ -543,6 +552,14 @@ export const Table = ({
           <Tooltip title="Refresh Data">
             <Button icon={<ReloadOutlined />} onClick={handleReload} />
           </Tooltip>
+          <AutoRefreshSelector
+            isEnabled={autoRefresh.isEnabled}
+            interval={autoRefresh.interval}
+            timeUntilRefresh={autoRefresh.timeUntilRefresh}
+            onToggle={autoRefresh.toggleEnabled}
+            onIntervalChange={autoRefresh.setInterval}
+            size="middle"
+          />
           <Tooltip title="Column Settings">
             <Dropdown
               popupRender={() => (
