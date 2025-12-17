@@ -3,6 +3,20 @@
  */
 
 /**
+ * URL parameters that should be passed through to the API
+ * (for backend debugging/testing)
+ */
+export const PASS_THROUGH_URL_PARAMS = [
+  'debug',
+  'trace',
+  'mock',
+  'test',
+  'dev',
+  'verbose',
+  'dryRun'
+] as const;
+
+/**
  * URL parameters that should NOT be treated as filters.
  * These are either infrastructure params (pagination, search, etc.) 
  * or pass-through params for backend debugging.
@@ -17,14 +31,8 @@ export const NON_FILTER_URL_PARAMS = [
   'sort',        // Sort configuration
   'attributes',  // Requested attributes
   'segment',     // Filter segment ID (UI state only)
-  
+
   // Backend pass-through params (for debugging/testing)
-  'debug',
-  'trace',
-  'mock',
-  'test',
-  'dev',
-  'verbose',
-  'dryRun'
+  ...PASS_THROUGH_URL_PARAMS
 ] as const;
 

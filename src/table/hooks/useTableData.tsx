@@ -5,7 +5,7 @@ import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig, ITableApiConfig } from '../type';
 import { getNestedValue } from '../../core/utils';
 import { handleApiError } from '../../core/utils/api-error-handler';
-import { NON_FILTER_URL_PARAMS } from '../constants';
+import { PASS_THROUGH_URL_PARAMS } from '../constants';
 import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver';
 import { usePlaceholderContext } from './usePlaceholderContext';
 import { useFormat } from '../../core';
@@ -150,19 +150,13 @@ export const useTableData = ({
     // These are system params that bypass filter structure and go directly to API
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
+
       urlParams.forEach((value, key) => {
-        // Skip infrastructure params (cursor, page, count, etc.)
-        if (NON_FILTER_URL_PARAMS.includes(key as any)) {
-          return;
+        // Only allow explicitly defined pass-through params (defined in constants.ts)
+        // All filter params should come from appliedFilters state, NOT from URL
+        if (PASS_THROUGH_URL_PARAMS.includes(key as any)) {
+          payload[ key ] = value;
         }
-
-        // Skip filter params (already in appliedFilters and processed above)
-        if (appliedFilters[ key ] || key.includes('.')) {
-          return;
-        }
-
-        // This is a pass-through param (debug, trace, mock) - pass to API as-is
-        payload[ key ] = value;
       });
     }
 
