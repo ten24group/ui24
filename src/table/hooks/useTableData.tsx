@@ -103,14 +103,14 @@ export const useTableData = ({
   // Build placeholder context for resolving filter placeholders
   const placeholderContext = usePlaceholderContext(routeParams);
 
-  // Reset pagination when filters or sort change
+  // Reset pagination when filters, sort, or pageSize change
   // This prevents stale pagination cursors from being used with new filter sets
   // Without this, changing filters and then paginating would send old filter values to the API
   // Note: The fetch is triggered by useTable.tsx via fetchTrigger when appliedFilters/sort change
   React.useEffect(() => {
     setPageCursor({ 1: "" });
     setCurrentPage(1);
-  }, [ appliedFilters, sort ]);
+  }, [ appliedFilters, sort, pageSize ]);
 
   const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
   const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
@@ -298,7 +298,7 @@ export const useTableData = ({
       setIsLoading(false);
       setIsInitialLoad(false);  // Mark initial load complete
     }
-  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode ]);
+  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode, pageSize ]);
 
   return {
     listRecords,
