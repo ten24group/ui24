@@ -516,8 +516,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Handle page size change - reset to page 1 and trigger fetch
   const handlePageSizeChange = React.useCallback((newSize: number) => {
     setPageSize(newSize);
-    fetchRecords(1);
-  }, [ fetchRecords ]);
+    setFetchTrigger(prev => prev + 1); // Trigger refetch via useEffect with updated pageSize
+  }, []);
 
   //Pagination
   const { Pagination: CursorPagination } = usePagination({

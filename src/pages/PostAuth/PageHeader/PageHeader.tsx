@@ -1,22 +1,21 @@
-import React, { useMemo } from "react";
+import { DownOutlined } from '@ant-design/icons';
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
-import "./PageHeader.css";
-import { Breadcrumb, Button, Dropdown, MenuProps, Tooltip } from "antd";
-import { IPageAction } from "../../../table/type";
+import { Button, Dropdown, MenuProps, Tooltip } from "antd";
+import React, { useMemo } from "react";
 import { Link } from "../../../core/common";
 import { Icon } from "../../../core/common/Icons/Icons";
-import { useNavigate } from "react-router-dom";
-import { DownOutlined } from '@ant-design/icons';
-import { substituteUrlParams } from "../../../core/utils";
-import { renderSingleAction, MenuItem } from "../../../core/utils/actionRenderer";
 import { useModalContext } from "../../../core/context";
-import { evaluateTemplateValue } from "../../../core/utils/template";
-import { Template, EvaluationResult } from "../../../core/types";
-import { useEvaluationBatch } from "../../../core/hooks";
 import { useDetailRecord } from "../../../core/context/DetailStateContext";
 import { useFormRecord } from "../../../core/context/FormStateContext";
 import { useSelectedRecords } from "../../../core/context/TableStateContext";
+import { useEvaluationBatch } from "../../../core/hooks";
+import { EvaluationResult, Template } from "../../../core/types";
+import { substituteUrlParams } from "../../../core/utils";
+import { MenuItem, renderSingleAction } from "../../../core/utils/actionRenderer";
+import { evaluateTemplateValue } from "../../../core/utils/template";
 import { useCoreNavigator } from "../../../routes/Navigation";
+import { IPageAction } from "../../../table/type";
+import "./PageHeader.css";
 
 interface IBreadcrumbs {
     /**
@@ -44,38 +43,39 @@ export interface IPageHeader {
      */
     pageTitle?: Template;
     pageHeaderActions?: IPageActions;
+    appendActions?: React.ReactNode;  // Additional actions to append after main actions
     routeParams?: Record<string, any>;
     onRefreshData?: () => void;  // Callback to refresh page data after modal actions
 }
 
-export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, routeParams = {}, onRefreshData } : IPageHeader ) => {
+export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, appendActions, routeParams = {}, onRefreshData }: IPageHeader) => {
     const navigate = useCoreNavigator();
     const { isInModal } = useModalContext();
-    
+
     // Get record data from contexts (use-context-selector only subscribes if context exists)
     const detailRecord = useDetailRecord();
     const formRecord = useFormRecord();
     const selectedRecords = useSelectedRecords();
-    
+
     // Determine which record to use (priority: detail > form > first selected)
-    const record = detailRecord || formRecord || (selectedRecords && selectedRecords.length > 0 ? selectedRecords[0] : undefined);
-    
+    const record = detailRecord || formRecord || (selectedRecords && selectedRecords.length > 0 ? selectedRecords[ 0 ] : undefined);
+
     // Build context for template evaluation (merge routeParams with record data)
     // This enables templates like {teamName} to work in page titles and breadcrumbs
     const templateContext = useMemo(() => ({
         ...routeParams,
         ...(record || {})  // Include record data for smart detection templates
-    }), [routeParams, record]);
-    
+    }), [ routeParams, record ]);
+
     // Evaluate page title template if provided
     const evaluatedPageTitle = pageTitle ? evaluateTemplateValue(pageTitle, templateContext) : undefined;
-    
+
     // Get actions array (handle both array and ReactNode)
-    const actionsArray = useMemo(() => 
+    const actionsArray = useMemo(() =>
         Array.isArray(pageHeaderActions) ? pageHeaderActions : [],
-        [pageHeaderActions]
+        [ pageHeaderActions ]
     );
-    
+
     /**
      * Evaluate visibility for all actions with record context.
      * 
@@ -88,7 +88,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
         actionsArray.map(action => action.visibility),
         { record, selectedRecords } // Pass record and selectedRecords for evaluation
     );
-    
+
     // Collect all dropdown items for batch evaluation
     const dropdownItemsMap = useMemo(() => {
         const map = new Map<number, IPageAction[]>();
@@ -99,8 +99,8 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
             }
         });
         return map;
-    }, [actionsArray]);
-    
+    }, [ actionsArray ]);
+
     // Flatten all dropdown items for batch evaluation
     const allDropdownItems = useMemo(() => {
         const items: Array<{ actionIndex: number; itemIndex: number; item: IPageAction }> = [];
@@ -110,43 +110,43 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
             });
         });
         return items;
-    }, [dropdownItemsMap]);
-    
+    }, [ dropdownItemsMap ]);
+
     // Evaluate all dropdown items at once (with same context as parent actions)
     const dropdownItemEvaluations = useEvaluationBatch(
         allDropdownItems.map(({ item }) => item.visibility),
         { record, selectedRecords } // Pass same context
     );
-    
+
     // Build a map of dropdown item evaluations for easy lookup
     const dropdownItemEvaluationMap = useMemo(() => {
         const map = new Map<string, EvaluationResult>();
         allDropdownItems.forEach(({ actionIndex, itemIndex }, evalIndex) => {
-            map.set(`${actionIndex}-${itemIndex}`, dropdownItemEvaluations[evalIndex]);
+            map.set(`${actionIndex}-${itemIndex}`, dropdownItemEvaluations[ evalIndex ]);
         });
         return map;
-    }, [allDropdownItems, dropdownItemEvaluations]);
-    
+    }, [ allDropdownItems, dropdownItemEvaluations ]);
+
     // Filter visible actions and attach evaluation results
-    const visibleActions = useMemo(() => 
+    const visibleActions = useMemo(() =>
         actionsArray
-            .map((action, index) => ({ action, evaluation: evaluations[index] }))
+            .map((action, index) => ({ action, evaluation: evaluations[ index ] }))
             .filter(({ evaluation }) => evaluation.visible),
-        [actionsArray, evaluations]
+        [ actionsArray, evaluations ]
     );
-    
+
     /**
      * Renders an action (button or dropdown) with evaluation
      */
     const renderAction = (item: { action: IPageAction; evaluation: EvaluationResult }, actionIndexInVisible: number): React.ReactNode => {
         const { action, evaluation } = item;
-        
+
         // Find the original index of this action in actionsArray
         const originalActionIndex = actionsArray.indexOf(action);
-        
+
         const actionType = action.type || (action.items && action.items.length > 0 ? 'dropdown' : 'button');
         const isDisabled = !evaluation.enabled;
-        
+
         // Handle dropdown with items
         if (actionType === 'dropdown' && action.items && action.items.length > 0) {
             // Filter dropdown items based on visibility evaluation
@@ -160,16 +160,16 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                     };
                 })
                 .filter(({ evaluation: itemEval }) => itemEval.visible);
-            
+
             // Don't render dropdown if no visible items
             if (visibleMenuItems.length === 0) {
                 return null;
             }
-            
+
             // Render visible items as menu items
-            const menuItems: MenuProps['items'] = visibleMenuItems.map(({ dropItem, dropIndex, evaluation: itemEval }) => {
+            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.map(({ dropItem, dropIndex, evaluation: itemEval }) => {
                 const itemDisabled = !itemEval.enabled;
-                
+
                 return renderSingleAction({
                     action: dropItem,
                     key: `${action.label}-${dropIndex}`,
@@ -183,7 +183,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                         if (dropItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
                             onRefreshData();
                         }
-                        
+
                         if (dropItem.modalConfig?.submitSuccessRedirect) {
                             const redirectUrl = substituteUrlParams(
                                 dropItem.modalConfig.submitSuccessRedirect,
@@ -195,32 +195,32 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                     onNavigate: navigate
                 }) as MenuItem;
             });
-            
+
             const dropdownButton = (
                 <Button disabled={isDisabled}>
                     {action.icon && <Icon iconName={action.icon} />}
                     {action.label} <DownOutlined />
                 </Button>
             );
-            
+
             return (
-                <Tooltip 
+                <Tooltip
                     key={`dropdown-${action.label}-${actionIndexInVisible}`}
                     title={isDisabled ? evaluation.disabledMessage : undefined}
                 >
-                    <Dropdown 
-                    menu={{ items: menuItems }}
+                    <Dropdown
+                        menu={{ items: menuItems }}
                         disabled={isDisabled}
                     >
                         {dropdownButton}
-                </Dropdown>
+                    </Dropdown>
                 </Tooltip>
             );
         }
-        
+
         // Handle regular button action - create modified action with disabled state
         const modifiedAction = isDisabled ? { ...action, disabled: true } : action;
-        
+
         const buttonAction = renderSingleAction({
             action: modifiedAction,
             key: `action-${action.label}-${actionIndexInVisible}`,
@@ -234,7 +234,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                 if (action.modalConfig?.refreshParentOnSuccess && onRefreshData) {
                     onRefreshData();
                 }
-                
+
                 if (action.modalConfig?.submitSuccessRedirect) {
                     const redirectUrl = substituteUrlParams(
                         action.modalConfig.submitSuccessRedirect,
@@ -245,7 +245,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
             },
             onNavigate: navigate
         }) as React.ReactNode;
-        
+
         if (isDisabled && evaluation.disabledMessage) {
             return (
                 <Tooltip key={`tooltip-${action.label}-${actionIndexInVisible}`} title={evaluation.disabledMessage}>
@@ -253,38 +253,45 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, rou
                 </Tooltip>
             );
         }
-        
+
         return buttonAction;
     };
 
     // Render actions: use visibleActions if array, otherwise pass through ReactNode
-    const PageActions = Array.isArray(pageHeaderActions) 
-        ? <React.Fragment>{visibleActions.map(renderAction)}</React.Fragment>
-        : pageHeaderActions;
+    const PageActions = Array.isArray(pageHeaderActions)
+        ? <React.Fragment>{visibleActions.map(renderAction)}{appendActions}</React.Fragment>
+        : (
+            <>
+                {pageHeaderActions}
+                {appendActions}
+            </>
+        );
 
     return (
         <div className="PageHeader">
-            <AntPageHeader 
-                className="site-page-header" 
-                title={evaluatedPageTitle} 
-                breadcrumb={{ items: breadcrumbs.map((item, index) => {
-                    // Evaluate label template if provided, otherwise use as-is
-                    // Use templateContext (includes record data) for smart detection templates
-                    const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
-                    
-                    // Use substituteUrlParams for consistent placeholder handling
-                    const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
-                    
-                    return {
-                        key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
-                        title: breadcrumbUrl ? (
-                            <Link title={evaluatedLabel} url={breadcrumbUrl} />
-                        ) : (
-                            evaluatedLabel
-                        )
-                    };
-                })}}
-                extra={PageActions} 
+            <AntPageHeader
+                className="site-page-header"
+                title={evaluatedPageTitle}
+                breadcrumb={{
+                    items: breadcrumbs.map((item, index) => {
+                        // Evaluate label template if provided, otherwise use as-is
+                        // Use templateContext (includes record data) for smart detection templates
+                        const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
+
+                        // Use substituteUrlParams for consistent placeholder handling
+                        const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
+
+                        return {
+                            key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
+                            title: breadcrumbUrl ? (
+                                <Link title={evaluatedLabel} url={breadcrumbUrl} />
+                            ) : (
+                                evaluatedLabel
+                            )
+                        };
+                    })
+                }}
+                extra={PageActions}
             />
         </div>
     );

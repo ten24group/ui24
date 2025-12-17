@@ -77,9 +77,9 @@ export const truncateText = (text: string, maxLength: number = 100): string => {
  */
 export const getNestedValue = (obj: any, path: string): any => {
   if (!path || !obj) return undefined;
-  
+
   return path.split('.').reduce((current, key) => {
-    return current && current[key] !== undefined ? current[key] : undefined;
+    return current && current[ key ] !== undefined ? current[ key ] : undefined;
   }, obj);
 };
 
@@ -91,13 +91,13 @@ export const getNestedValue = (obj: any, path: string): any => {
  * @returns URL with parameters substituted
  */
 export const substituteUrlParams = (
-  url: string, 
-  routeParams: Record<string, any> = {}, 
+  url: string,
+  routeParams: Record<string, any> = {},
   fallbackIdentifier?: string | number
 ): string => {
   // Check if we have route parameters or an identifier to work with
   const hasRouteParams = routeParams && Object.keys(routeParams).length > 0;
-  
+
   if (!hasRouteParams && !fallbackIdentifier) {
     return url; // No substitution possible
   }
@@ -106,27 +106,32 @@ export const substituteUrlParams = (
   if (/:([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/.test(url)) {
     // Use parameter substitution for URLs with placeholders
     return url.replace(/:([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g, (match, param) => {
+      let value: any;
+
       // First try to get the parameter from routeParams (for simple params like :entityName)
-      if (routeParams[param] !== undefined) {
-        return String(routeParams[param]);
+      if (routeParams[ param ] !== undefined) {
+        value = routeParams[ param ];
       }
-      
       // Try to get nested value from routeParams (for nested params like :indexInfo.uid)
-      if (param.includes('.')) {
+      else if (param.includes('.')) {
         const nestedValue = getNestedValue(routeParams, param);
         if (nestedValue !== undefined) {
-          return String(nestedValue);
+          value = nestedValue;
         }
       }
-      
       // Fallback to using the identifier (if available)
-      if (fallbackIdentifier !== undefined) {
-        return String(fallbackIdentifier);
+      else if (fallbackIdentifier !== undefined) {
+        value = fallbackIdentifier;
       }
-      
+
       // If no value found, keep the placeholder (will likely cause an error)
-      console.warn(`No value found for URL parameter ${param}`);
-      return match;
+      if (value === undefined) {
+        console.warn(`No value found for URL parameter ${param}`);
+        return match;
+      }
+
+      // Return the value as-is (case-insensitive route matching handles any case mismatches)
+      return String(value);
     });
   } else if (fallbackIdentifier !== undefined) {
     // Legacy behavior: append identifier to URL (only if we have an identifier)
@@ -177,27 +182,27 @@ export const evaluateTemplateObject = (
     return {};
   }
 
-  return Object.entries(template).reduce((acc, [key, value]) => {
+  return Object.entries(template).reduce((acc, [ key, value ]) => {
     // Check if value is a template string: '{fieldName}' or '{field.nested.path}'
     if (typeof value === 'string' && value.match(/^\{[\w.]+\}$/)) {
       // Extract path from template: '{team.name}' → 'team.name'
       const path = value.slice(1, -1);
-      
+
       // Try to get value from context
       const evaluatedValue = getNestedValue(context, path);
-      
+
       // Only set the value if it's not undefined (allow null, false, 0, '')
       if (evaluatedValue !== undefined) {
-        acc[key] = evaluatedValue;
+        acc[ key ] = evaluatedValue;
       } else {
         // Template couldn't be evaluated, log warning
         console.warn(`[evaluateTemplateObject] Could not resolve template '${value}' for field '${key}'`);
       }
     } else {
       // Not a template string, use value as-is (static values, numbers, booleans, etc.)
-      acc[key] = value;
+      acc[ key ] = value;
     }
-    
+
     return acc;
   }, {} as Record<string, any>);
 };
@@ -215,25 +220,25 @@ export function matchRoutePattern(pattern: string, path: string): Record<string,
   // Remove leading and trailing slashes and split into segments
   const patternParts = pattern.replace(/^\/+|\/+$/g, '').split('/');
   const pathParts = path.replace(/^\/+|\/+$/g, '').split('/');
-  
+
   // If the number of segments doesn't match, this isn't a match
   if (patternParts.length !== pathParts.length) {
     return null;
   }
 
   const params: Record<string, string> = {};
-  
+
   // Check each segment
   for (let i = 0; i < patternParts.length; i++) {
-    const patternPart = patternParts[i];
-    const pathPart = pathParts[i];
-    
+    const patternPart = patternParts[ i ];
+    const pathPart = pathParts[ i ];
+
     if (patternPart.startsWith(':')) {
-      // This is a parameter - capture it
+      // This is a parameter - capture it (preserve original case)
       const paramName = patternPart.slice(1);
-      params[paramName] = pathPart;
-    } else if (patternPart !== pathPart) {
-      // Static segment doesn't match
+      params[ paramName ] = pathPart;
+    } else if (patternPart.toLowerCase() !== pathPart.toLowerCase()) {
+      // Static segment doesn't match (case-insensitive comparison)
       return null;
     }
   }
