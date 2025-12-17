@@ -1,10 +1,11 @@
 import { FilterFilled } from '@ant-design/icons';
-import { Input, Button, Space, Tag, Alert, Checkbox, Switch, Divider, Select } from 'antd';
+import { Input, Button, Space, Tag, Alert, Checkbox, Switch, Divider, Select, DatePicker } from 'antd';
 import { Icon } from '../../core/common';
 import React from 'react';
 import { filterOperators } from './filterOperators';
 import { FieldType } from '../../core/types/field-types';
 import { OptionSelector, type IFieldOptionsAPIConfig } from '../../core/forms/FormField/OptionSelector';
+import dayjs from 'dayjs';
 
 interface IColumnFilterProps {
   dataIndex: string
@@ -180,7 +181,7 @@ export const filterUI = (
       if (filterType === 'datetime') {
         // If inline quick date options exist, show select
         if (hasInlineOptions) {
-          // If "custom" is selected, show datetime-local input instead
+          // If "custom" is selected, show DatePicker with time selection
           if (filterValue === 'custom') {
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -201,11 +202,20 @@ export const filterUI = (
                     value: option.value === null ? 'custom' : String(option.value)
                   }))}
                 />
-                <Input
-                  type="datetime-local"
+                <DatePicker
+                  showTime
+                  format="DD/MM/YYYY, HH:mm:ss"
                   placeholder={`${safeTitle}`}
-                  value={filterValue === 'custom' ? '' : filterValue}
-                  onChange={(e) => setFilterValue(e.target.value)}
+                  value={filterValue && filterValue !== 'custom' ? dayjs(filterValue) : null}
+                  onChange={(date) => {
+                    if (date) {
+                      setFilterValue(date.toISOString());
+                    } else {
+                      setFilterValue('');
+                    }
+                  }}
+                  style={{ width: '100%' }}
+                  needConfirm={true}
                 />
               </div>
             );
@@ -226,13 +236,22 @@ export const filterUI = (
           );
         }
 
-        // Default datetime-local input
+        // Default DatePicker with time selection
         return (
-          <Input
-            type="datetime-local"
+          <DatePicker
+            showTime
+            format="DD/MM/YYYY, HH:mm:ss"
             placeholder={`${safeTitle}`}
-            value={filterValue}
-            onChange={(e) => setFilterValue(e.target.value)}
+            value={filterValue ? dayjs(filterValue) : null}
+            onChange={(date) => {
+              if (date) {
+                setFilterValue(date.toISOString());
+              } else {
+                setFilterValue('');
+              }
+            }}
+            style={{ width: '100%' }}
+            needConfirm={true}
           />
         );
       }
