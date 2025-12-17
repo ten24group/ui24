@@ -166,7 +166,7 @@ export const RenderFromPageType = ({
       />
     );
     case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
-    case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} />;
+    case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} routeParams={routeParams} />;
     case "custom": return <>TODO: handle custom page</>;
     default: return <>Invalid Page Type</>;
   }

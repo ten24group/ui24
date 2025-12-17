@@ -182,10 +182,12 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
   };
 }
 
-export const DashboardPage: React.FC<{ 
+export const DashboardPage: React.FC<{
   dashboardConfig: IDashboardPageConfig;
-}> = ({ 
-  dashboardConfig
+  routeParams?: Record<string, any>;
+}> = ({
+  dashboardConfig,
+  routeParams = {}
 }) => {
   const { selectConfig } = useUi24Config();
   const formatConfigTz = selectConfig(config => {
@@ -275,6 +277,7 @@ export const DashboardPage: React.FC<{
                 widget={widget}
                 timePeriodSelectorProps={timePeriodSelectorProps}
                 dashboardTimePeriod={chartDashboardTimePeriod || dashboardTimePeriod}
+                routeParams={routeParams}
               />
             </div>
           );

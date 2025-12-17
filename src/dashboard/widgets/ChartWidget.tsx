@@ -3,6 +3,7 @@ import { Line, Bar, Area, Column, Pie, LineConfig, BarConfig, AreaConfig, Column
 import './ChartWidget.css';
 import { useApi } from '../../core/context';
 import { TimePeriodSelector, TimePeriodSelectorProps } from './TimePeriodSelector';
+import { substituteUrlParams } from '../../core/utils';
 
 export type ChartType = 'line' | 'bar' | 'area' | 'pie';
 
@@ -50,6 +51,7 @@ export interface IChartWidgetProps {
   };
   options?: Partial<IChartConfig>;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
+  routeParams?: Record<string, any>;
 }
 
 const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
@@ -64,7 +66,7 @@ const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
   height: 300,
 };
 
-export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options, timePeriodSelectorProps }) => {
+export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options, timePeriodSelectorProps, routeParams }) => {
   const [chartData, setChartData] = useState<IChartDataPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,15 +99,16 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
       setError(null);
       try {
         const apiMethod = dataConfig.apiMethod || 'GET';
+        const apiUrl = substituteUrlParams(dataConfig.apiUrl, routeParams);
         const response = await callApiMethod({
-          apiUrl: dataConfig.apiUrl,
+          apiUrl,
           apiMethod,
           payload: effectivePayload,
           responseKey: dataConfig.responseKey,
           headers: dataConfig.headers,
         });
         const data = dataConfig.responseKey ? response.data[dataConfig.responseKey] : response.data;
-        if (isMounted) setChartData(data);
+        if (isMounted) setChartData(Array.isArray(data) ? data : []);
       } catch (err: any) {
         if (isMounted) setError(err?.message || 'Failed to fetch data');
       } finally {
@@ -114,7 +117,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     };
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, callApiMethod, effectivePayload]);
+  }, [dataConfig, callApiMethod, effectivePayload, routeParams]);
 
   if (options?.type !== 'pie' && (!options?.xField || !options?.yField)) {
     return <div className="chart-widget-error">Missing required xField or yField configuration</div>;

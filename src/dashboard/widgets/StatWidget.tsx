@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import * as AntIcons from '@ant-design/icons';
 import './StatWidget.css';
 import { useApi } from '../../core/context';
+import { substituteUrlParams } from '../../core/utils';
 
 export interface ITrendConfig {
   direction: 'up' | 'down';
@@ -36,6 +37,7 @@ export interface IStatWidgetProps {
     icon?: React.ReactNode | string | IStatWidgetIconConfig;
   };
   dashboardTimePeriod?: { period: string; range: [any, any] };
+  routeParams?: Record<string, any>;
 }
 
 const ICON_DEFAULT_SIZE = 72;
@@ -56,7 +58,7 @@ const TrendArrow: React.FC<ITrendConfig & { value: string | number; color?: stri
   );
 };
 
-export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, options, dashboardTimePeriod }) => {
+export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, options, dashboardTimePeriod, routeParams }) => {
   const [apiData, setApiData] = useState<any>({ value: '—' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,8 +91,9 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
       try {
         let data;
         const apiMethod = dataConfig.apiMethod || 'GET';
+        const apiUrl = substituteUrlParams(dataConfig.apiUrl, routeParams);
         const response = await callApiMethod({
-          apiUrl: dataConfig.apiUrl,
+          apiUrl,
           apiMethod,
           payload: effectivePayload,
           responseKey: dataConfig.responseKey,
@@ -107,7 +110,7 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
     };
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, callApiMethod, effectivePayload]);
+  }, [dataConfig, callApiMethod, effectivePayload, routeParams]);
 
   // Enhanced icon rendering for background
   const renderBackgroundIcon = (icon: React.ReactNode | string | IStatWidgetIconConfig | undefined): React.ReactNode => {
