@@ -2,13 +2,16 @@
  * DetailPage Wrapper - Owns detail state and provides DetailStateContext.
  * Renders PageHeader and the existing Details component with state management.
  */
-import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { DetailStateProvider } from '../../core/context/DetailStateContext';
+import { ReloadOutlined } from '@ant-design/icons';
+import { Button, Card } from 'antd';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { AutoRefreshSelector } from '../../core/components/AutoRefreshSelector';
 import { useModalContext } from '../../core/context';
+import { DetailStateProvider } from '../../core/context/DetailStateContext';
+import { useAutoRefresh } from '../../core/hooks';
 import { Details, IDetailsComponentProps } from '../../detail/Details';
-import { PageHeader, IPageHeader } from '../PostAuth/PageHeader/PageHeader';
-import { SectionsRenderer, ISectionsConfig } from '../PostAuth/SectionsRenderer';
-import { Card } from 'antd';
+import { IPageHeader, PageHeader } from '../PostAuth/PageHeader/PageHeader';
+import { ISectionsConfig, SectionsRenderer } from '../PostAuth/SectionsRenderer';
 
 interface DetailPageProps extends Omit<IDetailsComponentProps, 'onDataChange' | 'refreshRef'> {
   // IDetailsComponentProps already has pageTitle and routeParams
@@ -60,15 +63,45 @@ export const DetailPage: React.FC<DetailPageProps> = ({
     }
   }, []);
 
-  // 6. Create refresh handler for PageHeader
+  // 6. Create refresh handler for PageHeader and auto-refresh
   const handleRefresh = useCallback(async () => {
     if (refreshFnRef.current) {
       await refreshFnRef.current();
     }
   }, []);
 
+  // 7. Auto-refresh functionality
+  const autoRefresh = useAutoRefresh({
+    onRefresh: handleRefresh,
+    enabled: false,
+    defaultInterval: 30
+  });
+
   // Check if we're in a modal - skip PageHeader if true (modal already has title)
   const { isInModal } = useModalContext();
+
+  // 8. Create refresh controls to append to PageHeader actions
+  const refreshControls = useMemo(() => {
+    if (isInModal) return null;
+
+    return (
+      <React.Fragment key="refresh-controls">
+        <Button
+          icon={<ReloadOutlined />}
+          type='primary'
+          onClick={handleRefresh}
+        >
+        </Button>
+        <AutoRefreshSelector
+          isEnabled={autoRefresh.isEnabled}
+          interval={autoRefresh.interval}
+          timeUntilRefresh={autoRefresh.timeUntilRefresh}
+          onToggle={autoRefresh.toggleEnabled}
+          onIntervalChange={autoRefresh.setInterval}
+        />
+      </React.Fragment>
+    );
+  }, [ isInModal, handleRefresh, autoRefresh.isEnabled, autoRefresh.interval, autoRefresh.timeUntilRefresh, autoRefresh.toggleEnabled, autoRefresh.setInterval ]);
 
   return (
     <DetailStateProvider value={detailState}>
@@ -77,6 +110,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({
         {!isInModal && (
           <PageHeader
             pageHeaderActions={pageHeaderActions}
+            appendActions={refreshControls}
             pageTitle={pageTitle}
             breadcrumbs={breadcrumbs}
             routeParams={enhancedRouteParams}
