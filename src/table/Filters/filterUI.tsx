@@ -50,6 +50,23 @@ export const filterUI = (
     const [ filterInList, setFilterInList ] = React.useState<Array<string>>([]);
     const [ selectedFacets, setSelectedFacets ] = React.useState<Array<string>>([]);
     const [ errors, setErrors ] = React.useState<Record<string, string>>({})
+
+    // Store the initial/applied filter state for Cancel button
+    const [ initialFilterState, setInitialFilterState ] = React.useState<{
+      operator: string;
+      value: string;
+      endValue: string;
+      inList: string[];
+      facets: string[];
+      isActive: boolean;
+    }>({
+      operator: defaultOperator,
+      value: "",
+      endValue: "",
+      inList: [],
+      facets: [],
+      isActive: false
+    });
     const isListFilter = filterOperator === "in" || filterOperator === "nin"
     const isBetweenFilter = filterOperator === "bt"
     // Operators that don't require a value input (existence checks)
@@ -87,27 +104,41 @@ export const filterUI = (
         const operator = Object.keys(appliedFilterForColumn)[ 0 ];
         const value = appliedFilterForColumn[ operator ];
         setFilterOperator(operator);
+
+        let valueStr = '';
+        let endValueStr = '';
+        let inListArr: string[] = [];
+
         if (Array.isArray(value)) {
           // Use operator directly, not the state variable 'isBetweenFilter' which might be stale
           if (operator === 'bt') {
+            valueStr = value[ 0 ];
+            endValueStr = value[ 1 ];
             setFilterValue(value[ 0 ]);
             setFilterEndValue(value[ 1 ]);
           } else {
+            inListArr = value;
             setFilterInList(value);
           }
         } else if (typeof value === 'boolean' || typeof value === 'object') {
           // Boolean/object value (e.g., exists: true) - don't show in input
           setFilterValue('');
         } else {
+          valueStr = String(value ?? '');
           setFilterValue(String(value ?? ''));
         }
-      } else if (filterType === 'datetime') {
-        // Prefill datetime fields with current date when no previous filter exists
-        const now = new Date();
-        // Format as YYYY-MM-DDTHH:MM for datetime-local input
-        const currentDateTime = now.toISOString().slice(0, 16);
-        setFilterValue(currentDateTime);
+
+        // Store the applied state for Cancel button
+        setInitialFilterState({
+          operator,
+          value: valueStr,
+          endValue: endValueStr,
+          inList: inListArr,
+          facets: [],
+          isActive: true
+        });
       }
+      // Note: Removed auto-prefill for datetime fields - users should start with empty state
     }, []);
 
     const resetState = () => {
@@ -118,6 +149,17 @@ export const filterUI = (
       setFilterValue("");
       setIsFilterActive(false);
       setSelectedFacets([]);
+    }
+
+    const restoreInitialState = () => {
+      // Restore to the last applied filter state
+      setFilterOperator(initialFilterState.operator);
+      setFilterValue(initialFilterState.value);
+      setFilterEndValue(initialFilterState.endValue);
+      setFilterInList(initialFilterState.inList);
+      setSelectedFacets(initialFilterState.facets);
+      setIsFilterActive(initialFilterState.isActive);
+      setErrors({});
     }
 
     const applyFilter = (closeFn: Function) => {
@@ -134,7 +176,18 @@ export const filterUI = (
         const filterToApply = selectedFacets.length > 0 ? selectedFacets : isListFilter ? filterInList : isExistenceOperator ? true : filterValue;
         const operatorToApply = selectedFacets.length > 0 ? 'in' : filterOperator;
         applyFilters(dataIndex, operatorToApply, isBetweenFilter ? [ filterValue, filterEndValue ] : filterToApply)
-        resetState()
+
+        // Save the current state as the new initial state for Cancel button
+        setInitialFilterState({
+          operator: filterOperator,
+          value: filterValue,
+          endValue: filterEndValue,
+          inList: [ ...filterInList ],
+          facets: [ ...selectedFacets ],
+          isActive: true
+        });
+
+        setIsFilterActive(true);
         closeFn()
       }
     }
@@ -142,6 +195,15 @@ export const filterUI = (
     const clearFilter = (closeFn: Function) => {
       removeFilter(dataIndex);
       resetState();
+      // Reset the initial state to defaults when clearing
+      setInitialFilterState({
+        operator: defaultOperator,
+        value: "",
+        endValue: "",
+        inList: [],
+        facets: [],
+        isActive: false
+      });
       closeFn();
     }
 
@@ -181,70 +243,69 @@ export const filterUI = (
       if (filterType === 'datetime') {
         // If inline quick date options exist, show select
         if (hasInlineOptions) {
-          // If "custom" is selected, show DatePicker with time selection
-          if (filterValue === 'custom') {
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <Select
-                  placeholder={`Select ${safeTitle}`}
-                  value={filterValue}
-                  onChange={(value) => {
-                    if (value === 'custom') {
-                      // Reset to empty for datetime input
-                      setFilterValue('');
-                    } else {
-                      setFilterValue(value);
-                    }
-                  }}
-                  style={{ width: '100%' }}
-                  options={(predefinedOptions as Array<{ label: string; value: string }>).map(option => ({
-                    label: option.label,
-                    value: option.value === null ? 'custom' : String(option.value)
-                  }))}
-                />
+          // If value starts with ':', it's a predefined option, otherwise it's custom
+          const isPredefined = filterValue && filterValue.startsWith(':');
+          const showCustomPicker = filterValue === 'custom' || (filterValue && !isPredefined);
+
+          return (
+            <>
+              <Select
+                size="small"
+                placeholder={`Select ${safeTitle}`}
+                value={isPredefined ? filterValue : (showCustomPicker ? 'custom' : undefined)}
+                onChange={(value) => {
+                  if (value === 'custom') {
+                    setFilterValue('custom');
+                  } else {
+                    setFilterValue(value);
+                  }
+                }}
+                style={{ width: '100%' }}
+                dropdownStyle={{ minWidth: '200px' }}
+                options={(predefinedOptions as Array<{ label: string; value: string }>).map(option => ({
+                  label: option.label,
+                  value: option.value === null ? 'custom' : String(option.value)
+                }))}
+              />
+
+              {/* Show DatePicker when custom is selected */}
+              {(filterValue === 'custom' || (filterValue && !filterValue.startsWith(':'))) && (
                 <DatePicker
+                  size="small"
                   showTime
-                  format="DD/MM/YYYY, HH:mm:ss"
-                  placeholder={`${safeTitle}`}
+                  format="YYYY-MM-DD HH:mm:ss"
+                  placeholder="Pick date and time"
                   value={filterValue && filterValue !== 'custom' ? dayjs(filterValue) : null}
                   onChange={(date) => {
                     if (date) {
+                      // Store as ISO string for DynamoDB string comparison
                       setFilterValue(date.toISOString());
                     } else {
+                      // Clear to empty string, not 'custom'
                       setFilterValue('');
                     }
                   }}
-                  style={{ width: '100%' }}
+                  style={{ width: '100%', marginTop: '4px' }}
                   needConfirm={true}
+                  showNow={false}
+                  getPopupContainer={(trigger) => trigger.parentElement || document.body}
                 />
-              </div>
-            );
-          }
-
-          return (
-            <Select
-              placeholder={`Select ${safeTitle}`}
-              value={filterValue || undefined}
-              onChange={(value) => setFilterValue(value)}
-              style={{ width: '100%' }}
-              allowClear
-              options={(predefinedOptions as Array<{ label: string; value: string }>).map(option => ({
-                label: option.label,
-                value: option.value === null ? 'custom' : String(option.value)
-              }))}
-            />
+              )}
+            </>
           );
         }
 
-        // Default DatePicker with time selection
+        // Default DatePicker with time selection (no presets)
         return (
           <DatePicker
+            size="small"
             showTime
-            format="DD/MM/YYYY, HH:mm:ss"
+            format="YYYY-MM-DD HH:mm:ss"
             placeholder={`${safeTitle}`}
             value={filterValue ? dayjs(filterValue) : null}
             onChange={(date) => {
               if (date) {
+                // Store as ISO string for DynamoDB string comparison
                 setFilterValue(date.toISOString());
               } else {
                 setFilterValue('');
@@ -252,6 +313,8 @@ export const filterUI = (
             }}
             style={{ width: '100%' }}
             needConfirm={true}
+            showNow={false}
+            getPopupContainer={(trigger) => trigger.parentElement || document.body}
           />
         );
       }
@@ -259,6 +322,7 @@ export const filterUI = (
       if (filterType === 'number') {
         return (
           <Input
+            size="small"
             type="number"
             placeholder={`${safeTitle}`}
             value={filterValue}
@@ -283,6 +347,7 @@ export const filterUI = (
       // Default text input
       return (
         <Input
+          size="small"
           placeholder={`${safeTitle}`}
           value={filterValue}
           onChange={(e) => setFilterValue(e.target.value)}
@@ -291,99 +356,163 @@ export const filterUI = (
     };
 
     return (
-      <div style={{ padding: '12px', width: '320px' }} onKeyDown={(e) => e.stopPropagation()}>
-        <Space direction="vertical" style={{ width: '100%' }}>
+      <div
+        style={{ padding: '8px', minWidth: '300px' }}
+        onKeyDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Space direction="vertical" style={{ width: '100%' }} size={8}>
 
+          {/* Facet Filters (if enabled) */}
           {enableFacetFilters && (
-            <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-              <span>Show value counts</span>
-              <Switch
-                checked={isFacetEnabled}
-                onChange={() => toggleFacetedColumn(dataIndex)}
-                size="small"
-              />
-            </Space>
-          )}
-
-          {isFacetEnabled && hasFacets && <Divider style={{ margin: '4px 0' }} />}
-
-          {isFacetEnabled && hasFacets && (
-            <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
-              <Checkbox.Group
-                style={{ display: 'flex', flexDirection: 'column' }}
-                onChange={(values) => setSelectedFacets(values as string[])}
-                value={[ ...appliedInFilterValues, ...selectedFacets ]}
-              >
-                {Object.entries(columnFacets).map(([ value, count ]) => (
-                  <Checkbox key={value} value={value}>
-                    {value} ({count})
-                  </Checkbox>
-                ))}
-              </Checkbox.Group>
-            </div>
-          )}
-
-          {(!isFacetEnabled || !hasFacets) &&
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div style={{ display: "flex" }}>
-                {renderFilterInput()}
-
-                {isListFilter && <span style={{ paddingLeft: '8px' }} ><Button onClick={handleAddToList} type="primary" htmlType="button" >
-                  <Icon iconName="plus" />
-                </Button></span>}
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '12px', color: 'rgba(0, 0, 0, 0.45)' }}>Show value counts</span>
+                <Switch
+                  checked={isFacetEnabled}
+                  onChange={() => toggleFacetedColumn(dataIndex)}
+                  size="small"
+                />
               </div>
-              <Alert message={errors.filterValue} type="error" style={{ display: errors.filterValue ? "block" : "none", marginBottom: '8px' }} />
-              {isBetweenFilter && <><Input
-                placeholder={`${safeTitle} End Value`}
-                value={filterEndValue}
-                onChange={(e) =>
-                  setFilterEndValue(e.target.value)
-                }
-              />
-                <Alert message={errors.filterEndValue} type="error" style={{ display: errors.filterEndValue ? "block" : "none" }} />
-              </>
-              }
-              {isListFilter && <div style={{ padding: '4px 0', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>{[ ...filterInList ].map((item, index) => {
-                return <Tag key={index} color="#108ee9" closable onClose={(e) => {
-                  e.preventDefault()
-                  handleRemoveFromList(index)
-                }}>{item}</Tag>
-              })}</div>}
 
-              <a onClick={() => setShowAdvanced(!showAdvanced)} style={{ fontSize: 12, cursor: 'pointer', marginTop: '8px', display: 'inline-block' }}>
-                <Icon iconName={showAdvanced ? "up" : "down"} /> {showAdvanced ? "Hide Advanced" : "Show Advanced"}
-              </a>
+              {isFacetEnabled && hasFacets && (
+                <>
+                  <Divider style={{ margin: '4px 0' }} />
+                  <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                    <Checkbox.Group
+                      style={{ display: 'flex', flexDirection: 'column' }}
+                      onChange={(values) => setSelectedFacets(values as string[])}
+                      value={[ ...appliedInFilterValues, ...selectedFacets ]}
+                    >
+                      {Object.entries(columnFacets).map(([ value, count ]) => (
+                        <Checkbox key={value} value={value}>
+                          {value} <span style={{ color: 'rgba(0, 0, 0, 0.45)' }}>({count})</span>
+                        </Checkbox>
+                      ))}
+                    </Checkbox.Group>
+                  </div>
+                </>
+              )}
+            </>
+          )}
 
-              {showAdvanced && <div style={{ paddingTop: '8px' }}>
-                <h4>Filter Operators</h4>
-                <Alert message={errors.filterOperator} type="error" style={{ display: errors.filterOperator ? "block" : "none" }} />
-                <Space size={[ 8, 8 ]} wrap >
-                  {availableOperators.map((item, index) => {
-                    return (
-                      <Button key={index} type={filterOperator === item.value ? "primary" : "default"} size="middle" onClick={() => handleOperatorChange(item.value)}>{item.label}</Button>
-                    )
-                  })}
-                </Space>
-              </div>}
-            </Space>
-          }
+          {/* Filter Input Section */}
+          {(!isFacetEnabled || !hasFacets) && (
+            <>
+              {(enableFacetFilters && isFacetEnabled && hasFacets) && <Divider style={{ margin: '4px 0' }} />}
+
+              <Space direction="vertical" style={{ width: '100%' }} size={4}>
+                {/* Main filter input with operator inline for compact view */}
+                <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-start' }}>
+                  {/* Operator dropdown */}
+                  <Select
+                    value={filterOperator}
+                    onChange={handleOperatorChange}
+                    size="small"
+                    style={{ minWidth: '140px', flex: '0 0 auto' }}
+                    options={availableOperators.map(op => ({
+                      label: op.label,
+                      value: op.value
+                    }))}
+                  />
+
+                  {/* Filter input - only show if operator needs a value */}
+                  {!hideFilterValue && (
+                    <>
+                      <div style={{ flex: 1 }}>
+                        {renderFilterInput()}
+                      </div>
+
+                      {/* Add button for list filters */}
+                      {isListFilter && (
+                        <Button
+                          onClick={handleAddToList}
+                          type="primary"
+                          size="small"
+                          icon={<Icon iconName="plus" />}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Errors */}
+                {errors.filterOperator && (
+                  <Alert message={errors.filterOperator} type="error" showIcon banner />
+                )}
+                {errors.filterValue && (
+                  <Alert message={errors.filterValue} type="error" showIcon banner />
+                )}
+
+                {/* Between Filter - End Value */}
+                {isBetweenFilter && !hideFilterValue && (
+                  <>
+                    <Input
+                      size="small"
+                      placeholder={`${safeTitle} (end)`}
+                      value={filterEndValue}
+                      onChange={(e) => setFilterEndValue(e.target.value)}
+                    />
+                    {errors.filterEndValue && (
+                      <Alert message={errors.filterEndValue} type="error" showIcon banner />
+                    )}
+                  </>
+                )}
+
+                {/* List Filter - Selected Items */}
+                {isListFilter && filterInList.length > 0 && !hideFilterValue && (
+                  <div style={{ paddingTop: '4px' }}>
+                    {filterInList.map((item, index) => (
+                      <Tag
+                        key={index}
+                        closable
+                        onClose={(e) => {
+                          e.preventDefault();
+                          handleRemoveFromList(index);
+                        }}
+                        style={{ marginBottom: '4px' }}
+                      >
+                        {item}
+                      </Tag>
+                    ))}
+                  </div>
+                )}
+              </Space>
+            </>
+          )}
+
+          {/* Action Buttons */}
           <Divider style={{ margin: '8px 0' }} />
-          <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-            <Space>
-              <Button onClick={() => resetState()} size="small"> Reset </Button>
-              {isFilterActive && <Button danger onClick={() => clearFilter(close)} size="small"> Clear </Button>}
-            </Space>
-            <Space>
-              <Button onClick={() => {
-                resetState()
-                close();
-              }} size="small"
-              >
-                Close
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Space size={4}>
+              <Button onClick={() => resetState()} size="small">
+                Reset
               </Button>
-              <Button type="primary" onClick={() => applyFilter(close)} size="small"  > Apply </Button>
+              {isFilterActive && (
+                <Button danger onClick={() => clearFilter(close)} size="small">
+                  Clear
+                </Button>
+              )}
             </Space>
-          </Space>
+            <Space size={4}>
+              <Button
+                onClick={() => {
+                  restoreInitialState();
+                  close();
+                }}
+                size="small"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="primary"
+                onClick={() => applyFilter(close)}
+                size="small"
+              >
+                OK
+              </Button>
+            </Space>
+          </div>
         </Space>
       </div>
     )
