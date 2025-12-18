@@ -86,4 +86,17 @@ export interface IAuthProvider {
    * Clears all authentication-related data from storage and logs the user out.
    */
   logout?(): void;
+
+  /**
+   * Registers a callback to be called when authentication state changes (e.g., login, logout, sync).
+   * @param callback - The function to call on change.
+   * @returns A function to unregister the callback.
+   */
+  onAuthChange?(callback: () => void): () => void;
+
+  /**
+   * Cleanup method to remove event listeners and free resources.
+   * Called when the provider is being replaced or component unmounts.
+   */
+  destroy?(): void;
 }

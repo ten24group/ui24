@@ -62,6 +62,8 @@ class Authenticator implements IAuthProvider {
 
     // Promise to track ongoing credential fetch to prevent multiple concurrent fetches
     private credentialsFetchPromise: Promise<AwsCredentialIdentity> | null = null;
+    private listeners: (() => void)[] = [];
+    private storageEventHandler: ((event: StorageEvent) => void) | null = null;
 
     constructor(
         private readonly awsSigner: RequestSigner,
@@ -70,7 +72,45 @@ class Authenticator implements IAuthProvider {
         private readonly AWS_TEMP_CREDENTIALS_API_ENDPOINT: string,
         private readonly REFRESH_TOKEN_API_ENDPOINT: string,
         private readonly rememberMe: boolean = false,
-    ) { }
+    ) {
+        this.setupStorageListener();
+    }
+
+    private setupStorageListener() {
+        if (typeof window === 'undefined') return;
+
+        // Listen for storage events from other tabs (localStorage changes only)
+        // Note: storage event only fires for localStorage changes from OTHER tabs
+        this.storageEventHandler = (event: StorageEvent) => {
+            if (event.key === AUTH_TOKEN_CACHE_KEY || event.key === TEMP_AWS_CREDENTIALS_CACHE_KEY) {
+                console.log(`[Auth] Storage changed in another tab for key: ${event.key}`);
+                this.notify();
+            }
+        };
+
+        window.addEventListener('storage', this.storageEventHandler);
+    }
+
+    private notify() {
+        this.listeners.forEach(l => l());
+    }
+
+    public onAuthChange = (callback: () => void) => {
+        this.listeners.push(callback);
+        return () => {
+            this.listeners = this.listeners.filter(l => l !== callback);
+        };
+    };
+
+    // Cleanup method to remove event listeners
+    public destroy = () => {
+        if (typeof window !== 'undefined' && this.storageEventHandler) {
+            window.removeEventListener('storage', this.storageEventHandler);
+            this.storageEventHandler = null;
+        }
+        this.listeners = [];
+        this.credentialsFetchPromise = null;
+    };
 
     private get storage(): Storage {
         return this.rememberMe ? window.localStorage : window.sessionStorage;
@@ -86,6 +126,7 @@ class Authenticator implements IAuthProvider {
         } else {
             this.removeToken();
         }
+        this.notify();
     };
 
     public getToken = () => {
@@ -109,6 +150,7 @@ class Authenticator implements IAuthProvider {
     public removeToken = () => {
         this.removeCredentials();
         this.storage.removeItem(AUTH_TOKEN_CACHE_KEY);
+        this.notify();
     };
 
     public setCredentials = (credentials: AwsCredentialIdentity) => {
@@ -116,7 +158,7 @@ class Authenticator implements IAuthProvider {
     };
 
     public removeCredentials = () => {
-        return this.storage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
+        this.storage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
     };
 
     /**
@@ -176,12 +218,12 @@ class Authenticator implements IAuthProvider {
         const currentTimeWithBuffer = Date.now() + 5 * 1000;  // 5 seconds buffer
         const diff = expirationTime - currentTimeWithBuffer;
         const isValid = diff > 0;
-        
+
         if (!isValid) {
             const expiresIn = Math.floor((expirationTime - Date.now()) / 1000);
             console.log(`[Auth] AWS temporary credentials expired or expiring soon (${expiresIn}s remaining)`);
         }
-        
+
         return isValid;
     };
 
@@ -197,7 +239,7 @@ class Authenticator implements IAuthProvider {
             console.error('[Auth] Cannot fetch AWS credentials: no token data or IdToken present');
             throw new Error('Unauthorized: No IdToken available for AWS credentials request');
         }
-        
+
         try {
             const response = await this.axiosInstance.post(`${this.AWS_TEMP_CREDENTIALS_API_ENDPOINT}/`, { idToken: tokenData.IdToken });
             return response as AxiosResponse<{
@@ -308,10 +350,10 @@ class Authenticator implements IAuthProvider {
             return await this.fetchCredentials();
         } catch (error: any) {
             // REACTIVE CHECK: Server rejected (401/403/500 with token expired message)
-            const isAuthError = error.response?.status === 401 || 
-                               error.response?.status === 403 ||
-                               (error.response?.status === 500 && error.response?.data?.message?.includes('Token expired'));
-            
+            const isAuthError = error.response?.status === 401 ||
+                error.response?.status === 403 ||
+                (error.response?.status === 500 && error.response?.data?.message?.includes('Token expired'));
+
             if (isAuthError) {
                 console.log('[Auth] Server rejected credentials, attempting to refresh IdToken using RefreshToken...');
                 try {
@@ -347,8 +389,8 @@ class Authenticator implements IAuthProvider {
         // First check cache
         const cached = await this.getCachedCredentials();
         if (cached) {
-            const expiresIn = cached.expiration 
-                ? Math.floor((cached.expiration.getTime() - Date.now()) / 1000) 
+            const expiresIn = cached.expiration
+                ? Math.floor((cached.expiration.getTime() - Date.now()) / 1000)
                 : 'unknown';
             console.log(`[Auth] Using cached AWS temporary credentials: ${cached.accessKeyId.substring(0, 10) + '...'} ${expiresIn + 's'}`);
             return cached;
@@ -367,7 +409,7 @@ class Authenticator implements IAuthProvider {
                 // Clear the promise once complete (success or failure)
                 this.credentialsFetchPromise = null;
             });
-        
+
         return await this.credentialsFetchPromise;
     }
 
@@ -485,9 +527,9 @@ class Authenticator implements IAuthProvider {
         // These endpoints expect IdToken in the request body, not in headers
         const url = config.url || '';
         const fullUrl = config.baseURL ? `${config.baseURL}${url}` : url;
-        const isAuthEndpoint = fullUrl.includes(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT) || 
-                               fullUrl.includes(this.REFRESH_TOKEN_API_ENDPOINT);
-        
+        const isAuthEndpoint = fullUrl.includes(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT) ||
+            fullUrl.includes(this.REFRESH_TOKEN_API_ENDPOINT);
+
         if (isAuthEndpoint) {
             console.log(`[Auth] Skipping AWS IAM auth for auth endpoint: ${url}`);
             return;
@@ -582,16 +624,16 @@ class Authenticator implements IAuthProvider {
 
         try {
             console.log('[Auth] refreshAuth called - clearing cached credentials');
-            
+
             // Clear cache and set the promise lock BEFORE fetching
             this.storage.removeItem(TEMP_AWS_CREDENTIALS_CACHE_KEY);
-            
+
             // Start the fetch and track it
             this.credentialsFetchPromise = this.fetchCredentialsWithRefresh()
                 .finally(() => {
                     this.credentialsFetchPromise = null;
                 });
-            
+
             await this.credentialsFetchPromise;
             console.log('[Auth] refreshAuth completed successfully');
         } catch (error) {
