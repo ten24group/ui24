@@ -268,14 +268,10 @@ export const Table = ({
   // 
   // This eliminates the need for separate initial fetch logic here
 
-  // Trigger fetch when search mode changes (for tables without segments)
-  // Tables with segments don't need this because FilterSegments re-applies filters on mode change
+  // Trigger fetch when search mode changes
   useEffect(() => {
-    const hasSegments = segments && segments.length > 0;
-    if (!hasSegments) {
-      setFetchTrigger(prev => prev + 1);
-    }
-  }, [ isSearchMode, segments ]);
+    setFetchTrigger(prev => prev + 1);
+  }, [ isSearchMode ]);
 
   // Reset expanded rows when data changes (pagination, filters, etc.)
   useEffect(() => {
