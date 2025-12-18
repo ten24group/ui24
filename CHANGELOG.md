@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.17](https://github.com/ten24group/ui24/compare/v1.0.5-beta.16...v1.0.5-beta.17) (2025-12-18)
+
+
+### Bug Fixes
+
+* date filters to work for custom fdates ([6c4d71f](https://github.com/ten24group/ui24/commit/6c4d71fa184ee5ae2b56a62295bb7a922ad74596))
+* npm packages audit issues ([480f1ee](https://github.com/ten24group/ui24/commit/480f1ee8a5b4600521083ae8445ced1d944e0c78))
+
 ### [1.0.5-beta.16](https://github.com/ten24group/ui24/compare/v1.0.5-beta.14...v1.0.5-beta.16) (2025-12-16)
 
 
