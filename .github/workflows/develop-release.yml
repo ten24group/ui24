@@ -70,11 +70,17 @@ jobs:
         run: npm run build
 
       - name: Commit build changes
-        if: steps.check_package.outputs.needs_update == 'true'
         run: |
-          git add package.json dist/
-          git commit -m "chore: update build config and dist [skip ci]"
-          echo "Committed package.json and dist folder"
+          git add dist/
+
+          if [ "${{ steps.check_package.outputs.needs_update }}" = "true" ]; then
+            git add package.json
+            git commit -m "chore: update build config and dist [skip ci]"
+            echo "Committed package.json and dist folder"
+          else
+            git commit -m "chore: update dist [skip ci]"
+            echo "Committed dist folder"
+          fi
 
       - name: Release beta version
         run: npm run release:BE:github
