@@ -26,7 +26,7 @@ export const WidgetRenderer: React.FC<{
       case 'stat':
         return <StatWidget {...widget} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} />;
       case 'chart':
-        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} routeParams={routeParams} />;
+        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} />;
       case 'list': {
         const { propertiesConfig = [], apiConfig = { apiUrl: '', apiMethod: 'GET' }, ...rest } = widget.options || {};
         return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} {...rest} />;

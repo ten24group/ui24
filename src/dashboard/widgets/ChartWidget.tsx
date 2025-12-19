@@ -51,6 +51,7 @@ export interface IChartWidgetProps {
   };
   options?: Partial<IChartConfig>;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
+  dashboardTimePeriod?: { period: string; range: [any, any] };
   routeParams?: Record<string, any>;
 }
 
@@ -66,7 +67,7 @@ const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
   height: 300,
 };
 
-export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options, timePeriodSelectorProps, routeParams }) => {
+export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options, timePeriodSelectorProps, dashboardTimePeriod, routeParams }) => {
   const [chartData, setChartData] = useState<IChartDataPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
   // Compute effective payload with time period if present
   const effectivePayload = React.useMemo(() => {
     let basePayload = dataConfig?.payload || {};
+    // Priority: per-chart selector > dashboard selector
     if (timePeriodSelectorProps && timePeriodSelectorProps.value?.range) {
       const [start, end] = timePeriodSelectorProps.value.range;
       // Use the timezone of the start/end Dayjs objects
@@ -84,9 +86,17 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
         endDate: end.format('YYYY-MM-DDTHH:mm:ss'),
         period: timePeriodSelectorProps.value.period,
       };
+    } else if (dashboardTimePeriod && dashboardTimePeriod.range) {
+      const [start, end] = dashboardTimePeriod.range;
+      return {
+        ...basePayload,
+        startDate: start.format('YYYY-MM-DDTHH:mm:ss'),
+        endDate: end.format('YYYY-MM-DDTHH:mm:ss'),
+        period: dashboardTimePeriod.period,
+      };
     }
     return basePayload;
-  }, [dataConfig?.payload, timePeriodSelectorProps]);
+  }, [dataConfig?.payload, timePeriodSelectorProps, dashboardTimePeriod]);
 
   useEffect(() => {
     let isMounted = true;
