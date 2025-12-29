@@ -24,7 +24,7 @@ import { OpenInModal } from "../modal/Modal";
 import { generateJsonPreview } from "../core/utils/jsonUtils";
 import { createModalConfig } from "./utils/modalConfigHelper";
 import * as Icons from '@ant-design/icons';
-import { formatDuration, DurationUnit } from "../core/utils/duration";
+import { formatDuration, formatTTL, DurationUnit, TTLUnit, DurationFormat, TTLFormat } from "../core/utils/duration";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -802,9 +802,51 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return <span>{String(text)}</span>;
   }, []);
 
-  // Duration renderer - uses shared formatDuration utility with unit support from field config
-  const createDurationRenderer = React.useCallback((unit: DurationUnit = 'seconds') => {
-    return (text: unknown): React.ReactNode => <span>{formatDuration(text, unit)}</span>;
+  // Duration renderer - uses shared formatDuration utility with unit and format support
+  const createDurationRenderer = React.useCallback((
+    unit: DurationUnit = 'seconds',
+    format: DurationFormat = 'auto'
+  ) => {
+    return (text: unknown): React.ReactNode => <span>{formatDuration(text, unit, format)}</span>;
+  }, []);
+
+  // TTL renderer - displays time remaining until expiration with auto-refresh support
+  const createTTLRenderer = React.useCallback((
+    unit: TTLUnit = 'seconds',
+    format: TTLFormat = 'auto',
+    autoRefresh?: number
+  ) => {
+    return (text: unknown): React.ReactNode => {
+      const TTLCell = () => {
+        const [ ttlValue, setTtlValue ] = React.useState(() => formatTTL(text, unit, format));
+        const isExpired = ttlValue === 'expired';
+
+        // Auto-refresh support
+        React.useEffect(() => {
+          if (!autoRefresh || autoRefresh <= 0 || isExpired) {
+            return;
+          }
+
+          const interval = setInterval(() => {
+            const newValue = formatTTL(text, unit, format);
+            setTtlValue(newValue);
+          }, autoRefresh * 1000);
+
+          return () => clearInterval(interval);
+        }, [ autoRefresh, isExpired ]);
+
+        return (
+          <span style={{
+            color: isExpired ? '#ff4d4f' : undefined,
+            fontWeight: isExpired ? 500 : undefined
+          }}>
+            {ttlValue}
+          </span>
+        );
+      };
+
+      return <TTLCell />;
+    };
   }, []);
 
   const badgeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
@@ -1014,9 +1056,20 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         else if (fieldType === 'slider') {
           renderer = sliderRenderer;
         }
-        // Duration fields - use durationUnit from column config (default: seconds)
+        // Duration fields - use durationUnit and format from column config
         else if (fieldType === 'duration') {
-          renderer = createDurationRenderer(column.durationUnit || 'seconds');
+          renderer = createDurationRenderer(
+            column.durationUnit || 'seconds',
+            column.durationFormat || 'auto'
+          );
+        }
+        // TTL fields - displays time remaining until expiration with auto-refresh
+        else if (fieldType === 'ttl') {
+          renderer = createTTLRenderer(
+            column.ttlUnit || 'seconds',
+            column.ttlFormat || 'auto',
+            column.ttlAutoRefresh
+          );
         }
         // Badge fields
         else if (fieldType === 'badge') {

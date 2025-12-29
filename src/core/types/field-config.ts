@@ -69,7 +69,32 @@ export interface IFieldTypeProperties {
 
   // Duration field properties
   /** Input unit of the stored duration value. Renderer converts to human-readable. Default: 'seconds' */
-  durationUnit?: 'ms' | 'seconds' | 'minutes' | 'hours';
+  durationUnit?: 'ms' | 'seconds' | 'minutes' | 'hours' | 'days';
+  /** 
+   * Display format for duration. Default: 'auto' (shows largest relevant units)
+   * - 'auto': Automatically shows days/hours/minutes/seconds as needed
+   * - 'long': Shows all units (e.g., "2d 3h 15m 30s")
+   * - 'short': Shows only 2 most significant units (e.g., "2d 3h")
+   * - 'compact': Shows single most significant unit (e.g., "2d")
+   */
+  durationFormat?: 'auto' | 'long' | 'short' | 'compact';
+
+  // TTL field properties
+  /** Input unit of the stored TTL value (Unix timestamp). Renderer shows remaining time. Default: 'seconds' */
+  ttlUnit?: 'ms' | 'seconds' | 'minutes' | 'hours';
+  /** 
+   * Display format for TTL. Default: 'auto'
+   * - 'auto': Automatically shows appropriate units based on remaining time
+   * - 'long': Shows all units (e.g., "2d 3h 15m 30s remaining")
+   * - 'short': Shows only 2 most significant units
+   * - 'compact': Shows single most significant unit with suffix
+   */
+  ttlFormat?: 'auto' | 'long' | 'short' | 'compact';
+  /**
+   * Auto-refresh TTL display every N seconds. Default: 0 (disabled)
+   * Useful for countdown timers. Recommended: 1-60 seconds
+   */
+  ttlAutoRefresh?: number;
 
   // Badge field properties
   status?: 'success' | 'processing' | 'error' | 'warning' | 'default';
@@ -105,6 +130,36 @@ export interface IFieldTypeProperties {
   format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage';
   mask?: string;
   maxLength?: number;
+
+  // Timeline field properties
+  timelineConfig?: {
+    /** Layout mode: 'left' (default), 'right', or 'alternate' */
+    mode?: 'left' | 'right' | 'alternate';
+    /** Reverse the order of items */
+    reverse?: boolean;
+    /** Maximum number of items to show (default: all) */
+    maxItems?: number;
+    /** 
+     * Field mapping for extracting timeline item data from array elements.
+     * If data is an array of objects, specify which fields to use.
+     */
+    itemMapping?: {
+      /** Field for item label/title (default: 'name') */
+      labelField?: string;
+      /** Field for timestamp (default: 'ts' or 'timestamp') */
+      timestampField?: string;
+      /** Field for description (optional) */
+      descriptionField?: string;
+      /** Field for color/type (optional) - values: 'success', 'error', 'warning', 'info' */
+      typeField?: string;
+      /** Field for custom icon (optional) */
+      iconField?: string;
+    };
+    /** Show timestamps (default: true) */
+    showTimestamp?: boolean;
+    /** Timestamp format (default: 'MMM D, h:mm:ss A') */
+    timestampFormat?: string;
+  };
 }
 
 /**
