@@ -1,7 +1,8 @@
 import React from 'react';
-import { Descriptions, List, Typography } from 'antd';
+import { Descriptions, List, Typography, Tag, Space } from 'antd';
 import { formatKey } from '../../../core/utils';
 import { JsonViewer } from '../JsonViewer';
+import { isCompressed, decompress } from '../../utils/compression';
 
 const { Text } = Typography;
 
@@ -9,19 +10,19 @@ const { Text } = Typography;
  * Calculate the depth of a nested object/array
  */
 const getObjectDepth = (obj: any, currentDepth: number = 0): number => {
-  if (obj === null || typeof obj !== 'object') {
-    return currentDepth;
-  }
-  
-  if (Object.keys(obj).length === 0) {
-    return currentDepth;
-  }
-  
-  const depths = Object.values(obj).map(value => 
-    getObjectDepth(value, currentDepth + 1)
-  );
-  
-  return Math.max(...depths);
+    if (obj === null || typeof obj !== 'object') {
+        return currentDepth;
+    }
+
+    if (Object.keys(obj).length === 0) {
+        return currentDepth;
+    }
+
+    const depths = Object.values(obj).map(value =>
+        getObjectDepth(value, currentDepth + 1)
+    );
+
+    return Math.max(...depths);
 };
 
 const renderValue = (value: any, maxDepth: number = 2): React.ReactNode => {
@@ -29,23 +30,38 @@ const renderValue = (value: any, maxDepth: number = 2): React.ReactNode => {
         return <Text type="secondary">—</Text>;
     }
 
+    // Check if compressed and auto-decompress
+    if (isCompressed(value)) {
+        const decompressed = decompress(value);
+        const savings = value._originalSize && value._compressedSize
+            ? Math.round((1 - value._compressedSize / value._originalSize) * 100)
+            : 0;
+
+        return (
+            <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                <Tag color="blue">🗜️ Compressed ({savings}% saved)</Tag>
+                {renderValue(decompressed, maxDepth)}
+            </Space>
+        );
+    }
+
     if (typeof value === 'object') {
         // Check depth of THIS value before rendering
         const valueDepth = getObjectDepth(value);
-        
+
         // If this specific value is too deep, render as JsonViewer
         // Let JsonViewer decide compact vs full based on size thresholds
         if (valueDepth > maxDepth) {
-            return <JsonViewer 
-                data={value} 
-                title="Data" 
+            return <JsonViewer
+                data={value}
+                title="Data"
                 defaultExpanded={false}
                 showStats={true}
-                // Let JsonViewer auto-detect if compact mode is needed based on char/line thresholds
-                // compact will be true only if it exceeds thresholds (1000 chars or 30 lines)
+            // Let JsonViewer auto-detect if compact mode is needed based on char/line thresholds
+            // compact will be true only if it exceeds thresholds (1000 chars or 30 lines)
             />;
         }
-        
+
         // Otherwise, render recursively with JsonDescription
         return <JsonDescription data={value} maxDepth={maxDepth} />;
     }
@@ -94,10 +110,10 @@ const renderValue = (value: any, maxDepth: number = 2): React.ReactNode => {
  * // - Sync Duration: 0 (as table row)  
  * // - Api Response: { fixture, venue, ... } [View Full JSON →] (compact with modal button)
  */
-export const JsonDescription: React.FC<{ 
-  data: any; 
-  bordered?: boolean;
-  maxDepth?: number;  // Maximum depth before switching to JsonViewer (default: 2)
+export const JsonDescription: React.FC<{
+    data: any;
+    bordered?: boolean;
+    maxDepth?: number;  // Maximum depth before switching to JsonViewer (default: 2)
 }> = ({ data, bordered = true, maxDepth = 2 }) => {
     if (typeof data !== 'object' || data === null) {
         return renderValue(data, maxDepth);
@@ -111,11 +127,11 @@ export const JsonDescription: React.FC<{
             }
             return false;
         });
-        
+
         if (hasComplexItems) {
             return <JsonViewer data={data} title="Array Data" defaultExpanded={false} showStats={true} />;
         }
-        
+
         return (
             <List
                 bordered={bordered}
@@ -143,9 +159,9 @@ export const JsonDescription: React.FC<{
             size="small"
             column={1}
             bordered={bordered}
-            styles={{ label: { fontWeight: 500, width: '30%'} }}
+            styles={{ label: { fontWeight: 500, width: '30%' } }}
         >
-            {entries.map(([key, value]) => (
+            {entries.map(([ key, value ]) => (
                 <Descriptions.Item key={key} label={formatKey(key)}>
                     {renderValue(value, maxDepth)}
                 </Descriptions.Item>
