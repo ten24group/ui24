@@ -95,7 +95,8 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider } from 'antd';
+import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider, Timeline } from 'antd';
+import dayjs from 'dayjs';
 import React, { useEffect, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
@@ -115,7 +116,7 @@ import * as Icons from '@ant-design/icons';
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
-import { formatDuration } from '../core/utils/duration';
+import { formatDuration, formatTTL } from '../core/utils/duration';
 import { evaluateTemplate } from '../core/utils/template';
 
 // For backwards compatibility, alias the old name
@@ -749,13 +750,60 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                     }
 
-                    // Duration field - uses durationUnit from field config (default: seconds)
+                    // Duration field - uses durationUnit and format from field config
                     if (item.fieldType === 'duration') {
+                      const durationValue = formatDuration(
+                        value,
+                        item.durationUnit || 'seconds',
+                        item.durationFormat || 'auto'
+                      );
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
-                          <div>{formatDuration(value, item.durationUnit || 'seconds')}</div>
+                          <div>{durationValue}</div>
+                        </div>
+                      );
+                    }
+
+                    // TTL field - displays time remaining until expiration with auto-refresh support
+                    if (item.fieldType === 'ttl') {
+                      const TTLRenderer = () => {
+                        const [ ttlValue, setTtlValue ] = React.useState(() =>
+                          formatTTL(value, item.ttlUnit || 'seconds', item.ttlFormat || 'auto')
+                        );
+                        const isExpired = ttlValue === 'expired';
+
+                        // Auto-refresh support
+                        const refreshInterval = item.ttlAutoRefresh;
+                        React.useEffect(() => {
+                          if (!refreshInterval || refreshInterval <= 0 || isExpired) {
+                            return;
+                          }
+
+                          const interval = setInterval(() => {
+                            const newValue = formatTTL(value, item.ttlUnit || 'seconds', item.ttlFormat || 'auto');
+                            setTtlValue(newValue);
+                          }, refreshInterval * 1000);
+
+                          return () => clearInterval(interval);
+                        }, [ refreshInterval, isExpired ]);
+
+                        return (
+                          <div style={{
+                            color: isExpired ? '#ff4d4f' : undefined,
+                            fontWeight: isExpired ? 500 : undefined
+                          }}>
+                            {ttlValue}
+                          </div>
+                        );
+                      };
+
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <TTLRenderer />
                         </div>
                       );
                     }
@@ -918,6 +966,179 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             errorLevel={item.errorLevel || 'M'}
                             icon={item.logoImage}
                           />
+                        </div>
+                      );
+                    }
+
+                    // Timeline field - renders array data as vertical timeline
+                    if (item.fieldType === 'timeline') {
+                      const config = item.timelineConfig || {};
+                      const itemMapping = config.itemMapping || {};
+                      const labelField = itemMapping.labelField || 'name';
+                      const timestampField = itemMapping.timestampField || 'ts';
+                      const descriptionField = itemMapping.descriptionField;
+                      const typeField = itemMapping.typeField;
+                      const iconField = itemMapping.iconField;
+                      const timestampFormat = config.timestampFormat || 'MMM D, h:mm:ss A';
+                      const showTimestamp = config.showTimestamp !== false;
+
+                      // Convert data to array if needed
+                      let items: any[] = [];
+                      if (Array.isArray(value)) {
+                        items = value;
+                      } else if (value && typeof value === 'object') {
+                        // If it's an object with checkpoints or events array, use that
+                        items = value.checkpoints || value.events || [];
+                      }
+
+                      // Apply maxItems limit
+                      if (config.maxItems && items.length > config.maxItems) {
+                        items = items.slice(0, config.maxItems);
+                      }
+
+                      // Reverse if configured
+                      if (config.reverse) {
+                        items = [ ...items ].reverse();
+                      }
+
+                      // Helper to get color from type/level
+                      const getColorFromType = (type?: string): string => {
+                        switch (type) {
+                          // Status types
+                          case 'success': return '#52c41a';
+                          case 'warning': return '#faad14';
+                          case 'error': return '#ff4d4f';
+                          // Observability levels
+                          case 'critical': return '#cf1322';
+                          case 'warn': return '#faad14';
+                          case 'debug': return '#8c8c8c';
+                          case 'trace': return '#bfbfbf';
+                          case 'info':
+                          default: return '#1890ff';
+                        }
+                      };
+
+                      // Build timeline items
+                      const timelineItems = items.map((item: any, idx: number) => {
+                        const label = item[ labelField ] || `Event ${idx + 1}`;
+                        const timestamp = item[ timestampField ];
+                        const description = descriptionField ? item[ descriptionField ] : undefined;
+                        const type = typeField ? item[ typeField ] : undefined;
+                        const iconName = iconField ? item[ iconField ] : undefined;
+
+                        // Detect additional data (fields beyond standard timeline fields)
+                        const standardFields = new Set([
+                          labelField,
+                          timestampField,
+                          descriptionField,
+                          typeField,
+                          iconField
+                        ].filter(Boolean));
+
+                        const allFields = Object.keys(item);
+                        const additionalFields = allFields.filter(field => !standardFields.has(field));
+                        const hasAdditionalData = additionalFields.length > 0;
+
+                        // Format timestamp
+                        let formattedTime = '';
+                        if (timestamp && showTimestamp) {
+                          try {
+                            // Handle epoch timestamps (number) vs ISO strings
+                            const ts = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
+                            if (!isNaN(ts)) {
+                              formattedTime = dayjs(ts).format(timestampFormat);
+                            }
+                          } catch {
+                            // Ignore invalid timestamps
+                          }
+                        }
+
+                        // Get icon if specified
+                        let dotIcon = undefined;
+                        if (iconName && (Icons as any)[ iconName ]) {
+                          const IconComponent = (Icons as any)[ iconName ];
+                          dotIcon = <IconComponent />;
+                        }
+
+                        return {
+                          key: idx,
+                          dot: dotIcon,
+                          color: getColorFromType(type),
+                          children: (
+                            <div className="timeline-item-content">
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                                  <span style={{ fontWeight: 500 }}>{label}</span>
+                                  {hasAdditionalData && (
+                                    <OpenInModal
+                                      modalType="details"
+                                      modalPageConfig={{
+                                        propertiesConfig: additionalFields.map(field => ({
+                                          name: field,
+                                          label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
+                                          fieldType: 'json' as const,
+                                          column: field
+                                        })),
+                                        detailResponse: item
+                                      }}
+                                      modalTitle={label || 'Event Details'}
+                                      modalWidth={800}
+                                    >
+                                      <button
+                                        type="button"
+                                        style={{
+                                          padding: '0 4px',
+                                          minWidth: 'auto',
+                                          height: 'auto',
+                                          border: 'none',
+                                          background: 'transparent',
+                                          cursor: 'pointer',
+                                          color: '#1890ff',
+                                          display: 'inline-flex',
+                                          alignItems: 'center'
+                                        }}
+                                      >
+                                        {React.createElement((Icons as any).InfoCircleOutlined)}
+                                      </button>
+                                    </OpenInModal>
+                                  )}
+                                </div>
+                                {formattedTime && (
+                                  <span style={{ fontSize: '12px', color: '#8c8c8c', marginLeft: '8px', whiteSpace: 'nowrap' }}>
+                                    {formattedTime}
+                                  </span>
+                                )}
+                              </div>
+                              {description && (
+                                <div style={{ fontSize: '13px', color: '#595959', marginTop: '4px' }}>
+                                  {description}
+                                </div>
+                              )}
+                            </div>
+                          ),
+                        };
+                      });
+
+                      if (timelineItems.length === 0) {
+                        return (
+                          <div key={index} className="details-field-container">
+                            <div className="details-field-label">{item.label}</div>
+                            <HelpText helpText={item.helpText} />
+                            <span style={{ color: '#8c8c8c' }}>No events</span>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div style={{ paddingTop: '8px' }}>
+                            <Timeline
+                              mode={config.mode || 'left'}
+                              items={timelineItems}
+                            />
+                          </div>
                         </div>
                       );
                     }

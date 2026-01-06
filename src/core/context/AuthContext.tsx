@@ -16,7 +16,7 @@ interface CognitoTokenPayload {
   groups?: string[];
   id?: string;
   permissions?: string[];
-  [key: string]: any;
+  [ key: string ]: any;
 }
 
 type IAuthContext = IAuthProvider & {
@@ -56,15 +56,71 @@ const getProvider = (provider: string, rememberMe: boolean): IAuthProvider => {
 
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [ rememberMe, setRememberMe ] = useState<boolean>(false);
+  const [ rememberMe, setRememberMeState ] = useState<boolean>(() => {
+    const stored = localStorage.getItem('ui24_remember_me');
+    // Default to true (use localStorage) for cross-tab support
+    return stored === null ? true : stored === 'true';
+  });
+
+  const setRememberMe = (value: boolean) => {
+    // If changing rememberMe while logged in, migrate tokens between storages
+    if (value !== rememberMe && isLoggedIn) {
+      const oldStorage = rememberMe ? localStorage : sessionStorage;
+      const newStorage = value ? localStorage : sessionStorage;
+      
+      // Migrate auth token
+      const authToken = oldStorage.getItem('ui24_aws_auth_cache_authToken');
+      if (authToken) {
+        newStorage.setItem('ui24_aws_auth_cache_authToken', authToken);
+        oldStorage.removeItem('ui24_aws_auth_cache_authToken');
+      }
+      
+      // Migrate temp AWS credentials
+      const tempCreds = oldStorage.getItem('ui24_aws_auth_cache_tmpAwsCredentials');
+      if (tempCreds) {
+        newStorage.setItem('ui24_aws_auth_cache_tmpAwsCredentials', tempCreds);
+        oldStorage.removeItem('ui24_aws_auth_cache_tmpAwsCredentials');
+      }
+      
+      console.log(`[Auth] Migrated tokens from ${rememberMe ? 'localStorage' : 'sessionStorage'} to ${value ? 'localStorage' : 'sessionStorage'}`);
+    }
+    
+    localStorage.setItem('ui24_remember_me', value.toString());
+    setRememberMeState(value);
+  };
+
   const { selectConfig } = useUi24Config();
   const providerName = selectConfig((config) => "aws");
-  
+
   // CRITICAL FIX: Memoize authProvider to prevent creating new instances on every render
   // Creating multiple Authenticator instances breaks the credential fetch locking mechanism
-  const authProvider = useMemo(() => getProvider(providerName, rememberMe), [providerName, rememberMe]);
-  
+  const authProvider = useMemo(() => getProvider(providerName, rememberMe), [ providerName, rememberMe ]);
+
   const [ isLoggedIn, setIsLoggedIn ] = useState(authProvider.getToken() ? true : false);
+
+  // Update isLoggedIn when authProvider changes (e.g., when rememberMe toggles)
+  useEffect(() => {
+    const token = authProvider.getToken();
+    setIsLoggedIn(!!token);
+  }, [ authProvider ]);
+
+  // Sync state with provider changes (for cross-tab sync)
+  useEffect(() => {
+    if (authProvider.onAuthChange) {
+      const unsubscribe = authProvider.onAuthChange(() => {
+        const token = authProvider.getToken();
+        setIsLoggedIn(!!token);
+      });
+      
+      return () => {
+        unsubscribe();
+        // Cleanup provider when it changes (e.g., when rememberMe toggles)
+        if (authProvider.destroy) {
+          authProvider.destroy();
+        }
+      };
+    }
+  }, [ authProvider ]);
 
   // FIXED: Decode JWT token to extract user information
   const user = useMemo(() => {
@@ -73,7 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!token || !isLoggedIn) {
         return undefined;
       }
-      
+
       // Decode JWT token
       const decoded = jwtDecode<CognitoTokenPayload>(token);
       return decoded;
@@ -81,7 +137,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('[AuthProvider] Failed to decode token:', error);
       return undefined;
     }
-  }, [isLoggedIn, authProvider.getToken]);
+  }, [ isLoggedIn, authProvider ]);
 
   const processToken = (request: any): boolean => {
     const validToken = authProvider.processToken(request)

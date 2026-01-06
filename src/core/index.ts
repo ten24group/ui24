@@ -6,3 +6,4 @@ export * from "./hooks";
 export * from "./mock";
 export * from "./providers/";
 export * from "./utils";
+export { isCompressed, decompress, decompressItem, type CompressedPayload } from './utils/compression';

@@ -94,6 +94,7 @@
     "jsonpath-plus": "^10.3.0",
     "jwt-decode": "^4.0.0",
     "lodash": "^4.17.21",
+    "pako": "^2.1.0",
     "react-editor-js": "^2.1.0",
     "react-error-boundary": "^6.0.0",
     "remove": "^0.1.5",

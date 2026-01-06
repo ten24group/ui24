@@ -83,4 +83,21 @@ export class LocalStorageAuthProvider implements IAuthProvider {
   public logout(): void {
     this.removeToken();
   }
+
+  public onAuthChange(callback: () => void): () => void {
+    // LocalStorage changes are naturally synced by the browser, 
+    // but we could still listen for storage events to trigger re-renders
+    const handler = (e: StorageEvent) => {
+      if (e.key === 'token' || e.key === 'refreshToken') {
+        callback();
+      }
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }
+
+  public destroy(): void {
+    // LocalStorageAuthProvider doesn't maintain persistent listeners
+    // Storage event listeners are cleaned up by the unsubscribe function
+  }
 }
