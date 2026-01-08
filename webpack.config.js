@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const CompressionPlugin = require("compression-webpack-plugin");
 
 module.exports = {
@@ -7,9 +8,11 @@ module.exports = {
     path: path.resolve(__dirname, 'dist'),
     filename: 'index.js',
     libraryTarget: 'umd',
+    library: '@ten24group/ui24',
     globalObject: 'this',
     publicPath: 'auto',
     clean: true,
+    asyncChunks: false, // Disables creation of chunks for dynamic imports
   },
   optimization: {
     splitChunks: false,
@@ -51,7 +54,12 @@ module.exports = {
       }
     ],
   },
-  plugins: [new CompressionPlugin()],
+  plugins: [
+    new webpack.optimize.LimitChunkCountPlugin({
+      maxChunks: 1, // Forces all code into a single file
+    }),
+    new CompressionPlugin()
+  ],
   externals: {
     'react': 'react',
     'react-dom': 'react-dom',
