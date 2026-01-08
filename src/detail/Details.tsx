@@ -568,11 +568,28 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // ============================================================================
                     // Smart Complex Data Rendering - All complex types handled by JsonField
                     // ============================================================================
+
+                    // Check WYSIWYG fields FIRST before complex data check
+                    // WYSIWYG content is stored as JSON objects, so must be checked before isComplexData
+                    if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div className="details-fixed-block">
+                            <CustomBlockNoteEditor value={value as any} readOnly={true} />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Handle complex data (JSON, maps, lists, objects)
+                    // Excludes multi-select and WYSIWYG fields which are handled separately
+                    // 
                     // JsonField provides interactive JSON viewing with:
                     // - Toggle between Description (formatted table) and JSON (raw) views
                     // - Copy to clipboard button
                     // - Smart depth-based rendering in both modes
-                    // 
                     // Works for: fieldType: 'json', type: 'map', type: 'list', and generic objects
                     // Example: syncMetadata with toggle to switch between views + copy button
 
@@ -588,18 +605,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <div className="details-field-label">{item.label}</div>
                           <HelpText helpText={item.helpText} />
                           <JsonField data={value} title={item.label} maxDepth={2} />
-                        </div>
-                      );
-                    }
-
-                    if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
-                          <div className="details-fixed-block">
-                            <CustomBlockNoteEditor value={value as any} readOnly={true} />
-                          </div>
                         </div>
                       );
                     }

@@ -47,34 +47,34 @@ const MakeFormItem = ({
             {fieldType === "url" && <Input type="url" prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "phone" && <Input type="tel" prefix={prefixIcon} placeholder={placeholder} />}
             {fieldType === "number" && <Input type="number" prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "currency" && <InputNumber 
-              prefix={restFormItemProps.currencySymbol || '$'} 
-              placeholder={placeholder}
-              style={{ width: '100%' }}
-              precision={restFormItemProps.precision || 2}
+            {fieldType === "currency" && <InputNumber
+                prefix={restFormItemProps.currencySymbol || '$'}
+                placeholder={placeholder}
+                style={{ width: '100%' }}
+                precision={restFormItemProps.precision || 2}
             />}
-            {fieldType === "percentage" && <InputNumber 
-              min={restFormItemProps.min || 0}
-              max={restFormItemProps.max || 100}
-              formatter={(value) => `${value}%`}
-              parser={(value) => {
-                const parsed = value?.replace('%', '');
-                return parsed ? Number(parsed) : 0;
-              }}
-              placeholder={placeholder}
-              style={{ width: '100%' }}
+            {fieldType === "percentage" && <InputNumber
+                min={restFormItemProps.min || 0}
+                max={restFormItemProps.max || 100}
+                formatter={(value) => `${value}%`}
+                parser={(value) => {
+                    const parsed = value?.replace('%', '');
+                    return parsed ? Number(parsed) : 0;
+                }}
+                placeholder={placeholder}
+                style={{ width: '100%' }}
             />}
-            {fieldType === "slider" && <Slider 
-              min={restFormItemProps.min || 0}
-              max={restFormItemProps.max || 100}
-              step={restFormItemProps.step || 1}
-              marks={restFormItemProps.marks}
-              vertical={restFormItemProps.vertical}
+            {fieldType === "slider" && <Slider
+                min={restFormItemProps.min || 0}
+                max={restFormItemProps.max || 100}
+                step={restFormItemProps.step || 1}
+                marks={restFormItemProps.marks}
+                vertical={restFormItemProps.vertical}
             />}
-            {fieldType === "duration" && <InputNumber 
-              placeholder="Duration in seconds"
-              style={{ width: '100%' }}
-              min={0}
+            {fieldType === "duration" && <InputNumber
+                placeholder="Duration in seconds"
+                style={{ width: '100%' }}
+                min={0}
             />}
             {fieldType === "autocomplete" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
                 setFormValue && setFormValue({ name, value: newSelections })
@@ -94,54 +94,54 @@ const MakeFormItem = ({
             {fieldType === 'hidden' && <Input type="hidden" />}
             {fieldType === 'custom' && <Input placeholder={placeholder} />}
             {fieldType === 'rating' && <Rate allowHalf />}
-            
+
             {/* New field types */}
             {fieldType === 'badge' && <Input placeholder={placeholder} addonAfter={<Badge status={restFormItemProps.status || 'default'} />} />}
             {fieldType === 'tag' && <Input placeholder={placeholder} />}
-            {fieldType === 'tags' && <OptionSelector 
-              value={initialValue} 
-              fieldType="multi-select" 
-              options={options}
-              onOptionChange={(newSelections) => {
-                setFormValue && setFormValue({ name, value: newSelections })
-              }}
+            {fieldType === 'tags' && <OptionSelector
+                value={initialValue}
+                fieldType="multi-select"
+                options={options}
+                onOptionChange={(newSelections) => {
+                    setFormValue && setFormValue({ name, value: newSelections })
+                }}
             />}
-            {fieldType === 'progress' && <InputNumber 
-              min={restFormItemProps.min || 0}
-              max={restFormItemProps.max || 100}
-              formatter={(value) => `${value}%`}
-              parser={(value) => {
-                const parsed = value?.replace('%', '');
-                return parsed ? Number(parsed) : 0;
-              }}
-              placeholder={placeholder}
-              style={{ width: '100%' }}
+            {fieldType === 'progress' && <InputNumber
+                min={restFormItemProps.min || 0}
+                max={restFormItemProps.max || 100}
+                formatter={(value) => `${value}%`}
+                parser={(value) => {
+                    const parsed = value?.replace('%', '');
+                    return parsed ? Number(parsed) : 0;
+                }}
+                placeholder={placeholder}
+                style={{ width: '100%' }}
             />}
             {fieldType === 'avatar' && <FileUploader
-              accept="image/*"
-              listType="picture-card"
-              withImageCrop={true}
-              fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'avatar-'}
-              getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
+                accept="image/*"
+                listType="picture-card"
+                withImageCrop={true}
+                fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'avatar-'}
+                getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
             />}
-            {fieldType === 'icon' && <OptionSelector 
-              value={initialValue} 
-              fieldType="select" 
-              options={options}
-              placeholder="Select icon"
+            {fieldType === 'icon' && <OptionSelector
+                value={initialValue}
+                fieldType="select"
+                options={options}
+                placeholder="Select icon"
             />}
             {fieldType === 'link' && <Input type="url" prefix={prefixIcon} placeholder={placeholder || "Enter URL"} />}
             {fieldType === 'video' && <FileUploader
-              accept={restFormItemProps.accept ?? 'video/*'}
-              listType="picture-card"
-              fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'video-'}
-              getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
+                accept={restFormItemProps.accept ?? 'video/*'}
+                listType="picture-card"
+                fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'video-'}
+                getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
             />}
             {fieldType === 'audio' && <FileUploader
-              accept={restFormItemProps.accept ?? 'audio/*'}
-              listType="text"
-              fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'audio-'}
-              getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
+                accept={restFormItemProps.accept ?? 'audio/*'}
+                listType="text"
+                fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'audio-'}
+                getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
             />}
             {fieldType === 'qrcode' && <Input placeholder={placeholder || "Enter value for QR code"} />}
 
@@ -232,7 +232,7 @@ const MakeFormListItem = ({
                             extra={<CloseOutlined onClick={() => { remove(field.name); }} />}
                         >
                             {/* for complex list items (list of objects) */}
-                            { items.properties && items.properties.length > 0 &&
+                            {items.properties && items.properties.length > 0 &&
                                 items.properties.map((property: any) => {
                                     return <RenderFormField {...property} namePrefixPath={[ field.name ]}
                                         setFormValue={({ name, value }) => {
@@ -243,7 +243,7 @@ const MakeFormListItem = ({
                             }
 
                             {/* for simple list items (like string arrays) */}
-                            { (!items.properties || items.properties.length === 0) &&
+                            {(!items.properties || items.properties.length === 0) &&
                                 <Form.Item
                                     {...field}
                                     name={[ field.name ]}
@@ -271,15 +271,15 @@ const MakeFormMapItem = ({
     helpText,
 }: IFormField) => {
     const parentFieldName = name;
-    
+
     return <>
         {label && <LabelAndHelpText label={label} helpText={helpText} />}
         <Card size="small" style={{ backgroundColor: "#8080801c" }} >
             <div style={formStyles.mapCardContainer}>
                 {properties?.map((property: IFormField, index: number) => (
                     <div key={property.name || index} style={formStyles.mapItemContainer}>
-                        <RenderFormField 
-                            {...property} 
+                        <RenderFormField
+                            {...property}
                             namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, name ] : [ name ]}
                             setFormValue={({ name: propName, value }) => {
                                 setFormValue({ name: parentFieldName, value: { [ propName ]: value } })
@@ -303,12 +303,12 @@ const RenderFormField = (formField: IFormField) => {
     if (type === 'list' && ![ 'wysiwyg', 'rich-text', 'multi-select' ].includes(fieldType.toLocaleLowerCase())) {
         return <MakeFormListItem {...formField} />
     }
-    
+
     // Handle map fields
     if (type === 'map') {
         return <MakeFormMapItem {...formField} />
     }
-    
+
     // Handle regular form items
     return <MakeFormItem {...formField} />
 }
@@ -318,7 +318,7 @@ export function FormField(formField: IFormField) {
     if (formField.hidden) {
         return null;
     }
-    
+
     return <div key={formField.column || formField.name || formField.id}>
         <RenderFormField {...formField} />
     </div>
