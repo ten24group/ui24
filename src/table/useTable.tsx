@@ -727,6 +727,41 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     );
   };
 
+  // Shared utility: Generate preview text with ellipsis for text-heavy content
+  // Supports: BlockNote blocks (wysiwyg/rich-text), plain strings (code/markdown/textarea)
+  const generateContentPreview = React.useCallback((content: unknown, maxLength: number = 32): string => {
+    if (!content) return '';
+
+    try {
+      // BlockNote blocks (rich-text/wysiwyg) - structured array format
+      if (Array.isArray(content)) {
+        const extractTextFromBlock = (block: any): string => {
+          let text = '';
+          if (block.content && Array.isArray(block.content)) {
+            text += block.content.map((item: any) => item.text || '').join('');
+          }
+          if (block.children && Array.isArray(block.children)) {
+            text += ' ' + block.children.map(extractTextFromBlock).filter(Boolean).join(' ');
+          }
+          return text;
+        };
+
+        const plainText = content.map(extractTextFromBlock).filter(Boolean).join(' ').trim();
+        return plainText ? (plainText.length > maxLength ? plainText.substring(0, maxLength) + '...' : plainText) : '';
+      }
+
+      // Plain strings (code, markdown, textarea, longtext)
+      if (typeof content === 'string') {
+        const cleaned = content.trim();
+        return cleaned ? (cleaned.length > maxLength ? cleaned.substring(0, maxLength) + '...' : cleaned) : '';
+      }
+
+      return '';
+    } catch {
+      return '';
+    }
+  }, []);
+
   const richTextRenderer = (
     text: unknown,
     record: Record<string, unknown>,
@@ -735,6 +770,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   ): React.ReactNode => {
     if (!text) return <span>—</span>;
 
+    const preview = generateContentPreview(text);
     const detailsConfig = createModalConfig('rich-text', text, fieldConfig);
 
     return (
@@ -749,7 +785,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
           icon={<EyeOutlined />}
           type="link"
         >
-          View Content
+          {preview || 'View Content'}
         </Button>
       </OpenInModal>
     );
@@ -996,14 +1032,20 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
           renderer = (text: unknown, record: Record<string, unknown>) =>
             richTextRenderer(text, record, columnName, column);
         }
-        // Textarea, code, markdown - modal-based for long content
-        else if (fieldType === 'textarea' || fieldType === 'code' || fieldType === 'markdown') {
+        // Textarea, code, markdown - show preview with modal for full content
+        else if (fieldType === 'textarea' || fieldType === 'code' || fieldType === 'markdown' || fieldType === 'longtext') {
           renderer = (text: unknown, record: Record<string, unknown>): React.ReactNode => {
             if (!text) return <span>—</span>;
-            if (typeof text === 'string' && text.length < 100) {
+
+            const preview = generateContentPreview(text);
+            if (!preview) return <span>—</span>;
+
+            // If content is short, show inline
+            if (typeof text === 'string' && text.length < 50) {
               return <span>{text}</span>;
             }
 
+            // Show preview button with modal for longer content
             const detailsConfig = createModalConfig(column.fieldType, text, column);
 
             return (
@@ -1018,7 +1060,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
                   icon={<FileTextOutlined />}
                   type="link"
                 >
-                  View Content
+                  {preview}
                 </Button>
               </OpenInModal>
             );
