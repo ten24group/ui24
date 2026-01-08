@@ -8,8 +8,18 @@ module.exports = {
     filename: 'index.js',
     libraryTarget: 'umd',
     globalObject: 'this',
-    publicPath: '/',
+    publicPath: 'auto',
     clean: true,
+  },
+  optimization: {
+    splitChunks: false,
+    runtimeChunk: false,
+    minimize: true,
+  },
+  performance: {
+    hints: false,
+    maxEntrypointSize: 512000,
+    maxAssetSize: 512000,
   },
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx']
@@ -22,13 +32,22 @@ module.exports = {
         use: {
           loader: "babel-loader",
           options: {
-            presets: ["@babel/preset-env", "@babel/preset-react", "@babel/preset-typescript"]
+            presets: [
+              "@babel/preset-env",
+              "@babel/preset-react",
+              "@babel/preset-typescript"
+            ],
+            plugins: []
           }
         }
       },
       {
         test: /\.css$/,
         use: ['style-loader', 'css-loader']
+      },
+      {
+        test: /\.(woff|woff2|ttf|eot)$/,
+        type: 'asset/inline'
       }
     ],
   },
