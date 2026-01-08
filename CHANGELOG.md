@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [1.0.5-beta.25](https://github.com/ten24group/ui24/compare/v1.0.5-beta.24...v1.0.5-beta.25) (2026-01-08)
+
+
+### Bug Fixes
+
+* BlockNoteEditor to handle programmatic updates and initial valule more effectively, preventing stale data overwrites. ([1d96a2d](https://github.com/ten24group/ui24/commit/1d96a2d1cadaedb6b813a555f7650afa49b8e19f))
+
 ### [1.0.5-beta.24](https://github.com/ten24group/ui24/compare/v1.0.5-beta.23...v1.0.5-beta.24) (2026-01-06)
 
 ### [1.0.5-beta.23](https://github.com/ten24group/ui24/compare/v1.0.5-beta.22...v1.0.5-beta.23) (2026-01-06)
