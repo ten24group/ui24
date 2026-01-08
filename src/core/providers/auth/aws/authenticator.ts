@@ -573,11 +573,22 @@ class Authenticator implements IAuthProvider {
                 options.data = config.params;
             }
 
-            const signedHeaders = await this.awsSigner.signedHeaders(options);
+            // Use signedHeadersWithUrl to get both the signed headers and the modified URL
+            const { headers: signedHeaders, url: signedUrl } = await this.awsSigner.signedHeadersWithUrl(options);
 
             Object.entries(signedHeaders).forEach(([ key, value ]) => {
                 config.headers[ key ] = value;
             });
+
+            // CRITICAL: Update the URL with the signed URL that includes query parameters
+            // This ensures the URL sent to AWS matches the URL that was signed
+            config.url = signedUrl;
+
+            // CRITICAL: Clear params for GET/DELETE/HEAD/OPTIONS since they were already added to the URL during signing
+            // If we don't clear them, axios will append them again, causing duplicate query parameters
+            if ([ 'GET', 'OPTIONS', 'HEAD', 'DELETE' ].includes(requestMethod)) {
+                config.params = {};
+            }
         }
     };
 

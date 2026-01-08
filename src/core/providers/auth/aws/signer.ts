@@ -6,12 +6,12 @@ import type { HeaderBag, QueryParameterBag, AwsCredentialIdentity } from "@smith
 
 import { isValidURL, addPathToUrl } from "../../../utils";
 
-type UseSignerOptions = {service ?: string, region ?: string};
+type UseSignerOptions = { service?: string, region?: string };
 
 export type SignRequestOptions = {
     credentials: AwsCredentialIdentity,
-    url: string, 
-    method: string, 
+    url: string,
+    method: string,
     data: any,
     baseUrl?: string,
 }
@@ -24,36 +24,38 @@ export const useRequestSigner = (options: UseSignerOptions) => {
         let { url: apiUrlOrEndpoint, method, credentials } = options;
         const { data, baseUrl } = options;
 
-        if(!isValidURL(apiUrlOrEndpoint)){
-            if(!baseUrl){
+        if (!isValidURL(apiUrlOrEndpoint)) {
+            if (!baseUrl) {
                 throw new Error("No baseUrl provided in options");
             }
             apiUrlOrEndpoint = addPathToUrl(baseUrl, apiUrlOrEndpoint);
         }
         method = method.toUpperCase();
 
-        
+
         const parsedUrl = new URL(apiUrlOrEndpoint);
-        
+
         // Add query parameters for methods that use them (GET, DELETE, HEAD, OPTIONS)
         // POST/PUT/PATCH use request body instead
-        if(['GET', 'DELETE', 'HEAD', 'OPTIONS'].includes(method) && !!data && typeof data === 'object' ){
-            Object.entries(data).forEach(([k,v]) => {
+        if ([ 'GET', 'DELETE', 'HEAD', 'OPTIONS' ].includes(method) && !!data && typeof data === 'object') {
+            Object.entries(data).forEach(([ k, v ]) => {
                 // CRITICAL FIX: Skip undefined and null values to match Axios behavior
                 // Axios filters these out, so we must too to avoid signature mismatch
                 if (v === undefined || v === null) {
                     return;
                 }
-                parsedUrl.searchParams.append(k, String(v));
+                // CRITICAL: Use .set() instead of .append() to replace existing query parameters
+                // This prevents duplicate parameters when URL already contains query strings
+                parsedUrl.searchParams.set(k, String(v));
             });
         }
-        
+
         const endpoint = parsedUrl.hostname.toString();
         const path = parsedUrl.pathname.toString();
-        
+
         const queryParams: QueryParameterBag = {};
         parsedUrl.searchParams.forEach((value, key) => {
-            queryParams[key] = value;
+            queryParams[ key ] = value;
         });
 
         type HttpRequestOptions = {
@@ -69,7 +71,7 @@ export const useRequestSigner = (options: UseSignerOptions) => {
             password?: string;
             fragment?: string;
         }
-    
+
         const payload: HttpRequestOptions = {
             hostname: endpoint,
             path,
@@ -80,10 +82,10 @@ export const useRequestSigner = (options: UseSignerOptions) => {
                 'content-type': ''
             }
         }
-        
-        if(['POST', 'PATCH', 'PUT'].includes( method )) {
+
+        if ([ 'POST', 'PATCH', 'PUT' ].includes(method)) {
             payload.body = JSON.stringify(data);
-            payload.headers['content-type'] = 'application/json';
+            payload.headers[ 'content-type' ] = 'application/json';
         }
 
         const req = new HttpRequest(payload);
@@ -105,15 +107,42 @@ export const useRequestSigner = (options: UseSignerOptions) => {
         signedHeaders: async (options: SignRequestOptions) => {
             const signedReq = await signRequest(options);
 
-            const filteredHeaders = Object.entries(signedReq.headers).filter(([k,v]) => {
+            const filteredHeaders = Object.entries(signedReq.headers).filter(([ k, v ]) => {
                 // browsers prevent from setting `host` header
                 return k.toLowerCase() !== "host";
-            }).reduce((acc, [k,v]) => {
-                acc[k] = v;
+            }).reduce((acc, [ k, v ]) => {
+                acc[ k ] = v;
                 return acc;
             }, {} as HeaderBag);
 
             return filteredHeaders;
+        },
+        signedHeadersWithUrl: async (options: SignRequestOptions) => {
+            const signedReq = await signRequest(options);
+
+            const filteredHeaders = Object.entries(signedReq.headers).filter(([ k, v ]) => {
+                // browsers prevent from setting `host` header
+                return k.toLowerCase() !== "host";
+            }).reduce((acc, [ k, v ]) => {
+                acc[ k ] = v;
+                return acc;
+            }, {} as HeaderBag);
+
+            // Build the new query string from signed parameters
+            const queryString = Object.entries(signedReq.query)
+                .map(([ key, value ]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+                .join('&');
+
+            // Return the original URL path with the new query string
+            // We use options.url (not the full parsed URL) to avoid duplicating the baseURL path
+            const urlPath = options.url.split('?')[ 0 ]; // Remove any existing query string
+            const finalUrl = queryString ? `${urlPath}?${queryString}` : urlPath;
+
+            // Return both headers and the modified URL
+            return {
+                headers: filteredHeaders,
+                url: finalUrl
+            };
         },
     }
 }

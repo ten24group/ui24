@@ -60,14 +60,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             if (!headers[ 'Content-Type' ] && !headers[ 'content-type' ]) {
                 headers[ 'Content-Type' ] = 'application/json';
             }
-            
+
             // Skip authentication if this is a retry that's already been signed
             // (to avoid double-signing which causes AWS signature mismatches)
             if ((config as any)._isAuthenticatedRetry) {
                 console.log('[ApiContext] Skipping re-authentication for pre-signed retry:', config.url);
                 return config;
             }
-            
+
             // Attach auth headers or signatures
             return await auth.authenticateRequest(config);
         },
@@ -134,34 +134,34 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 }
                 try {
                     await refreshPromise;
-                    
+
                     // CRITICAL: Create a FRESH config object without stale auth headers
                     // Axios's AxiosHeaders class has internal state that makes header deletion unreliable
                     // Creating a new AxiosHeaders instance ensures no stale headers remain
-                    
+
                     // Create new config with only non-auth headers
                     const freshConfig: InternalAxiosRequestConfig = {
                         ...orig,
                         headers: {} as any,
                         _retryCount: orig._retryCount
                     };
-                    
+
                     // Copy non-auth headers to fresh config
                     if (orig.headers) {
-                        const authHeaderPrefixes = ['auth', 'x-amz'];
+                        const authHeaderPrefixes = [ 'auth', 'x-amz' ];
                         Object.keys(orig.headers).forEach(key => {
                             const lowerKey = key.toLowerCase();
                             const isAuthHeader = authHeaderPrefixes.some(prefix => lowerKey.startsWith(prefix));
-                            if (!isAuthHeader && orig.headers[key] !== undefined) {
-                                freshConfig.headers[key] = orig.headers[key];
+                            if (!isAuthHeader && orig.headers[ key ] !== undefined) {
+                                freshConfig.headers[ key ] = orig.headers[ key ];
                             }
                         });
                     }
-                    
-                    // Sign the fresh config
+
+                    // Sign the fresh config with fresh credentials
                     const signedConfig = await auth.authenticateRequest(freshConfig);
-                    
-                    // Mark as pre-signed retry to avoid double-signing in request interceptor
+
+                    // Mark as authenticated retry to prevent double-signing in request interceptor
                     (signedConfig as any)._isAuthenticatedRetry = true;
                     return axiosInstance(signedConfig);
                 } catch (refreshError) {
@@ -263,9 +263,9 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 if (!response) {
                     throw {
                         message: 'No response received from API call - this should not happen',
-                        response: { 
-                            status: 503, 
-                            data: { 
+                        response: {
+                            status: 503,
+                            data: {
                                 message: 'No response from server',
                                 errorType: 'NO_RESPONSE',
                                 details: {
@@ -273,7 +273,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                                     method,
                                     url: apiConfig.apiUrl
                                 }
-                            } 
+                            }
                         },
                     };
                 }
@@ -286,7 +286,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     // Determine error type and create user-friendly message
                     let errorMessage = error.message || 'Network error occurred';
                     let errorType = 'NETWORK_ERROR';
-                    
+
                     // Categorize common error types for better user feedback
                     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
                         errorType = 'TIMEOUT';
@@ -304,14 +304,14 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         errorType = 'DNS_ERROR';
                         errorMessage = 'DNS error: Could not resolve server address';
                     }
-                    
+
                     const normalizedError = {
                         message: errorMessage,
                         code: error.code || errorType,
                         originalError: error.message,
-                        response: { 
-                            status: 503, 
-                            data: { 
+                        response: {
+                            status: 503,
+                            data: {
                                 message: errorMessage,
                                 errorType,
                                 code: error.code,
@@ -321,7 +321,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                                     code: error.code,
                                     stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
                                 }
-                            } 
+                            }
                         },
                     };
                     return Promise.reject(normalizedError);
@@ -330,7 +330,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 // HTTP errors with response from server
                 const status = error.response.status;
                 const responseData = error.response.data;
-                
+
                 // Extract the most specific error message available
                 const parsedErrorMessage = responseData?.details?.message
                     || responseData?.message
@@ -341,17 +341,17 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                 const normalizedError = {
                     message: parsedErrorMessage,
                     code: responseData?.code || responseData?.errorCode,
-                    response: { 
-                        status, 
-                        data: { 
-                            message: parsedErrorMessage, 
+                    response: {
+                        status,
+                        data: {
+                            message: parsedErrorMessage,
                             ...responseData,
                             // Ensure details are preserved
                             details: {
                                 ...responseData?.details,
                                 message: responseData?.details?.message || parsedErrorMessage,
                             }
-                        } 
+                        }
                     },
                 };
                 return Promise.reject(normalizedError);
