@@ -555,54 +555,46 @@ export function Form({
       return false;
     };
 
+    // Shared click handler for submit buttons - validates form and calls onFinish
+    const handleSubmitClick = async () => {
+      setValidationErrors([]);
+      try {
+        const values = await form.validateFields();
+        await onFinish(values);
+      } catch (err: any) {
+        if (err?.errorFields?.length > 0) {
+          const getFieldLabel = (fieldPath: string[]): string => {
+            const fieldName = fieldPath.join('.');
+            const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
+            return fieldConfig?.label || fieldConfig?.name || fieldName;
+          };
+          const errors = err.errorFields.map((f: any) => {
+            const fieldLabel = getFieldLabel(f.name || []);
+            let message = f.errors?.join(', ') || 'This field is required';
+            message = message.replace(/undefined/gi, '');
+            return { field: fieldLabel, message };
+          });
+          setValidationErrors(errors);
+          const firstErrorField = err.errorFields[ 0 ]?.name;
+          if (firstErrorField) {
+            form.scrollToField(firstErrorField, { behavior: 'smooth', block: 'center' });
+          }
+          notifyError(`Please fix ${errors.length} validation error${errors.length > 1 ? 's' : ''} before submitting.`);
+        }
+      }
+    };
+
     return (formButtons || []).map((btn: any) => {
       if (!isSubmit(btn)) return btn;
 
-      // Avoid double-submit: force click-driven submit path
-      const wrapped = {
-        ...btn,
-        htmlType: 'button',
-        onClick: async () => {
-          // Clear previous validation errors
-          setValidationErrors([]);
+      // For string buttons (e.g., "submit"), convert to object with action property
+      // Buttons.tsx will merge this with PreDefinedButtons to get text, styles, etc.
+      if (typeof btn === 'string') {
+        return { action: btn, htmlType: 'button', onClick: handleSubmitClick };
+      }
 
-          try {
-            const values = await form.validateFields();
-            await onFinish(values);
-          } catch (err: any) {
-            // Handle validation errors - display them to the user
-            if (err?.errorFields?.length > 0) {
-              // Helper to get friendly field label from config
-              const getFieldLabel = (fieldPath: string[]): string => {
-                const fieldName = fieldPath.join('.');
-                const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
-                return fieldConfig?.label || fieldConfig?.name || fieldName;
-              };
-
-              // Extract error messages for display with friendly labels
-              const errors = err.errorFields.map((f: any) => {
-                const fieldLabel = getFieldLabel(f.name || []);
-                // Clean up the error message - replace "undefined" with the actual field name
-                let message = f.errors?.join(', ') || 'This field is required';
-                message = message.replace(/undefined/gi, '');
-                return { field: fieldLabel, message };
-              });
-              setValidationErrors(errors);
-
-              // Scroll to first error field
-              const firstErrorField = err.errorFields[ 0 ]?.name;
-              if (firstErrorField) {
-                form.scrollToField(firstErrorField, { behavior: 'smooth', block: 'center' });
-              }
-
-              // Notify user with a toast
-              notifyError(`Please fix ${errors.length} validation error${errors.length > 1 ? 's' : ''} before submitting.`);
-            }
-          }
-        }
-      };
-
-      return wrapped;
+      // For object buttons, preserve existing config and override onClick
+      return { ...btn, htmlType: 'button', onClick: handleSubmitClick };
     });
   }, [ formButtons, form, onFinish, formPropertiesConfig, notifyError ]);
 
