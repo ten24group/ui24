@@ -215,50 +215,76 @@ const MakeFormListItem = ({
     helpText,
 }: IFormField) => {
     const parentFieldName = name;
+    const fieldName = namePrefixPath?.length ? [ ...namePrefixPath, name ] : name;
+
+    // Convert Form.List rules to Form.Item compatible validator
+    // Form.List rules expect { validator } format, but Form.Item needs standard rules
+    const listValidationRules = (validationRules || []).map((rule: any) => {
+        // If rule has 'required: true', convert to a custom validator for list
+        if (rule.required) {
+            return {
+                validator: async (_: any, value: any) => {
+                    if (!value || (Array.isArray(value) && value.length === 0)) {
+                        return Promise.reject(new Error(rule.message || `${label} is required`));
+                    }
+                    return Promise.resolve();
+                }
+            };
+        }
+        return rule;
+    });
+
     // For complex list items (list of objects), use the card-based approach
     return <>
         {label && <LabelAndHelpText label={label} helpText={helpText} />}
-        <Form.List
-            name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
-            rules={validationRules}
+        {/* Wrap Form.List in Form.Item for proper validation display */}
+        <Form.Item
+            name={fieldName}
+            rules={listValidationRules}
+            style={{ marginBottom: 0 }}
         >
-            {(fields, { add, remove }) => {
-                return <div style={formStyles.listContainer}>
-                    {fields.map((field) => (
-                        <Card
-                            size="small"
-                            title={`${label} ${field.name + 1}`}
-                            key={field.key}
-                            extra={<CloseOutlined onClick={() => { remove(field.name); }} />}
-                        >
-                            {/* for complex list items (list of objects) */}
-                            {items.properties && items.properties.length > 0 &&
-                                items.properties.map((property: any) => {
-                                    return <RenderFormField {...property} namePrefixPath={[ field.name ]}
-                                        setFormValue={({ name, value }) => {
-                                            setFormValue({ name: parentFieldName, value: { [ name ]: value }, index: field.name })
-                                        }}
-                                    />
-                                })
-                            }
+            <Form.List name={fieldName}>
+                {(fields, { add, remove }, { errors }) => {
+                    return <div style={formStyles.listContainer}>
+                        {fields.map((field) => (
+                            <Card
+                                size="small"
+                                title={`${label} ${field.name + 1}`}
+                                key={field.key}
+                                extra={<CloseOutlined onClick={() => { remove(field.name); }} />}
+                            >
+                                {/* for complex list items (list of objects) */}
+                                {items.properties && items.properties.length > 0 &&
+                                    items.properties.map((property: any) => {
+                                        return <RenderFormField {...property} namePrefixPath={[ field.name ]}
+                                            setFormValue={({ name, value }) => {
+                                                setFormValue({ name: parentFieldName, value: { [ name ]: value }, index: field.name })
+                                            }}
+                                        />
+                                    })
+                                }
 
-                            {/* for simple list items (like string arrays) */}
-                            {(!items.properties || items.properties.length === 0) &&
-                                <Form.Item
-                                    {...field}
-                                    name={[ field.name ]}
-                                    style={{ flex: 1, marginBottom: 0 }}
-                                >
-                                    <Input placeholder={`Enter ${label.toLowerCase()} value`} />
-                                </Form.Item>
-                            }
-                        </Card>
-                    ))}
+                                {/* for simple list items (like string arrays) */}
+                                {(!items.properties || items.properties.length === 0) &&
+                                    <Form.Item
+                                        {...field}
+                                        name={[ field.name ]}
+                                        style={{ flex: 1, marginBottom: 0 }}
+                                    >
+                                        <Input placeholder={`Enter ${label.toLowerCase()} value`} />
+                                    </Form.Item>
+                                }
+                            </Card>
+                        ))}
 
-                    <Button type="dashed" onClick={() => add()} block> + Add {label} </Button>
-                </div>
-            }}
-        </Form.List>
+                        {/* Display Form.List level errors */}
+                        <Form.ErrorList errors={errors} />
+
+                        <Button type="dashed" onClick={() => add()} block> + Add {label} </Button>
+                    </div>
+                }}
+            </Form.List>
+        </Form.Item>
     </>
 }
 
@@ -324,13 +350,14 @@ export function FormField(formField: IFormField) {
     </div>
 }
 
-const convertValidationRules = (validationRules: Array<IPreDefinedValidations>) => {
+const convertValidationRules = (validationRules: Array<IPreDefinedValidations>, label?: string) => {
+    const fieldLabel = label || 'This field';
     return (validationRules ?? []).map(validationRule => {
         let antValidationRule = {}
         if (validationRule === "required") {
-            antValidationRule = { ...antValidationRule, required: true }
+            antValidationRule = { ...antValidationRule, required: true, message: `${fieldLabel} is required` }
         } else if (validationRule === "email") {
-            antValidationRule = { ...antValidationRule, type: 'email' }
+            antValidationRule = { ...antValidationRule, type: 'email', message: 'Please enter a valid email address' }
         } else if (validationRule.includes("match:")) {
             const targetColumn = validationRule.split(':').pop()
             antValidationRule = ({ getFieldValue }) => ({
@@ -351,7 +378,7 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
         return {
             ...columnConfig, // Spread all base properties to include field type metadata (min, max, step, etc.)
             name: columnConfig.column, //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
-            validationRules: convertValidationRules(columnConfig.validations),
+            validationRules: convertValidationRules(columnConfig.validations, columnConfig.label),
             label: columnConfig.label,
             placeholder: columnConfig.placeholder ?? columnConfig.label,
             helpText: columnConfig.helpText,

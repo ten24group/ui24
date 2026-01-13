@@ -204,6 +204,7 @@ export function Form({
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
   const [ isRefreshing, setIsRefreshing ] = useState<boolean>(false)  // Separate loading state for refresh
   const [ identifiersToUse, setIdentifiersToUse ] = useState<string | number | undefined>(useDynamicIdFromParams ? dynamicID : identifiers);
+  const [ validationErrors, setValidationErrors ] = useState<Array<{ field: string; message: string }>>([]);  // Track validation errors for display
 
   // Track initial record (for edit mode)
   const [ initialRecord, setInitialRecord ] = useState<any>(null);
@@ -347,6 +348,17 @@ export function Form({
   }, [])
 
   const onFinish = async (values: any) => {
+    // Clear validation errors on successful form submission attempt
+    setValidationErrors([]);
+
+    // Guardrail: when there's no apiConfig and no custom submit handlers, submission is a silent no-op.
+    if (!apiConfig) {
+      if (!onSubmit && !onSubmitSuccessCallback) {
+        notifyError("No API is configured for this form. Please contact support.");
+      }
+      // Still allow custom handlers (if present) to run below.
+    }
+
     if (apiConfig) {
       setLoader(true)
       setBtnLoader(true)
@@ -522,6 +534,78 @@ export function Form({
 
   const [ form ] = AntForm.useForm();
 
+  /**
+   * IMPORTANT (2026-01):
+   * In some environments we run React 19 with antd v5 (see console warning).
+   * We've observed cases where clicking a <Button htmlType="submit"> triggers a native
+   * form submit event but does NOT reliably trigger antd's `onFinish` callback.
+   *
+   * To avoid a "Submit does nothing" UX, we wrap the submit button to explicitly
+   * call `form.validateFields()` and then invoke our `onFinish` handler.
+   *
+   * This keeps behavior consistent regardless of the underlying submit event plumbing.
+   */
+  const effectiveFormButtons = useMemo(() => {
+    const isSubmit = (btn: any): boolean => {
+      if (typeof btn === 'string') return btn === 'submit';
+      if (!btn || typeof btn !== 'object') return false;
+      if (btn.action === 'submit') return true;
+      if (btn.id === 'submit') return true;
+      if (btn.htmlType === 'submit') return true;
+      return false;
+    };
+
+    return (formButtons || []).map((btn: any) => {
+      if (!isSubmit(btn)) return btn;
+
+      // Avoid double-submit: force click-driven submit path
+      const wrapped = {
+        ...btn,
+        htmlType: 'button',
+        onClick: async () => {
+          // Clear previous validation errors
+          setValidationErrors([]);
+
+          try {
+            const values = await form.validateFields();
+            await onFinish(values);
+          } catch (err: any) {
+            // Handle validation errors - display them to the user
+            if (err?.errorFields?.length > 0) {
+              // Helper to get friendly field label from config
+              const getFieldLabel = (fieldPath: string[]): string => {
+                const fieldName = fieldPath.join('.');
+                const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
+                return fieldConfig?.label || fieldConfig?.name || fieldName;
+              };
+
+              // Extract error messages for display with friendly labels
+              const errors = err.errorFields.map((f: any) => {
+                const fieldLabel = getFieldLabel(f.name || []);
+                // Clean up the error message - replace "undefined" with the actual field name
+                let message = f.errors?.join(', ') || 'This field is required';
+                message = message.replace(/undefined/gi, '');
+                return { field: fieldLabel, message };
+              });
+              setValidationErrors(errors);
+
+              // Scroll to first error field
+              const firstErrorField = err.errorFields[ 0 ]?.name;
+              if (firstErrorField) {
+                form.scrollToField(firstErrorField, { behavior: 'smooth', block: 'center' });
+              }
+
+              // Notify user with a toast
+              notifyError(`Please fix ${errors.length} validation error${errors.length > 1 ? 's' : ''} before submitting.`);
+            }
+          }
+        }
+      };
+
+      return wrapped;
+    });
+  }, [ formButtons, form, onFinish, formPropertiesConfig, notifyError ]);
+
   // Apply refreshed values to form (when refresh completes)
   useEffect(() => {
     if (updatedFieldValuesRef.current) {
@@ -676,9 +760,8 @@ export function Form({
         <ErrorBoundary
           FallbackComponent={ErrorFallback}
           onReset={() => {
-            // Optional: You might want to reload data or reset form state here
-            // For now, a simple re-render by the ErrorBoundary is sufficient.
-            console.log("Form ErrorBoundary Reset");
+            // Reset form state on error boundary reset
+            setValidationErrors([]);
           }}
         >
           <AntForm
@@ -711,9 +794,27 @@ export function Form({
               </div>
             )}
             {children}
-            {formButtons.length > 0 && (
+            {/* Display validation errors above buttons */}
+            {validationErrors.length > 0 && (
+              <Alert
+                type="error"
+                showIcon
+                style={{ marginBottom: 16, marginTop: 16 }}
+                message={`${validationErrors.length} validation error${validationErrors.length > 1 ? 's' : ''}`}
+                description={
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {validationErrors.map((err, idx) => (
+                      <li key={idx}>
+                        <strong>{err.field}:</strong> {err.message}
+                      </li>
+                    ))}
+                  </ul>
+                }
+              />
+            )}
+            {effectiveFormButtons.length > 0 && (
               <div style={{ display: "flex" }}>
-                <CreateButtons formButtons={formButtons} loader={btnLoader} routeParams={routeParams} onCancelCallback={onCancelCallback} />
+                <CreateButtons formButtons={effectiveFormButtons} loader={btnLoader} routeParams={routeParams} onCancelCallback={onCancelCallback} />
               </div>
             )}
           </AntForm>

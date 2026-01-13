@@ -15,18 +15,18 @@ type IHtmlType = "submit" | "reset" | "button"
  * FIXED: Prevents evaluation on every keystroke
  */
 function useDebounce<T>(value: T, delay: number): T {
-    const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
-    
+    const [ debouncedValue, setDebouncedValue ] = React.useState<T>(value);
+
     React.useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedValue(value);
         }, delay);
-        
+
         return () => {
             clearTimeout(handler);
         };
-    }, [value, delay]);
-    
+    }, [ value, delay ]);
+
     return debouncedValue;
 }
 
@@ -51,65 +51,78 @@ interface IFormButton {
 type IPreDefinedButtons = "submit" | "cancel" | "reset" | "login" | "forgotPassword";
 
 const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
-    "login" : {
+    "login": {
         text: "Log In",
         className: "login-form-button",
         buttonType: "primary",
         htmlType: "submit",
-        style: { width: "100%"},
+        style: { width: "100%" },
         size: "large"
-    }, 
-    "forgotPassword" : {
+    },
+    "forgotPassword": {
         text: "Submit",
         className: "login-form-button",
         buttonType: "primary",
         htmlType: "submit",
-        style: { width: "100%"},
+        style: { width: "100%" },
         size: "large"
-    }, 
-    "submit" : {
+    },
+    "submit": {
         text: "Submit",
         className: "login-form-button",
         buttonType: "primary",
         htmlType: "submit"
     },
-    "cancel" : {
+    "cancel": {
         text: "Cancel",
         htmlType: "button",
     },
-    "reset" : {
+    "reset": {
         text: "Reset",
         danger: true,
         htmlType: "reset",
     }
-  }
+}
 
 interface ICreateButtons {
-    formButtons: Array< IPreDefinedButtons | IFormButton >
+    formButtons: Array<IPreDefinedButtons | IFormButton>
     loader?: boolean
     routeParams?: Record<string, string>
     onCancelCallback?: () => void  // For modal cancel/close
 }
 
-export const CreateButtons = React.memo(({ formButtons, loader = false, routeParams = {}, onCancelCallback } : ICreateButtons ) => {
-    
+export const CreateButtons = React.memo(({ formButtons, loader = false, routeParams = {}, onCancelCallback }: ICreateButtons) => {
+
     const renderButton = (
-        buttonConfig: IFormButton = { text: "Unknown"},
+        buttonConfig: IFormButton = { text: "Unknown" },
         loader: boolean = false,
         isCancelButton: boolean = false,
         isDisabled: boolean = false,
         disabledMessage?: string
     ) => {
+        const htmlType: IHtmlType = buttonConfig?.htmlType || "button";
+
         // Handle URL placeholder substitution
         let processedUrl = buttonConfig.url;
         if (processedUrl && Object.keys(routeParams).length > 0) {
             processedUrl = substituteUrlParams(processedUrl, routeParams);
         }
 
+        /**
+         * IMPORTANT:
+         * If this is a submit/reset button, it must behave like a real form action.
+         * Rendering a nested <a> (Link) inside the Button can intercept clicks and prevent the
+         * AntD <Form onFinish> submit flow from firing, making "Submit" appear to do nothing.
+         */
+        const isFormActionButton = htmlType === "submit" || htmlType === "reset";
+        if (isFormActionButton) {
+            processedUrl = undefined;
+        }
+
         // For cancel buttons in modal context, call onCancelCallback instead of navigating/resetting
         // CRITICAL: Do NOT render Link component for cancel buttons in modals
         const shouldUseCallback = isCancelButton && onCancelCallback;
-        
+
         const handleClick = (e: React.MouseEvent<HTMLElement>) => {
             if (shouldUseCallback) {
                 e.preventDefault();  // Prevent any navigation/reset
@@ -121,31 +134,31 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
         };
 
         return <Form.Item>
-                    <Button 
-                        type = { buttonConfig?.buttonType } 
-                        size = { buttonConfig.size ?? "middle" } 
-                        href = { buttonConfig.href } 
-                        onClick = { handleClick } 
-                        htmlType = { buttonConfig?.htmlType || "button" } 
-                        className = { buttonConfig?.className }
-                        danger = { buttonConfig.danger }
-                        loading = { loader }
-                        disabled = { isDisabled }
-                    >
-                        { processedUrl && !shouldUseCallback && <Link title={ buttonConfig.text} url={ processedUrl } />} 
-                        { (!processedUrl || shouldUseCallback) && buttonConfig.text } 
-                    </Button>
-                </Form.Item>
+            <Button
+                type={buttonConfig?.buttonType}
+                size={buttonConfig.size ?? "middle"}
+                href={buttonConfig.href}
+                onClick={handleClick}
+                htmlType={htmlType}
+                className={buttonConfig?.className}
+                danger={buttonConfig.danger}
+                loading={loader}
+                disabled={isDisabled}
+            >
+                {processedUrl && !shouldUseCallback && <Link title={buttonConfig.text} url={processedUrl} />}
+                {(!processedUrl || shouldUseCallback) && buttonConfig.text}
+            </Button>
+        </Form.Item>
     }
 
     return <React.Fragment>
-        { formButtons.map( (buttonConfig, index: number ) => {
+        {formButtons.map((buttonConfig, index: number) => {
             // Handle string shortcuts (e.g., "submit", "reset", "cancel")
-            if( typeof buttonConfig === "string" ) {
+            if (typeof buttonConfig === "string") {
                 const isCancelButton = buttonConfig === "cancel";
                 const config = PreDefinedButtons[ buttonConfig ];
-                return  <div key={"bt" + index} style={ {marginRight: "10px"}}>
-                    <EvaluatedFormButton 
+                return <div key={"bt" + index} style={{ marginRight: "10px" }}>
+                    <EvaluatedFormButton
                         buttonConfig={config}
                         loader={loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset"}
                         isCancelButton={isCancelButton}
@@ -157,14 +170,14 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
                 // Check if button has 'action' field matching a predefined button
                 const action = (buttonConfig as any).action as IPreDefinedButtons | undefined;
                 const isCancelButton = action === 'cancel' || buttonConfig.text?.toLowerCase().includes('cancel') || buttonConfig.className?.includes('cancel');
-                
+
                 // If action matches a predefined button, merge with predefined config
-                const finalConfig = action && PreDefinedButtons[action]
-                    ? { ...PreDefinedButtons[action], ...buttonConfig }  // Predefined defaults + custom overrides
+                const finalConfig = action && PreDefinedButtons[ action ]
+                    ? { ...PreDefinedButtons[ action ], ...buttonConfig }  // Predefined defaults + custom overrides
                     : buttonConfig;  // Fully custom button
-                
-                return <div key={"bt" + index} style={ {marginRight: "10px"}}>
-                    <EvaluatedFormButton 
+
+                return <div key={"bt" + index} style={{ marginRight: "10px" }}>
+                    <EvaluatedFormButton
                         buttonConfig={finalConfig}
                         loader={action === 'submit' && loader}  // Only show loader on submit
                         isCancelButton={isCancelButton}
@@ -193,18 +206,18 @@ const EvaluatedFormButton = React.memo(({
 }) => {
     const form = Form.useFormInstance();
     const rawFormValues = Form.useWatch([], form) || {};
-    
+
     // FIXED: Debounce form values to avoid evaluation on every keystroke
     const formValues = useDebounce(rawFormValues, 300);
-    
+
     // Evaluate visibility
     const { visible, enabled, disabledMessage } = useEvaluation(buttonConfig.visibility, { formValues });
-    
+
     // Don't render if not visible
     if (!visible) return null;
-    
+
     const isDisabled = !enabled;
-    
+
     // Wrap with tooltip if disabled
     if (isDisabled && disabledMessage) {
         return (
@@ -215,7 +228,7 @@ const EvaluatedFormButton = React.memo(({
             </Tooltip>
         );
     }
-    
+
     return <>{renderButton(buttonConfig, loader, isCancelButton, false)}</>;
 });
 
