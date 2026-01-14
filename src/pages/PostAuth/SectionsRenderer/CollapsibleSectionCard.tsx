@@ -209,7 +209,7 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
     }
     : {};
 
-  // Card style - always has marginTop when not maximized
+  // Card style - clean, minimal borders
   const cardStyle: React.CSSProperties = maximized
     ? {
       height: '100%',
@@ -224,30 +224,26 @@ export const CollapsibleSectionCard: React.FC<CollapsibleSectionCardProps> = ({
       })
     }
     : {
-      marginTop: 16,
-      padding: 2,
+      marginTop: 12,
       ...(isHighlighted && {
         borderColor: token.colorPrimary,
-        borderBottom: 'none',
-        borderLeft: 'none',
-        borderRight: 'none',
         boxShadow: `0 0 0 2px ${token.colorPrimaryBg}`,
       })
     };
 
-  // Body style - use display:none to hide after first expansion (preserves state)
+  // Body style - minimal padding, use display:none to hide after first expansion
   const cardBodyStyle: CardProps[ 'styles' ][ 'body' ] = maximized
     ? {
       flex: 1,
       overflow: 'auto',
-      padding: 16,
+      padding: 12,
     }
     : collapsed
       ? {
-        display: 'none', // Hide but keep mounted to preserve state after first expansion
+        display: 'none',
       }
       : {
-        padding: 8,
+        padding: '4px 8px', // Minimal padding, let content manage its own spacing
       };
 
   // Merge with passed styles prop

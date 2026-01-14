@@ -25,6 +25,7 @@ import { generateJsonPreview } from "../core/utils/jsonUtils";
 import { createModalConfig } from "./utils/modalConfigHelper";
 import * as Icons from '@ant-design/icons';
 import { formatDuration, formatTTL, DurationUnit, TTLUnit, DurationFormat, TTLFormat } from "../core/utils/duration";
+import { getColumnRenderer, type ColumnConfig } from "../core/registry";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -246,6 +247,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   // Build placeholder context once for resolving dynamic filter values
   const placeholderContext = usePlaceholderContext(routeParams);
+
+  // NOTE: registry resolution is handled via getColumnRenderer() (non-hook, safe for loops)
 
   // Resolve placeholders in defaultFilters (from prop, includes segment defaults from Table.tsx)
   const resolvedDefaultFilters = React.useMemo(() => {
@@ -1000,8 +1003,30 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       else if (column.template) {
         renderer = getTemplateRenderer(column.template);
       }
-      // Priority 3: Field type specific renderers
-      else if (column.fieldType) {
+      // Priority 2.5: ExtensionRegistry custom renderer
+      else if (column.renderer || column.fieldType) {
+        const { Component: CustomColumnRenderer, resolverContext } = getColumnRenderer(column.fieldType || '', {
+          fieldName: column.dataIndex,
+          explicitRenderer: column.renderer,
+          routeParams
+        });
+
+        if (CustomColumnRenderer) {
+          renderer = (value: any, record: any, rowIndex: number) => {
+            const customColumnProps = {
+              routeParams: resolverContext.routeParams,
+              depth: resolverContext.depth,
+              value,
+              record,
+              column: column as ColumnConfig,
+              rowIndex
+            };
+            return <CustomColumnRenderer {...customColumnProps} />;
+          };
+        }
+      }
+      // Priority 3: Field type specific renderers (built-in)
+      if (!renderer && column.fieldType) {
         const fieldType = column.fieldType.toLowerCase();
         const columnName = column.name || column.title || column.dataIndex;
 

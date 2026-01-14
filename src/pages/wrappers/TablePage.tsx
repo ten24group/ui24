@@ -92,13 +92,13 @@ export const TablePage: React.FC<TablePageProps> = ({
 
         {/* Render sections if configured */}
         {sectionsConfig && (
-            <SectionsRenderer
-              sectionsConfig={sectionsConfig}
-              routeParams={enhancedRouteParams}
-              parentData={{ selectedRecords, filters, searchQuery }}
-              depth={depth + 1}
-              cardStyle={cardStyle}
-            />
+          <SectionsRenderer
+            sectionsConfig={sectionsConfig}
+            routeParams={enhancedRouteParams}
+            parentData={{ selectedRecords, filters, searchQuery }}
+            depth={depth + 1}
+            cardStyle={cardStyle}
+          />
         )}
       </div>
     </TableStateProvider>

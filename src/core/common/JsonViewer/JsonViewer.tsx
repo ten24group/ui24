@@ -172,7 +172,6 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
           background-color: #282c34;
           color: #abb2bf;
           padding: 8px;
-          border-radius: 4px;
           overflow: auto;
           margin: 0;
           font-size: 12.5px;
@@ -184,7 +183,6 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
         .json-viewer-pre.light-theme {
           background-color: #fafafa;
           color: #383a42;
-          // border: 1px solid #e8e8e8;
         }
         
         /* Dark theme colors (VSCode Dark+) */
@@ -234,7 +232,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
 
       <Collapse
         size="small"
-        activeKey={isExpanded ? ['1'] : []}
+        activeKey={isExpanded ? [ '1' ] : []}
         onChange={(keys) => setIsExpanded(keys.includes('1'))}
         items={[
           {

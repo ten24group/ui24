@@ -185,6 +185,20 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
   defaultValue?: any; // Default value from backend entity schema (for new records)
   initialValue?: any; // Initial value for editing (from API response)
 
+  // Custom renderer
+  /**
+   * Custom renderer key for this field.
+   * When specified, the frontend uses this key to look up a registered custom renderer
+   * via ExtensionRegistry.getFieldRenderer().
+   */
+  renderer?: string;
+
+  /**
+   * Configuration passed to the custom renderer.
+   * Only used when `renderer` is specified.
+   */
+  rendererConfig?: Readonly<Record<string, unknown>>;
+
   // Nested structures (for list/map types)
   properties?: Array<any>; // Will be properly typed in specific interfaces
   items?: {

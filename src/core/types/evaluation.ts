@@ -123,9 +123,9 @@ export interface EvaluationContext {
     cognito?: {
       groups?: string[];
       username?: string;
-      [key: string]: any;
+      [ key: string ]: any;
     };
-    [key: string]: any;
+    [ key: string ]: any;
   };
   
   /**
@@ -146,7 +146,7 @@ export interface EvaluationContext {
   /**
    * Current page type
    */
-  pageType?: 'list' | 'details' | 'form' | 'accordion' |  'dashboard' | 'system' | 'custom';
+  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom';
   
   /**
    * Current entity name
@@ -166,7 +166,7 @@ export interface EvaluationContext {
   /**
    * Additional context properties
    */
-  [key: string]: any;
+  [ key: string ]: any;
 }
 
 /**
@@ -201,7 +201,7 @@ export interface EvaluationResult {
   /**
    * Additional result properties
    */
-  [key: string]: any;
+  [ key: string ]: any;
 }
 
 /**

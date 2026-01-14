@@ -602,7 +602,7 @@ const SectionGroupRenderer: React.FC<{
         defaultActiveKey, // Set default for initial render
         activeKey, // Control after initial render
         onChange: (key) => handleChange(key),
-        destroyInactiveTabPane: !keepMounted, // Use destroyInactiveTabPane instead of destroyOnHidden (deprecated)
+        destroyOnHidden: !keepMounted,
         animated: true, // Let Ant Design handle animations
         style: nestedStyle
       };
@@ -815,12 +815,10 @@ const DepthWrapper: React.FC<{ depth: number; token: any; children: React.ReactN
 
   return (
     <div style={{
-      padding: 8,
-      paddingLeft: 16,
-      marginLeft: 8,
-      marginTop: 8,
-      borderLeft: `1px solid ${token.colorPrimary}`,
-      borderRadius: 8,
+      paddingLeft: 12,
+      marginLeft: 4,
+      marginTop: 4,
+      borderLeft: `2px solid ${token.colorPrimaryBorder}`,
     }}>
       {children}
     </div>

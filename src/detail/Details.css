@@ -1,8 +1,6 @@
 .details-fixed-block {
   background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 6px;
-  padding: 12px;
+  padding: 8px;
   height: 220px;
   overflow: auto;
   max-width: 100%;
@@ -24,7 +22,7 @@
   border-bottom: none;
 }
 
-.details-field-container > div {
+.details-field-container>div {
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: pre-wrap;
@@ -64,4 +62,4 @@
 
 .details-link:hover {
   color: #40a9ff;
-} 
+}

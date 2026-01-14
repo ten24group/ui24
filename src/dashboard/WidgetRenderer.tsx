@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Alert } from 'antd';
 import { StatWidget } from './widgets/StatWidget';
 import { ChartWidget } from './widgets/ChartWidget';
 import { ListWidget } from './widgets/ListWidget';
@@ -14,13 +15,91 @@ import { IDashboardWidgetConfig } from '../pages/PostAuth/DashboardPage';
 import { TimePeriodSelectorProps } from './widgets/TimePeriodSelector';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
+import { ExtensionRegistry, useWidgetRenderer, type WidgetRendererProps, type RouteParams } from '../core/registry';
+
+/**
+ * Custom widget props configuration.
+ */
+interface CustomWidgetPropsConfig {
+  readonly [ key: string ]: string | number | boolean | null | undefined |
+  ReadonlyArray<string | number | boolean | null> |
+  Readonly<CustomWidgetPropsConfig>;
+}
+
+/**
+ * Props for custom widget components.
+ */
+interface ICustomWidgetComponentProps {
+  readonly routeParams: Readonly<RouteParams>;
+  readonly depth: number;
+  readonly config: Readonly<CustomWidgetPropsConfig>;
+  readonly title?: string;
+  readonly timePeriod?: Readonly<{
+    readonly start?: string;
+    readonly end?: string;
+    readonly preset?: 'today' | 'yesterday' | 'last7days' | 'last30days' | 'thisMonth' | 'lastMonth' | 'custom';
+  }>;
+}
+
+/**
+ * Time period configuration for dashboard.
+ */
+interface DashboardTimePeriod {
+  period: string;
+  range: [ unknown, unknown ];
+}
 
 export const WidgetRenderer: React.FC<{
   widget: IDashboardWidgetConfig;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
-  dashboardTimePeriod?: { period: string; range: [ any, any ] };
-  routeParams?: Record<string, any>;
-}> = ({ widget, timePeriodSelectorProps, dashboardTimePeriod, routeParams }) => {
+  dashboardTimePeriod?: DashboardTimePeriod;
+  routeParams?: Readonly<RouteParams>;
+}> = ({ widget, timePeriodSelectorProps, dashboardTimePeriod, routeParams = {} }) => {
+
+  const { Component: WidgetTypeOverride, props: widgetOverrideProps } = useWidgetRenderer(
+    widget.type || '',
+    {
+      widget,
+      timePeriod: dashboardTimePeriod ? {
+        start: undefined,
+        end: undefined,
+        preset: dashboardTimePeriod.period as 'today' | 'yesterday' | 'last7days' | 'last30days' | 'thisMonth' | 'lastMonth' | 'custom'
+      } : undefined,
+      routeParams,
+      depth: 0
+    }
+  );
+
+  if (widget.type && widget.type !== 'custom' && WidgetTypeOverride && widgetOverrideProps) {
+    return (
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <WidgetTypeOverride {...widgetOverrideProps} />
+      </ErrorBoundary>
+    );
+  }
+
+  // Memoize custom widget props to prevent unnecessary re-renders
+  const customWidgetProps = useMemo((): ICustomWidgetComponentProps | null => {
+    if (widget.type !== 'custom') return null;
+
+    const customConfig = widget as IDashboardWidgetConfig & {
+      componentKey?: string;
+      componentProps?: CustomWidgetPropsConfig;
+    };
+
+    if (!customConfig.componentKey) return null;
+
+    return {
+      routeParams,
+      depth: 0,
+      config: customConfig.componentProps ?? {},
+      title: widget.title,
+      timePeriod: dashboardTimePeriod ? {
+        preset: dashboardTimePeriod.period as 'today' | 'yesterday' | 'last7days' | 'last30days' | 'thisMonth' | 'lastMonth' | 'custom'
+      } : undefined
+    };
+  }, [ widget, routeParams, dashboardTimePeriod ]);
+
   const renderWidgetContent = () => {
     switch (widget.type) {
       case 'stat':
@@ -68,8 +147,59 @@ export const WidgetRenderer: React.FC<{
       case 'description': {
         return <DescriptionWidget title={widget.title} {...widget} />;
       }
+      case 'custom': {
+        // Custom widget rendering
+        const customConfig = widget as IDashboardWidgetConfig & {
+          componentKey?: string;
+        };
+
+        if (!customConfig.componentKey) {
+          return (
+            <Alert
+              type="error"
+              message="Invalid custom widget configuration"
+              description="Custom widget requires 'componentKey' property."
+            />
+          );
+        }
+
+        const registration = ExtensionRegistry.getRegistration(customConfig.componentKey);
+
+        if (!registration) {
+          const availableWidgets = ExtensionRegistry.getByCategory('widget')
+            .map(({ key }) => key)
+            .join(', ');
+
+          return (
+            <Alert
+              type="error"
+              message={`Custom widget not found: "${customConfig.componentKey}"`}
+              description={
+                availableWidgets
+                  ? `Available widgets: ${availableWidgets}`
+                  : 'No custom widgets are registered.'
+              }
+            />
+          );
+        }
+
+        if (registration.category !== 'widget' && process.env.NODE_ENV === 'development') {
+          console.warn(
+            `[WidgetRenderer] Component "${customConfig.componentKey}" is category "${registration.category}", ` +
+            `expected "widget". Rendering anyway.`
+          );
+        }
+
+        const CustomWidget = registration.component as React.ComponentType<ICustomWidgetComponentProps>;
+
+        if (!customWidgetProps) {
+          return <div>Error building custom widget props</div>;
+        }
+
+        return <CustomWidget {...customWidgetProps} />;
+      }
       default:
-        return <div>Unknown widget type</div>;
+        return <div>Unknown widget type: {(widget as { type: string }).type}</div>;
     }
   };
 
@@ -91,4 +221,4 @@ export const WidgetRenderer: React.FC<{
       {renderWidgetContent()}
     </ErrorBoundary>
   );
-}; 
+};

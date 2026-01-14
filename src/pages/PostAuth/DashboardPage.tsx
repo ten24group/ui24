@@ -130,10 +130,30 @@ export type IDashboardWidgetConfig = {
     | {
       type: 'description';
       title?: string;
-      dataConfig?: IDescriptionWidgetProps['dataConfig'];
-      options?: IDescriptionWidgetProps['options'];
+      dataConfig?: IDescriptionWidgetProps[ 'dataConfig' ];
+      options?: IDescriptionWidgetProps[ 'options' ];
     }
-);
+    | {
+      /**
+       * Custom widget type - renders a registered custom component.
+       */
+      type: 'custom';
+      title?: string;
+      /**
+       * Component key registered in ExtensionRegistry.
+       * Must be registered with category: 'widget'.
+       */
+      componentKey: string;
+      /**
+       * Static props to pass to the custom widget component.
+       */
+      componentProps?: {
+        readonly [ key: string ]: string | number | boolean | null | undefined |
+        ReadonlyArray<string | number | boolean | null> |
+        Readonly<{ [ key: string ]: unknown }>;
+      };
+    }
+  );
 
 export interface IDashboardPageConfig {
   widgets: IDashboardWidgetConfig[];
@@ -183,106 +203,106 @@ function getInitialTimePeriod(defaultTimePeriod?: DefaultTimePeriod, timezone?: 
 }
 
 export const DashboardPage: React.FC<{
-  dashboardConfig: IDashboardPageConfig;
-  routeParams?: Record<string, any>;
+  dashboardConfig?: IDashboardPageConfig;
+  routeParams?: Readonly<{ readonly [ key: string ]: string | number | undefined }>;
 }> = ({
   dashboardConfig,
   routeParams = {}
 }) => {
-  const { selectConfig } = useUi24Config();
-  const formatConfigTz = selectConfig(config => {
-    return config.formatConfig?.timezone;
-  });
-  const resolvedDashboardTz = dashboardConfig?.timezone || formatConfigTz;
-
-  const [ dashboardTimePeriod, setDashboardTimePeriod ] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
-  // Per-widget time period state (keyed by widget index)
-  const [ widgetTimePeriods, setWidgetTimePeriods ] = React.useState<Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }>>(() => {
-    const initial: Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }> = {};
-    dashboardConfig?.widgets?.forEach((widget, idx) => {
-      if (widget.type === 'chart' && widget.showTimePeriodSelector && widget.defaultTimePeriod) {
-        const widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
-        initial[ idx ] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
-      }
+    const { selectConfig } = useUi24Config();
+    const formatConfigTz = selectConfig(config => {
+      return config.formatConfig?.timezone;
     });
-    return initial;
-  });
+    const resolvedDashboardTz = dashboardConfig?.timezone || formatConfigTz;
 
-  if (!dashboardConfig || !dashboardConfig.widgets) {
-    return <div> </div>;
-  }
-
-  return (
-    // Dashboard gets ISOLATED context to prevent state leakage
-    <PageDataProvider 
-      localData={{ 
-        dashboardFilters: {
-          timePeriod: dashboardTimePeriod,
-          widgetTimePeriods
+    const [ dashboardTimePeriod, setDashboardTimePeriod ] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
+    // Per-widget time period state (keyed by widget index)
+    const [ widgetTimePeriods, setWidgetTimePeriods ] = React.useState<Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }>>(() => {
+      const initial: Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }> = {};
+      dashboardConfig?.widgets?.forEach((widget, idx) => {
+        if (widget.type === 'chart' && widget.showTimePeriodSelector && widget.defaultTimePeriod) {
+          const widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
+          initial[ idx ] = getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
         }
-      }} 
-      isolated={true}
-    >
-      {dashboardConfig?.showTimePeriodSelector && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
-          <TimePeriodSelector value={dashboardTimePeriod} onChange={setDashboardTimePeriod} timezone={resolvedDashboardTz} />
-        </div>
-      )}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${COLUMN_COUNT}, 1fr)`,
-          gap: 20,
-          alignItems: 'stretch',
+      });
+      return initial;
+    });
+
+    if (!dashboardConfig || !dashboardConfig.widgets) {
+      return <div> </div>;
+    }
+
+    return (
+      // Dashboard gets ISOLATED context to prevent state leakage
+      <PageDataProvider
+        localData={{
+          dashboardFilters: {
+            timePeriod: dashboardTimePeriod,
+            widgetTimePeriods
+          }
         }}
+        isolated={true}
       >
-        {dashboardConfig?.widgets?.map((widget, idx) => {
-          // Per-widget time period state
-          let widgetTimePeriod;
-          let widgetTz;
-          if ((widget.type === 'chart' || widget.type === 'stat') && 'defaultTimePeriod' in widget) {
-            widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
-            widgetTimePeriod = widgetTimePeriods[ idx ] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
-          } else {
-            widgetTimePeriod = widgetTimePeriods[ idx ];
-            widgetTz = dashboardConfig?.timezone || formatConfigTz;
-          }
-          const setWidgetTimePeriod = (val: { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }) =>
-            setWidgetTimePeriods(prev => ({ ...prev, [ idx ]: val }));
-
-          let timePeriodSelectorProps = undefined;
-          let chartDashboardTimePeriod = undefined;
-          if (widget.type === 'chart') {
-            if (widget.showTimePeriodSelector) {
-              timePeriodSelectorProps = {
-                value: widgetTimePeriod,
-                onChange: setWidgetTimePeriod,
-                timezone: widgetTz,
-              };
-            } else if (dashboardConfig?.showTimePeriodSelector) {
-              chartDashboardTimePeriod = dashboardTimePeriod;
+        {dashboardConfig?.showTimePeriodSelector && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
+            <TimePeriodSelector value={dashboardTimePeriod} onChange={setDashboardTimePeriod} timezone={resolvedDashboardTz} />
+          </div>
+        )}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${COLUMN_COUNT}, 1fr)`,
+            gap: 20,
+            alignItems: 'stretch',
+          }}
+        >
+          {dashboardConfig?.widgets?.map((widget, idx) => {
+            // Per-widget time period state
+            let widgetTimePeriod;
+            let widgetTz;
+            if ((widget.type === 'chart' || widget.type === 'stat') && 'defaultTimePeriod' in widget) {
+              widgetTz = widget.timezone || dashboardConfig?.timezone || formatConfigTz;
+              widgetTimePeriod = widgetTimePeriods[ idx ] || getInitialTimePeriod(widget.defaultTimePeriod, widgetTz);
+            } else {
+              widgetTimePeriod = widgetTimePeriods[ idx ];
+              widgetTz = dashboardConfig?.timezone || formatConfigTz;
             }
-          }
+            const setWidgetTimePeriod = (val: { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }) =>
+              setWidgetTimePeriods(prev => ({ ...prev, [ idx ]: val }));
 
-          return (
-            <div
-              key={idx}
-              style={{
-                gridColumn: `span ${widget.colSpan || 1}`,
-                maxWidth: widget.maxWidth,
-                minWidth: 320,
-              }}
-            >
-              <WidgetRenderer
-                widget={widget}
-                timePeriodSelectorProps={timePeriodSelectorProps}
-                dashboardTimePeriod={chartDashboardTimePeriod || dashboardTimePeriod}
-                routeParams={routeParams}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </PageDataProvider>
-  );
-}; 
+            let timePeriodSelectorProps = undefined;
+            let chartDashboardTimePeriod = undefined;
+            if (widget.type === 'chart') {
+              if (widget.showTimePeriodSelector) {
+                timePeriodSelectorProps = {
+                  value: widgetTimePeriod,
+                  onChange: setWidgetTimePeriod,
+                  timezone: widgetTz,
+                };
+              } else if (dashboardConfig?.showTimePeriodSelector) {
+                chartDashboardTimePeriod = dashboardTimePeriod;
+              }
+            }
+
+            return (
+              <div
+                key={idx}
+                style={{
+                  gridColumn: `span ${widget.colSpan || 1}`,
+                  maxWidth: widget.maxWidth,
+                  minWidth: 320,
+                }}
+              >
+                <WidgetRenderer
+                  widget={widget}
+                  timePeriodSelectorProps={timePeriodSelectorProps}
+                  dashboardTimePeriod={chartDashboardTimePeriod || dashboardTimePeriod}
+                  routeParams={routeParams}
+                />
+              </div>
+            );
+          })}
+        </div>
+      </PageDataProvider>
+    );
+  }; 

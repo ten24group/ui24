@@ -56,7 +56,7 @@ interface IConfirmModal {
    * @example title: "Delete {teamName}?"
    */
   title: Template;
-  
+
   /**
    * Modal content - can be static string or dynamic template.
    * 
@@ -100,20 +100,20 @@ export interface INavigateToConfig {
 export interface IResponseDisplayConfig {
   /** Whether to show response in a modal. If false, only toast notification shows. Default: false */
   showModal?: boolean;
-  
+
   /** Title for response modal. If not provided, appends " - Results" to action modal title */
   modalTitle?: string;
-  
+
   /** Width of response modal in pixels. Default: 707 */
   modalWidth?: number;
-  
+
   /** OPTION 1: Render response using existing page type system (recommended) */
   pageType?: 'details' | 'list' | 'dashboard' | 'accordion';
   pageConfig?: Record<string, any>;
-  
+
   /** OPTION 2: Show raw JSON response (useful for debugging/testing) */
   showRawJson?: boolean;
-  
+
   /** Path to extract data from response. Default: uses response root
    * Example: "data.results" will use response.data.results as the data source
    */
@@ -125,17 +125,17 @@ export interface IModalConfig {
   modalPageConfig?: IModalPageConfig;
   children?: React.ReactNode | React.ReactNode[];
   button?: React.ReactNode;
-  
+
   /** EITHER: Make API call (existing pattern) */
   apiConfig?: IApiConfig;
   submitSuccessRedirect?: string;
-  
+
   /** OR: Navigate without API call (new pattern) */
   navigateTo?: INavigateToConfig | string;
-  
+
   /** OPTIONAL: Display API response in modal (instead of just toast) */
   responseConfig?: IResponseDisplayConfig;
-  
+
   /**
    * Pre-populate form fields from context (route params + record data).
    * Values are evaluated when modal opens. Supports:
@@ -144,14 +144,14 @@ export interface IModalConfig {
    * - Nested paths: `{ teamName: '{team.name}' }`
    */
   initialValues?: Record<string, any>;
-  
+
   /**
    * If true, parent component will be refreshed after successful operation.
    * Triggers onSuccessCallback with API response data.
    * @default false
    */
   refreshParentOnSuccess?: boolean;
-  
+
   /**
    * Custom success message template. If not provided, uses default message from API response.
    * Can be a static string or a dynamic template.
@@ -161,7 +161,7 @@ export interface IModalConfig {
    * @example successMessage: { composite: ['teamName', 'playerCount'], template: '{teamName} deleted ({playerCount} players affected)' }
    */
   successMessage?: Template;
-  
+
   /**
    * Custom error message template. If not provided, uses error messages from API response.
    * Can be a static string or a dynamic template.
@@ -171,7 +171,7 @@ export interface IModalConfig {
    * @example errorMessage: { composite: ['teamName', 'reason'], template: 'Failed to delete {teamName}: {reason}' }
    */
   errorMessage?: Template;
-  
+
   primaryIndex?: string;
   useDynamicIdFromParams?: boolean;
   onSuccessCallback?: (response?: any) => void;
@@ -180,10 +180,10 @@ export interface IModalConfig {
   onOpenCallback?: () => void;
   routeParams?: Record<string, string>;
   identifiers?: string | number;  // For detail modals - the entity ID to fetch
-  
+
   /** Modal width in pixels or CSS string (e.g., "80%"). Default: auto-detect from page type */
   modalWidth?: number | string;
-  
+
   /**
    * Modal title - can be static string or dynamic template.
    * Evaluated from routeParams when modal opens.
@@ -205,7 +205,7 @@ const serializeValue = (value: any, dateFormat: 'ISO' | 'unix' | 'YYYY-MM-DD' = 
   if (value === null || value === undefined) {
     return '';
   }
-  
+
   // Handle Moment objects (check for isValid method)
   if (value && typeof value === 'object' && typeof value.isValid === 'function' && value.isValid()) {
     const jsDate = value.toDate();  // Convert moment to JS Date
@@ -213,12 +213,12 @@ const serializeValue = (value: any, dateFormat: 'ISO' | 'unix' | 'YYYY-MM-DD' = 
       case 'unix':
         return String(jsDate.getTime());
       case 'YYYY-MM-DD':
-        return jsDate.toISOString().split('T')[0];
+        return jsDate.toISOString().split('T')[ 0 ];
       default:
         return jsDate.toISOString();
     }
   }
-  
+
   // Handle Date objects
   if (value instanceof Date || (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value))) {
     const date = new Date(value);
@@ -226,36 +226,36 @@ const serializeValue = (value: any, dateFormat: 'ISO' | 'unix' | 'YYYY-MM-DD' = 
       case 'unix':
         return String(date.getTime());
       case 'YYYY-MM-DD':
-        return date.toISOString().split('T')[0];
+        return date.toISOString().split('T')[ 0 ];
       default:
         return date.toISOString();
     }
   }
-  
+
   // Handle Arrays
   if (Array.isArray(value)) {
     if (value.length === 0) return '';
-    
+
     // If array of objects, extract specific field
-    if (typeof value[0] === 'object' && value[0] !== null) {
+    if (typeof value[ 0 ] === 'object' && value[ 0 ] !== null) {
       const extractField = arrayValuePath || 'id';
-      return value.map(v => v[extractField] || JSON.stringify(v)).filter(Boolean).join(',');
+      return value.map(v => v[ extractField ] || JSON.stringify(v)).filter(Boolean).join(',');
     }
-    
+
     // Array of primitives
     return value.join(',');
   }
-  
+
   // Handle Objects
   if (typeof value === 'object' && value !== null) {
     return JSON.stringify(value);
   }
-  
+
   // Handle Boolean
   if (typeof value === 'boolean') {
     return value ? 'true' : 'false';
   }
-  
+
   // Default: convert to string
   return String(value);
 };
@@ -265,24 +265,24 @@ const serializeValue = (value: any, dateFormat: 'ISO' | 'unix' | 'YYYY-MM-DD' = 
  * Example: "/list-game?status={status}&teamId={teamId}" → { routePattern, queryParamMapping }
  */
 const parseNavigateToTemplate = (template: string): INavigateToConfig => {
-  const [routePattern, queryString] = template.split('?');
-  
+  const [ routePattern, queryString ] = template.split('?');
+
   if (!queryString) {
     return { routePattern };
   }
-  
+
   // Extract {param} placeholders from query string
   const queryParamMapping: Record<string, string> = {};
   const params = queryString.split('&');
-  
+
   params.forEach(param => {
-    const [key, value] = param.split('=');
+    const [ key, value ] = param.split('=');
     if (value && value.startsWith('{') && value.endsWith('}')) {
       const fieldPath = value.slice(1, -1); // Remove { and }
-      queryParamMapping[key] = fieldPath;
+      queryParamMapping[ key ] = fieldPath;
     }
   });
-  
+
   return { routePattern, queryParamMapping };
 };
 
@@ -294,13 +294,10 @@ export const Modal = ({
   navigateTo,
   responseConfig,
   initialValues,
-  refreshParentOnSuccess = false,
   successMessage,
   errorMessage,
   primaryIndex = "",
-  useDynamicIdFromParams = true,
   onSuccessCallback,
-  button,
   onCancelCallback,
   onConfirmCallback,
   submitSuccessRedirect,
@@ -316,17 +313,17 @@ export const Modal = ({
 
   const location = useLocation();
   const [ loading, setLoading ] = React.useState(false);
-  
+
   // Track modal depth for stack effect
   const currentDepth = useModalDepth();
   const nextDepth = currentDepth + 1;
-  
+
   // Response modal state management
-  const { 
-    responseModalVisible, 
-    responseData, 
-    showResponseModal, 
-    hideResponseModal 
+  const {
+    responseModalVisible,
+    responseData,
+    showResponseModal,
+    hideResponseModal
   } = useResponseModal();
 
   const confirmApiAction = async () => {
@@ -341,7 +338,7 @@ export const Modal = ({
 
       if (response.status === 200) {
         const responseDataFromApi = apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
-        
+
         // Evaluate custom success message template if provided, otherwise use API response message
         let message: string;
         if (successMessage) {
@@ -350,7 +347,7 @@ export const Modal = ({
         } else {
           message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
         }
-        
+
         notifySuccess(message);
 
         // Check if response should be displayed in modal
@@ -376,23 +373,23 @@ export const Modal = ({
       } else if (response.status >= 400 && response.status < 600) {
         // Handle error response using consolidated error handler
         const errorResult = handleApiError(response, 'Operation failed');
-        
+
         // Evaluate custom error message template if provided, otherwise use error handler result
         let message: string;
         if (errorMessage) {
-          const context = { 
-            ...routeParams, 
+          const context = {
+            ...routeParams,
             ...(response.data || {}),
-            error: errorResult.errorMessage 
+            error: errorResult.errorMessage
           };
           message = evaluateTemplateValue(errorMessage, context);
         } else {
           message = errorResult.formattedErrors.join('\n');
         }
-        
+
         // Show all errors (validation or other)
         notifyError(message);
-        
+
         // Keep modal OPEN on validation errors (user can review and cancel)
         // Close modal on non-validation errors (404, 403, 500, etc.)
         if (!errorResult.isValidationError) {
@@ -402,22 +399,22 @@ export const Modal = ({
     } catch (error: any) {
       // Handle network errors or other exceptions using consolidated error handler
       const errorResult = handleApiError(error, 'An unexpected error occurred');
-      
+
       // Evaluate custom error message template if provided, otherwise use error handler result
       let message: string;
       if (errorMessage) {
-        const context = { 
-          ...routeParams, 
-          error: errorResult.errorMessage 
+        const context = {
+          ...routeParams,
+          error: errorResult.errorMessage
         };
         message = evaluateTemplateValue(errorMessage, context);
       } else {
         message = errorResult.formattedErrors.join('\n');
       }
-      
+
       // Show all errors
       notifyError(message);
-      
+
       // Keep modal open on validation errors or network errors (user can retry or cancel)
       // This is intentional UX: user should decide whether to retry or cancel
     } finally {
@@ -428,24 +425,24 @@ export const Modal = ({
   // NEW: Handle navigation from form submission (without API call)
   const handleNavigationSubmit = (formValues: Record<string, any>) => {
     if (!navigateTo) return;
-    
+
     // Parse navigateTo if it's a string template
-    const navConfig: INavigateToConfig = typeof navigateTo === 'string' 
+    const navConfig: INavigateToConfig = typeof navigateTo === 'string'
       ? parseNavigateToTemplate(navigateTo)
       : navigateTo;
-    
+
     let targetUrl = navConfig.routePattern;
     const queryParams: Record<string, string> = {};
-    
+
     if (navConfig.useFormValues !== false) {
       // 1. Replace route params
       if (navConfig.routeParamMapping) {
         // Explicit mapping: :userId <- form.selectedUser
         const mappedParams: Record<string, any> = {};
-        for (const [routeParam, formPath] of Object.entries(navConfig.routeParamMapping)) {
+        for (const [ routeParam, formPath ] of Object.entries(navConfig.routeParamMapping)) {
           const value = getNestedValue(formValues, formPath);
           if (value !== undefined) {
-            mappedParams[routeParam] = value;
+            mappedParams[ routeParam ] = value;
           }
         }
         targetUrl = substituteUrlParams(targetUrl, mappedParams);
@@ -453,20 +450,20 @@ export const Modal = ({
         // Auto-detect: :userId <- formValues.userId
         targetUrl = substituteUrlParams(targetUrl, formValues);
       }
-      
+
       // 2. Parse existing query params from routePattern (Problem 5)
-      const [pathname, existingSearch] = navConfig.routePattern.split('?');
+      const [ pathname, existingSearch ] = navConfig.routePattern.split('?');
       const existingParams = new URLSearchParams(existingSearch || '');
-      
+
       // 3. Build new query params from form
       if (navConfig.queryParamMapping) {
         // Explicit mapping
-        for (const [queryKey, formPath] of Object.entries(navConfig.queryParamMapping)) {
+        for (const [ queryKey, formPath ] of Object.entries(navConfig.queryParamMapping)) {
           const value = getNestedValue(formValues, formPath);
           if (value !== undefined && value !== null && value !== '') {
-            queryParams[queryKey] = serializeValue(
-              value, 
-              navConfig.dateFormat, 
+            queryParams[ queryKey ] = serializeValue(
+              value,
+              navConfig.dateFormat,
               navConfig.arrayValuePath
             );
           }
@@ -474,9 +471,9 @@ export const Modal = ({
       } else {
         // Default: all form values as query params (except those in route)
         const usedInRoute = targetUrl.match(/:(\w+)/g)?.map(p => p.slice(1)) || [];
-        Object.entries(formValues).forEach(([key, value]) => {
+        Object.entries(formValues).forEach(([ key, value ]) => {
           if (!usedInRoute.includes(key) && value !== undefined && value !== null && value !== '') {
-            queryParams[key] = serializeValue(
+            queryParams[ key ] = serializeValue(
               value,
               navConfig.dateFormat,
               navConfig.arrayValuePath
@@ -484,17 +481,17 @@ export const Modal = ({
           }
         });
       }
-      
+
       // 4. Merge existing and new query params (new overrides existing)
       const merged = new URLSearchParams(existingParams);
-      Object.entries(queryParams).forEach(([k, v]) => {
+      Object.entries(queryParams).forEach(([ k, v ]) => {
         if (v) merged.set(k, v);
       });
-      
+
       // 5. Handle large parameter sets (Problem 2)
       const queryString = merged.toString();
       let finalUrl = pathname;
-      
+
       if (navConfig.useLargeParamStorage && queryString.length > 1500) {
         const filterKey = `f_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         sessionStorage.setItem(filterKey, JSON.stringify(Object.fromEntries(merged.entries())));
@@ -502,7 +499,7 @@ export const Modal = ({
       } else {
         finalUrl = queryString ? `${pathname}?${queryString}` : pathname;
       }
-      
+
       // 6. Close modal and navigate
       onCancelCallback?.();
       setTimeout(() => {
@@ -516,20 +513,20 @@ export const Modal = ({
   const setNestedValue = (obj: any, path: string, value: any): void => {
     const keys = path.split('.');
     let current = obj;
-    
+
     for (let i = 0; i < keys.length - 1; i++) {
-      const key = keys[i];
-      if (!current[key] || typeof current[key] !== 'object') {
-        current[key] = {};
+      const key = keys[ i ];
+      if (!current[ key ] || typeof current[ key ] !== 'object') {
+        current[ key ] = {};
       }
-      current = current[key];
+      current = current[ key ];
     }
-    
-    current[keys[keys.length - 1]] = value;
+
+    current[ keys[ keys.length - 1 ] ] = value;
   };
 
   // Helper: Deserialize value (detect arrays, booleans, dates, numbers)
-  const deserializeValue = (value: string, dateFormat?: string): any => {
+  const deserializeValue = (value: string): any => {
     // Detect array: starts with [ and ends with ]
     if (value.startsWith('[') && value.endsWith(']')) {
       try {
@@ -538,43 +535,43 @@ export const Modal = ({
         return value; // Return as string if parsing fails
       }
     }
-    
+
     // Detect boolean
     if (value === 'true') return true;
     if (value === 'false') return false;
-    
+
     // Detect number (including unix timestamps)
     if (/^\d+(\.\d+)?$/.test(value)) {
       const num = parseFloat(value);
-      
+
       // If it's a large integer, might be unix timestamp
       if (Number.isInteger(num) && num > 1000000000 && num < 10000000000) {
         return new Date(num).toISOString();
       }
-      
+
       return num;
     }
-    
+
     // Detect ISO date string
     if (/^\d{4}-\d{2}-\d{2}/.test(value)) {
       return value; // Already in ISO format
     }
-    
+
     return value;
   };
 
   // Helper: Pre-populate form from query params (Problem 6 - Edge Case 3)
   const getDefaultValuesFromQuery = (): Record<string, any> | undefined => {
     if (!navigateTo) return undefined;
-    
-    const navConfig: INavigateToConfig = typeof navigateTo === 'string' 
+
+    const navConfig: INavigateToConfig = typeof navigateTo === 'string'
       ? parseNavigateToTemplate(navigateTo)
       : navigateTo;
-    
+
     if (!navConfig.inverseMapping) return undefined;
-    
+
     const queryParams = new URLSearchParams(location.search);
-    
+
     // BUG FIX: Check for sessionStorage filter key (useLargeParamStorage)
     const filterKey = queryParams.get('f');
     if (filterKey) {
@@ -582,13 +579,13 @@ export const Modal = ({
         const storedData = sessionStorage.getItem(filterKey);
         if (storedData) {
           const parsed = JSON.parse(storedData);
-          
+
           // Map stored params back to form fields
           if (navConfig.queryParamMapping) {
             const defaultValues: Record<string, any> = {};
-            Object.entries(navConfig.queryParamMapping).forEach(([queryKey, formPath]) => {
-              if (parsed[queryKey] !== undefined) {
-                const deserializedValue = deserializeValue(parsed[queryKey], navConfig.dateFormat);
+            Object.entries(navConfig.queryParamMapping).forEach(([ queryKey, formPath ]) => {
+              if (parsed[ queryKey ] !== undefined) {
+                const deserializedValue = deserializeValue(parsed[ queryKey ]);
                 setNestedValue(defaultValues, formPath, deserializedValue);
               }
             });
@@ -599,39 +596,39 @@ export const Modal = ({
         console.error('Failed to restore filters from sessionStorage:', error);
       }
     }
-    
+
     // Regular query param mapping
     const defaultValues: Record<string, any> = {};
-    
+
     if (navConfig.queryParamMapping) {
       // Reverse map query params to form fields
-      Object.entries(navConfig.queryParamMapping).forEach(([queryKey, formPath]) => {
+      Object.entries(navConfig.queryParamMapping).forEach(([ queryKey, formPath ]) => {
         const value = queryParams.get(queryKey);
         if (value !== null) {
           // BUG FIX: Handle nested paths + deserialization
-          const deserializedValue = deserializeValue(value, navConfig.dateFormat);
+          const deserializedValue = deserializeValue(value);
           setNestedValue(defaultValues, formPath, deserializedValue);
         }
       });
     }
-    
+
     return Object.keys(defaultValues).length > 0 ? defaultValues : undefined;
   };
 
   if (modalType === "confirm" && modalPageConfig && 'title' in modalPageConfig) {
     const configTitle = (modalPageConfig as IConfirmModal)?.title;
-    
+
     // Evaluate templates for both modalTitle and configTitle
-    const evaluatedModalTitle = modalTitle 
+    const evaluatedModalTitle = modalTitle
       ? evaluateTemplateValue(modalTitle, routeParams)
       : null;
     const evaluatedConfigTitle = configTitle
       ? evaluateTemplateValue(configTitle, routeParams)
       : null;
     const effectiveTitle = evaluatedModalTitle || evaluatedConfigTitle || 'Confirm';
-    
+
     const effectiveWidth = getDefaultModalWidth('confirm', modalWidth);
-    
+
     return (
       <ModalDepthContext.Provider value={nextDepth}>
         <AntModal
@@ -656,7 +653,7 @@ export const Modal = ({
             {children}
           </ErrorBoundary>
         </AntModal>
-        
+
         {/* Response modal - shown after successful API call */}
         {responseConfig && (
           <ResponseModal
@@ -666,7 +663,7 @@ export const Modal = ({
             actionModalTitle={effectiveTitle}
             onClose={() => {
               hideResponseModal();
-              
+
               // Execute callback and redirect after modal closes
               // Since we delayed the callback to show the response modal,
               // we must call it now regardless of refreshParentOnSuccess
@@ -675,13 +672,13 @@ export const Modal = ({
               }
               if (submitSuccessRedirect) {
                 const formattedUrl = substituteUrlParams(
-                  submitSuccessRedirect, 
-                  { ...routeParams, ...(responseData || {}) }, 
+                  submitSuccessRedirect,
+                  { ...routeParams, ...(responseData || {}) },
                   primaryIndex
                 );
                 navigate(formattedUrl);
               }
-              
+
               // Close action modal too
               onConfirmCallback && onConfirmCallback();
             }}
@@ -695,7 +692,7 @@ export const Modal = ({
   const handleFormSubmitSuccess = (response: any) => {
     // Extract response data (Form.tsx passes full response object)
     const responseDataFromForm = response?.data || response;
-    
+
     if (responseConfig?.showModal) {
       // Show response modal - callbacks will be executed when modal closes
       showResponseModal(responseDataFromForm);
@@ -708,7 +705,7 @@ export const Modal = ({
       }
     }
   };
-  
+
   // Validation: Warn if both navigateTo and responseConfig are specified (mutually exclusive)
   React.useEffect(() => {
     if (navigateTo && responseConfig?.showModal) {
@@ -717,25 +714,25 @@ export const Modal = ({
         'navigateTo takes precedence. This might be a configuration error.'
       );
     }
-  }, [navigateTo, responseConfig]);
+  }, [ navigateTo, responseConfig ]);
 
   if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
     const configTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
-    
+
     // Evaluate modalTitle template if provided, otherwise use configTitle
     const evaluatedModalTitle = modalTitle
       ? evaluateTemplateValue(modalTitle, routeParams, configTitle)
       : configTitle;
-    
+
     const effectiveTitle = evaluatedModalTitle || configTitle;
-    
+
     // Use centralized width calculation
     const effectiveWidth = getDefaultModalWidth(modalType as any, modalWidth);
-    
+
     // Get default values from query if inverseMapping is enabled
     const defaultValuesFromQuery = getDefaultValuesFromQuery();
-    
+
     return (
       <ModalDepthContext.Provider value={nextDepth}>
         <AntModal
@@ -767,8 +764,8 @@ export const Modal = ({
                   modalType === "form" ? {
                     ...(modalPageConfig as IForm),  // Spread all properties from modalPageConfig (including helpText)
                     // Override specific properties
-                    onSubmitSuccessCallback: navigateTo 
-                      ? handleNavigationSubmit 
+                    onSubmitSuccessCallback: navigateTo
+                      ? handleNavigationSubmit
                       : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),
                     // Pass cancel callback to close modal
                     onCancelCallback: onCancelCallback,
@@ -804,7 +801,7 @@ export const Modal = ({
             </ModalContextProvider>
           </ErrorBoundary>
         </AntModal>
-        
+
         {/* Response modal - shown after successful API call */}
         {responseConfig && (
           <ResponseModal
@@ -814,18 +811,18 @@ export const Modal = ({
             actionModalTitle={effectiveTitle}
             onClose={() => {
               hideResponseModal();
-              
+
               // Execute callback and redirect after modal closes
               onSuccessCallback && onSuccessCallback(responseData);
               if (submitSuccessRedirect) {
                 const formattedUrl = substituteUrlParams(
-                  submitSuccessRedirect, 
-                  { ...routeParams, ...(responseData || {}) }, 
+                  submitSuccessRedirect,
+                  { ...routeParams, ...(responseData || {}) },
                   primaryIndex
                 );
                 navigate(formattedUrl);
               }
-              
+
               // Close action modal too
               onCancelCallback && onCancelCallback();
             }}
@@ -844,16 +841,16 @@ export const Modal = ({
           onCancel={onCancelCallback}
           wrapClassName={`modal-depth-${currentDepth}`}
         >
-            <ErrorBoundary
-              FallbackComponent={ErrorFallback}
-              onReset={() => {
-                console.log("Modal (Custom) ErrorBoundary Reset");
-                onCancelCallback && onCancelCallback(); // Close modal on error reset
-              }}
-            >
-              {children}
-            </ErrorBoundary>
-          </AntModal>
+          <ErrorBoundary
+            FallbackComponent={ErrorFallback}
+            onReset={() => {
+              console.log("Modal (Custom) ErrorBoundary Reset");
+              onCancelCallback && onCancelCallback(); // Close modal on error reset
+            }}
+          >
+            {children}
+          </ErrorBoundary>
+        </AntModal>
       </ModalDepthContext.Provider>
     )
   }
@@ -1037,7 +1034,7 @@ export const OpenInModal = ({ ...props }: IOpenInModal) => {
 
   return <>
     <Link
-      onClick={(url) => {
+      onClick={() => {
         setOpen(true);
         if (props.onOpenCallback) {
           props.onOpenCallback()

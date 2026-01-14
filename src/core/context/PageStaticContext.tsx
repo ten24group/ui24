@@ -10,12 +10,13 @@ import { useParams, useLocation } from 'react-router-dom';
 import { useModalDepth } from '../../modal/Modal';
 
 export interface PageStaticContextValue {
-  pageType?: 'list' | 'details' | 'form' | 'accordion' |  'dashboard' | 'system' | 'custom';
+  // NOTE: keep this aligned with PostAuthPage supported page types.
+  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom';
   entityName?: string;
-  config: any; // Full page config from entities.json
+  config: unknown; // Full page config from entities.json
   route: {
-    routeParams: Record<string, string>;
-    queryParams: Record<string, string>;
+    routeParams: Readonly<{ [ key: string ]: string }>;
+    queryParams: Readonly<{ [ key: string ]: string }>;
     pathname: string;
   };
   modal: {
@@ -33,9 +34,9 @@ export const PageStaticProvider = ({
   config
 }: {
   children: ReactNode;
-  pageType: PageStaticContextValue['pageType'];
+  pageType: PageStaticContextValue[ 'pageType' ];
   entityName?: string;
-  config: any;
+  config: unknown;
 }) => {
   const params = useParams();
   const location = useLocation();
@@ -51,7 +52,7 @@ export const PageStaticProvider = ({
       configRef.current = config;
     }
     return configRef.current;
-  }, [config]);
+  }, [ config ]);
   
   const value = useMemo((): PageStaticContextValue => {
     return {
@@ -68,7 +69,7 @@ export const PageStaticProvider = ({
         isInModal: modalDepth > 0
       }
     };
-  }, [pageType, entityName, stableConfig, params, location.search, location.pathname, modalDepth]);
+  }, [ pageType, entityName, stableConfig, params, location.search, location.pathname, modalDepth ]);
   
   return (
     <PageStaticContext.Provider value={value}>

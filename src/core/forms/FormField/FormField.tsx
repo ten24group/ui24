@@ -8,6 +8,7 @@ import { FileUploader, CustomBlockNoteEditor } from '../../common/';
 import { HelpText, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
 import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFieldOptions } from '../../types/field-config';
+import { useFieldRenderer, type FormFieldConfig } from '../../registry';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -31,6 +32,33 @@ const MakeFormItem = ({
 
     const { selectConfig } = useUi24Config();
     const formatConfig = selectConfig(config => config.formatConfig);
+    const { Component: CustomFieldRenderer, props: customFieldProps } = useFieldRenderer('' + (fieldType || ''), 'form', {
+        fieldName: name,
+        explicitRenderer: restFormItemProps.renderer,
+        value: initialValue,
+        onChange: (value: unknown) => setFormValue?.({ name, value }),
+        placeholder,
+        fieldOptions: options,
+        validationRules,
+        config: { ...restFormItemProps, name, fieldType, label } as Readonly<FormFieldConfig>
+    });
+
+    if (CustomFieldRenderer && customFieldProps) {
+        return <>
+            <Form.Item
+                name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
+                rules={validationRules}
+                label={label}
+                style={style}
+                valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
+            >
+                <CustomFieldRenderer {...customFieldProps} />
+            </Form.Item>
+            <HelpText helpText={helpText} />
+        </>;
+    }
+
+    // Built-in field types
     return <>
         <Form.Item
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}

@@ -1,28 +1,24 @@
-// Separate styles for details pages (no width constraints)
+// Styles for details pages - clean, minimal
 export const detailsStyles = {
   // Container styles for details
   container: {
     display: 'flex',
-    gap: 20,
+    gap: 16,
     alignItems: 'flex-start' as const,
     width: '100%',
     flexWrap: 'wrap' as const,
   },
 
-  // Column styles for details (no max width constraint)
+  // Column styles - no card styling, clean layout
   column: {
     flex: 1,
-    minWidth: 400, // Ensure minimum width for better readability
+    minWidth: 300,
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: 16,
-    background: '#fff',
-    padding: 16,
-    borderRadius: 12,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-    border: '1px solid #f0f0f0',
+    gap: 8,
+    padding: '8px 12px',
     overflowWrap: 'break-word' as const,
     wordBreak: 'break-word' as const,
-    maxWidth: '100%', // Ensure it doesn't overflow the container
+    maxWidth: '100%',
   },
-}; 
+};

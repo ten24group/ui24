@@ -118,6 +118,7 @@ import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 import { formatDuration, formatTTL } from '../core/utils/duration';
 import { evaluateTemplate } from '../core/utils/template';
+import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from '../core/registry';
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
@@ -205,7 +206,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
   const [ dataLoaded, setDataLoaded ] = useState(false);
   const [ isRefreshing, setIsRefreshing ] = useState(false);  // Separate loading state for refresh
   const { resolveConfigRef } = useEntityConfig();
-  const { formatDate, formatBoolean } = useFormat()
+  const { formatDate, formatBoolean } = useFormat();
+  // NOTE: registry resolution is handled via getFieldRenderer() (non-hook, safe for loops)
 
   // Lift detail state to wrapper (if callback provided)
   useEffect(() => {
@@ -503,6 +505,40 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             routeParams={routeParams}
                             label={item.label}
                           />
+                        </div>
+                      );
+                    }
+
+                    // Check for custom renderer from ExtensionRegistry
+                    const CustomDetailRenderer = getFieldRenderer(
+                      '' + (item.fieldType || ''),
+                      'detail',
+                      {
+                        fieldName: item.name || item.column || '',
+                        entityName,
+                        explicitRenderer: item.renderer,
+                        routeParams
+                      }
+                    );
+
+                    if (CustomDetailRenderer) {
+                      const customDetailProps = buildDetailFieldProps(
+                        '' + (item.fieldType || ''),
+                        {
+                          fieldName: item.name || item.column || '',
+                          value,
+                          label: item.label,
+                          config: item as DetailFieldConfig,
+                          routeParams
+                        }
+                      );
+                      // Cast to DetailFieldRendererProps since we know context is 'detail'
+                      const Renderer = CustomDetailRenderer as React.ComponentType<typeof customDetailProps>;
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <Renderer {...customDetailProps} />
                         </div>
                       );
                     }

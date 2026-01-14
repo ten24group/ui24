@@ -22,7 +22,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal as AntModal, Spin } from 'antd';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useResolveRoute } from '../core/hooks/useResolveRoute';
 import { useEntityConfig } from '../core/hooks/useEntityConfig';

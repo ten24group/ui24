@@ -11,3 +11,16 @@ export * from "./forms/Form";
 export * from "./table/Table";
 export * from "./detail/Details";
 export * from "./routes/Navigation";
+export * from "./modal";
+
+// Export ExtensionRegistry for custom component registration
+export { ExtensionRegistry, useResolverContext, buildResolverContext } from "./core/registry";
+export type {
+  FormFieldRendererProps,
+  DetailFieldRendererProps,
+  ColumnRendererProps,
+  PageComponentProps,
+  WidgetRendererProps,
+  ResolverContext,
+  RouteParams
+} from "./core/registry";

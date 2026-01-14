@@ -22,7 +22,7 @@ export interface ITableExpandableConfig {
     columns?: ReadonlyArray<string> | Array<string>;
     pageSize?: number;
     showPagination?: boolean;
-    defaultFilters?: Record<string, any>;
+    defaultFilters?: ITableFilters;
     showViewAll?: boolean;
     viewAllModalWidth?: number | string;
   };
@@ -32,12 +32,21 @@ export interface ITableExpandableConfig {
   };
   customConfig?: {
     pageType: 'list' | 'details' | 'form' | 'dashboard' | 'accordion';
-    pageConfig?: Record<string, any>;
+    pageConfig?: ITableFilters;
   };
   rowExpandable?: VisibilityConfig;
   defaultExpanded?: boolean;
   expandIcon?: string;
   indentSize?: number;
+}
+
+/**
+ * Type-safe filter values.
+ * Used in defaultFilters and filter state.
+ */
+export interface ITableFilters {
+  readonly [ key: string ]: string | number | boolean | null | undefined |
+  ReadonlyArray<string | number | boolean | null>;
 }
 
 
@@ -163,6 +172,8 @@ export interface ITableConfig {
   bulkActions?: ReadonlyArray<IPageAction>;  // Actions shown when multiple rows selected (from backend tableConfig.bulkActions)
   rowSelection?: {
     readonly enabled: boolean;
+    /** Selection type: 'checkbox' for multi-select, 'radio' for single-select */
+    readonly type?: 'checkbox' | 'radio';
     readonly visibility?: VisibilityConfig;  // Conditional row selection
   };  // Row selection configuration (from backend tableConfig.rowSelection)
   /**
@@ -220,7 +231,14 @@ export interface ITableConfig {
    */
   sectionsConfig?: ISectionsConfig;
 
-  onDataChange?: (data: { selectedRecords?: any[]; filters?: Record<string, any>; searchQuery?: string; pageType?: string; entityName?: string; selectedRowKeys?: React.Key[] }) => void;
+  onDataChange?: (data: {
+    selectedRecords?: ReadonlyArray<Record<string, unknown>>;
+    filters?: ITableFilters;
+    searchQuery?: string;
+    pageType?: string;
+    entityName?: string;
+    selectedRowKeys?: ReadonlyArray<React.Key>;
+  }) => void;
 }
 
 export interface ITablePropertiesConfig extends IFieldTypeProperties {
@@ -267,6 +285,22 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * }
    */
   template?: Template;
+
+  /**
+   * Custom renderer key for this field/column.
+   * When specified, the frontend uses this key to look up a registered custom renderer
+   * via ExtensionRegistry.getFieldRenderer() or getColumnRenderer().
+   * 
+   * @example
+   * renderer: 'address-picker'
+   */
+  renderer?: string;
+
+  /**
+   * Configuration passed to the custom renderer.
+   * Only used when `renderer` is specified.
+   */
+  rendererConfig?: Readonly<Record<string, unknown>>;
 
   /**
    * Relation field configuration for rendering related entities.
@@ -411,6 +445,84 @@ export type IPageAction = {
 
   /** Only open in modal on specified screen size. Default: always */
   openInModalCondition?: 'sm' | 'md' | 'lg' | 'xl';
+
+  // =========================================================================
+  // DRAWER SUPPORT
+  // =========================================================================
+
+  /** Open action in drawer (slide-out panel) instead of navigating */
+  openInDrawer?: boolean;
+
+  /** Drawer configuration (when openInDrawer is true) */
+  drawerConfig?: {
+    /** Drawer title (supports templates like 'Edit {teamName}') */
+    title?: Template;
+    /** Drawer placement */
+    placement?: 'left' | 'right' | 'top' | 'bottom';
+    /** Drawer width (for left/right placement) */
+    width?: number | string;
+    /** Drawer height (for top/bottom placement) */
+    height?: number | string;
+    /** Show close button */
+    closable?: boolean;
+    /** Show mask overlay */
+    mask?: boolean;
+    /** Close on mask click */
+    maskClosable?: boolean;
+    /** Destroy content on close */
+    destroyOnClose?: boolean;
+
+    // =========================================================================
+    // INLINE PAGE CONFIG (for drawers without route resolution)
+    // =========================================================================
+
+    /** Page type to render in drawer: 'form', 'details', 'list', etc. */
+    drawerType?: 'form' | 'details' | 'list';
+    /** Page configuration (form/details/list config) */
+    drawerPageConfig?: {
+      /** Form/details title */
+      title?: string;
+      /** Help text shown below title */
+      helpText?: string;
+      /** Properties/fields to render */
+      propertiesConfig?: Array<{
+        name: string;
+        label: string;
+        column?: string;
+        fieldType: string;
+        required?: boolean;
+        placeholder?: string;
+        helpText?: string;
+        defaultValue?: unknown;
+        options?: {
+          apiMethod?: string;
+          apiUrl?: string;
+          responseKey?: string;
+          optionMapping?: { label: string; value: string };
+          disableSearch?: boolean;
+          disableLoadMore?: boolean;
+        } | Array<{ label: string; value: string | number }>;
+        [ key: string ]: unknown;
+      }>;
+      /** API configuration for form submission */
+      apiConfig?: {
+        apiMethod?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+        apiUrl?: string;
+        responseKey?: string;
+      };
+      /** Form buttons to show */
+      formButtons?: Array<'submit' | 'reset' | 'cancel'>;
+      /** Response display config */
+      responseConfig?: {
+        showModal?: boolean;
+        modalTitle?: string;
+      };
+      [ key: string ]: unknown;
+    };
+  };
+
+  /** Entity config reference for drawer route resolution */
+  drawerConfigRef?: IEntityConfigReference;
 
   /**
    * Visibility configuration for conditional rendering.

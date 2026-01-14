@@ -3,6 +3,8 @@ import { Button, MenuProps, Tooltip } from "antd";
 import { Icon } from "../common/Icons/Icons";
 import { OpenInModal } from "../../modal/Modal";
 import { OpenRouteInModal } from "../../modal/OpenRouteInModal";
+import { OpenRouteInDrawer } from "../../modal/OpenRouteInDrawer";
+import { OpenInDrawer } from "../../modal/Drawer";
 import { IPageAction } from "../../table/type";
 import { substituteUrlParams } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
@@ -150,6 +152,94 @@ export const renderSingleAction = ({
       } as MenuItem;
     }
     return modalTrigger;
+  }
+
+  // Pattern 2b: Drawer with inline config
+  // Supports inline page config (drawerType + drawerPageConfig)
+  if (action.openInDrawer && action.drawerConfig?.drawerType && action.drawerConfig?.drawerPageConfig) {
+    const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
+    const drawerPageConfig = action.drawerConfig.drawerPageConfig;
+
+    const drawerTrigger = (
+      <OpenInDrawer
+        key={key}
+        pageType={action.drawerConfig.drawerType}
+        pageConfig={drawerPageConfig}
+        title={action.drawerConfig.title}
+        placement={action.drawerConfig.placement}
+        width={action.drawerConfig.width}
+        height={action.drawerConfig.height}
+        closable={action.drawerConfig.closable}
+        mask={action.drawerConfig.mask}
+        maskClosable={action.drawerConfig.maskClosable}
+        destroyOnClose={action.drawerConfig.destroyOnClose}
+        routeParams={finalRouteParams}
+        identifiers={primaryIndex || routeParams.id}
+        onSuccess={onSuccessCallback}
+      >
+        {wrapWithTooltip(
+          isDropdownItem ? (
+            evaluatedLabel
+          ) : isTableRowAction ? (
+            <Icon iconName={action.icon || "edit"} />
+          ) : (
+            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+          )
+        )}
+      </OpenInDrawer>
+    );
+
+    if (isDropdownItem) {
+      return {
+        key,
+        label: drawerTrigger,
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
+      } as MenuItem;
+    }
+    return drawerTrigger;
+  }
+
+  // Pattern 2c: Drawer with route resolution
+  // Supports both URL-based resolution and drawerConfigRef
+  if (action.openInDrawer && (action.url || action.drawerConfigRef) && !action.openInModal) {
+    const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
+
+    const drawerTrigger = (
+      <OpenRouteInDrawer
+        key={key}
+        url={action.url}
+        routeParams={finalRouteParams}
+        primaryIndex={primaryIndex}
+        drawerConfigRef={action.drawerConfigRef}
+        drawerTitle={action.drawerConfig?.title}
+        placement={action.drawerConfig?.placement}
+        width={action.drawerConfig?.width}
+        height={action.drawerConfig?.height}
+        closable={action.drawerConfig?.closable}
+        mask={action.drawerConfig?.mask}
+        maskClosable={action.drawerConfig?.maskClosable}
+        destroyOnClose={action.drawerConfig?.destroyOnClose}
+      >
+        {wrapWithTooltip(
+          isDropdownItem ? (
+            evaluatedLabel
+          ) : isTableRowAction ? (
+            <Icon iconName={action.icon || "eye"} />
+          ) : (
+            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+          )
+        )}
+      </OpenRouteInDrawer>
+    );
+
+    if (isDropdownItem) {
+      return {
+        key,
+        label: drawerTrigger,
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
+      } as MenuItem;
+    }
+    return drawerTrigger;
   }
 
   // Pattern 3: Regular navigation
