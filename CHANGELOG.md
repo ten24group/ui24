@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.0](https://github.com/ten24group/ui24/compare/v1.0.5-beta.29...v1.1.0-beta.0) (2026-01-20)
+
+
+### Features
+
+* integrate CodeMirror and Markdown components and features like ( MarkdownPreview, OperationExecutor, ResponseModalContext). ([8a8aa6b](https://github.com/ten24group/ui24/commit/8a8aa6bb597a9cf5bc2d8355e081aa468120e1fd))
+
 ### [1.0.5-beta.29](https://github.com/ten24group/ui24/compare/v1.0.5-beta.28...v1.0.5-beta.29) (2026-01-14)
 
 ### [1.0.5-beta.28](https://github.com/ten24group/ui24/compare/v1.0.5-beta.27...v1.0.5-beta.28) (2026-01-13)
