@@ -183,14 +183,6 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                         if (dropItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
                             onRefreshData();
                         }
-
-                        if (dropItem.modalConfig?.submitSuccessRedirect) {
-                            const redirectUrl = substituteUrlParams(
-                                dropItem.modalConfig.submitSuccessRedirect,
-                                routeParams
-                            );
-                            navigate(redirectUrl);
-                        }
                     },
                     onNavigate: navigate
                 }) as MenuItem;
@@ -233,14 +225,6 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                 // Refresh data if needed
                 if (action.modalConfig?.refreshParentOnSuccess && onRefreshData) {
                     onRefreshData();
-                }
-
-                if (action.modalConfig?.submitSuccessRedirect) {
-                    const redirectUrl = substituteUrlParams(
-                        action.modalConfig.submitSuccessRedirect,
-                        routeParams
-                    );
-                    navigate(redirectUrl);
                 }
             },
             onNavigate: navigate

@@ -4,7 +4,7 @@ import { HttpRequest } from "@smithy/protocol-http";
 
 import type { HeaderBag, QueryParameterBag, AwsCredentialIdentity } from "@smithy/types";
 
-import { isValidURL, addPathToUrl } from "../../../utils";
+import { isValidURL, addPathToUrl, stripTrailingSlash } from "../../../utils";
 
 type UseSignerOptions = { service?: string, region?: string };
 
@@ -51,7 +51,9 @@ export const useRequestSigner = (options: UseSignerOptions) => {
         }
 
         const endpoint = parsedUrl.hostname.toString();
-        const path = parsedUrl.pathname.toString();
+
+        // strip trailing slash from pathname for AWS signature
+        const path = stripTrailingSlash(parsedUrl.pathname.toString());
 
         const queryParams: QueryParameterBag = {};
         parsedUrl.searchParams.forEach((value, key) => {
@@ -135,7 +137,7 @@ export const useRequestSigner = (options: UseSignerOptions) => {
 
             // Return the original URL path with the new query string
             // We use options.url (not the full parsed URL) to avoid duplicating the baseURL path
-            const urlPath = options.url.split('?')[ 0 ]; // Remove any existing query string
+            const urlPath = stripTrailingSlash(options.url.split('?')[ 0 ]); // Remove query string & trailing slash
             const finalUrl = queryString ? `${urlPath}?${queryString}` : urlPath;
 
             // Return both headers and the modified URL

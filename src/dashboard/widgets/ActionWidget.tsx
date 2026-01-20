@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from '../../core/common';
 import { Icon } from '../../core/common';
 import { IModalConfig, OpenInModal } from '../../modal/Modal';
+import { OpenInDrawer, IActionDrawerConfig } from '../../modal/Drawer';
 import './ActionWidget.css';
 
 export interface IActionConfig {
@@ -12,6 +13,8 @@ export interface IActionConfig {
   color?: string;
   openInModal?: boolean;
   modalConfig?: IModalConfig;
+  openInDrawer?: boolean;
+  drawerConfig?: IActionDrawerConfig;
 }
 
 export interface IActionWidgetProps {
@@ -89,6 +92,36 @@ export const ActionWidget: React.FC<IActionWidgetProps> = ({ title, subtitle, ac
           );
         }
 
+        if (action.openInDrawer && action.drawerConfig) {
+          return (
+            <OpenInDrawer
+              key={idx}
+              pageType={action.drawerConfig.drawerType}
+              pageConfig={action.drawerConfig.drawerPageConfig}
+              responseConfig={action.drawerConfig.responseConfig}
+              dynamicConfigKey={action.drawerConfig.dynamicConfigKey}
+              title={action.drawerConfig.title}
+              placement={action.drawerConfig.placement}
+              width={action.drawerConfig.width}
+              height={action.drawerConfig.height}
+              closable={action.drawerConfig.closable}
+              mask={action.drawerConfig.mask}
+              maskClosable={action.drawerConfig.maskClosable}
+              destroyOnClose={action.drawerConfig.destroyOnClose}
+            >
+              <div
+                className="action-widget-tile"
+                style={{
+                  '--accent-color': accentColor,
+                  '--accent-rgb': accentRgb
+                } as React.CSSProperties}
+              >
+                {tileContent}
+              </div>
+            </OpenInDrawer>
+          );
+        }
+
         return (
           <Link
             key={idx}
@@ -105,4 +138,4 @@ export const ActionWidget: React.FC<IActionWidgetProps> = ({ title, subtitle, ac
       })}
     </div>
   </div>
-); 
+);

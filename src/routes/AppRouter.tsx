@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { App as AntdApp } from "antd";
+import { Routes, Route } from 'react-router-dom';
 import { ProtectedRoute } from './ProtectedRoute';
 import { IRoute, IRoutes } from './types';
 import { defaultRoutes } from './DefaultRoutes';
@@ -27,7 +26,7 @@ const createRouteElement = (route: IRoute) => {
       {route.element}
     </CoreLayout>
   );
-  
+
   return (
     <ProtectedRoute
       path={route.path}
@@ -43,27 +42,23 @@ export const AppRouter = ({ customRoutes = [] }: IAppRouter) => {
   const mergedRoutes = useMemo(() => {
     return [ ...customRoutes, ...defaultRoutes ].reduce((acc: any, route: IRoute, index: number) => {
       acc[ route.path ] = (
-        <Route 
-          key={`route-${route.path}`} 
-          path={route.path} 
-          element={createRouteElement(route)} 
+        <Route
+          key={`route-${route.path}`}
+          path={route.path}
+          element={createRouteElement(route)}
         />
       );
       return acc;
     }, {});
-  }, [customRoutes]);
+  }, [ customRoutes ]);
 
   return (
-    <AntdApp>
-      <ErrorBoundary FallbackComponent={ErrorFallback}>
-        <BrowserRouter>
-          <ConfigLoader>
-            <Routes>
-              {Object.values(mergedRoutes)}
-            </Routes>
-          </ConfigLoader>
-        </BrowserRouter>
-      </ErrorBoundary>
-    </AntdApp>
+    <ErrorBoundary FallbackComponent={ErrorFallback}>
+      <ConfigLoader>
+        <Routes>
+          {Object.values(mergedRoutes)}
+        </Routes>
+      </ConfigLoader>
+    </ErrorBoundary>
   );
 };

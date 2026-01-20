@@ -23,19 +23,22 @@ import React from 'react';
 import { Drawer as AntDrawer } from 'antd';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
-import { ModalContextProvider } from '../core/context';
+import { IApiConfig, ModalContextProvider } from '../core/context';
 import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { IForm } from '../core/forms/formConfig';
 import { ITableConfig } from '../table/type';
 import { IDetailsConfig } from '../detail/Details';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
+import { type IWizardPageConfig } from '../core/common/FormWizard';
 import { Template } from '../core/types';
 import { evaluateTemplateValue } from '../core/utils/template';
 import { Link } from '../core/common';
+import { INavigateToConfig, IResponseDisplayConfig } from './Modal';
 
 /**
- * Drawer configuration interface.
+ * Drawer configuration interface (presentation properties only).
+ * For action drawers with page content, use IActionDrawerConfig instead.
  */
 export interface IDrawerConfig {
   /** Title for the drawer */
@@ -57,13 +60,75 @@ export interface IDrawerConfig {
 }
 
 /**
+ * Full drawer configuration for page actions.
+ * Similar to IModalConfig but with drawer-specific presentation properties.
+ * 
+ * Supports two patterns:
+ * 1. **Route resolution**: Use with url or drawerConfigRef
+ * 2. **Inline config**: Use drawerType + drawerPageConfig (same as modalType + modalPageConfig)
+ * 
+ * @see {@link IModalConfig} for the modal equivalent
+ */
+export interface IActionDrawerConfig extends IDrawerConfig {
+  // =========================================================================
+  // SHARED PAGE CONFIG (SAME AS MODAL)
+  // =========================================================================
+
+  /** Page type to render in drawer (same as modalType) */
+  drawerType?: IPageType;
+
+  /** Page configuration (same structure as modalPageConfig) */
+  drawerPageConfig?: IForm | ITableConfig | IDetailsConfig | IDashboardPageConfig | IAccordionPageConfig | IWizardPageConfig;
+
+  // =========================================================================
+  // SHARED API/NAVIGATION CONFIG (SAME AS MODAL)
+  // =========================================================================
+
+  /** EITHER: Make API call */
+  apiConfig?: IApiConfig;
+  submitSuccessRedirect?: string;
+  submitSuccessRedirectOptions?: {
+    replace?: boolean;
+    state?: unknown;
+  };
+
+  /** OR: Navigate without API call */
+  navigateTo?: INavigateToConfig | string;
+
+  /** Display API response in a modal */
+  responseConfig?: IResponseDisplayConfig;
+
+  /** Dynamic config key for chaining operations */
+  dynamicConfigKey?: string;
+
+  /** Skip toast notifications */
+  skipSuccessToast?: boolean;
+  skipErrorToast?: boolean;
+
+  /** Control drawer behavior on error */
+  closeDrawerOnError?: boolean;
+
+  /** Pre-populate form fields from context */
+  initialValues?: Record<string, any>;
+
+  /** Refresh parent component after success */
+  refreshParentOnSuccess?: boolean;
+
+  /** Custom success message template */
+  successMessage?: Template;
+
+  /** Custom error message template */
+  errorMessage?: Template;
+}
+
+/**
  * Props for the Drawer component.
  */
 export interface IDrawerProps extends IDrawerConfig {
   /** Page type to render inside drawer */
   pageType: IPageType;
   /** Page configuration based on pageType */
-  pageConfig?: IForm | ITableConfig | IDetailsConfig | IDashboardPageConfig | IAccordionPageConfig;
+  pageConfig?: IForm | ITableConfig | IDetailsConfig | IDashboardPageConfig | IAccordionPageConfig | IWizardPageConfig;
   /** Route parameters for placeholder resolution */
   routeParams?: Readonly<Record<string, string | number | undefined>>;
   /** Entity identifiers (for details/form pages) */
@@ -76,6 +141,10 @@ export interface IDrawerProps extends IDrawerConfig {
   onSuccess?: (response?: unknown) => void;
   /** Current nesting depth */
   depth?: number;
+  /** Response display config (for forms/wizards) - passed separately to avoid type union issues */
+  responseConfig?: IResponseDisplayConfig;
+  /** Dynamic config key for chaining operations (for forms/wizards) */
+  dynamicConfigKey?: string;
 }
 
 /**
@@ -87,6 +156,8 @@ function getDefaultDrawerWidth(pageType: IPageType): number | string {
       return 800;
     case 'form':
       return 600;
+    case 'wizard':
+      return 700; // Wizards need more space for multi-step layout
     case 'details':
       return 500;
     case 'dashboard':
@@ -108,7 +179,9 @@ const DrawerContent = ({
   identifiers,
   onSuccess,
   onClose,
-  depth = 0
+  depth = 0,
+  responseConfig,
+  dynamicConfigKey
 }: Omit<IDrawerProps, 'children' | 'title' | 'placement' | 'width' | 'height' | 'closable' | 'mask' | 'maskClosable' | 'destroyOnClose'>) => {
   return (
     <ErrorBoundary
@@ -127,8 +200,20 @@ const DrawerContent = ({
               ...(pageConfig as IForm),
               onSubmitSuccessCallback: onSuccess,
               onCancelCallback: onClose,
-              routeParams
+              routeParams: routeParams as Record<string, string>,
+              // Merge in responseConfig and dynamicConfigKey from drawer props
+              // (these are at drawerConfig level in backend, not in drawerPageConfig)
+              ...(responseConfig && { responseConfig }),
+              ...(dynamicConfigKey && { dynamicConfigKey })
             } as IForm : undefined
+          }
+          wizardPageConfig={
+            pageType === 'wizard' ? {
+              ...(pageConfig as IWizardPageConfig),
+              onSubmitSuccessCallback: onSuccess,
+              onCancelCallback: onClose,
+              routeParams
+            } as any : undefined
           }
           detailsPageConfig={pageType === 'details' ? pageConfig as IDetailsConfig : undefined}
           dashboardPageConfig={pageType === 'dashboard' ? pageConfig as IDashboardPageConfig : undefined}
@@ -187,7 +272,9 @@ export const Drawer = ({
   identifiers,
   onClose,
   onSuccess,
-  depth = 0
+  depth = 0,
+  responseConfig,
+  dynamicConfigKey
 }: Omit<IDrawerProps, 'children'> & { open: boolean }) => {
   // Evaluate title template
   const evaluatedTitle = title
@@ -197,6 +284,7 @@ export const Drawer = ({
   // Determine width/height
   const effectiveWidth = width ?? getDefaultDrawerWidth(pageType);
 
+  // ✅ NO response modal management - handled globally by OperationExecutor + ResponseModalContext
   return (
     <AntDrawer
       title={evaluatedTitle}
@@ -206,7 +294,7 @@ export const Drawer = ({
       closable={closable}
       mask={mask}
       maskClosable={maskClosable}
-      destroyOnClose={destroyOnClose}
+      destroyOnHidden={destroyOnClose}
       open={true}
       onClose={onClose}
     >
@@ -218,6 +306,8 @@ export const Drawer = ({
         onSuccess={onSuccess}
         onClose={onClose}
         depth={depth}
+        responseConfig={responseConfig}
+        dynamicConfigKey={dynamicConfigKey}
       />
     </AntDrawer>
   );

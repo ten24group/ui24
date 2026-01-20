@@ -11,6 +11,7 @@ import { ProgressWidget } from './widgets/ProgressWidget';
 import { ControlWidget } from './widgets/ControlWidget';
 import { TimelineWidget } from './widgets/TimelineWidget';
 import { DescriptionWidget } from './widgets/DescriptionWidget';
+import { MarkdownWidget } from './widgets/MarkdownWidget';
 import { IDashboardWidgetConfig } from '../pages/PostAuth/DashboardPage';
 import { TimePeriodSelectorProps } from './widgets/TimePeriodSelector';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -146,6 +147,9 @@ export const WidgetRenderer: React.FC<{
       }
       case 'description': {
         return <DescriptionWidget title={widget.title} {...widget} />;
+      }
+      case 'markdown': {
+        return <MarkdownWidget title={widget.title} {...widget} />;
       }
       case 'custom': {
         // Custom widget rendering

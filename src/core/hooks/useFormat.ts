@@ -13,8 +13,14 @@ export const useFormat = () => {
      * @returns {string} The formatted date.
      */
     const formatDate = (date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
-        const formatString = formatConfig?.[ type ];
-        return date ? dayjsCustom.tz(date, timezone).format(formatString) : '';
+        try {
+
+            const formatString = formatConfig?.[ type ];
+            return date ? dayjsCustom.tz(date, timezone).format(formatString) : '';
+        } catch (error) {
+            console.error('Error formatting date:', error);
+            return date as any;
+        }
     }
 
     /**

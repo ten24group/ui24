@@ -134,6 +134,16 @@ export type IDashboardWidgetConfig = {
       options?: IDescriptionWidgetProps[ 'options' ];
     }
     | {
+      type: 'markdown';
+      title?: string;
+      description?: string;
+      options?: {
+        content?: string;
+        showBorder?: boolean;
+        padding?: number;
+      };
+    }
+    | {
       /**
        * Custom widget type - renders a registered custom component.
        */

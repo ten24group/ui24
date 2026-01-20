@@ -103,7 +103,7 @@ export type ShortcutVisibilityCondition = {
  * 
  * FIXED: Allow configs to have BOTH shortcut AND inline conditions
  */
-export type VisibilityConfig = 
+export type VisibilityConfig =
   | InlineVisibilityCondition
   | CustomVisibilityCondition
   | NamedVisibilityCondition
@@ -127,42 +127,42 @@ export interface EvaluationContext {
     };
     [ key: string ]: any;
   };
-  
+
   /**
    * Current record data (for row actions, view/edit pages)
    */
   record?: Record<string, any>;
-  
+
   /**
    * Selected records (for bulk actions)
    */
   selectedRecords?: Array<Record<string, any>>;
-  
+
   /**
    * Query parameters from URL
    */
   queryParams?: Record<string, any>;
-  
+
   /**
    * Current page type
    */
-  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom';
-  
+  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom' | 'wizard';
+
   /**
    * Current entity name
    */
   entityName?: string;
-  
+
   /**
    * Modal nesting depth
    */
   modalDepth?: number;
-  
+
   /**
    * Form values (for form button conditions)
    */
   formValues?: Record<string, any>;
-  
+
   /**
    * Additional context properties
    */
@@ -177,27 +177,27 @@ export interface EvaluationResult {
    * Whether element should be visible
    */
   visible: boolean;
-  
+
   /**
    * Whether element should be enabled
    */
   enabled: boolean;
-  
+
   /**
    * Message to show when disabled
    */
   disabledMessage?: string;
-  
+
   /**
    * Loading state (for async evaluations)
    */
   loading?: boolean;
-  
+
   /**
    * Error state (if evaluation failed)
    */
   error?: string;
-  
+
   /**
    * Additional result properties
    */

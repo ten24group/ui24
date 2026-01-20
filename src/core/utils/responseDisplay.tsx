@@ -40,12 +40,12 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
   } = responseConfig;
 
   // Extract data from response using dataPath if provided
-  const extractedData = dataPath 
+  const extractedData = dataPath
     ? getNestedValue(responseData, dataPath) || responseData
     : responseData;
 
   // Determine modal title
-  const computedTitle = modalTitle 
+  const computedTitle = modalTitle
     || (actionModalTitle ? `${actionModalTitle} - Results` : 'Operation Result');
 
   // Render content based on configuration
@@ -73,15 +73,48 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
     if (pageType && pageConfig) {
       // Build props based on page type
       const renderProps: Record<string, any> = { pageType };
-      
+
       switch (pageType) {
+        case 'form':
+          // CRITICAL FOR CHAINING: Render form with previous response data as initialValues
+          // Filter out metadata/config fields that shouldn't be form fields
+          const {
+            nextStep,
+            success,
+            message,
+            errors,
+            ...actualFormData
+          } = extractedData || {};
+
+          // Extract nested responseConfig if present (for chaining)
+          // In chaining, the 'responseConfig' prop IS the 'nextStep' object, which may contain 'responseConfig' for the NEXT step.
+          const nestedResponseConfig = (responseConfig as any).responseConfig;
+
+          renderProps.formPageConfig = {
+            ...pageConfig,
+            // Merge previous response data with form's initialValues for chaining
+            // Only include actual data fields, not metadata
+            initialValues: {
+              ...(pageConfig.initialValues || {}),
+              ...actualFormData,
+            },
+            // Pass nested responseConfig so the form knows what to do next
+            responseConfig: nestedResponseConfig,
+            // CRITICAL: Pass dynamicConfigKey from pageConfig to enable continued chaining
+            // This allows nested forms to also chain to subsequent steps
+            dynamicConfigKey: pageConfig.dynamicConfigKey,
+            // Pass close callback so the form can close the ResponseModal on success/cancel
+            onCancelCallback: onClose,
+          };
+          break;
+
         case 'details':
           renderProps.detailsPageConfig = {
             ...pageConfig,
             detailResponse: extractedData, // Inject response data
           };
           break;
-          
+
         case 'list':
           renderProps.listPageConfig = {
             ...pageConfig,
@@ -89,16 +122,16 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
             // For static response display, this might need custom handling
           };
           break;
-          
+
         case 'dashboard':
           renderProps.dashboardPageConfig = pageConfig;
           break;
-          
+
         case 'accordion':
           renderProps.accordionsPageConfig = pageConfig;
           break;
       }
-      
+
       return <RenderFromPageType {...renderProps} />;
     }
 
@@ -117,7 +150,7 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
           Close
         </Button>,
       ]}
-      destroyOnClose
+      destroyOnHidden
     >
       <ErrorBoundary
         FallbackComponent={ErrorFallback}
@@ -134,8 +167,8 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
  * Can be used by any component that needs response display functionality
  */
 export const useResponseModal = () => {
-  const [responseModalVisible, setResponseModalVisible] = React.useState(false);
-  const [responseData, setResponseData] = React.useState<any>(null);
+  const [ responseModalVisible, setResponseModalVisible ] = React.useState(false);
+  const [ responseData, setResponseData ] = React.useState<any>(null);
 
   const showResponseModal = (data: any) => {
     setResponseData(data);
@@ -154,4 +187,3 @@ export const useResponseModal = () => {
     hideResponseModal,
   };
 };
-

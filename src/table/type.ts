@@ -1,7 +1,8 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType, PropertyType } from "../core/types/field-types";
 import type { Template, VisibilityConfig, IFieldTypeProperties } from "../core/types";
-import { IModalConfig } from "../modal/Modal";
+import { IModalConfig, IResponseDisplayConfig } from "../modal/Modal";
+import { IActionDrawerConfig } from "../modal/Drawer";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 import type { IEntityConfigReference } from "../core/hooks/useEntityConfig";
@@ -453,73 +454,13 @@ export type IPageAction = {
   /** Open action in drawer (slide-out panel) instead of navigating */
   openInDrawer?: boolean;
 
-  /** Drawer configuration (when openInDrawer is true) */
-  drawerConfig?: {
-    /** Drawer title (supports templates like 'Edit {teamName}') */
-    title?: Template;
-    /** Drawer placement */
-    placement?: 'left' | 'right' | 'top' | 'bottom';
-    /** Drawer width (for left/right placement) */
-    width?: number | string;
-    /** Drawer height (for top/bottom placement) */
-    height?: number | string;
-    /** Show close button */
-    closable?: boolean;
-    /** Show mask overlay */
-    mask?: boolean;
-    /** Close on mask click */
-    maskClosable?: boolean;
-    /** Destroy content on close */
-    destroyOnClose?: boolean;
-
-    // =========================================================================
-    // INLINE PAGE CONFIG (for drawers without route resolution)
-    // =========================================================================
-
-    /** Page type to render in drawer: 'form', 'details', 'list', etc. */
-    drawerType?: 'form' | 'details' | 'list';
-    /** Page configuration (form/details/list config) */
-    drawerPageConfig?: {
-      /** Form/details title */
-      title?: string;
-      /** Help text shown below title */
-      helpText?: string;
-      /** Properties/fields to render */
-      propertiesConfig?: Array<{
-        name: string;
-        label: string;
-        column?: string;
-        fieldType: string;
-        required?: boolean;
-        placeholder?: string;
-        helpText?: string;
-        defaultValue?: unknown;
-        options?: {
-          apiMethod?: string;
-          apiUrl?: string;
-          responseKey?: string;
-          optionMapping?: { label: string; value: string };
-          disableSearch?: boolean;
-          disableLoadMore?: boolean;
-        } | Array<{ label: string; value: string | number }>;
-        [ key: string ]: unknown;
-      }>;
-      /** API configuration for form submission */
-      apiConfig?: {
-        apiMethod?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-        apiUrl?: string;
-        responseKey?: string;
-      };
-      /** Form buttons to show */
-      formButtons?: Array<'submit' | 'reset' | 'cancel'>;
-      /** Response display config */
-      responseConfig?: {
-        showModal?: boolean;
-        modalTitle?: string;
-      };
-      [ key: string ]: unknown;
-    };
-  };
+  /**
+   * Drawer configuration (when openInDrawer is true).
+   * Uses shared IActionDrawerConfig type from Drawer.tsx (matches IModalConfig pattern).
+   * 
+   * @see {@link IActionDrawerConfig} for full type definition
+   */
+  drawerConfig?: IActionDrawerConfig;
 
   /** Entity config reference for drawer route resolution */
   drawerConfigRef?: IEntityConfigReference;

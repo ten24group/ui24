@@ -34,7 +34,6 @@ import { IForm } from '../core/forms/formConfig';
 import { Template } from '../core/types';
 import { evaluateTemplateObject, getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
-import { ResponseModal, useResponseModal } from '../core/utils/responseDisplay';
 import { evaluateTemplateValue } from '../core/utils/template';
 import { IDetailsConfig } from '../detail/Details';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
@@ -43,6 +42,8 @@ import { IPageType, RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { useCoreNavigator } from '../routes/Navigation';
 import { ITableConfig } from '../table/type';
 import { getDefaultModalWidth } from './modalUtils';
+import { useOperationExecutor } from '../core/services/OperationExecutor';
+import { type IWizardPageConfig } from '../core/common/FormWizard';
 
 // Simple modal depth tracking for stack effect
 export const ModalDepthContext = React.createContext(0);
@@ -65,9 +66,9 @@ interface IConfirmModal {
    */
   content?: Template;
 }
-type IModalType = "confirm" | "list" | "form" | "custom" | "details" | "accordion" | "dashboard";
+type IModalType = "confirm" | "list" | "form" | "custom" | "details" | "accordion" | "dashboard" | "wizard";
 
-type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig | IAccordionPageConfig | IDashboardPageConfig;
+type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig | IAccordionPageConfig | IDashboardPageConfig | IWizardPageConfig;
 
 /**
  * Navigation configuration for modal form submissions
@@ -108,7 +109,7 @@ export interface IResponseDisplayConfig {
   modalWidth?: number;
 
   /** OPTION 1: Render response using existing page type system (recommended) */
-  pageType?: 'details' | 'list' | 'dashboard' | 'accordion';
+  pageType?: 'form' | 'details' | 'list' | 'dashboard' | 'accordion';
   pageConfig?: Record<string, any>;
 
   /** OPTION 2: Show raw JSON response (useful for debugging/testing) */
@@ -129,12 +130,30 @@ export interface IModalConfig {
   /** EITHER: Make API call (existing pattern) */
   apiConfig?: IApiConfig;
   submitSuccessRedirect?: string;
+  /**
+   * Navigation options for submitSuccessRedirect
+   * Uses react-router-dom's NavigateOptions: { replace?: boolean; state?: unknown; }
+   */
+  submitSuccessRedirectOptions?: {
+    replace?: boolean;
+    state?: unknown;
+  };
 
   /** OR: Navigate without API call (new pattern) */
   navigateTo?: INavigateToConfig | string;
 
   /** OPTIONAL: Display API response in modal (instead of just toast) */
   responseConfig?: IResponseDisplayConfig;
+
+  /** Dynamic config for chaining operations */
+  dynamicConfigKey?: string;
+
+  /** Skip toast notifications */
+  skipSuccessToast?: boolean;
+  skipErrorToast?: boolean;
+
+  /** Control modal behavior on error */
+  closeModalOnError?: boolean;
 
   /**
    * Pre-populate form fields from context (route params + record data).
@@ -301,6 +320,11 @@ export const Modal = ({
   onCancelCallback,
   onConfirmCallback,
   submitSuccessRedirect,
+  submitSuccessRedirectOptions,
+  dynamicConfigKey,
+  skipSuccessToast = false,
+  skipErrorToast = false,
+  closeModalOnError = false,
   routeParams = {},
   identifiers,
   modalWidth,
@@ -318,111 +342,59 @@ export const Modal = ({
   const currentDepth = useModalDepth();
   const nextDepth = currentDepth + 1;
 
-  // Response modal state management
-  const {
-    responseModalVisible,
-    responseData,
-    showResponseModal,
-    hideResponseModal
-  } = useResponseModal();
+  // ✅ NO response modal management - handled globally by OperationExecutor + ResponseModalContext
+  const operationExecutor = useOperationExecutor();
 
+  // AbortController for request cancellation on unmount
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  // Cleanup on unmount - abort any in-flight requests
+  React.useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // ============================================================================
+  // NEW: Using OperationExecutor for centralized operation handling
+  // ============================================================================
   const confirmApiAction = async () => {
-    // Use the clean utility function for URL parameter substitution
     const formattedApiUrl = substituteUrlParams(apiConfig.apiUrl, routeParams, primaryIndex);
-    setLoading(true);
-    try {
-      const response: any = await callApiMethod({
-        ...apiConfig,
-        apiUrl: formattedApiUrl
-      });
 
-      if (response.status === 200) {
-        const responseDataFromApi = apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
+    // Create new AbortController for this request
+    abortControllerRef.current = new AbortController();
 
-        // Evaluate custom success message template if provided, otherwise use API response message
-        let message: string;
-        if (successMessage) {
-          const context = { ...routeParams, ...responseDataFromApi };
-          message = evaluateTemplateValue(successMessage, context);
-        } else {
-          message = response.data?.details?.message || response.data?.message || response.message || "Operation Success";
-        }
-
-        notifySuccess(message);
-
-        // Check if response should be displayed in modal
-        if (responseConfig?.showModal) {
-          // Show response modal - callbacks will be executed when modal closes
-          showResponseModal(responseDataFromApi);
-          // Note: Action modal stays open, will be closed when response modal closes
-          // IMPORTANT: Don't call onSuccessCallback here - it will be called when response modal closes
-        } else {
-          // Standard behavior: refresh parent and/or call callback immediately
-          if (onSuccessCallback) {
-            onSuccessCallback(responseDataFromApi);
-          }
-          if (submitSuccessRedirect) {
-            // redirect to appropriate page
-            // replace placeholders with the actual values
-            let formattedSubmitSuccessRedirect = substituteUrlParams(submitSuccessRedirect, { ...routeParams, ...(responseDataFromApi || {}) }, primaryIndex);
-            navigate(formattedSubmitSuccessRedirect)
-          }
-          // Close action modal
-          onConfirmCallback && onConfirmCallback()
-        }
-      } else if (response.status >= 400 && response.status < 600) {
-        // Handle error response using consolidated error handler
-        const errorResult = handleApiError(response, 'Operation failed');
-
-        // Evaluate custom error message template if provided, otherwise use error handler result
-        let message: string;
-        if (errorMessage) {
-          const context = {
-            ...routeParams,
-            ...(response.data || {}),
-            error: errorResult.errorMessage
-          };
-          message = evaluateTemplateValue(errorMessage, context);
-        } else {
-          message = errorResult.formattedErrors.join('\n');
-        }
-
-        // Show all errors (validation or other)
-        notifyError(message);
-
-        // Keep modal OPEN on validation errors (user can review and cancel)
-        // Close modal on non-validation errors (404, 403, 500, etc.)
-        if (!errorResult.isValidationError) {
-          onConfirmCallback && onConfirmCallback();
-        }
+    await operationExecutor.execute(
+      {
+        apiConfig: {
+          ...apiConfig,
+          apiUrl: formattedApiUrl
+        },
+        routeParams,
+        onLoading: setLoading,
+        successMessage,
+        errorMessage,
+        responseConfig,
+        submitSuccessRedirect,
+        submitSuccessRedirectOptions,
+        dynamicConfigKey,
+        skipSuccessToast,
+        skipErrorToast,
+        closeModalOnError,
+        abortSignal: abortControllerRef.current.signal
+      },
+      {
+        onSuccess: onSuccessCallback,
+        onClose: onConfirmCallback
+        // ✅ NO onChain needed - response modal handled globally
       }
-    } catch (error: any) {
-      // Handle network errors or other exceptions using consolidated error handler
-      const errorResult = handleApiError(error, 'An unexpected error occurred');
+    );
+  };
 
-      // Evaluate custom error message template if provided, otherwise use error handler result
-      let message: string;
-      if (errorMessage) {
-        const context = {
-          ...routeParams,
-          error: errorResult.errorMessage
-        };
-        message = evaluateTemplateValue(errorMessage, context);
-      } else {
-        message = errorResult.formattedErrors.join('\n');
-      }
 
-      // Show all errors
-      notifyError(message);
-
-      // Keep modal open on validation errors or network errors (user can retry or cancel)
-      // This is intentional UX: user should decide whether to retry or cancel
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  // NEW: Handle navigation from form submission (without API call)
+  // Handle navigation from form submission (without API call)
   const handleNavigationSubmit = (formValues: Record<string, any>) => {
     if (!navigateTo) return;
 
@@ -654,57 +626,11 @@ export const Modal = ({
           </ErrorBoundary>
         </AntModal>
 
-        {/* Response modal - shown after successful API call */}
-        {responseConfig && (
-          <ResponseModal
-            visible={responseModalVisible}
-            responseData={responseData}
-            responseConfig={responseConfig}
-            actionModalTitle={effectiveTitle}
-            onClose={() => {
-              hideResponseModal();
-
-              // Execute callback and redirect after modal closes
-              // Since we delayed the callback to show the response modal,
-              // we must call it now regardless of refreshParentOnSuccess
-              if (onSuccessCallback) {
-                onSuccessCallback(responseData);
-              }
-              if (submitSuccessRedirect) {
-                const formattedUrl = substituteUrlParams(
-                  submitSuccessRedirect,
-                  { ...routeParams, ...(responseData || {}) },
-                  primaryIndex
-                );
-                navigate(formattedUrl);
-              }
-
-              // Close action modal too
-              onConfirmCallback && onConfirmCallback();
-            }}
-          />
-        )}
+        {/* ✅ NO response modal rendering - handled globally by ResponseModalContext */}
       </ModalDepthContext.Provider>
     )
   }
 
-  // Handler for form submissions (wraps response display logic)
-  const handleFormSubmitSuccess = (response: any) => {
-    // Extract response data (Form.tsx passes full response object)
-    const responseDataFromForm = response?.data || response;
-
-    if (responseConfig?.showModal) {
-      // Show response modal - callbacks will be executed when modal closes
-      showResponseModal(responseDataFromForm);
-      // Note: Action modal stays open, will be closed when response modal closes
-      // IMPORTANT: Don't call onSuccessCallback here - it will be called when response modal closes
-    } else {
-      // Standard behavior: refresh parent and/or call callback immediately
-      if (onSuccessCallback) {
-        onSuccessCallback(responseDataFromForm);
-      }
-    }
-  };
 
   // Validation: Warn if both navigateTo and responseConfig are specified (mutually exclusive)
   React.useEffect(() => {
@@ -716,7 +642,7 @@ export const Modal = ({
     }
   }, [ navigateTo, responseConfig ]);
 
-  if ([ "list", "form", "details", "accordion", "dashboard", "custom" ].includes(modalType) && modalPageConfig) {
+  if ([ "list", "form", "details", "accordion", "dashboard", "wizard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
     const configTitle = 'title' in modalPageConfig ? (modalPageConfig as any).title : undefined;
 
@@ -762,35 +688,59 @@ export const Modal = ({
                 listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
                 formPageConfig={
                   modalType === "form" ? {
-                    ...(modalPageConfig as IForm),  // Spread all properties from modalPageConfig (including helpText)
-                    // Override specific properties
-                    onSubmitSuccessCallback: navigateTo
-                      ? handleNavigationSubmit
-                      : (responseConfig?.showModal ? handleFormSubmitSuccess : onSuccessCallback),
-                    // Pass cancel callback to close modal
+                    ...(modalPageConfig as IForm),
+                    // Form uses OperationExecutor internally - pass all response handling config
+                    onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
                     onCancelCallback: onCancelCallback,
-                    // Remove apiConfig if navigateTo is specified (navigation-only mode)
+                    // Set apiConfig to undefined if navigateTo is specified (navigation-only mode)
                     apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
                     // Pre-populate form from context and query params
-                    // Merge priority (lowest to highest):
-                    // 1. Field defaults (from entity schema) - handled by Form component
-                    // 2. initialValues (from action config) - evaluated here
-                    // 3. Query params (from URL with inverseMapping)
-                    // 4. Form defaultValues (from parent component)
                     defaultValues: {
                       ...(initialValues ? evaluateTemplateObject(initialValues, routeParams) : {}),
                       ...defaultValuesFromQuery,
                       ...(modalPageConfig as IForm).defaultValues
                     },
                     useDynamicIdFromParams: false,
-                    routeParams
-                  } as IForm : undefined
+                    routeParams,
+                    // Pass all response handling config for OperationExecutor
+                    submitSuccessRedirect,
+                    submitSuccessRedirectOptions,
+                    responseConfig,
+                    dynamicConfigKey,
+                    refreshParentOnSuccess: onSuccessCallback ? true : undefined, // Auto-enable if callback provided
+                    successMessage,
+                    errorMessage,
+                    skipSuccessToast,
+                    skipErrorToast,
+                    closeModalOnError
+                    // ✅ NO showResponseModal needed - Form uses global context via OperationExecutor
+                  } as any : undefined
                 }
                 detailsPageConfig={
                   modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
                 }
                 accordionsPageConfig={
                   modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
+                }
+                wizardPageConfig={
+                  modalType === "wizard" ? {
+                    ...(modalPageConfig as IWizardPageConfig),
+                    onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
+                    onCancelCallback: onCancelCallback,
+                    // Pass route params for any dynamic field loading
+                    routeParams,
+                    // Pass all response handling config for OperationExecutor (same as forms)
+                    submitSuccessRedirect,
+                    submitSuccessRedirectOptions,
+                    responseConfig,
+                    dynamicConfigKey,
+                    refreshParentOnSuccess: onSuccessCallback ? true : undefined,
+                    successMessage,
+                    errorMessage,
+                    skipSuccessToast,
+                    skipErrorToast,
+                    closeModalOnError
+                  } as any : undefined
                 }
                 dashboardPageConfig={
                   modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
@@ -802,32 +752,7 @@ export const Modal = ({
           </ErrorBoundary>
         </AntModal>
 
-        {/* Response modal - shown after successful API call */}
-        {responseConfig && (
-          <ResponseModal
-            visible={responseModalVisible}
-            responseData={responseData}
-            responseConfig={responseConfig}
-            actionModalTitle={effectiveTitle}
-            onClose={() => {
-              hideResponseModal();
-
-              // Execute callback and redirect after modal closes
-              onSuccessCallback && onSuccessCallback(responseData);
-              if (submitSuccessRedirect) {
-                const formattedUrl = substituteUrlParams(
-                  submitSuccessRedirect,
-                  { ...routeParams, ...(responseData || {}) },
-                  primaryIndex
-                );
-                navigate(formattedUrl);
-              }
-
-              // Close action modal too
-              onCancelCallback && onCancelCallback();
-            }}
-          />
-        )}
+        {/* ✅ NO response modal rendering - handled globally by ResponseModalContext */}
       </ModalDepthContext.Provider>
     )
   }

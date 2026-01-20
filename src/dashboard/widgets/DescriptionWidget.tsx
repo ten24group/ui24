@@ -7,28 +7,28 @@ import { JsonDescription } from '../../core/common';
 const { Text } = Typography;
 
 export interface IDescriptionWidgetProps {
-  title?: string;
-  dataConfig?: {
-    apiUrl: string;
-    apiMethod?: string;
-    payload?: any;
-    responseKey?: string;
-    headers?: Record<string, string>;
-  };
-  options?: {
-    bordered?: boolean;
-    column?: number;
-    size?: 'default' | 'middle' | 'small';
-    layout?: 'horizontal' | 'vertical';
-    colon?: boolean;
-    items?: Array<{
-      key: string;
-      label: string;
-      span?: number;
-      labelStyle?: React.CSSProperties;
-      contentStyle?: React.CSSProperties;
-    }>;
-  };
+    title?: string;
+    dataConfig?: {
+        apiUrl: string;
+        apiMethod?: string;
+        payload?: any;
+        responseKey?: string;
+        headers?: Record<string, string>;
+    };
+    options?: {
+        bordered?: boolean;
+        column?: number;
+        size?: 'default' | 'middle' | 'small';
+        layout?: 'horizontal' | 'vertical';
+        colon?: boolean;
+        items?: Array<{
+            key: string;
+            label: string;
+            span?: number;
+            labelStyle?: React.CSSProperties;
+            contentStyle?: React.CSSProperties;
+        }>;
+    };
 }
 
 const renderValue = (value: any): React.ReactNode => {
@@ -65,9 +65,9 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
     dataConfig,
     options = {}
 }) => {
-    const [data, setData] = useState<any>({});
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [ data, setData ] = useState<any>({});
+    const [ loading, setLoading ] = useState(false);
+    const [ error, setError ] = useState<string | null>(null);
     const { callApiMethod } = useApi();
 
     useEffect(() => {
@@ -92,7 +92,7 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
                     headers: dataConfig.headers,
                 });
 
-                const responseData = dataConfig.responseKey ? response.data[dataConfig.responseKey] : response.data;
+                const responseData = dataConfig.responseKey ? response.data[ dataConfig.responseKey ] : response.data;
                 if (isMounted) setData(responseData || {});
             } catch (err: any) {
                 if (isMounted) setError(err?.message || 'Failed to fetch data');
@@ -103,7 +103,7 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
 
         fetchData();
         return () => { isMounted = false; };
-    }, [dataConfig, callApiMethod]);
+    }, [ dataConfig, callApiMethod ]);
 
     const renderDescriptionItems = () => {
         if (options.items) {
@@ -114,11 +114,11 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
                     span={item.span}
                     styles={{ label: item.labelStyle, content: item.contentStyle }}
                 >
-                    {renderValue(data[item.key])}
+                    {renderValue(data[ item.key ])}
                 </Descriptions.Item>
             ));
         } else {
-            return Object.entries(data).map(([key, value]) => (
+            return Object.entries(data).map(([ key, value ]) => (
                 <Descriptions.Item key={key} label={formatKey(key)}>
                     {renderValue(value)}
                 </Descriptions.Item>
@@ -131,7 +131,7 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
             title={title}
             loading={loading}
             style={{ height: '100%' }}
-            bodyStyle={{ padding: '16px' }}
+            styles={{ body: { padding: '16px' } }}
         >
             {error ? (
                 <div style={{ color: 'red', padding: '16px', textAlign: 'center' }}>

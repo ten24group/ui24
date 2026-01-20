@@ -158,13 +158,14 @@ export const renderSingleAction = ({
   // Supports inline page config (drawerType + drawerPageConfig)
   if (action.openInDrawer && action.drawerConfig?.drawerType && action.drawerConfig?.drawerPageConfig) {
     const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
-    const drawerPageConfig = action.drawerConfig.drawerPageConfig;
 
     const drawerTrigger = (
       <OpenInDrawer
         key={key}
         pageType={action.drawerConfig.drawerType}
-        pageConfig={drawerPageConfig}
+        pageConfig={action.drawerConfig.drawerPageConfig}
+        responseConfig={action.drawerConfig.responseConfig}
+        dynamicConfigKey={action.drawerConfig.dynamicConfigKey}
         title={action.drawerConfig.title}
         placement={action.drawerConfig.placement}
         width={action.drawerConfig.width}

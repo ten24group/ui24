@@ -130,6 +130,7 @@ import { handleApiError } from '../core/utils/api-error-handler';
 import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
 import { useCoreNavigator } from '../routes/Navigation';
+import { useOperationExecutor } from '../core/services/OperationExecutor';
 
 /**
  * Extended form configuration with column layout support and state lifting.
@@ -139,6 +140,7 @@ interface IFormWithColumnsConfig extends IForm {
   routeParams?: Record<string, string>;
   entityName?: string;  // From backend config generation
   onDataChange?: (data: { record?: any; formValues?: Record<string, any>; pageType?: string; entityName?: string }) => void;
+  // ✅ NO showResponseModal prop needed - Form uses global context via OperationExecutor
 }
 
 /**
@@ -173,6 +175,15 @@ export function Form({
   apiConfig,
   detailApiConfig,
   submitSuccessRedirect = "",
+  submitSuccessRedirectOptions,
+  responseConfig,
+  dynamicConfigKey,
+  refreshParentOnSuccess,
+  successMessage,
+  errorMessage,
+  skipSuccessToast,
+  skipErrorToast,
+  closeModalOnError,
   disabled = false,
   buttonLoader = false,
   identifiers,
@@ -200,6 +211,7 @@ export function Form({
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>(convertColumnsConfigForFormField(propertiesConfig))
   const [ dataLoadedFromView, setDataLoadedFromView ] = useState((identifiers || (useDynamicIdFromParams && dynamicID) || Object.keys(routeParams).length > 0) ? false : true)
   const { callApiMethod } = useApi();
+  const operationExecutor = useOperationExecutor();
   const [ loader, setLoader ] = useState<boolean>(false)
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
   const [ isRefreshing, setIsRefreshing ] = useState<boolean>(false)  // Separate loading state for refresh
@@ -298,7 +310,7 @@ export function Form({
 
         const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
 
-        if (response.status === 200) {
+        if (response.status >= 200 && response.status < 300) {
           const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
 
           // Store initial record for state lifting
@@ -347,9 +359,27 @@ export function Form({
     loadAndFormatData(false);  // Don't show refresh loader on initial load
   }, [])
 
+  // AbortController for request cancellation on unmount
+  const abortControllerRef = React.useRef<AbortController | null>(null);
+
+  // Cleanup on unmount - abort any in-flight requests
+  React.useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const onFinish = async (values: any) => {
-    // Clear validation errors on successful form submission attempt
+    // Clear ALL previous validation errors before new attempt
     setValidationErrors([]);
+    form.setFields(
+      formPropertiesConfig.map(field => ({
+        name: field.name,
+        errors: []
+      }))
+    );
 
     // Guardrail: when there's no apiConfig and no custom submit handlers, submission is a silent no-op.
     if (!apiConfig) {
@@ -357,14 +387,47 @@ export function Form({
         notifyError("No API is configured for this form. Please contact support.");
       }
       // Still allow custom handlers (if present) to run below.
+      return;
     }
 
+    // ============================================================================
+    // NEW: Using OperationExecutor for centralized operation handling
+    // ============================================================================
     if (apiConfig) {
-      setLoader(true)
-      setBtnLoader(true)
-
       // Use the clean utility function for URL parameter substitution
       const formattedApiUrl = substituteUrlParams(apiConfig.apiUrl, routeParams, identifiersToUse);
+
+      // ============================================================================
+      // Form Data Processing (Dates, JSON, Numbers, Nested Objects)
+      // ============================================================================
+      const normalizeDateValue = (value: any): string | null => {
+        if (value === "" || value === null || value === undefined) {
+          return null;
+        }
+
+        if (dayjsCustom.isDayjs?.(value)) {
+          return value.toISOString();
+        }
+
+        if (value instanceof Date) {
+          return value.toISOString();
+        }
+
+        if (typeof value === "number") {
+          const parsed = new Date(value);
+          return isNaN(parsed.getTime()) ? null : parsed.toISOString();
+        }
+
+        if (typeof value === "string") {
+          return value;
+        }
+
+        if (typeof value?.toISOString === "function") {
+          return value.toISOString();
+        }
+
+        return String(value);
+      };
 
       // Recursive function to parse JSON fields and convert data types in nested objects
       const parseJsonFieldsRecursively = (obj: any, config: IFormField[]): any => {
@@ -379,7 +442,7 @@ export function Form({
           const fieldConfig = config.find(field => field.name === key);
 
           if (fieldConfig?.fieldType === "json") {
-            // Parse JSON field
+            // Parse JSON field (CodeEditor sends string, we parse to object for backend)
             try {
               result[ key ] = JSON.parse(value as string);
             } catch (error) {
@@ -401,25 +464,13 @@ export function Form({
             }
           } else if (fieldConfig?.fieldType === "date") {
             // Convert date fields
-            if (value === "" || value === null || value === undefined) {
-              result[ key ] = null;
-            } else {
-              result[ key ] = value; // Keep as string for API compatibility
-            }
+            result[ key ] = normalizeDateValue(value);
           } else if (fieldConfig?.fieldType === "time") {
             // Convert time fields
-            if (value === "" || value === null || value === undefined) {
-              result[ key ] = null;
-            } else {
-              result[ key ] = value; // Keep as string for API compatibility
-            }
+            result[ key ] = normalizeDateValue(value);
           } else if (fieldConfig?.fieldType === "datetime") {
             // Convert datetime fields
-            if (value === "" || value === null || value === undefined) {
-              result[ key ] = null;
-            } else {
-              result[ key ] = value; // Keep as string for API compatibility
-            }
+            result[ key ] = normalizeDateValue(value);
           } else if (fieldConfig?.fieldType === "boolean" || fieldConfig?.fieldType === "switch" || fieldConfig?.fieldType === "toggle") {
             // Convert boolean/switch/toggle fields
             if (value === "" || value === null || value === undefined) {
@@ -442,84 +493,65 @@ export function Form({
       // Parse JSON fields recursively in the form values
       const formattedValues = parseJsonFieldsRecursively(values, formPropertiesConfig);
 
-      try {
-        const response: any = await callApiMethod({
-          ...apiConfig,
-          apiUrl: formattedApiUrl,
-          payload: formattedValues
-        });
+      // Create new AbortController for this request
+      abortControllerRef.current = new AbortController();
 
-        if (response.status === 200) {
-          notifySuccess("Saved Successfully")
-          if (submitSuccessRedirect !== "") {
-            //redirect to the page
-            // replace placeholders with the actual values
-            let formattedSubmitSuccessRedirect = substituteUrlParams(submitSuccessRedirect, routeParams, identifiersToUse);
-            navigate(formattedSubmitSuccessRedirect)
-          }
-          onSubmitSuccessCallback && onSubmitSuccessCallback(response)
-        } else if (response.status >= 400 && response.status < 600) {
-
-          // Handle error response using consolidated error handler
-          const errorResult = handleApiError(response, 'An error occurred');
-
-          if (errorResult.isValidationError && errorResult.validationErrors) {
+      // Use OperationExecutor for consistent handling
+      await operationExecutor.execute(
+        {
+          apiConfig: {
+            ...apiConfig,
+            apiUrl: formattedApiUrl,
+            payload: formattedValues
+          },
+          routeParams,
+          onLoading: (loading) => {
+            setLoader(loading);
+            setBtnLoader(loading);
+          },
+          // Response handling config (now fully supported in forms!)
+          successMessage: successMessage || "Saved Successfully",
+          errorMessage,
+          submitSuccessRedirect,
+          submitSuccessRedirectOptions,
+          responseConfig,
+          dynamicConfigKey,
+          refreshParentOnSuccess,
+          // Skip toast if:
+          // 1. Explicitly set to skip (takes precedence)
+          // 2. Response modal will be shown (responseConfig.showModal)
+          // 3. Chaining is enabled (dynamicConfigKey) - let the chain complete silently
+          skipSuccessToast: skipSuccessToast !== undefined
+            ? skipSuccessToast
+            : (responseConfig?.showModal || !!dynamicConfigKey),
+          skipErrorToast: skipErrorToast ?? true, // Default to true for forms (manual error handling)
+          closeModalOnError: closeModalOnError ?? false, // Default to false for forms (keep open for fixes)
+          abortSignal: abortControllerRef.current.signal
+        },
+        {
+          onSuccess: onSubmitSuccessCallback,
+          onClose: onCancelCallback, // Close form/modal after redirect or when operation completes
+          onValidationError: (fieldErrors, formErrors) => {
             // Set field-level errors in the form
-            if (errorResult.validationErrors.fieldErrors.length > 0) {
-              form.setFields(errorResult.validationErrors.fieldErrors);
+            if (fieldErrors.length > 0) {
+              form.setFields(fieldErrors);
             }
 
-            // Show form-level errors as toast
-            if (errorResult.validationErrors.formErrors.length > 0) {
-              notifyError(errorResult.validationErrors.formErrors.join('; '));
-            } else if (errorResult.validationErrors.fieldErrors.length > 0) {
-              // Show specific field errors in toast as well (field errors also shown inline)
-              const fieldErrorMessages = errorResult.validationErrors.fieldErrors.map(fe => {
-                const fieldName = Array.isArray(fe.name) ? fe.name.join('.') : fe.name;
-                return `${fieldName}: ${fe.errors[ 0 ]}`;
-              });
-              notifyError(fieldErrorMessages.join('\n'));
+            // Show validation error toast (OperationExecutor skips it because skipErrorToast: true)
+            // Only show form-level errors in toast; field-level errors are shown inline
+            if (formErrors.length > 0) {
+              notifyError(formErrors.join('\n'));
             } else {
-              // Fallback to generic error message
-              notifyError(errorResult.errorMessage);
+              // Generic message if only field-level errors (which are already shown inline)
+              notifyError('Please fix validation errors');
             }
-          } else {
-            // Not a validation error, just show the error message
+          },
+          onError: (errorResult) => {
+            // Show generic error toast (OperationExecutor skips it because skipErrorToast: true)
             notifyError(errorResult.errorMessage);
           }
         }
-      } catch (error: any) {
-
-        // Handle network errors or other exceptions using consolidated error handler
-        const errorResult = handleApiError(error, 'An unexpected error occurred');
-
-        if (errorResult.isValidationError && errorResult.validationErrors) {
-          // Set field-level errors
-          if (errorResult.validationErrors.fieldErrors.length > 0) {
-            form.setFields(errorResult.validationErrors.fieldErrors);
-          }
-
-          // Show form-level errors
-          if (errorResult.validationErrors.formErrors.length > 0) {
-            notifyError(errorResult.validationErrors.formErrors.join('; '));
-          } else if (errorResult.validationErrors.fieldErrors.length > 0) {
-            // Show specific field errors in toast as well (field errors also shown inline)
-            const fieldErrorMessages = errorResult.validationErrors.fieldErrors.map(fe => {
-              const fieldName = Array.isArray(fe.name) ? fe.name.join('.') : fe.name;
-              return `${fieldName}: ${fe.errors[ 0 ]}`;
-            });
-            notifyError(fieldErrorMessages.join('\n'));
-          } else {
-            notifyError(errorResult.errorMessage);
-          }
-        } else {
-          // Non-validation error (network error, 404, 500, etc.)
-          notifyError(errorResult.errorMessage);
-        }
-      } finally {
-        setBtnLoader(false)
-        setLoader(false)
-      }
+      );
     } else {
       // NO API CALL (navigation-only or custom submission)
       // Call onSubmitSuccessCallback directly (for navigation-only modals)

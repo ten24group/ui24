@@ -100,7 +100,7 @@ import dayjs from 'dayjs';
 import React, { useEffect, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
-import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link } from '../core/common';
+import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link, MarkdownPreview } from '../core/common';
 import { IApiConfig, useApi, useAppContext } from '../core/context';
 import { HelpText } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
@@ -267,16 +267,21 @@ const Details: React.FC<IDetailsComponentProps> = ({
     } else if (item?.type === "list") {
       initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
     } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
-      // formate the date value using uiConfig's date-time-formats
-      if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
-        initialValue = new Date(parseInt(initialValue)).toISOString();
-      }
+      // Skip formatting if value is null/undefined/empty
+      if (initialValue == null || initialValue === '') {
+        initialValue = null;  // Will render as "—" by default
+      } else {
+        // formate the date value using uiConfig's date-time-formats
+        if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
+          initialValue = new Date(parseInt(initialValue)).toISOString();
+        }
 
-      initialValue = formatDate(
-        initialValue,
-        item.fieldType as 'date' | 'datetime' | 'time',
-        item.timezone
-      );
+        initialValue = formatDate(
+          initialValue,
+          item.fieldType as 'date' | 'datetime' | 'time',
+          item.timezone
+        );
+      }
     } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType)) {
       // format the boolean value using uiConfig's boolean-formats
       initialValue = formatBoolean(initialValue);
@@ -330,7 +335,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
     try {
       const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
 
-      if (response.status === 200) {
+      if (response.status >= 200 && response.status < 300) {
         const fetchedDetailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
         setDetailResponse(fetchedDetailResponse)
 
@@ -644,10 +649,18 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    if (
-                      [ 'textarea', 'code', 'markdown' ].includes(item.fieldType) ||
-                      item.label === 'content'
-                    ) {
+                    if (item.fieldType === 'markdown') {
+                      return (
+                        <div key={index} className="details-field-container">
+                          <div className="details-field-label">{item.label}</div>
+                          <HelpText helpText={item.helpText} />
+                          <div className="details-fixed-block">
+                            <MarkdownPreview value={value} />
+                          </div>
+                        </div>
+                      );
+                    }
+                    if ([ 'textarea', 'code' ].includes(item.fieldType)) {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{item.label}</div>

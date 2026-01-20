@@ -4,6 +4,8 @@ import { useAuth } from './AuthContext';
 import { useUi24Config } from './UI24Context';
 import { useAppContext } from './AppContext';
 import { getMockData } from '../mock';
+import { setupOperationExecutorTestMocks } from '../mocks/operationExecutorTestMocks';
+import { setupNewFeaturesTestMocks } from '../mocks/newFeaturesTestMocks';
 
 export interface IApiConfig {
     apiUrl: string;
@@ -13,6 +15,7 @@ export interface IApiConfig {
     useSearch?: boolean;
     headers?: Record<string, string>;
     dedupe?: boolean;
+    signal?: AbortSignal; // For request cancellation
 }
 
 // Separate interface for dual endpoint support (search + database)
@@ -51,6 +54,17 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const axiosInstance = axios.create();
     //set base url
     axiosInstance.defaults.baseURL = selectConfig(config => config.baseURL)
+
+    // Enable mock responses only in non-production or when explicitly enabled
+    const enableMocks = selectConfig(config =>
+        config?.apiConfig?.enableMocks ?? process.env.NODE_ENV !== 'production'
+    );
+
+    // Setup mock responses for test pages (no backend deployment needed!)
+    if (enableMocks) {
+        setupOperationExecutorTestMocks(axiosInstance);
+        setupNewFeaturesTestMocks(axiosInstance);
+    }
 
     // Authentication interceptors
     let refreshPromise: Promise<void> | null = null;
@@ -229,6 +243,21 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
             // Mock support
             if (apiConfig.apiUrl.startsWith('/mock/')) {
+                if (!enableMocks) {
+                    return Promise.reject({
+                        message: 'Mock endpoints are disabled in this environment',
+                        response: {
+                            status: 403,
+                            data: {
+                                message: 'Mock endpoints are disabled',
+                                errorType: 'MOCKS_DISABLED',
+                                details: {
+                                    url: apiConfig.apiUrl
+                                }
+                            }
+                        }
+                    });
+                }
 
                 const mockData = await getMockData(apiConfig.apiUrl);
 

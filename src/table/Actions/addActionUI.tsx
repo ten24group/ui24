@@ -3,7 +3,7 @@ import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from 
 import type { TableProps, MenuProps } from "antd";
 import { Icon, Link } from "../../core/common";
 import { Space, Tooltip, Dropdown } from 'antd';
-import { useAppContext, useEvaluationContext, useModalContext } from "../../core/context";
+import { useModalContext } from "../../core/context";
 import { renderSingleAction, MenuItem } from "../../core/utils/actionRenderer";
 import { useEvaluation } from "../../core/hooks";
 import { useCoreNavigator } from "../../routes/Navigation";
@@ -16,7 +16,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
     .map((item, index) => {
       const column = {
         title: item.helpText ? (
-          <Tooltip 
+          <Tooltip
             title={item.helpText}
             placement="top"
             styles={{ root: { maxWidth: '300px' } }}
@@ -44,7 +44,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   //Add action column in Table
   //loop over propertiesConfig and create an object where key is the dataIndex and value is the actions array
   //if the actions array is empty, then do not include the key in the object
-  
+
   const actionIndexValue: IActionIndexValue = propertiesConfig
     .filter(item => Array.isArray(item.actions) && item.actions.length > 0)
     .reduce((acc: IActionIndexValue, item) => {
@@ -65,31 +65,31 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         //create a list of values from the record object based on the keys in actionIndexValue for every action added
         let primaryIndexValue: Array<string> | string = [];
         let recordActions: Array<IPageAction> = [];
-        
+
         for (let key in record) {
           if (key in actionIndexValue && actionIndexValue[ key ]) {
             primaryIndexValue.push(record[ key ]);
             recordActions = actionIndexValue[ key ];
           }
         }
-        
+
         // If no actions found through record matching, find the first configured action set
         if (recordActions.length === 0) {
           for (let key in actionIndexValue) {
-            if (actionIndexValue[key]) {
-              recordActions = actionIndexValue[key];
+            if (actionIndexValue[ key ]) {
+              recordActions = actionIndexValue[ key ];
               break;
             }
           }
         }
-        
+
         primaryIndexValue = primaryIndexValue.join("|");
-        
+
         // NEW: Auto-detect primary identifier from propertiesConfig (Problem 1)
         if (!primaryIndexValue || primaryIndexValue === '') {
           const identifierField = propertiesConfig.find((prop: ITablePropertiesConfig) => prop.isIdentifier);
-          if (identifierField && record[identifierField.dataIndex]) {
-            primaryIndexValue = String(record[identifierField.dataIndex]);
+          if (identifierField && record[ identifierField.dataIndex ]) {
+            primaryIndexValue = String(record[ identifierField.dataIndex ]);
           } else if (record.id) {
             // Fallback to 'id' field
             primaryIndexValue = String(record.id);
@@ -117,66 +117,62 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
   return columns
 }
 
-const ListPageAction = React.memo(({ item, record, primaryIndexValue, getRecordsCallback, routeParams }: { 
-  item: IPageAction, 
-  record: IRecord, 
+const ListPageAction = React.memo(({ item, record, primaryIndexValue, getRecordsCallback, routeParams }: {
+  item: IPageAction,
+  record: IRecord,
   primaryIndexValue: string,
   getRecordsCallback: () => void,
   routeParams: Record<string, string>
 }) => {
 
-  const { notifySuccess } = useAppContext()
   const { isInModal } = useModalContext()
   const navigate = useCoreNavigator();
 
   return (
-    <ListPageActionInner 
+    <ListPageActionInner
       item={item}
       record={record}
       primaryIndexValue={primaryIndexValue}
       getRecordsCallback={getRecordsCallback}
       routeParams={routeParams}
-      notifySuccess={notifySuccess}
       isInModal={isInModal}
       navigate={navigate}
     />
   );
 });
 
-const ListPageActionInner = React.memo(({ 
-  item, 
-  record, 
-  primaryIndexValue, 
-  getRecordsCallback, 
+const ListPageActionInner = React.memo(({
+  item,
+  record,
+  primaryIndexValue,
+  getRecordsCallback,
   routeParams,
-  notifySuccess,
   isInModal,
   navigate
-}: { 
-  item: IPageAction, 
-  record: IRecord, 
+}: {
+  item: IPageAction,
+  record: IRecord,
   primaryIndexValue: string,
   getRecordsCallback: () => void,
   routeParams: Record<string, string>,
-  notifySuccess: (message: string) => void,
   isInModal: boolean,
   navigate: (path: string) => void
 }) => {
-  
+
   // Use raw API data for evaluation (before display formatting mutations)
   // This ensures boolean conditions work correctly (false vs "No")
   const rawRecord = (record as any).__raw__ || record;
   const { visible, enabled, disabledMessage } = useEvaluation(item.visibility, { record: rawRecord });
-  
+
   // Don't render if not visible
   if (!visible) return null;
-  
+
   // Check if this is a dropdown action
   const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
   const isDisabled = !enabled;
-  
+
   if (actionType === 'dropdown' && item.items && item.items.length > 0) {
-    const menuItems: MenuProps['items'] = item.items.map((dropItem, dropIndex) => 
+    const menuItems: MenuProps[ 'items' ] = item.items.map((dropItem, dropIndex) =>
       renderSingleAction({
         action: dropItem,
         key: `${item.label}-${dropIndex}`,
@@ -186,50 +182,50 @@ const ListPageActionInner = React.memo(({
         routeParams,
         primaryIndex: primaryIndexValue,
         record,
-        onSuccessCallback: (response) => {
-          notifySuccess("Operation Successful")
+        // ✅ OperationExecutor handles toasts - only refresh data here
+        onSuccessCallback: () => {
           getRecordsCallback()
         },
         onNavigate: (url) => navigate(url)
       }) as MenuItem
     );
-    
+
     const dropdownTrigger = (
       <a onClick={(e) => e.preventDefault()} style={{ cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1 }}>
         <Icon iconName={item.icon || "more"} />
       </a>
     );
-    
+
     return (
       <Fragment>
         <Tooltip title={isDisabled ? disabledMessage : undefined}>
-          <Dropdown menu={{ items: menuItems }} trigger={['click']} disabled={isDisabled}>
+          <Dropdown menu={{ items: menuItems }} trigger={[ 'click' ]} disabled={isDisabled}>
             {dropdownTrigger}
-        </Dropdown>
+          </Dropdown>
         </Tooltip>
       </Fragment>
     );
   }
-  
+
   // Regular single action - render as Icon for table rows with disabled state
   const modifiedAction = isDisabled ? { ...item, disabled: true } : item;
-  
+
   const actionElement = renderSingleAction({
     action: modifiedAction,
-        key: `action-${item.label}`,
-        isDropdownItem: false,
-        isTableRowAction: true,
-        isInModal,
-        routeParams,
-        primaryIndex: primaryIndexValue,
-        record,
-        onSuccessCallback: (response) => {
-          notifySuccess("Operation Successful")
-          getRecordsCallback()
-        },
-        onNavigate: (url) => navigate(url)
+    key: `action-${item.label}`,
+    isDropdownItem: false,
+    isTableRowAction: true,
+    isInModal,
+    routeParams,
+    primaryIndex: primaryIndexValue,
+    record,
+    // ✅ OperationExecutor handles toasts - only refresh data here
+    onSuccessCallback: () => {
+      getRecordsCallback()
+    },
+    onNavigate: (url) => navigate(url)
   }) as React.ReactNode;
-  
+
   if (isDisabled && disabledMessage) {
     return (
       <Fragment>
@@ -239,7 +235,7 @@ const ListPageActionInner = React.memo(({
       </Fragment>
     );
   }
-  
+
   return (
     <Fragment>
       {actionElement}

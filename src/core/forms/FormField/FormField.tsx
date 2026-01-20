@@ -5,6 +5,8 @@ import { OptionSelector, IOptions } from './OptionSelector';
 import { useUi24Config } from '../../context';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
 import { FileUploader, CustomBlockNoteEditor } from '../../common/';
+import { CodeEditor } from '../../common/CodeEditor';
+import { MarkdownPreview } from '../../common/MarkdownPreview';
 import { HelpText, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
 import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFieldOptions } from '../../types/field-config';
@@ -12,6 +14,38 @@ import { useFieldRenderer, type FormFieldConfig } from '../../registry';
 
 const { TextArea } = Input;
 const { Text } = Typography;
+
+/**
+ * Wrapper component for CodeEditor to properly integrate with Ant Design Form.Item
+ * 
+ * Form.Item expects child components to accept `value` and `onChange` props.
+ * This wrapper ensures the string value from CodeEditor is properly passed to Form.Item.
+ */
+interface CodeEditorFormControlProps {
+    value?: string;
+    onChange?: (value: string) => void;
+    language?: 'json' | 'html' | 'javascript' | 'handlebars' | 'text' | 'markdown';
+    height?: number;
+    readOnly?: boolean;
+    darkTheme?: boolean;
+    placeholder?: string;
+    lineNumbers?: boolean;
+    validateJson?: boolean;
+}
+
+const CodeEditorFormControl: React.FC<CodeEditorFormControlProps> = ({
+    value,
+    onChange,
+    ...restProps
+}) => {
+    return (
+        <CodeEditor
+            value={value || ''}
+            onChange={onChange}
+            {...restProps}
+        />
+    );
+};
 
 const MakeFormItem = ({
     fieldType = "text",
@@ -177,16 +211,6 @@ const MakeFormItem = ({
             {fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
             {fieldType === "time" && <TimePicker format={formatConfig.time} />}
 
-            {fieldType === "json" && (<>
-                <TextArea rows={8} placeholder={placeholder} />
-            </>)}
-            {fieldType === "code" && (<>
-                <TextArea rows={8} placeholder={placeholder} />
-            </>)}
-            {fieldType === "markdown" && (<>
-                <TextArea rows={8} placeholder={placeholder} />
-            </>)}
-
             {fieldType === "file" &&
                 <FileUploader
                     accept={restFormItemProps[ 'accept' ] ?? undefined}
@@ -225,6 +249,22 @@ const MakeFormItem = ({
                     uploadFile={restFormItemProps[ 'uploadFile' ] ?? undefined}
                 />
             }
+
+            {fieldType.toLocaleLowerCase() === 'markdown' && restFormItemProps[ 'readOnly' ] ? (
+                // Markdown in read-only mode: show preview
+                <MarkdownPreview />
+            ) : [ 'code', 'markdown', 'json' ].includes(fieldType.toLocaleLowerCase()) ? (
+                // Code/Markdown/JSON in edit mode: show editor
+                <CodeEditorFormControl
+                    language={fieldType.toLocaleLowerCase() === 'code' ? (restFormItemProps[ 'codeLanguage' ] || 'text') : fieldType.toLocaleLowerCase() as 'json' | 'markdown'}
+                    height={restFormItemProps[ 'height' ] ?? 300}
+                    readOnly={restFormItemProps[ 'readOnly' ] ?? false}
+                    darkTheme={restFormItemProps[ 'darkTheme' ] ?? false}
+                    placeholder={placeholder}
+                    lineNumbers={restFormItemProps[ 'lineNumbers' ] ?? true}
+                    validateJson={restFormItemProps[ 'validateJson' ] ?? true}
+                />
+            ) : null}
         </Form.Item>
         <HelpText helpText={helpText} />
     </>

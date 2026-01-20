@@ -11,7 +11,7 @@ import { useModalDepth } from '../../modal/Modal';
 
 export interface PageStaticContextValue {
   // NOTE: keep this aligned with PostAuthPage supported page types.
-  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom';
+  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom' | 'wizard';
   entityName?: string;
   config: unknown; // Full page config from entities.json
   route: {
@@ -41,7 +41,7 @@ export const PageStaticProvider = ({
   const params = useParams();
   const location = useLocation();
   const modalDepth = useModalDepth();
-  
+
   // Store previous config reference to detect actual changes
   const configRef = React.useRef(config);
   const stableConfig = React.useMemo(() => {
@@ -53,7 +53,7 @@ export const PageStaticProvider = ({
     }
     return configRef.current;
   }, [ config ]);
-  
+
   const value = useMemo((): PageStaticContextValue => {
     return {
       pageType,
@@ -70,7 +70,7 @@ export const PageStaticProvider = ({
       }
     };
   }, [ pageType, entityName, stableConfig, params, location.search, location.pathname, modalDepth ]);
-  
+
   return (
     <PageStaticContext.Provider value={value}>
       {children}

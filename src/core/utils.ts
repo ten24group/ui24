@@ -15,26 +15,54 @@ export function replaceAll(target: string, search: string, replacement: string) 
   return target.split(search).join(replacement);
 }
 
+/**
+ * Remove trailing slash from a path/URL, preserving root path "/"
+ * 
+ * CRITICAL for AWS API Gateway signature calculation:
+ * - API Gateway routes do NOT have trailing slashes
+ * - URL normalization CAN add trailing slashes
+ * - Signature mismatch = 403 Forbidden
+ * 
+ * @param path - Path or URL to strip trailing slash from
+ * @returns Path without trailing slash (unless it's root "/")
+ * 
+ * @example
+ * stripTrailingSlash('/admin/system/rebuild-index/') // '/admin/system/rebuild-index'
+ * stripTrailingSlash('/admin/system/rebuild-index')  // '/admin/system/rebuild-index'
+ * stripTrailingSlash('/')                            // '/'
+ */
+export function stripTrailingSlash(path: string): string {
+  if (!path || path === '/' || !path.endsWith('/')) {
+    return path;
+  }
+  return path.slice(0, -1);
+}
+
 export function addPathToUrl(baseURL: string, endpoint: string) {
   if (!isValidURL(baseURL)) {
     throw new Error(`Invalid base URL: ${baseURL}`);
   }
 
-  // make sure base url ends with a slash and endpoint always starts with a slash `/` 
+  // make sure base url ends with a slash
   if (!baseURL.endsWith('/')) {
     baseURL = `${baseURL}/`
   }
 
-  // Make sure path does-not end with a trailing-slash `/` 
-  // [AWS signature needs the exact path (with or without slash)]
-  // And API gateway strips teh training slash from the API-endpoint
-  // * we need to make sure that API, Auth-policy, and Frontend-code all follow the same convention
+  // Clean up endpoint: remove duplicate slashes
   endpoint = replaceAll(`./${endpoint}`, '//', '/');
-  endpoint = endpoint.endsWith('/') ? endpoint.slice(0, -1) : endpoint;
+  endpoint = stripTrailingSlash(endpoint);
+
+  // CRITICAL: Strip leading slash to make endpoint relative, not absolute
+  // If endpoint starts with '/', new URL() treats it as absolute path and replaces baseURL path entirely
+  // This would lose the /v1 prefix from baseURL!
+  if (endpoint.startsWith('/')) {
+    endpoint = endpoint.substring(1);
+  }
 
   const newUrl = new URL(endpoint, baseURL);
 
-  return newUrl.toString();
+  // Use centralized utility to strip trailing slash from final URL
+  return stripTrailingSlash(newUrl.toString());
 }
 
 export function convertUTCDateToLocalDate(date: string | Date): Date {
@@ -103,9 +131,10 @@ export const substituteUrlParams = (
   }
 
   // Check if URL has placeholders (like :entityName, :id, :indexInfo.uid, :aaa.123.frfr.4545, etc.)
-  if (/:([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/.test(url)) {
+  // Support both /:param and ^:param (start of string)
+  if (/(?:^|\/):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/.test(url)) {
     // Use parameter substitution for URLs with placeholders
-    return url.replace(/:([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g, (match, param) => {
+    return url.replace(/(^|\/):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g, (match, prefix, param) => {
       let value: any;
 
       // First try to get the parameter from routeParams (for simple params like :entityName)
@@ -130,8 +159,8 @@ export const substituteUrlParams = (
         return match;
       }
 
-      // Return the value as-is (case-insensitive route matching handles any case mismatches)
-      return String(value);
+      // Return the value with the prefix (slash or empty string)
+      return `${prefix}${String(value)}`;
     });
   } else if (fallbackIdentifier !== undefined) {
     // Legacy behavior: append identifier to URL (only if we have an identifier)

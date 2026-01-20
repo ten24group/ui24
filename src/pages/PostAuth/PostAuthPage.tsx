@@ -11,9 +11,11 @@ import { IDetailsConfig } from '../../detail/Details';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../../core/common';
+import { IWizardPageConfig } from '../../core/common/FormWizard';
 import { PageDataProvider } from '../../core/context/PageDataContext';
 import { PageStaticContextValue, PageStaticProvider } from '../../core/context/PageStaticContext';
 import { CustomPage, ICustomPageConfig } from './CustomPage';
+import { WizardPage } from '../wrappers/WizardPage';
 import {
   ExtensionRegistry,
   buildResolverContext,
@@ -44,6 +46,8 @@ export interface IRenderFromPageType extends IPageHeader {
   dashboardPageConfig?: IDashboardPageConfig;
   /** Custom page configuration (when pageType='custom') */
   customPageConfig?: ICustomPageConfig;
+  /** Wizard page configuration (when pageType='wizard') */
+  wizardPageConfig?: IWizardPageConfig;
   /** Current nesting depth (for recursive sections) */
   depth?: number;
 }
@@ -122,6 +126,7 @@ interface IRenderFromPageTypeProps extends IRenderFromPageType {
   routeParams?: IRouteParams;
   dashboardPageConfig?: IDashboardPageConfig;
   customPageConfig?: ICustomPageConfig;
+  wizardPageConfig?: IWizardPageConfig;
   depth?: number;
 }
 
@@ -168,6 +173,7 @@ export const RenderFromPageType = ({
   routeParams = {},
   dashboardPageConfig,
   customPageConfig,
+  wizardPageConfig,
   depth = 0,
   // PageHeader props from parent
   pageHeaderActions,
@@ -324,6 +330,18 @@ export const RenderFromPageType = ({
     );
     case "accordion": return <Accordion accordionsPageConfig={accordionsPageConfig} routeParams={routeParams} />;
     case "dashboard": return <DashboardPage dashboardConfig={dashboardPageConfig} routeParams={routeParams} />;
+    case "wizard": return (
+      <WizardPage
+        {...wizardPageConfig}
+        routeParams={routeParams}
+        cardStyle={cardStyle}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        depth={depth}
+        key={`wizard-${stableKey}`}
+      />
+    );
     case "custom": return (
       <CustomPage
         config={customPageConfig!}

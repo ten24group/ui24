@@ -241,7 +241,7 @@ class Authenticator implements IAuthProvider {
         }
 
         try {
-            const response = await this.axiosInstance.post(`${this.AWS_TEMP_CREDENTIALS_API_ENDPOINT}/`, { idToken: tokenData.IdToken });
+            const response = await this.axiosInstance.post(this.AWS_TEMP_CREDENTIALS_API_ENDPOINT, { idToken: tokenData.IdToken });
             return response as AxiosResponse<{
                 Credentials: {
                     AccessKeyId: string;
@@ -267,7 +267,7 @@ class Authenticator implements IAuthProvider {
             throw new Error('Unauthorized: No RefreshToken available for IdToken refresh');
         }
         console.log('refreshing id token');
-        const response = await this.axiosInstance.post(this.REFRESH_TOKEN_API_ENDPOINT + '/', {
+        const response = await this.axiosInstance.post(this.REFRESH_TOKEN_API_ENDPOINT, {
             refreshToken: refreshToken
         });
 
