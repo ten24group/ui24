@@ -303,7 +303,7 @@ class ExtensionRegistryImpl {
       description: config.description
     });
 
-    this.log('info', `Registered field renderer: ${config.key}`);
+    // this.log('info', `Registered field renderer: ${config.key}`);
   }
 
   /**

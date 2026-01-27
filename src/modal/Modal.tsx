@@ -745,6 +745,11 @@ export const Modal = ({
                 dashboardPageConfig={
                   modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
                 }
+                customPageConfig={
+                  modalType === "custom" && modalPageConfig && 'componentKey' in modalPageConfig
+                    ? modalPageConfig as any
+                    : undefined
+                }
                 identifiers={identifiers}
                 routeParams={routeParams}
               />

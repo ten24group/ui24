@@ -245,6 +245,4 @@ export function setupNewFeaturesTestMocks(axiosInstance: AxiosInstance) {
       return Promise.reject(error);
     }
   );
-
-  console.log('[MOCK] New Features Test mocks initialized');
 }

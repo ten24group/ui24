@@ -471,6 +471,21 @@ export type IPageAction = {
    * Evaluated using the universal evaluation system.
    */
   visibility?: VisibilityConfig;
+
+  /**
+   * Link target attribute for external URLs.
+   * Only applicable when url is set and action navigates to an external link.
+   * Default: '_blank' for URLs starting with http:// or https://
+   * 
+   * @example
+   * // Open external link in new tab
+   * {
+   *   label: 'View on Platform',
+   *   url: '{platformPostUrl}',
+   *   target: '_blank'
+   * }
+   */
+  target?: '_blank' | '_self' | '_parent' | '_top';
 };
 
 export interface IActionIndexValue {

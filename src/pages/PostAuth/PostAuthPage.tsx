@@ -23,6 +23,7 @@ import {
   type OverridablePageType,
   type OriginalPageConfig
 } from '../../core/registry';
+import { Alert } from 'antd';
 
 export type IPageType = PageStaticContextValue[ 'pageType' ];
 
@@ -342,14 +343,24 @@ export const RenderFromPageType = ({
         key={`wizard-${stableKey}`}
       />
     );
-    case "custom": return (
-      <CustomPage
-        config={customPageConfig!}
-        routeParams={routeParams}
-        depth={depth}
-        entityName={entityName}
-      />
-    );
+    case "custom": {
+      if (!customPageConfig) {
+        return (
+          <Alert
+            type="error"
+            message="Error: Custom page configuration is missing. Please check your modal or page configuration."
+          />
+        );
+      }
+      return (
+        <CustomPage
+          config={customPageConfig}
+          routeParams={routeParams}
+          depth={depth}
+          entityName={entityName}
+        />
+      );
+    }
     default: return <>Invalid Page Type: {pageType}</>;
   }
 }

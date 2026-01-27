@@ -255,19 +255,40 @@ export const renderSingleAction = ({
     url = substituteUrlParams(url, routeParams);
   }
 
+  // Check if this is an external URL (starts with http:// or https://)
+  const isExternalUrl = /^https?:\/\//i.test(url);
+  const target = action.target || (isExternalUrl ? '_blank' : undefined);
+
+  // Helper to handle navigation - external URLs open in new tab if target is _blank
+  const handleNavigation = (e?: React.MouseEvent) => {
+    if (isDisabled) return;
+    if (e) e.preventDefault();
+
+    if (target === '_blank' || isExternalUrl) {
+      window.open(url, target || '_blank', 'noopener,noreferrer');
+    } else {
+      onNavigate?.(url);
+    }
+  };
+
   if (isDropdownItem) {
     return {
       key,
       label: evaluatedLabel,
       icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
-      onClick: () => onNavigate?.(url)
+      onClick: () => handleNavigation()
     } as MenuItem;
   }
 
   // For table rows, return Link with Icon
   if (isTableRowAction) {
     return wrapWithTooltip(
-      <a href={isDisabled ? undefined : url} onClick={(e) => { e.preventDefault(); onNavigate?.(url); }}>
+      <a
+        href={isDisabled ? undefined : url}
+        target={target}
+        rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+        onClick={handleNavigation}
+      >
         <Icon iconName={action.icon} />
       </a>
     );
@@ -279,7 +300,7 @@ export const renderSingleAction = ({
       key={key}
       type="primary"
       disabled={isDisabled}
-      onClick={() => onNavigate?.(url)}
+      onClick={() => handleNavigation()}
     >
       {evaluatedLabel}
     </Button>
