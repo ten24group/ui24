@@ -1,6 +1,7 @@
 const path = require('path');
 const webpack = require('webpack');
 const CompressionPlugin = require("compression-webpack-plugin");
+const packageJson = require('./package.json');
 
 module.exports = {
   entry: './src/index.tsx',
@@ -55,6 +56,9 @@ module.exports = {
     ],
   },
   plugins: [
+    new webpack.DefinePlugin({
+      'process.env.UI24_VERSION': JSON.stringify(packageJson.version),
+    }),
     new webpack.optimize.LimitChunkCountPlugin({
       maxChunks: 1, // Forces all code into a single file
     }),

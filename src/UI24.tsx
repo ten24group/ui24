@@ -8,6 +8,10 @@ import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContex
 import { ResponseModalProvider } from './core/context/ResponseModalContext';
 import { IUi24Config } from './core/context';
 
+// Log UI24 version on load
+const UI24_VERSION = process.env.UI24_VERSION || 'unknown';
+console.log(`%c[UI24] v${UI24_VERSION}`, 'color: #1890ff; font-weight: bold;');
+
 type ConfigResolver<T extends unknown> = T // the config itself
     | string  // config url/endpoint
     | (() => Promise<T>) // a function that resolves the config

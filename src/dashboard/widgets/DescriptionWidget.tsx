@@ -3,6 +3,7 @@ import { Descriptions, Card, Typography } from 'antd';
 import { useApi } from '../../core/context';
 import { formatKey } from '../../core/utils';
 import { JsonDescription } from '../../core/common';
+import { WidgetError } from './WidgetError';
 
 const { Text } = Typography;
 
@@ -134,8 +135,8 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
             styles={{ body: { padding: '16px' } }}
         >
             {error ? (
-                <div style={{ color: 'red', padding: '16px', textAlign: 'center' }}>
-                    {error}
+                <div style={{ padding: '16px' }}>
+                    <WidgetError message={error} />
                 </div>
             ) : (
                 <Descriptions
