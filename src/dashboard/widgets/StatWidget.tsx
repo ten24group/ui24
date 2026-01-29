@@ -3,6 +3,7 @@ import * as AntIcons from '@ant-design/icons';
 import './StatWidget.css';
 import { useApi } from '../../core/context';
 import { substituteUrlParams } from '../../core/utils';
+import { WidgetError } from './WidgetError';
 
 export interface ITrendConfig {
   direction: 'up' | 'down';
@@ -161,7 +162,7 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
         className="stat-widget-value-row"
         style={{ color: options?.color || undefined }}
       >
-        {loading ? '...' : error ? <span style={{ color: 'red' }}>{error}</span> : apiData.value}
+        {loading ? '...' : error ? <WidgetError message={error} inline /> : apiData.value}
         {!loading && !error && apiData.trend && (
           <TrendArrow
             value={apiData.trend.value}

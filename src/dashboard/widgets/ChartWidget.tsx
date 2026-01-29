@@ -4,6 +4,7 @@ import './ChartWidget.css';
 import { useApi } from '../../core/context';
 import { TimePeriodSelector, TimePeriodSelectorProps } from './TimePeriodSelector';
 import { substituteUrlParams } from '../../core/utils';
+import { WidgetError } from './WidgetError';
 
 export type ChartType = 'line' | 'bar' | 'area' | 'pie';
 
@@ -130,12 +131,12 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
   }, [dataConfig, callApiMethod, effectivePayload, routeParams]);
 
   if (options?.type !== 'pie' && (!options?.xField || !options?.yField)) {
-    return <div className="chart-widget-error">Missing required xField or yField configuration</div>;
+    return <div className="chart-widget-error"><WidgetError message="Missing required xField or yField configuration" /></div>;
   }
   if (options?.type !== 'pie') {
     const hasValidYField = chartData.every(d => d && (typeof d[options.yField!] === 'number' || typeof d[options.yField!] === 'string'));
     if (!hasValidYField && chartData.length > 0) {
-      return <div className="chart-widget-error">Data is missing the required yField: {options.yField}</div>;
+      return <div className="chart-widget-error"><WidgetError message={`Data is missing the required yField: ${options.yField}`} /></div>;
     }
   }
 
@@ -189,7 +190,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
 
   const renderChart = () => {
     if (loading) return <div className="chart-widget-loading">Loading...</div>;
-    if (error) return <div className="chart-widget-error">{error}</div>;
+    if (error) return <div className="chart-widget-error"><WidgetError message={error} /></div>;
     if (!chartData.length) return <div className="chart-widget-empty">No data available</div>;
 
     switch (options?.type) {
