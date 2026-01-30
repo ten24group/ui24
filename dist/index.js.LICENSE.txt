@@ -5,45 +5,48 @@
 */
 
 /*!
+ * @antv/g-canvas
+ * @description A renderer implemented by Canvas 2D API
+ * @version 2.2.0
+ * @date 12/24/2025, 11:55:53 AM
+ * @author AntVis
+ * @docs https://g.antv.antgroup.com/
+ */
+
+/*!
  * @antv/g-math
  * @description Geometry util
- * @version 3.0.1
- * @date 5/9/2025, 8:18:51 AM
+ * @version 3.1.0
+ * @date 12/22/2025, 3:02:36 AM
  * @author AntVis
  * @docs https://g.antv.antgroup.com/
  */
 
 /*!
- * @antv/g-plugin-canvas-path-generator
- * @description A G plugin of path generator with Canvas2D API
- * @version 2.1.22
- * @date 7/30/2025, 1:35:25 PM
- * @author AntVis
- * @docs https://g.antv.antgroup.com/
+ * html2canvas 1.4.1 <https://html2canvas.hertzen.com>
+ * Copyright (c) 2022 Niklas von Hertzen <https://hertzen.com>
+ * Released under MIT License
  */
 
 /*!
- * @antv/g-plugin-image-loader
- * @description A G plugin for loading image
- * @version 2.1.26
- * @date 7/30/2025, 1:35:52 PM
- * @author AntVis
- * @docs https://g.antv.antgroup.com/
- */
-
-/*!
- * @antv/g-web-animations-api
- * @description A simple implementation of Web Animations API.
- * @version 2.1.28
- * @date 7/30/2025, 1:36:24 PM
- * @author AntVis
- * @docs https://g.antv.antgroup.com/
- */
-
-/*!
-* tabbable 6.3.0
+* tabbable 6.4.0
 * @license MIT, https://github.com/focus-trap/tabbable/blob/master/LICENSE
 */
+
+/*! *****************************************************************************
+    Copyright (c) Microsoft Corporation.
+
+    Permission to use, copy, modify, and/or distribute this software for any
+    purpose with or without fee is hereby granted.
+
+    THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+    REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+    AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+    INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+    LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+    OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+    PERFORMANCE OF THIS SOFTWARE.
+    ***************************************************************************** */
 
 /*! regenerator-runtime -- Copyright (c) 2014-present, Facebook, Inc. -- license (MIT): https://github.com/babel/babel/blob/main/packages/babel-helpers/LICENSE */
 
