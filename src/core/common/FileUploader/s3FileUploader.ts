@@ -16,6 +16,7 @@ export type IS3FileUploaderOptions = {
   fileNamePrefix?: string;
   getSignedUploadUrlAPIConfig: GetSignedUploadUrlAPIConfig;
   callApiMethod?: Function
+  additionalPayload?: Record<string, any>;
 }
 
 export type S3FileUploaderSuccessResponse = AxiosResponse<{ name: string, url: string }, any>;
@@ -31,7 +32,7 @@ export type S3FileUploaderOptions = {
   onProgress: OnProgressCallback,
 };
 
-export const s3FileUploader = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod }: IS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions) => {
+export const s3FileUploader = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod, additionalPayload }: IS3FileUploaderOptions) => ({ file, onError, onSuccess, onProgress }: S3FileUploaderOptions) => {
   console.log('s3FileUploader', { fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod });
   const signedUrlPayload = {
     fileName: file.name,
@@ -41,7 +42,10 @@ export const s3FileUploader = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, ca
 
   callApiMethod({
     ...getSignedUploadUrlAPIConfig,
-    payload: signedUrlPayload
+    payload: {
+      ...signedUrlPayload,
+      ...additionalPayload,
+    }
   })
     .then(async (response) => {
 

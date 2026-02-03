@@ -6,54 +6,54 @@ import { useApi } from '../../context';
 import { GetSignedUploadUrlAPIConfig, s3FileUploader } from './s3FileUploader';
 import classNames from 'classnames';
 
-type FileType = Parameters<GetProp<UploadProps, 'beforeUpload'>>[0];
+type FileType = Parameters<GetProp<UploadProps, 'beforeUpload'>>[ 0 ];
 
 
-export type ImageUploaderProps = Exclude<UploadProps, 'maxCount' | 'customRequest' | 'showUploadList' | 'accept' | 'fileList'> &  {
-  
+export type ImageUploaderProps = Exclude<UploadProps, 'maxCount' | 'customRequest' | 'showUploadList' | 'accept' | 'fileList'> & {
+
   // Form Image picker
   accept?: string;
   listType?: 'picture-card' | 'picture' | 'text';
   withImageCrop?: boolean;
-  
+
   // image uploader
   fileNamePrefix?: string;
-  getSignedUploadUrlAPIConfig ?: GetSignedUploadUrlAPIConfig,
-
+  getSignedUploadUrlAPIConfig?: GetSignedUploadUrlAPIConfig,
+  additionalPayload?: Record<string, any>;
   // form-input
   value?: string;
   readOnly?: boolean;
   onChange?: (value: string) => void;
 }
 
-export const FileUploader = (props: ImageUploaderProps ) => {
-  let { 
+export const FileUploader = (props: ImageUploaderProps) => {
+  let {
 
     className = "avatar-uploader",
 
-    accept= '*/*', 
-    listType='text', 
+    accept = '*/*',
+    listType = 'text',
     withImageCrop = false,
 
-    fileNamePrefix = '', 
-    getSignedUploadUrlAPIConfig, 
-
-    value, 
-    readOnly= false,
+    fileNamePrefix = '',
+    getSignedUploadUrlAPIConfig,
+    additionalPayload,
+    value,
+    readOnly = false,
     onChange: customOnChange,
 
-    ...restProps 
+    ...restProps
   } = props;
 
-  const [loading, setLoading] = useState<boolean>(false);
-  const [uploadedFileList, setFileList] = useState<UploadFile[]>();
-  
+  const [ loading, setLoading ] = useState<boolean>(false);
+  const [ uploadedFileList, setFileList ] = useState<UploadFile[]>();
+
   const { callApiMethod } = useApi()
   useEffect(() => {
-    if(!value) {
+    if (!value) {
       return;
     }
-    
+
     setFileList([
       {
         uid: undefined,
@@ -62,27 +62,27 @@ export const FileUploader = (props: ImageUploaderProps ) => {
         url: value,
       }
     ])
-  }, [value]);
-  
-  const defaultFileUploader = s3FileUploader({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod });
+  }, [ value ]);
 
-  const handleChange: UploadProps['onChange'] = (info) => {
+  const defaultFileUploader = s3FileUploader({ fileNamePrefix, getSignedUploadUrlAPIConfig, callApiMethod, additionalPayload });
+
+  const handleChange: UploadProps[ 'onChange' ] = (info) => {
     setFileList(info.fileList);
 
     if (info.file.status === 'uploading') {
       setLoading(true);
-    } 
-    else if(info.file.status === 'error') {
+    }
+    else if (info.file.status === 'error') {
       setLoading(false);
     }
     else if (info.file.status === 'done') {
       const uploadedImageUrl = info.file.response.data.url as string;
-      customOnChange(uploadedImageUrl);
+      customOnChange?.(uploadedImageUrl);
       setLoading(false);
     }
   };
-  
-  const handlePreview: UploadProps['onPreview'] = async (file: UploadFile) => {
+
+  const handlePreview: UploadProps[ 'onPreview' ] = async (file: UploadFile) => {
     let src = file.url as string;
     if (!src) {
       src = await new Promise((resolve) => {
@@ -97,8 +97,8 @@ export const FileUploader = (props: ImageUploaderProps ) => {
     imgWindow?.document.write(image.outerHTML);
   };
 
-  const handleRemove: UploadProps['onRemove'] = () => {
-    customOnChange(undefined);
+  const handleRemove: UploadProps[ 'onRemove' ] = () => {
+    customOnChange?.(undefined);
   }
 
   const uploadButton = (
@@ -120,7 +120,7 @@ export const FileUploader = (props: ImageUploaderProps ) => {
       maxCount={1}
       disabled={loading || readOnly}
       showUploadList={true}
-      
+
       onChange={handleChange}
       onPreview={handlePreview}
       onRemove={handleRemove}
@@ -132,14 +132,14 @@ export const FileUploader = (props: ImageUploaderProps ) => {
 
   return (
     <>
-      { withImageCrop && <ImgCrop 
-        zoomSlider 
-        aspectSlider 
-        rotationSlider 
-        showReset 
-        showGrid 
+      {withImageCrop && <ImgCrop
+        zoomSlider
+        aspectSlider
+        rotationSlider
+        showReset
+        showGrid
         modalWidth={800}
-        quality={1} 
+        quality={1}
         minZoom={.1}
         maxZoom={5}
         cropperProps={{
@@ -147,7 +147,7 @@ export const FileUploader = (props: ImageUploaderProps ) => {
           zoomSpeed: .1,
         } as any}
       >{imageUploader}</ImgCrop>}
-      { !withImageCrop && imageUploader}
+      {!withImageCrop && imageUploader}
     </>
   )
 };

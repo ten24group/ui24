@@ -14,12 +14,35 @@ export const useFormat = () => {
      */
     const formatDate = (date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
         try {
+            // Return empty string for null, undefined, or empty values
+            if (date === null || date === undefined || date === '') {
+                return date as any;
+            }
 
             const formatString = formatConfig?.[ type ];
-            return date ? dayjsCustom.tz(date, timezone).format(formatString) : '';
+            const dayjsDate = dayjsCustom.tz(date, timezone);
+
+            // If invalid date, return original value (don't hide the data)
+            if (!dayjsDate.isValid()) {
+                console.error('[useFormat] Invalid date detected:', {
+                    value: date,
+                    valueType: typeof date,
+                    timezone,
+                    formatType: type,
+                    stack: new Error().stack
+                });
+                return date as any;
+            }
+
+            return dayjsDate.format(formatString);
         } catch (error) {
-            console.error('Error formatting date:', error);
-            return date as any;
+            console.error('[useFormat] Error formatting date:', error, {
+                value: date,
+                valueType: typeof date,
+                timezone,
+                formatType: type
+            });
+            return error.message;
         }
     }
 
@@ -37,7 +60,7 @@ export const useFormat = () => {
         // IMPORTANT: Treat null/undefined as "no value" (not false).
         // The Details view sometimes formats booleans even when backend omits the field,
         // and we must not render "False" for missing data (e.g., audit success is often undefined).
-        if (value === null || value === undefined) return '';
+        if (value === null || value === undefined) return value as any;
 
         // Strict boolean
         if (typeof value === 'boolean') {
@@ -49,16 +72,16 @@ export const useFormat = () => {
             const v = value.trim().toLowerCase();
             if (v === 'true' || v === 'yes' || v === '1') return formatConfig?.boolean?.true || 'True';
             if (v === 'false' || v === 'no' || v === '0') return formatConfig?.boolean?.false || 'False';
-            return '';
+            return value as any;
         }
 
         if (typeof value === 'number') {
             if (value === 1) return formatConfig?.boolean?.true || 'True';
             if (value === 0) return formatConfig?.boolean?.false || 'False';
-            return '';
+            return value as any;
         }
 
-        return '';
+        return value as any;
     }
 
     return { formatDate, formatBoolean };
