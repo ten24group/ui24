@@ -109,7 +109,7 @@ export const WidgetRenderer: React.FC<{
         return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} />;
       case 'list': {
         const { propertiesConfig = [], apiConfig = { apiUrl: '', apiMethod: 'GET' }, ...rest } = widget.options || {};
-        return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} {...rest} />;
+        return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} {...rest} />;
       }
       case 'actions': {
         const { actions = [] } = widget.options || {};
