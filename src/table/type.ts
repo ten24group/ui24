@@ -240,6 +240,18 @@ export interface ITableConfig {
     entityName?: string;
     selectedRowKeys?: ReadonlyArray<React.Key>;
   }) => void;
+
+  /**
+   * Whether to show the table toolbar (search, refresh, column settings, filters).
+   * @default true
+   */
+  showToolbar?: boolean;
+
+  /**
+   * Whether to show pagination controls.
+   * @default true
+   */
+  showPagination?: boolean;
 }
 
 export interface ITablePropertiesConfig extends IFieldTypeProperties {

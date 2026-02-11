@@ -131,10 +131,10 @@ export const substituteUrlParams = (
   }
 
   // Check if URL has placeholders (like :entityName, :id, :indexInfo.uid, :aaa.123.frfr.4545, etc.)
-  // Support both /:param and ^:param (start of string)
-  if (/(?:^|\/):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/.test(url)) {
+  // Support /:param (path), ^:param (start of string), and =:param (query string values)
+  if (/(?:^|[/=]):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/.test(url)) {
     // Use parameter substitution for URLs with placeholders
-    return url.replace(/(^|\/):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g, (match, prefix, param) => {
+    return url.replace(/(^|[/=]):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g, (match, prefix, param) => {
       let value: any;
 
       // First try to get the parameter from routeParams (for simple params like :entityName)

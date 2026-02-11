@@ -151,6 +151,8 @@ export const Table = ({
   fetchStrategy,  // Fetch strategy from backend config
   pageSize: initialPageSize,  // Default page size from backend config
   onDataChange,  // Callback to lift state to wrapper
+  showToolbar = true,
+  showPagination = true,
 }: ITableConfig) => {
   // Build placeholder context for segments and filters
   const placeholderContext = usePlaceholderContext(routeParams);
@@ -554,6 +556,7 @@ export const Table = ({
       }}
     >
 
+      {showToolbar && (
       <div className="table-toolbar">
         <div style={{ flex: 1 }}>
           {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
@@ -614,6 +617,7 @@ export const Table = ({
           </Tooltip>
         </div>
       </div>
+      )}
 
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
       {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
@@ -736,9 +740,11 @@ export const Table = ({
             rowSelection={rowSelection}
             expandable={expandable}
           />
+          {showPagination && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
             {renderPagination()}
           </div>
+          )}
         </>
       )}
     </ErrorBoundary>
