@@ -17,6 +17,9 @@ export {
   getWidgetRenderer
 } from './hooks';
 
+// Condition-aware hooks
+export { useFieldRendererWithConditions } from './hooks';
+
 // Deprecated hook versions (kept for backward compat - do NOT use in loops)
 export {
   useFieldRenderer,
@@ -29,7 +32,7 @@ export type {
   // Context types
   ResolverContext,
   RouteParams,
-  UserContext,
+  ActorContext,
   FeatureFlags,
 
   // Page types
@@ -65,7 +68,6 @@ export type {
   WidgetTypeOverrideConfig,
 
   // Conditional types
-  RegistrationCondition,
   ConditionFn,
   ConditionalRegistrationConfig,
 

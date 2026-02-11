@@ -26,6 +26,7 @@ import { createModalConfig } from "./utils/modalConfigHelper";
 import * as Icons from '@ant-design/icons';
 import { formatDuration, formatTTL, DurationUnit, TTLUnit, DurationFormat, TTLFormat } from "../core/utils/duration";
 import { getColumnRenderer, type ColumnConfig } from "../core/registry";
+import { useEvaluatedItems } from "../core/hooks/useEvaluatedItems";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -551,7 +552,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     />
   );
 
-  const selectableColumns = React.useMemo(() => propertiesConfig.filter(p => !p.isIdentifier), [ propertiesConfig ]);
+  // Batch evaluate column visibility conditions
+  const { visibleItems: conditionVisibleProperties } = useEvaluatedItems(propertiesConfig);
+
+  const selectableColumns = React.useMemo(() => conditionVisibleProperties.filter(p => !p.isIdentifier), [ conditionVisibleProperties ]);
 
   const handleColumnSettingsChange = (newSettings) => {
     setColumnSettings(newSettings);
@@ -973,7 +977,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   }, []);
 
   const columns = addFilterUI(
-    addActionUI(propertiesConfig, handleReload, routeParams),
+    addActionUI(conditionVisibleProperties, handleReload, routeParams),
     applyFilters,
     removeFilter,
     getAppliedFilterForColumn,

@@ -14,10 +14,11 @@ import { IDetailsConfig } from '../../../detail/Details';
 import { IForm } from '../../../core/forms/formConfig';
 import { IDashboardPageConfig } from '../DashboardPage';
 import { useEntityConfig } from '../../../core/hooks';
-import type { VisibilityConfig } from '../../../core/types/evaluation';
+import type { Condition } from '../../../core/types/evaluation';
 import type { IEntityConfigReference } from '../../../core/hooks/useEntityConfig';
-import { universalEvaluator } from '../../../core/utils/UniversalEvaluator';
-import { useEvaluationContext } from '../../../core/context/EvaluationContext';
+import { conditionEvaluator } from '../../../core/utils/ConditionEvaluator';
+import { NeedsAsyncError } from '../../../core/utils/NeedsAsyncError';
+import { useNewEvaluationContext } from '../../../core/context/NewEvaluationContext';
 import { CollapsibleSectionCard } from './CollapsibleSectionCard';
 import { substituteUrlParams, useApi } from '../../../core';
 
@@ -55,7 +56,7 @@ export interface ISectionConfig {
   readonly label: Template;
   readonly icon?: string;
   readonly badge?: SectionBadgeConfig | ReadonlyArray<SectionBadgeConfig> | Array<SectionBadgeConfig>;
-  readonly visibility?: VisibilityConfig;
+  readonly visibility?: Condition;
   readonly sortOrder?: number;
   readonly pageType: 'list' | 'details' | 'form' | 'dashboard';
   readonly listPageConfig?: ITableConfig;
@@ -90,7 +91,7 @@ export interface ISectionGroup {
   readonly id: string;
   readonly label?: Template;
   readonly icon?: string;
-  readonly visibility?: VisibilityConfig;
+  readonly visibility?: Condition;
   readonly sortOrder?: number;
   readonly renderMode?: 'tabs' | 'accordion';
   readonly lazyLoad?: boolean;
@@ -449,32 +450,52 @@ const SectionGroupRenderer: React.FC<{
       });
     }, [ sections ]);
 
-    // Default to first section (for tabs) or empty (for accordions)
-    const defaultActiveKey = renderMode === 'tabs' ? (sortedSections[ 0 ]?.[ 0 ] || '') : '';
+    // Filter out invisible sections using synchronous condition evaluation
+    // This produces the canonical visibility-filtered list used by ALL downstream logic
+    const visibleSortedSections = useMemo(() => {
+      return sortedSections.filter(([ , section ]) => {
+        if (section.visibility === undefined || section.visibility === null) return true;
+        try {
+          return conditionEvaluator.evaluateSync(
+            section.visibility as Condition,
+            evaluationContext
+          );
+        } catch (error) {
+          if (error instanceof NeedsAsyncError) {
+            return false; // Custom condition requires async — fail-closed
+          }
+          return true; // Unexpected error — fail-open: show section
+        }
+      });
+    }, [ sortedSections, evaluationContext ]);
+
+    // Default to first VISIBLE section (for tabs) or empty (for accordions)
+    const defaultActiveKey = renderMode === 'tabs' ? (visibleSortedSections[ 0 ]?.[ 0 ] || '') : '';
     const [ activeKey, setActiveKey ] = useState<string>(defaultActiveKey);
 
     // Initialize loaded sections based on render mode, count, and lazyLoad setting
-    // If lazyLoad is false: load ALL sections immediately
+    // Uses visibleSortedSections so hidden sections are never pre-loaded
+    // If lazyLoad is false: load ALL visible sections immediately
     // For single section: always load (rendered directly, no wrapper)
-    // For tabs: load first section immediately (tab is visible by default)
+    // For tabs: load first visible section immediately (tab is visible by default)
     // For accordion: start empty (nothing is expanded by default)
     const initialLoadedSections = useMemo(() => {
-      // If lazy loading is disabled, load all sections immediately
+      // If lazy loading is disabled, load all visible sections immediately
       if (!lazyLoad) {
-        return new Set(sortedSections.map(([ key ]) => key));
+        return new Set(visibleSortedSections.map(([ key ]) => key));
       }
 
-      if (sortedSections.length === 1) {
+      if (visibleSortedSections.length === 1) {
         // Single section is rendered directly without tabs/accordion wrapper
-        const firstKey = sortedSections[ 0 ]?.[ 0 ];
+        const firstKey = visibleSortedSections[ 0 ]?.[ 0 ];
         return new Set(firstKey ? [ firstKey ] : []);
       }
-      if (renderMode === 'tabs' && sortedSections.length > 0) {
-        const firstKey = sortedSections[ 0 ]?.[ 0 ];
+      if (renderMode === 'tabs' && visibleSortedSections.length > 0) {
+        const firstKey = visibleSortedSections[ 0 ]?.[ 0 ];
         return new Set(firstKey ? [ firstKey ] : []);
       }
       return new Set<string>();
-    }, [ renderMode, sortedSections, lazyLoad ]);
+    }, [ renderMode, visibleSortedSections, lazyLoad ]);
 
     const [ loadedSections, setLoadedSections ] = useState<Set<string>>(initialLoadedSections);
 
@@ -488,58 +509,38 @@ const SectionGroupRenderer: React.FC<{
       }
     }, [ lazyLoad ]);
 
-    // Build items for Tabs/Collapse (filter out invisible sections)
+    // Build tab/collapse items from already-filtered visible sections
     const items = useMemo(() => {
-      return sortedSections
-        .map(([ key, section ]) => {
-          // Evaluate visibility at tab level (not inside content)
-          // Use synchronous evaluator (not a hook) since we're inside useMemo
-          let visible = true;
-          if (section.visibility) {
-            try {
-              // Use provided evaluation context (includes actor, record, etc.)
-              const result = universalEvaluator.evaluateSync(section.visibility, evaluationContext);
-              visible = result.visible;
-            } catch (error) {
-              // If sync evaluation fails (requires async), default to visible
-              // This shouldn't happen for simple record-based visibility checks
-              console.warn('[SectionGroupRenderer] Sync evaluation failed, defaulting to visible:', error);
-              visible = true;
-            }
-          }
+      return visibleSortedSections.map(([ key, section ]) => {
+        const shouldLoad = !lazyLoad || loadedSections.has(key);
 
-          const shouldLoad = !lazyLoad || loadedSections.has(key);
+        // Build label with icon and badge using the dedicated component
+        const labelContent = (
+          <SectionLabelWithBadge
+            section={section}
+            routeParams={routeParams}
+            parentData={parentData}
+          />
+        );
 
-          if (!visible) return null;
-
-          // Build label with icon and badge using the dedicated component
-          const labelContent = (
-            <SectionLabelWithBadge
+        return {
+          key,
+          label: labelContent,
+          children: (
+            <SectionContent
               section={section}
+              sectionKey={key}
+              shouldLoad={shouldLoad}
               routeParams={routeParams}
               parentData={parentData}
+              depth={depth}
+              isParentLoading={isParentLoading}
+              children={children}
             />
-          );
-
-          return {
-            key,
-            label: labelContent,
-            children: (
-              <SectionContent
-                section={section}
-                sectionKey={key}
-                shouldLoad={shouldLoad}
-                routeParams={routeParams}
-                parentData={parentData}
-                depth={depth}
-                isParentLoading={isParentLoading}
-                children={children}
-              />
-            )
-          };
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null);
-    }, [ sortedSections, routeParams, lazyLoad, loadedSections, parentData, evaluationContext, depth, isParentLoading, children ]);
+          )
+        };
+      });
+    }, [ visibleSortedSections, routeParams, lazyLoad, loadedSections, parentData, depth, isParentLoading, children ]);
 
     // Update activeKey if current active tab becomes invisible or if no tab is active
     // This ensures we always have a valid active tab in tabs mode
@@ -570,7 +571,9 @@ const SectionGroupRenderer: React.FC<{
     // But preserve the section's label, icon, and badge as a simple header
     if (items.length === 1) {
       const singleItem = items[ 0 ];
-      const singleSection = sortedSections[ 0 ]?.[ 1 ];
+      // Look up the actual section config by key (not assuming sortedSections[0],
+      // since visibility filtering may have removed earlier sections)
+      const singleSection = sections[ singleItem.key ];
 
       // Check if we need to show a header (has icon, badge, or label different from group label)
       const hasIconOrBadge = singleSection?.icon || singleSection?.badge;
@@ -859,7 +862,8 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
 
   const location = useLocation();
   const { token } = useToken();
-  const baseEvaluationContext = useEvaluationContext();
+  // Evaluation context for the condition system
+  const baseEvaluationContext = useNewEvaluationContext();
   const evaluationContext = useMemo(() => ({
     ...baseEvaluationContext,
     record: parentData.record
@@ -905,11 +909,14 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
     const sorted = [ ...(enhancedSectionsConfig.sectionGroups || []) ].sort((a, b) => (a.sortOrder ?? 999) - (b.sortOrder ?? 999));
 
     return sorted.filter(group => {
-      if (!group.visibility) return true;
+      if (group.visibility === undefined || group.visibility === null) return true;
       try {
-        return universalEvaluator.evaluateSync(group.visibility, evaluationContext).visible;
-      } catch {
-        return true;
+        return conditionEvaluator.evaluateSync(group.visibility as Condition, evaluationContext);
+      } catch (error) {
+        if (error instanceof NeedsAsyncError) {
+          return false; // Custom condition requires async — fail-closed
+        }
+        return true; // Unexpected error — fail-open: show group
       }
     });
   }, [ hasSectionGroups, enhancedSectionsConfig.sectionGroups, evaluationContext ]);

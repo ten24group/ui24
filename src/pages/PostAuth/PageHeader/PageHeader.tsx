@@ -8,8 +8,9 @@ import { useModalContext } from "../../../core/context";
 import { useDetailRecord } from "../../../core/context/DetailStateContext";
 import { useFormRecord } from "../../../core/context/FormStateContext";
 import { useSelectedRecords } from "../../../core/context/TableStateContext";
-import { useEvaluationBatch } from "../../../core/hooks";
-import { EvaluationResult, Template } from "../../../core/types";
+import { Template } from "../../../core/types";
+import type { Condition } from "../../../core/types/evaluation";
+import { useEvaluatedItems } from "../../../core/hooks/useEvaluatedItems";
 import { substituteUrlParams } from "../../../core/utils";
 import { MenuItem, renderSingleAction } from "../../../core/utils/actionRenderer";
 import { evaluateTemplateValue } from "../../../core/utils/template";
@@ -27,6 +28,8 @@ interface IBreadcrumbs {
      */
     label: Template;
     url?: string;
+    /** Visibility condition — when false, the breadcrumb item is hidden. */
+    visibility?: Condition;
 }
 
 type IPageActions = Array<IPageAction> | React.ReactNode;
@@ -70,24 +73,19 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
     // Evaluate page title template if provided
     const evaluatedPageTitle = pageTitle ? evaluateTemplateValue(pageTitle, templateContext) : undefined;
 
+    // Evaluate breadcrumb visibility
+    const { visibleItems: visibleBreadcrumbs } = useEvaluatedItems(breadcrumbs);
+
     // Get actions array (handle both array and ReactNode)
     const actionsArray = useMemo(() =>
         Array.isArray(pageHeaderActions) ? pageHeaderActions : [],
         [ pageHeaderActions ]
     );
 
-    /**
-     * Evaluate visibility for all actions with record context.
-     * 
-     * Now automatically includes:
-     * - actor (from AppStaticContext)
-     * - route, queryParams, modalDepth (from PageStaticContext)
-     * - record (from DetailStateContext, FormStateContext, or TableStateContext)
-     */
-    const evaluations = useEvaluationBatch(
-        actionsArray.map(action => action.visibility),
-        { record, selectedRecords } // Pass record and selectedRecords for evaluation
-    );
+    // Evaluate visibility and enablement for all actions
+    const actionExtraCtx = useMemo(() => ({ record, selectedRecords }), [ record, selectedRecords ]);
+    const { visibilityResults, enablementResults, getItemProps: getActionProps } =
+        useEvaluatedItems(actionsArray, { additionalContext: actionExtraCtx });
 
     // Collect all dropdown items for batch evaluation
     const dropdownItemsMap = useMemo(() => {
@@ -112,54 +110,71 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
         return items;
     }, [ dropdownItemsMap ]);
 
-    // Evaluate all dropdown items at once (with same context as parent actions)
-    const dropdownItemEvaluations = useEvaluationBatch(
-        allDropdownItems.map(({ item }) => item.visibility),
-        { record, selectedRecords } // Pass same context
-    );
+    // Evaluate dropdown item visibility + enablement
+    const dropdownItemObjects = useMemo(() => allDropdownItems.map(d => d.item), [allDropdownItems]);
+    const { visibilityResults: ddVisResults, enablementResults: ddEnResults, getItemProps: getDDItemProps } =
+        useEvaluatedItems(dropdownItemObjects, { additionalContext: actionExtraCtx });
 
-    // Build a map of dropdown item evaluations for easy lookup
+    // Build a map of dropdown item evaluation results for easy lookup
     const dropdownItemEvaluationMap = useMemo(() => {
-        const map = new Map<string, EvaluationResult>();
+        const map = new Map<string, { visible: boolean; enabled: boolean; disabledMessage?: string }>();
         allDropdownItems.forEach(({ actionIndex, itemIndex }, evalIndex) => {
-            map.set(`${actionIndex}-${itemIndex}`, dropdownItemEvaluations[ evalIndex ]);
+            const props = getDDItemProps(evalIndex);
+            map.set(`${actionIndex}-${itemIndex}`, {
+                visible: ddVisResults[ evalIndex ],
+                enabled: ddEnResults[ evalIndex ],
+                disabledMessage: props.conditionDisabledMessage,
+            });
         });
         return map;
-    }, [ allDropdownItems, dropdownItemEvaluations ]);
+    }, [ allDropdownItems, ddVisResults, ddEnResults, getDDItemProps ]);
 
-    // Filter visible actions and attach evaluation results
+    // Filter visible actions and build evaluation metadata
     const visibleActions = useMemo(() =>
         actionsArray
-            .map((action, index) => ({ action, evaluation: evaluations[ index ] }))
-            .filter(({ evaluation }) => evaluation.visible),
-        [ actionsArray, evaluations ]
+            .map((action, index) => {
+                const props = getActionProps(index);
+                return {
+                    action,
+                    visible: visibilityResults[ index ],
+                    enabled: enablementResults[ index ],
+                    disabledMessage: props.conditionDisabledMessage,
+                };
+            })
+            .filter(({ visible }) => visible),
+        [ actionsArray, visibilityResults, enablementResults, getActionProps ]
     );
 
     /**
-     * Renders an action (button or dropdown) with evaluation
+     * Renders an action (button or dropdown) with condition evaluation results
      */
-    const renderAction = (item: { action: IPageAction; evaluation: EvaluationResult }, actionIndexInVisible: number): React.ReactNode => {
-        const { action, evaluation } = item;
+    const renderAction = (
+        item: { action: IPageAction; visible: boolean; enabled: boolean; disabledMessage?: string },
+        actionIndexInVisible: number
+    ): React.ReactNode => {
+        const { action, enabled, disabledMessage } = item;
 
         // Find the original index of this action in actionsArray
         const originalActionIndex = actionsArray.indexOf(action);
 
         const actionType = action.type || (action.items && action.items.length > 0 ? 'dropdown' : 'button');
-        const isDisabled = !evaluation.enabled;
+        const isDisabled = !enabled;
 
         // Handle dropdown with items
         if (actionType === 'dropdown' && action.items && action.items.length > 0) {
-            // Filter dropdown items based on visibility evaluation
-            const visibleMenuItems: Array<{ dropItem: IPageAction; dropIndex: number; evaluation: EvaluationResult }> = action.items
+            // Filter dropdown items based on visibility condition
+            const visibleMenuItems: Array<{ dropItem: IPageAction; dropIndex: number; enabled: boolean; disabledMessage?: string }> = action.items
                 .map((dropItem, dropIndex) => {
-                    const itemEvaluation = dropdownItemEvaluationMap.get(`${originalActionIndex}-${dropIndex}`);
+                    const itemEval = dropdownItemEvaluationMap.get(`${originalActionIndex}-${dropIndex}`);
                     return {
                         dropItem,
                         dropIndex,
-                        evaluation: itemEvaluation || { visible: true, enabled: true }
+                        visible: itemEval?.visible ?? true,
+                        enabled: itemEval?.enabled ?? true,
+                        disabledMessage: itemEval?.disabledMessage,
                     };
                 })
-                .filter(({ evaluation: itemEval }) => itemEval.visible);
+                .filter(({ visible: itemVisible }) => itemVisible);
 
             // Don't render dropdown if no visible items
             if (visibleMenuItems.length === 0) {
@@ -167,8 +182,8 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
             }
 
             // Render visible items as menu items
-            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.map(({ dropItem, dropIndex, evaluation: itemEval }) => {
-                const itemDisabled = !itemEval.enabled;
+            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.map(({ dropItem, dropIndex, enabled: itemEnabled, disabledMessage: itemDisabledMsg }) => {
+                const itemDisabled = !itemEnabled;
 
                 return renderSingleAction({
                     action: dropItem,
@@ -176,7 +191,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                     isDropdownItem: true,
                     isInModal,
                     isDisabled: itemDisabled,
-                    disabledMessage: itemEval.disabledMessage,
+                    disabledMessage: itemDisabledMsg,
                     routeParams,
                     onSuccessCallback: (response) => {
                         // Refresh data if needed
@@ -198,7 +213,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
             return (
                 <Tooltip
                     key={`dropdown-${action.label}-${actionIndexInVisible}`}
-                    title={isDisabled ? evaluation.disabledMessage : undefined}
+                    title={isDisabled ? disabledMessage : undefined}
                 >
                     <Dropdown
                         menu={{ items: menuItems }}
@@ -219,7 +234,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
             isDropdownItem: false,
             isInModal,
             isDisabled: isDisabled,
-            disabledMessage: evaluation.disabledMessage,
+            disabledMessage,
             routeParams,
             onSuccessCallback: (response) => {
                 // Refresh data if needed
@@ -230,9 +245,9 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
             onNavigate: navigate
         }) as React.ReactNode;
 
-        if (isDisabled && evaluation.disabledMessage) {
+        if (isDisabled && disabledMessage) {
             return (
-                <Tooltip key={`tooltip-${action.label}-${actionIndexInVisible}`} title={evaluation.disabledMessage}>
+                <Tooltip key={`tooltip-${action.label}-${actionIndexInVisible}`} title={disabledMessage}>
                     <span>{buttonAction}</span>
                 </Tooltip>
             );
@@ -257,7 +272,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                 className="site-page-header"
                 title={evaluatedPageTitle}
                 breadcrumb={{
-                    items: breadcrumbs.map((item, index) => {
+                    items: visibleBreadcrumbs.map((item, index) => {
                         // Evaluate label template if provided, otherwise use as-is
                         // Use templateContext (includes record data) for smart detection templates
                         const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);

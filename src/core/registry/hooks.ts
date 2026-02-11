@@ -180,11 +180,66 @@ export function getWidgetRenderer(
 }
 
 // ============================================================================
-// DEPRECATED: Hook versions (kept for backward compat but should NOT be used in loops)
+// CONDITION-AWARE HOOKS
 // ============================================================================
 
 import { useMemo } from 'react';
 import { useResolverContext } from './useResolverContext';
+import { useResolve } from '../hooks/useResolve';
+
+/**
+ * Resolve a conditional renderer name and look up the component from the registry.
+ * Composes useResolve (for ConditionalValue<string>) with registry lookup.
+ * 
+ * @param fieldConfig - Field config that may have a conditional renderer
+ * @param fieldContext - 'form' | 'detail' | 'table'
+ * @returns { Component, resolvedRenderer }
+ */
+export function useFieldRendererWithConditions(
+  fieldConfig: {
+    renderer?: string | { rules: any[]; default: any };
+    fieldType?: string;
+    name?: string;
+    column?: string;
+    dataIndex?: string;
+  },
+  fieldContext: 'form' | 'detail' = 'form',
+  options: {
+    entityName?: string;
+    routeParams?: Readonly<Record<string, string | number | undefined>>;
+  } = {}
+): {
+  Component: ComponentType<FormFieldRendererProps | DetailFieldRendererProps> | null;
+  resolvedRenderer: string | undefined;
+} {
+  // Resolve conditional renderer name (supports ConditionalValue<string> or plain string)
+  const resolvedRenderer = useResolve<string>(fieldConfig.renderer as any);
+
+  const resolverContext = useResolverContext({
+    fieldName: fieldConfig.name || fieldConfig.column || fieldConfig.dataIndex,
+    fieldType: fieldConfig.fieldType,
+    depth: 0
+  });
+
+  const Component = useMemo(() => {
+    if (!resolvedRenderer && !fieldConfig.fieldType) return null;
+
+    return ExtensionRegistry.getFieldRenderer(
+      fieldConfig.fieldType || '',
+      fieldContext,
+      {
+        ...resolverContext,
+        explicitRenderer: resolvedRenderer
+      }
+    );
+  }, [resolvedRenderer, fieldConfig.fieldType, fieldContext, resolverContext]) as ComponentType<FormFieldRendererProps | DetailFieldRendererProps> | null;
+
+  return { Component, resolvedRenderer };
+}
+
+// ============================================================================
+// DEPRECATED: Hook versions (kept for backward compat but should NOT be used in loops)
+// ============================================================================
 
 /**
  * @deprecated Use getFieldRenderer() instead if calling inside a loop

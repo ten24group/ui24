@@ -1,0 +1,339 @@
+/// <reference types="@testing-library/jest-dom" />
+/**
+ * Integration tests for the Details component rendering.
+ * 
+ * Tests that field configurations produce the correct DOM output when
+ * given pre-loaded data (detailResponse). This bypasses the API layer
+ * and focuses purely on the config → DOM rendering pipeline.
+ * 
+ * Verifies:
+ * - Text fields render their values
+ * - Boolean fields are formatted correctly (YES/NO)
+ * - Missing/null fields are handled gracefully
+ * - Numeric fields render correctly (including zero)
+ * - Field labels render correctly
+ * - Visibility conditions hide/show fields
+ * - detailResponse bypasses API calls
+ * - onDataChange callback fires with record data
+ */
+
+import React from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+
+// ── Mock heavy dependencies (ESM modules) ──
+jest.mock('@blocknote/core', () => ({ BlockNoteEditor: { create: jest.fn() } }));
+jest.mock('@blocknote/react', () => ({ useCreateBlockNote: jest.fn() }));
+jest.mock('@blocknote/mantine', () => ({ BlockNoteView: () => null }));
+jest.mock('jsonpath-plus', () => ({ JSONPath: jest.fn(() => undefined) }));
+jest.mock('react-markdown', () => ({ __esModule: true, default: () => null }));
+jest.mock('remark-gfm', () => ({ __esModule: true, default: () => {} }));
+jest.mock('rehype-raw', () => ({ __esModule: true, default: () => {} }));
+jest.mock('rehype-sanitize', () => ({ __esModule: true, default: () => {} }));
+jest.mock('antd-img-crop', () => ({ __esModule: true, default: ({ children }: any) => children }));
+jest.mock('../../modal/Modal', () => ({
+  useModalDepth: () => 0,
+  ModalDepthContext: React.createContext(0),
+  OpenInModal: () => null,
+}));
+jest.mock('../../core/context/AuthContext', () => ({
+  useAuth: () => ({
+    user: { sub: 'test-user', groups: ['admin'], 'cognito:groups': ['admin'] },
+    isLoggedIn: true,
+    getToken: () => 'mock-token',
+  }),
+  AuthProvider: ({ children }: any) => <>{children}</>,
+}));
+jest.mock('../../core/context/ApiContext', () => ({
+  useApi: () => ({
+    callApiMethod: jest.fn().mockResolvedValue({ status: 200, data: {} }),
+  }),
+}));
+jest.mock('../../core/context/AppContext', () => ({
+  useAppContext: () => ({
+    notifyError: jest.fn(),
+    notifySuccess: jest.fn(),
+    notifyWarning: jest.fn(),
+    notifyInfo: jest.fn(),
+    notifyLoading: jest.fn(),
+  }),
+  AppContextProvider: ({ children }: any) => <>{children}</>,
+}));
+jest.mock('../../core/context/conditionSystemConfig', () => ({
+  getConditionSystemConfig: () => ({}),
+}));
+jest.mock('../../core/context/ResponseModalContext', () => ({
+  useResponseModalContext: () => ({
+    showResponseModal: jest.fn(),
+    hideResponseModal: jest.fn(),
+  }),
+}));
+jest.mock('../../routes/Navigation', () => ({
+  useCoreNavigator: () => jest.fn(),
+  Link: ({ children, to }: any) => <a href={to}>{children}</a>,
+}));
+
+import { Details } from '../../detail/Details';
+import { Ui24ConfigProvider } from '../../core/context/UI24Context';
+import { FormStateProvider } from '../../core/context/FormStateContext';
+import { TableStateProvider } from '../../core/context/TableStateContext';
+import { DetailStateProvider } from '../../core/context/DetailStateContext';
+import { AppStaticProvider } from '../../core/context/AppStaticContext';
+
+// ── Wrapper ──
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <MemoryRouter>
+      <Ui24ConfigProvider initConfig={{
+        baseURL: 'https://api.test.com',
+        appName: 'Test',
+        appLogo: '/logo.png',
+        uiConfig: { auth: {}, menu: {}, pages: {}, dashboard: {} },
+        pagesConfig: {},
+        formatConfig: {
+          date: 'YYYY-MM-DD',
+          time: 'hh:mm A',
+          datetime: 'YYYY-MM-DD hh:mm A',
+          boolean: { true: 'YES', false: 'NO' },
+          timezone: 'UTC',
+        },
+      }}>
+        <AppStaticProvider>
+          <TableStateProvider value={{ selectedRecords: [], selectedRowKeys: [], filters: {}, searchQuery: '' }}>
+            <FormStateProvider value={{ record: null, formValues: {}, isDirty: false, isValid: true }}>
+              <DetailStateProvider value={{ record: null, isLoading: false }}>
+                {children}
+              </DetailStateProvider>
+            </FormStateProvider>
+          </TableStateProvider>
+        </AppStaticProvider>
+      </Ui24ConfigProvider>
+    </MemoryRouter>
+  );
+}
+
+// ============================================================================
+// BASIC FIELD RENDERING
+// ============================================================================
+
+describe('Details - field rendering from config', () => {
+  it('renders text field values from detailResponse', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'teamName', label: 'Team Name', column: 'teamName', fieldType: 'text' },
+            { name: 'city', label: 'City', column: 'city', fieldType: 'text' },
+          ]}
+          detailResponse={{ teamName: 'Lakers', city: 'Los Angeles' }}
+        />
+      </TestWrapper>
+    );
+
+    // Wait for rendering
+    await waitFor(() => {
+      expect(screen.getByText('Lakers')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Los Angeles')).toBeInTheDocument();
+  });
+
+  it('renders field labels from config', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'teamName', label: 'Team Name', column: 'teamName', fieldType: 'text' },
+          ]}
+          detailResponse={{ teamName: 'Lakers' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Team Name')).toBeInTheDocument();
+    });
+  });
+
+  it('renders boolean fields with format config (YES/NO)', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'isActive', label: 'Active', column: 'isActive', fieldType: 'boolean' },
+          ]}
+          detailResponse={{ isActive: true }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('YES')).toBeInTheDocument();
+    });
+  });
+
+  it('renders all configured fields from detailResponse', async () => {
+    const fields = [
+      { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
+      { name: 'email', label: 'Email', column: 'email', fieldType: 'text' },
+      { name: 'phone', label: 'Phone', column: 'phone', fieldType: 'text' },
+    ] as any;
+
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={fields}
+          detailResponse={{ name: 'John', email: 'john@test.com', phone: '555-1234' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('John')).toBeInTheDocument();
+      expect(screen.getByText('john@test.com')).toBeInTheDocument();
+      expect(screen.getByText('555-1234')).toBeInTheDocument();
+    });
+  });
+
+  it('handles empty/null field values gracefully', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
+            { name: 'description', label: 'Description', column: 'description', fieldType: 'text' },
+          ]}
+          detailResponse={{ name: 'Test', description: null }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Test')).toBeInTheDocument();
+    });
+
+    // Should render labels even for null values
+    expect(screen.getByText('Name')).toBeInTheDocument();
+    expect(screen.getByText('Description')).toBeInTheDocument();
+  });
+
+  it('renders numeric values correctly', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'score', label: 'Score', column: 'score', fieldType: 'number' },
+            { name: 'count', label: 'Count', column: 'count', fieldType: 'text' },
+          ]}
+          detailResponse={{ score: 42, count: 0 }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('42')).toBeInTheDocument();
+    });
+    expect(screen.getByText('0')).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// VISIBILITY CONDITIONS
+// ============================================================================
+
+describe('Details - visibility conditions', () => {
+  it('hides fields with visibility: false', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
+            { name: 'secret', label: 'Secret', column: 'secret', fieldType: 'text', visibility: false },
+          ]}
+          detailResponse={{ name: 'Visible', secret: 'Hidden Value' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Visible')).toBeInTheDocument();
+    });
+
+    // Secret field should not be visible
+    expect(screen.queryByText('Hidden Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('Secret')).not.toBeInTheDocument();
+  });
+
+  it('shows fields with visibility: true', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'name', label: 'Name', column: 'name', fieldType: 'text', visibility: true },
+          ]}
+          detailResponse={{ name: 'Visible' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Visible')).toBeInTheDocument();
+    });
+  });
+});
+
+// ============================================================================
+// PRE-LOADED DATA (detailResponse)
+// ============================================================================
+
+describe('Details - detailResponse handling', () => {
+  it('uses detailResponse and does not call API', async () => {
+    const mockCallApi = jest.fn();
+    jest.spyOn(require('../../core/context/ApiContext'), 'useApi').mockReturnValue({
+      callApiMethod: mockCallApi,
+    });
+
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
+          ]}
+          detailResponse={{ name: 'Pre-loaded Data' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Pre-loaded Data')).toBeInTheDocument();
+    });
+
+    // API should not be called when detailResponse is provided
+    expect(mockCallApi).not.toHaveBeenCalled();
+  });
+
+  it('calls onDataChange with record when detailResponse is provided', async () => {
+    const onDataChange = jest.fn();
+
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
+          ]}
+          detailResponse={{ name: 'Test Team', id: '123' }}
+          onDataChange={onDataChange}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Test Team')).toBeInTheDocument();
+    });
+
+    // onDataChange should have been called with the record
+    expect(onDataChange).toHaveBeenCalledWith(
+      expect.objectContaining({ record: expect.objectContaining({ name: 'Test Team' }) })
+    );
+  });
+});

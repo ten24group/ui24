@@ -1,5 +1,5 @@
 import React from 'react';
-import { Button, Card, Form, Input, DatePicker, TimePicker, Typography, Switch, InputNumber, Slider, Badge, Tag, Progress, Avatar, Rate } from 'antd';
+import { Button, Card, Form, Input, DatePicker, TimePicker, Typography, Switch, InputNumber, Slider, Badge, Tag, Progress, Avatar, Rate, Tooltip } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 import { OptionSelector, IOptions } from './OptionSelector';
 import { useUi24Config } from '../../context';
@@ -11,6 +11,19 @@ import { HelpText, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
 import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFieldOptions } from '../../types/field-config';
 import { useFieldRenderer, type FormFieldConfig } from '../../registry';
+import { resolveStringOrDefault } from '../../types/evaluation';
+
+/**
+ * Internal form field props type where ConditionalValue fields have been resolved to strings.
+ * Used by internal rendering components (MakeFormItem, MakeFormListItem, MakeFormMapItem)
+ * which are always called via FormField (which resolves ConditionalValues).
+ */
+type ResolvedFormField = Omit<IFormField, 'label' | 'placeholder' | 'helpText' | 'renderer'> & {
+    label: string;
+    placeholder?: string;
+    helpText?: string;
+    renderer?: string;
+};
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -62,7 +75,7 @@ const MakeFormItem = ({
     setFormValue,
     addNewOption,
     ...restFormItemProps
-}: IFormField) => {
+}: ResolvedFormField) => {
 
     const { selectConfig } = useUi24Config();
     const formatConfig = selectConfig(config => config.formatConfig);
@@ -281,7 +294,7 @@ const MakeFormListItem = ({
     items,
     setFormValue,
     helpText,
-}: IFormField) => {
+}: ResolvedFormField) => {
     const parentFieldName = name;
     const fieldName = namePrefixPath?.length ? [ ...namePrefixPath, name ] : name;
 
@@ -363,7 +376,7 @@ const MakeFormMapItem = ({
     properties,
     setFormValue,
     helpText,
-}: IFormField) => {
+}: ResolvedFormField) => {
     const parentFieldName = name;
 
     return <>
@@ -374,6 +387,10 @@ const MakeFormMapItem = ({
                     <div key={property.name || index} style={formStyles.mapItemContainer}>
                         <RenderFormField
                             {...property}
+                            label={resolveStringOrDefault(property.label, '')}
+                            placeholder={resolveStringOrDefault(property.placeholder)}
+                            helpText={resolveStringOrDefault(property.helpText)}
+                            renderer={typeof property.renderer === 'string' ? property.renderer : undefined}
                             namePrefixPath={namePrefixPath?.length ? [ ...namePrefixPath, name ] : [ name ]}
                             setFormValue={({ name: propName, value }) => {
                                 setFormValue({ name: parentFieldName, value: { [ propName ]: value } })
@@ -387,7 +404,7 @@ const MakeFormMapItem = ({
 }
 
 // Unified recursive form field renderer
-const RenderFormField = (formField: IFormField) => {
+const RenderFormField = (formField: ResolvedFormField) => {
     const {
         fieldType = "text",
         type,
@@ -407,14 +424,84 @@ const RenderFormField = (formField: IFormField) => {
     return <MakeFormItem {...formField} />
 }
 
-export function FormField(formField: IFormField) {
-    // Don't render hidden fields
-    if (formField.hidden) {
+/**
+ * Props injected by the parent form's condition evaluation.
+ * These are computed at the Form level and passed down.
+ */
+export interface FormFieldConditionProps {
+    /** Condition evaluation says this field should be hidden */
+    conditionHidden?: boolean;
+    /** Condition evaluation says this field should be disabled */
+    conditionDisabled?: boolean;
+    /** Message to show when disabled by condition */
+    conditionDisabledMessage?: string;
+    /** Resolved renderer name from ConditionalValue (overrides field.renderer) */
+    resolvedRenderer?: string;
+    /** Resolved label from ConditionalValue (overrides field.label) */
+    resolvedLabel?: string;
+    /** Resolved placeholder from ConditionalValue (overrides field.placeholder) */
+    resolvedPlaceholder?: string;
+    /** Resolved helpText from ConditionalValue (overrides field.helpText) */
+    resolvedHelpText?: string;
+}
+
+export function FormField(formField: IFormField & FormFieldConditionProps) {
+    const {
+        conditionHidden,
+        conditionDisabled,
+        conditionDisabledMessage,
+        resolvedRenderer,
+        resolvedLabel,
+        resolvedPlaceholder,
+        resolvedHelpText,
+        ...fieldProps
+    } = formField;
+
+    // Static hidden (from config) — return null (legacy behavior)
+    // Only use static hidden if there's no visibility condition defined
+    if (fieldProps.hidden && (fieldProps.visibility === undefined || fieldProps.visibility === null)) {
         return null;
     }
 
-    return <div key={formField.column || formField.name || formField.id}>
-        <RenderFormField {...formField} />
+    // Condition-based hidden: use Form.Item hidden + preserve to keep value in form state
+    // This prevents data loss when a field is conditionally hidden
+    if (conditionHidden) {
+        return (
+            <Form.Item
+                name={fieldProps.name || fieldProps.column}
+                hidden={true}
+                preserve={true}
+                noStyle
+            >
+                <input type="hidden" />
+            </Form.Item>
+        );
+    }
+
+    // Apply condition-based disabled state and resolved conditional values.
+    // Resolved values (from ConditionalValue<string>) override the raw config values.
+    // resolveStringOrDefault handles the case where values are still ConditionalValue
+    // (e.g., in nested/recursive fields) — falls back to the default value.
+    const mergedProps: ResolvedFormField = {
+        ...fieldProps,
+        label: resolvedLabel ?? resolveStringOrDefault(fieldProps.label, ''),
+        placeholder: resolvedPlaceholder ?? resolveStringOrDefault(fieldProps.placeholder),
+        helpText: resolvedHelpText ?? resolveStringOrDefault(fieldProps.helpText),
+        renderer: resolvedRenderer ?? (typeof fieldProps.renderer === 'string' ? fieldProps.renderer : undefined),
+        ...(conditionDisabled && { disabled: true }),
+    };
+
+    // Wrap with Tooltip when disabled by condition and a message is provided
+    if (conditionDisabled && conditionDisabledMessage) {
+        return <div key={fieldProps.column || fieldProps.name || fieldProps.id}>
+            <Tooltip title={conditionDisabledMessage}>
+                <div><RenderFormField {...mergedProps} /></div>
+            </Tooltip>
+        </div>
+    }
+
+    return <div key={fieldProps.column || fieldProps.name || fieldProps.id}>
+        <RenderFormField {...mergedProps} />
     </div>
 }
 
@@ -446,7 +533,7 @@ export const convertColumnsConfigForFormField = (columnsConfig: Array<IFormField
         return {
             ...columnConfig, // Spread all base properties to include field type metadata (min, max, step, etc.)
             name: columnConfig.column, //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
-            validationRules: convertValidationRules(columnConfig.validations, columnConfig.label),
+            validationRules: convertValidationRules(columnConfig.validations, resolveStringOrDefault(columnConfig.label)),
             label: columnConfig.label,
             placeholder: columnConfig.placeholder ?? columnConfig.label,
             helpText: columnConfig.helpText,

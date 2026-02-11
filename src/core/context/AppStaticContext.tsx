@@ -1,12 +1,18 @@
 /**
  * App-level static context (rarely changes).
- * Provided by App.tsx, available throughout the application.
+ * Provided at app root, available throughout the application.
+ * 
+ * UPDATED: Now supports extensible context providers via conditionSystemConfig.
+ * - Built-in: actor, device, featureFlags, tenant
+ * - App-defined: any number of named context providers (subscription, preferences, etc.)
  * 
  * Uses use-context-selector for selective subscription.
+ * Reference: CONDITION_SYSTEM_DESIGN.md Section 4.3
  */
 import { createContext, useContextSelector } from 'use-context-selector';
-import React, { ReactNode, useMemo } from 'react';
+import React, { ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { getConditionSystemConfig } from './conditionSystemConfig';
 
 export interface AppStaticContextValue {
   actor: {
@@ -15,10 +21,14 @@ export interface AppStaticContextValue {
     email?: string;
     groups: string[];
     permissions?: string[];
+    // Backward compat: legacy evaluations may use actor.cognito.groups
+    cognito?: { groups: string[]; [key: string]: any };
+    [key: string]: any;
   };
   tenant?: {
     tenantId: string;
     name: string;
+    [key: string]: any;
   };
   device: {
     isMobile: boolean;
@@ -26,16 +36,109 @@ export interface AppStaticContextValue {
     isDesktop: boolean;
     viewport: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   };
-  featureFlags?: Record<string, boolean>;
+  featureFlags: Record<string, boolean | string>;
+  /** App-defined context providers merged here (e.g., subscription, preferences, etc.) */
+  appContext?: Record<string, any>;
 }
 
 const AppStaticContext = createContext<AppStaticContextValue | null>(null);
 
+function getViewport(): 'xs' | 'sm' | 'md' | 'lg' | 'xl' {
+  const width = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  if (width < 576) return 'xs';
+  if (width < 768) return 'sm';
+  if (width < 992) return 'md';
+  if (width < 1200) return 'lg';
+  return 'xl';
+}
+
+function computeDevice() {
+  const width = typeof window !== 'undefined' ? window.innerWidth : 1200;
+  return {
+    isMobile: width < 768,
+    isTablet: width >= 768 && width < 1024,
+    isDesktop: width >= 1024,
+    viewport: getViewport(),
+  };
+}
+
 export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
-  
+  const config = getConditionSystemConfig();
+
+  // ── Device state (with optional responsive updates) ──
+  const [device, setDevice] = useState(computeDevice);
+
+  useEffect(() => {
+    if (!config.responsiveDevice) return;
+    let timeout: ReturnType<typeof setTimeout>;
+    const handler = () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => setDevice(computeDevice()), 250);
+    };
+    window.addEventListener('resize', handler);
+    return () => {
+      window.removeEventListener('resize', handler);
+      clearTimeout(timeout);
+    };
+  }, [config.responsiveDevice]);
+
+  // ── Feature flags state ──
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean | string>>(() => {
+    return config.featureFlagProvider?.getFlags() ?? {};
+  });
+
+  useEffect(() => {
+    if (!config.featureFlagProvider?.subscribe) return;
+    return config.featureFlagProvider.subscribe(setFeatureFlags);
+  }, [config.featureFlagProvider]);
+
+  // ── Tenant state ──
+  const [tenant, setTenant] = useState<AppStaticContextValue['tenant']>(() => {
+    return config.tenantProvider?.getTenant() ?? undefined;
+  });
+
+  useEffect(() => {
+    if (!config.tenantProvider?.subscribe) return;
+    return config.tenantProvider.subscribe(setTenant);
+  }, [config.tenantProvider]);
+
+  // ── App-defined context providers ──
+  const [appContext, setAppContext] = useState<Record<string, any>>(() => {
+    const initial: Record<string, any> = {};
+    if (config.contextProviders) {
+      for (const [key, provider] of Object.entries(config.contextProviders)) {
+        try {
+          initial[key] = provider.getContext();
+        } catch (e) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn(`[AppStaticProvider] Error initializing context provider "${key}":`, e);
+          }
+        }
+      }
+    }
+    return initial;
+  });
+
+  // Subscribe to dynamic app context providers
+  useEffect(() => {
+    if (!config.contextProviders) return;
+    const unsubscribes: Array<() => void> = [];
+
+    for (const [key, provider] of Object.entries(config.contextProviders)) {
+      if (provider.subscribe) {
+        const unsub = provider.subscribe((data) => {
+          setAppContext(prev => ({ ...prev, [key]: data }));
+        });
+        unsubscribes.push(unsub);
+      }
+    }
+
+    return () => unsubscribes.forEach(fn => fn());
+  }, [config.contextProviders]);
+
+  // ── Build actor from auth user ──
   const value = useMemo((): AppStaticContextValue => {
-    // Map auth user to actor
     const userGroups = user?.['cognito:groups'] || user?.groups || [];
     const actor = {
       actorId: user?.sub || user?.id || '',
@@ -46,30 +149,15 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
       // BACKWARD COMPATIBILITY: Provide nested cognito object for legacy evaluations
       cognito: {
         groups: userGroups,
-      }
+      },
     };
-    
-    // Get device info (simple implementation, can be enhanced)
-    const getViewport = (): 'xs' | 'sm' | 'md' | 'lg' | 'xl' => {
-      const width = window.innerWidth;
-      if (width < 576) return 'xs';
-      if (width < 768) return 'sm';
-      if (width < 992) return 'md';
-      if (width < 1200) return 'lg';
-      return 'xl';
-    };
-    
-    const device = {
-      isMobile: window.innerWidth < 768,
-      isTablet: window.innerWidth >= 768 && window.innerWidth < 1024,
-      isDesktop: window.innerWidth >= 1024,
-      viewport: getViewport()
-    };
-    
+
     return {
       actor,
       device,
-      // Add tenant and featureFlags when available
+      featureFlags,
+      tenant,
+      appContext: Object.keys(appContext).length > 0 ? appContext : undefined,
     };
   }, [
     user?.sub,
@@ -78,9 +166,13 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
     user?.email,
     user?.['cognito:groups'],
     user?.groups,
-    user?.permissions
+    user?.permissions,
+    device,
+    featureFlags,
+    tenant,
+    appContext,
   ]);
-  
+
   return (
     <AppStaticContext.Provider value={value}>
       {children}
@@ -88,8 +180,9 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
   );
 };
 
-// Selector hooks for common use cases
-export const useActor = () => 
+// ── Selector hooks ──
+
+export const useActor = () =>
   useContextSelector(AppStaticContext, state => state?.actor);
 
 export const useActorGroups = () =>
@@ -110,7 +203,7 @@ export const useFeatureFlag = (flag: string) =>
 export const useTenant = () =>
   useContextSelector(AppStaticContext, state => state?.tenant);
 
-// Full context (use sparingly - only when you need everything)
+/** Full context (use sparingly — subscribes to everything) */
 export const useAppStaticContext = () =>
   useContextSelector(AppStaticContext, state => state);
 

@@ -103,7 +103,10 @@ import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { renderSingleAction } from '../core/utils/actionRenderer';
-import { useEvaluationBatch } from '../core/hooks/useEvaluation';
+import { Condition } from '../core/types/evaluation';
+import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
+import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
+import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { substituteUrlParams } from '../core/utils';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
@@ -292,29 +295,37 @@ export const Table = ({
     });
   }, [ selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange ]);
 
-  // Extract visibility configs from bulk actions for batch evaluation
-  const bulkActionsVisibilityConfigs = useMemo(() =>
-    bulkActions ? bulkActions.map(action => action.visibility) : [],
-    [ bulkActions ]
-  );
+  // Get evaluation context for per-row evaluations (expandable, selection)
+  const evaluationContext = useNewEvaluationContext();
 
-  // Evaluate all bulk actions in batch
-  const bulkActionsEvaluationResults = useEvaluationBatch(bulkActionsVisibilityConfigs, {
+  // Bulk action condition evaluation
+  const bulkActionsArr = useMemo(() => bulkActions ? [...bulkActions] : [], [bulkActions]);
+  const bulkExtraCtx = useMemo(() => ({
     selectedRecords,
     queryParams: routeParams,
-  });
+  }), [selectedRecords, routeParams]);
 
-  // Merge evaluation results with actions and filter visible ones
+  const { visibilityResults: bulkVisResults, enablementResults: bulkEnResults, getItemProps: getBulkActionProps } =
+    useEvaluatedItems(bulkActionsArr, { additionalContext: bulkExtraCtx });
+
+  // Filter visible bulk actions and attach evaluated state
   const visibleBulkActions = useMemo(() => {
-    if (!bulkActions || bulkActions.length === 0) return [];
+    if (bulkActionsArr.length === 0) return [];
 
-    return bulkActions
-      .map((action, index) => ({
-        ...action,
-        _evaluated: bulkActionsEvaluationResults[ index ]
-      }))
-      .filter(action => action._evaluated?.visible !== false);
-  }, [ bulkActions, bulkActionsEvaluationResults ]);
+    return bulkActionsArr
+      .map((action, index) => {
+        const props = getBulkActionProps(index);
+        return {
+          ...action,
+          _evaluated: {
+            visible: bulkVisResults[index],
+            enabled: bulkEnResults[index],
+            disabledMessage: props.conditionDisabledMessage || '',
+          }
+        };
+      })
+      .filter(action => action._evaluated.visible !== false);
+  }, [bulkActionsArr, bulkVisResults, bulkEnResults, getBulkActionProps]);
 
   // Row selection configuration for AntTable - using AntD's native row selection API
   const rowSelection = useMemo(() => {
@@ -326,12 +337,28 @@ export const Table = ({
       onChange: (selectedKeys: React.Key[], selectedRows: any[]) => {
         setSelectedRowKeys(selectedKeys);
       },
-      getCheckboxProps: (record: any) => ({
-        // Can add conditional disabling based on record properties if needed
-        // disabled: record.someField === 'value',
-      }),
+      getCheckboxProps: (record: any) => {
+        // Evaluate rowSelection.visibility condition per row
+        // Use __raw__ record to evaluate against original field types (before boolean→Yes/No formatting)
+        const selectionVisibility = rowSelectionConfig?.visibility;
+        if (selectionVisibility) {
+          const rawRecord = record.__raw__ || record;
+          try {
+            const isSelectable = conditionEvaluator.evaluateSync(
+              selectionVisibility,
+              { ...evaluationContext, record: rawRecord }
+            );
+            if (!isSelectable) {
+              return { disabled: true };
+            }
+          } catch {
+            // Fail-safe: allow selection if evaluation fails
+          }
+        }
+        return {};
+      },
     };
-  }, [ rowSelectionConfig, selectedRowKeys ]);
+  }, [ rowSelectionConfig, selectedRowKeys, evaluationContext ]);
 
   // Expand/Collapse all rows functionality
   const handleExpandAll = useCallback(() => {
@@ -481,18 +508,26 @@ export const Table = ({
         );
       },
 
-      // Conditional row expansion based on visibility config
-      // TODO: Integrate with visibility evaluation system
+      // Conditional row expansion based on condition evaluation
+      // Use __raw__ record to evaluate against original field types (before boolean→Yes/No formatting)
       rowExpandable: (record: any) => {
-        // For now, always allow expansion if config is present
-        // In future, evaluate expandableConfig.rowExpandable with visibility system
-        return true;
+        const expandCondition = expandableConfig?.rowExpandable;
+        if (!expandCondition) return true; // No condition = always expandable
+        const rawRecord = record.__raw__ || record;
+        try {
+          return conditionEvaluator.evaluateSync(
+            expandCondition,
+            { ...evaluationContext, record: rawRecord }
+          );
+        } catch {
+          return true; // Fail-open: allow expansion if evaluation fails
+        }
       },
 
       // Optional: Custom indent size
       indentSize: expandableConfig.indentSize,
     };
-  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys ]);
+  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys, evaluationContext ]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {

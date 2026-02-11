@@ -1,11 +1,14 @@
-import React, { Fragment, useMemo } from "react";
+import React, { Fragment, useMemo, useCallback } from "react";
 import { ITablePropertiesConfig, IActionIndexValue, IRecord, IPageAction } from "../type";
 import type { TableProps, MenuProps } from "antd";
 import { Icon, Link } from "../../core/common";
 import { Space, Tooltip, Dropdown } from 'antd';
 import { useModalContext } from "../../core/context";
 import { renderSingleAction, MenuItem } from "../../core/utils/actionRenderer";
-import { useEvaluation } from "../../core/hooks";
+import { useCondition } from "../../core/hooks/useCondition";
+import { useNewEvaluationContext } from "../../core/context/NewEvaluationContext";
+import { useEvaluatedItems } from "../../core/hooks/useEvaluatedItems";
+import { resolveDisabledMessage } from "../../core/utils/resolveDisabledMessage";
 import { useCoreNavigator } from "../../routes/Navigation";
 
 
@@ -161,8 +164,13 @@ const ListPageActionInner = React.memo(({
 
   // Use raw API data for evaluation (before display formatting mutations)
   // This ensures boolean conditions work correctly (false vs "No")
-  const rawRecord = (record as any).__raw__ || record;
-  const { visible, enabled, disabledMessage } = useEvaluation(item.visibility, { record: rawRecord });
+  const rawRecord = record.__raw__ || record;
+  const extraCtx = useMemo(() => ({ record: rawRecord }), [ rawRecord ]);
+  const visible = useCondition(item.visibility, extraCtx);
+  const enabled = useCondition(item.enablement, extraCtx);
+  const evaluationContext = useNewEvaluationContext();
+  // Resolve disabledMessage template (e.g., 'Contact {record.owner} to edit')
+  const disabledMessage = resolveDisabledMessage(item.disabledMessage, evaluationContext, { record: rawRecord }) || '';
 
   // Don't render if not visible
   if (!visible) return null;
@@ -171,24 +179,42 @@ const ListPageActionInner = React.memo(({
   const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
   const isDisabled = !enabled;
 
-  if (actionType === 'dropdown' && item.items && item.items.length > 0) {
-    const menuItems: MenuProps[ 'items' ] = item.items.map((dropItem, dropIndex) =>
-      renderSingleAction({
-        action: dropItem,
-        key: `${item.label}-${dropIndex}`,
-        isDropdownItem: true,
-        isTableRowAction: true,
-        isInModal,
-        routeParams,
-        primaryIndex: primaryIndexValue,
-        record,
-        // ✅ OperationExecutor handles toasts - only refresh data here
-        onSuccessCallback: () => {
-          getRecordsCallback()
-        },
-        onNavigate: (url) => navigate(url)
-      }) as MenuItem
-    );
+  // Evaluate visibility and enablement for dropdown items (batch)
+  const dropdownItems = actionType === 'dropdown' && item.items ? item.items : [];
+  const { visibilityResults: ddVisResults, getItemProps: getDDProps } =
+    useEvaluatedItems(dropdownItems, { additionalContext: extraCtx });
+
+  if (actionType === 'dropdown' && dropdownItems.length > 0) {
+    const menuItems: MenuProps[ 'items' ] = dropdownItems
+      .map((dropItem: IPageAction, dropIndex: number) => {
+        // Skip invisible items
+        if (!ddVisResults[ dropIndex ]) return null;
+
+        const ddProps = getDDProps(dropIndex);
+        const itemDisabled = ddProps.conditionDisabled;
+        const itemDisabledMsg = ddProps.conditionDisabledMessage || '';
+
+        return renderSingleAction({
+          action: dropItem,
+          key: `${item.label}-${dropIndex}`,
+          isDropdownItem: true,
+          isTableRowAction: true,
+          isInModal,
+          isDisabled: itemDisabled,
+          disabledMessage: itemDisabledMsg || '',
+          routeParams,
+          primaryIndex: primaryIndexValue,
+          record,
+          onSuccessCallback: () => {
+            getRecordsCallback()
+          },
+          onNavigate: (url) => navigate(url),
+        }) as MenuItem;
+      })
+      .filter(Boolean);
+
+    // Don't render dropdown if all items are hidden
+    if (menuItems.length === 0) return null;
 
     const dropdownTrigger = (
       <a onClick={(e) => e.preventDefault()} style={{ cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.5 : 1 }}>

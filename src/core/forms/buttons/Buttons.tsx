@@ -3,32 +3,14 @@ import type { ButtonSize, ButtonType } from 'antd/lib/button';
 import type { CSSProperties } from 'react';
 import React from 'react';
 import { Link } from '../../common';
-import { useEvaluation } from '../../hooks';
-import { VisibilityConfig } from '../../types';
+import { useNewEvaluationContext } from '../../context/NewEvaluationContext';
+import { useCondition } from '../../hooks/useCondition';
+import { Condition } from '../../types';
+import { resolveDisabledMessage as resolveMsg } from '../../utils/resolveDisabledMessage';
 import { substituteUrlParams } from '../../utils';
 
 type IButtonType = ButtonType
 type IHtmlType = "submit" | "reset" | "button"
-
-/**
- * Hook to debounce form values for evaluation
- * FIXED: Prevents evaluation on every keystroke
- */
-function useDebounce<T>(value: T, delay: number): T {
-    const [ debouncedValue, setDebouncedValue ] = React.useState<T>(value);
-
-    React.useEffect(() => {
-        const handler = setTimeout(() => {
-            setDebouncedValue(value);
-        }, delay);
-
-        return () => {
-            clearTimeout(handler);
-        };
-    }, [ value, delay ]);
-
-    return debouncedValue;
-}
 
 interface IFormButton {
     buttonType?: IButtonType;
@@ -42,10 +24,18 @@ interface IFormButton {
     danger?: boolean;
     onClick?: (event: React.MouseEvent<HTMLElement>) => void;
     /**
-     * Visibility configuration for conditional rendering.
-     * Evaluated with form values context for dynamic button behavior.
+     * Visibility condition for conditional rendering.
+     * Evaluated with form context for dynamic button behavior.
+     * Uses the new Condition system (named refs, feature flags, device, etc.).
      */
-    visibility?: VisibilityConfig;
+    visibility?: Condition;
+    /**
+     * Enablement condition — evaluated separately from visibility.
+     * When false, the button renders as disabled.
+     */
+    enablement?: Condition;
+    /** Message to show in a tooltip when the button is disabled by enablement condition */
+    disabledMessage?: string;
 }
 
 type IPreDefinedButtons = "submit" | "cancel" | "reset" | "login" | "forgotPassword";
@@ -190,8 +180,12 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
 });
 
 /**
- * Form button with evaluation support
- * Wrapped in separate component to properly use hooks
+ * Form button with condition evaluation support.
+ * Uses the new Condition system exclusively (useCondition) for both visibility and enablement.
+ * 
+ * Context is provided by useNewEvaluationContext (via useCondition internally),
+ * which already includes stable formValues from FormStateContext.
+ * No need for Form.useWatch or manual debouncing.
  */
 const EvaluatedFormButton = React.memo(({
     buttonConfig,
@@ -204,32 +198,36 @@ const EvaluatedFormButton = React.memo(({
     isCancelButton: boolean;
     renderButton: (config: IFormButton, loader: boolean, isCancelButton: boolean, isDisabled: boolean, disabledMessage?: string) => React.ReactNode;
 }) => {
-    const form = Form.useFormInstance();
-    const rawFormValues = Form.useWatch([], form) || {};
-
-    // FIXED: Debounce form values to avoid evaluation on every keystroke
-    const formValues = useDebounce(rawFormValues, 300);
-
-    // Evaluate visibility
-    const { visible, enabled, disabledMessage } = useEvaluation(buttonConfig.visibility, { formValues });
+    // Evaluate visibility and enablement using new condition system
+    // useCondition internally uses useNewEvaluationContext which includes
+    // stable formValues, record, isDirty, isValid, etc.
+    const isVisible = useCondition(buttonConfig.visibility);
+    const isEnabled = useCondition(buttonConfig.enablement);
+    const evaluationContext = useNewEvaluationContext();
 
     // Don't render if not visible
-    if (!visible) return null;
+    if (!isVisible) return null;
 
-    const isDisabled = !enabled;
+    // Determine disabled state from enablement condition
+    const isDisabled = buttonConfig.enablement !== undefined ? !isEnabled : false;
+
+    // Resolve disabledMessage template (e.g., 'Fill in {formValues.name} first')
+    const resolvedMessage = isDisabled
+        ? resolveMsg(buttonConfig.disabledMessage, evaluationContext)
+        : undefined;
 
     // Wrap with tooltip if disabled
-    if (isDisabled && disabledMessage) {
+    if (isDisabled && resolvedMessage) {
         return (
-            <Tooltip title={disabledMessage}>
+            <Tooltip title={resolvedMessage}>
                 <span>
-                    {renderButton(buttonConfig, loader, isCancelButton, true, disabledMessage)}
+                    {renderButton(buttonConfig, loader, isCancelButton, true, resolvedMessage)}
                 </span>
             </Tooltip>
         );
     }
 
-    return <>{renderButton(buttonConfig, loader, isCancelButton, false)}</>;
+    return <>{renderButton(buttonConfig, loader, isCancelButton, isDisabled)}</>;
 });
 
 export type { ICreateButtons };

@@ -5,6 +5,7 @@
 
 import type { IFormFieldResponse } from '../../types/field-config';
 import type { IApiConfig } from '../../context';
+import type { Condition } from '../../types/evaluation';
 
 /**
  * Wizard step configuration for a single step in the wizard.
@@ -26,6 +27,8 @@ export interface IWizardStepConfig {
     body?: Record<string, unknown>;
     responseKey?: string;
   };
+  /** Condition for conditional visibility of this wizard step */
+  visibility?: Condition;
 }
 
 /**

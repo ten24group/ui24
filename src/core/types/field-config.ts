@@ -3,6 +3,7 @@ import { FieldType, PropertyType } from './field-types';
 import { IModalConfig } from '../../modal/Modal';
 import { GetSignedUploadUrlAPIConfig } from '../common';
 import { IEntityConfigReference } from '../hooks';
+import type { Condition, ConditionalValue } from './evaluation';
 
 /**
  * Template configuration interface for complex string interpolation.
@@ -170,12 +171,20 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
   id?: string;
   name?: string;  // Field name / property path (supports dot notation)
   column?: string; // Column name (legacy, prefer 'name')
-  label: string;
+  label: string | ConditionalValue<string>;
 
   // Display
-  placeholder?: string;
-  helpText?: string;
+  placeholder?: string | ConditionalValue<string>;
+  helpText?: string | ConditionalValue<string>;
   hidden?: boolean;
+
+  // Condition system
+  /** Condition for conditional visibility (hides the field when false) */
+  visibility?: Condition;
+  /** Condition for conditional enablement (disables the field when false) */
+  enablement?: Condition;
+  /** Message shown when field is disabled by enablement condition */
+  disabledMessage?: string;
 
   // Type & Behavior
   fieldType?: FieldType;
@@ -191,7 +200,7 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
    * When specified, the frontend uses this key to look up a registered custom renderer
    * via ExtensionRegistry.getFieldRenderer().
    */
-  renderer?: string;
+  renderer?: string | ConditionalValue<string>;
 
   /**
    * Configuration passed to the custom renderer.
@@ -237,9 +246,13 @@ export interface IFormFieldResponse extends IBaseFieldConfig {
 
 /**
  * Form-specific field configuration
- * Used internally by Form components after conversion from IFormFieldResponse
+ * Used internally by Form components after conversion from IFormFieldResponse.
  * 
- * Omits 'icon' from base to allow ReactNode for form-specific rendering
+ * Omits 'icon' from base to allow ReactNode for form-specific rendering.
+ * 
+ * Note: `label`, `placeholder`, `helpText`, `renderer` may be ConditionalValue<string>
+ * from the backend config. They are resolved to plain strings at the Form component level
+ * via `useResolveBatch` and passed as `resolvedLabel`, etc. through FormFieldConditionProps.
  */
 export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
   // Form-specific properties
@@ -277,7 +290,11 @@ export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
 
 /**
  * Detail page field configuration
- * Used by Details component for displaying data
+ * Used by Details component for displaying data.
+ * 
+ * Note: `label`, `placeholder`, `helpText`, `renderer` may be ConditionalValue<string>
+ * from the backend config. They are resolved to plain strings at the Details level
+ * before being used in rendering via `useResolveBatch`.
  */
 export interface IDetailFieldConfig extends IBaseFieldConfig {
   timezone?: string; // For date/time formatting

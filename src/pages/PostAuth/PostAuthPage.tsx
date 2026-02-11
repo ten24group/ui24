@@ -24,6 +24,8 @@ import {
   type OriginalPageConfig
 } from '../../core/registry';
 import { Alert } from 'antd';
+import { useResolve } from '../../core/hooks/useResolve';
+import type { Condition } from '../../core/types/evaluation';
 
 export type IPageType = PageStaticContextValue[ 'pageType' ];
 
@@ -51,6 +53,8 @@ export interface IRenderFromPageType extends IPageHeader {
   wizardPageConfig?: IWizardPageConfig;
   /** Current nesting depth (for recursive sections) */
   depth?: number;
+  /** Condition for conditional visibility of this page/section/accordion panel */
+  visibility?: Condition;
 }
 
 export interface IPostAuthPage extends IRenderFromPageType {
@@ -182,8 +186,11 @@ export const RenderFromPageType = ({
   breadcrumbs
 }: IRenderFromPageTypeProps) => {
 
+  // Resolve conditional page type (supports ConditionalValue<string> or plain string)
+  const resolvedPageType = (useResolve<string>(pageType as any) || pageType) as IPageType | undefined;
+
   // Use stable keys to prevent unnecessary remounts
-  const stableKey = identifiers ?? (routeParams ? Object.values(routeParams).join('|') : '') ?? pageType;
+  const stableKey = identifiers ?? (routeParams ? Object.values(routeParams).join('|') : '') ?? resolvedPageType;
 
   // Extract entity name for override checking
   const entityName = useMemo(
@@ -195,7 +202,7 @@ export const RenderFromPageType = ({
   const entityOverrideResult = useMemo(() => {
     if (!entityName) return null;
 
-    const overridablePageType = getOverridablePageType(pageType, identifiers);
+    const overridablePageType = getOverridablePageType(resolvedPageType, identifiers);
     if (!overridablePageType) return null;
 
     const OverrideComponent = ExtensionRegistry.getEntityOverride(
@@ -223,7 +230,7 @@ export const RenderFromPageType = ({
     };
 
     return { Component: OverrideComponent, props: overrideProps };
-  }, [ entityName, pageType, identifiers, routeParams, depth, listPageConfig, detailsPageConfig, formPageConfig ]);
+  }, [ entityName, resolvedPageType, identifiers, routeParams, depth, listPageConfig, detailsPageConfig, formPageConfig ]);
 
   // If entity override exists, render it instead of standard page
   if (entityOverrideResult) {
@@ -242,18 +249,18 @@ export const RenderFromPageType = ({
 
   // Check ExtensionRegistry for custom page types
   const extensionPageResult = useMemo(() => {
-    if (!pageType) return null;
+    if (!resolvedPageType) return null;
 
     // Build resolver context
     const resolverContext = buildResolverContext({
       entityName,
-      pageType,
+      pageType: resolvedPageType,
       routeParams,
       depth
     });
 
     // Check for custom page type in ExtensionRegistry
-    const CustomPageComponent = ExtensionRegistry.getPageComponent(pageType, resolverContext);
+    const CustomPageComponent = ExtensionRegistry.getPageComponent(resolvedPageType, resolverContext);
     if (!CustomPageComponent) return null;
 
     // Build props for custom page
@@ -273,7 +280,7 @@ export const RenderFromPageType = ({
     };
 
     return { Component: CustomPageComponent, props: pageProps };
-  }, [ pageType, entityName, routeParams, depth, identifiers, listPageConfig, detailsPageConfig, formPageConfig, dashboardPageConfig, customPageConfig, accordionsPageConfig ]);
+  }, [ resolvedPageType, entityName, routeParams, depth, identifiers, listPageConfig, detailsPageConfig, formPageConfig, dashboardPageConfig, customPageConfig, accordionsPageConfig ]);
 
   // If ExtensionRegistry has a custom page type, render it
   if (extensionPageResult) {
@@ -282,7 +289,7 @@ export const RenderFromPageType = ({
       <ErrorBoundary
         FallbackComponent={ErrorFallback}
         onReset={() => {
-          console.log(`[RenderFromPageType] Extension page error boundary reset: ${pageType}`);
+          console.log(`[RenderFromPageType] Extension page error boundary reset: ${resolvedPageType}`);
         }}
       >
         <Component {...props} />
@@ -291,7 +298,7 @@ export const RenderFromPageType = ({
   }
 
   // Standard page type rendering (built-in types)
-  switch (pageType) {
+  switch (resolvedPageType) {
     case "list": return (
       <TablePage
         {...listPageConfig}
@@ -361,6 +368,6 @@ export const RenderFromPageType = ({
         />
       );
     }
-    default: return <>Invalid Page Type: {pageType}</>;
+    default: return <>Invalid Page Type: {resolvedPageType}</>;
   }
 }

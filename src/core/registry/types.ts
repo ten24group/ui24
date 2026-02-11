@@ -19,31 +19,56 @@ export interface RouteParams {
 }
 
 /**
- * User context for role-based resolution.
+ * Actor context for role-based resolution.
+ * Aligned with EvaluationContext.actor.
  */
-export interface UserContext {
-  readonly id: string;
-  readonly roles: ReadonlyArray<string>;
+export interface ActorContext {
+  readonly actorId: string;
+  readonly groups: ReadonlyArray<string>;
   readonly permissions?: ReadonlyArray<string>;
 }
 
+
 /**
  * Feature flags for conditional resolution.
+ * Boolean for toggles, string for variants/experiments.
  */
 export interface FeatureFlags {
-  readonly [ key: string ]: boolean;
+  readonly [ key: string ]: boolean | string;
+}
+
+/**
+ * Tenant context for multi-tenant resolution.
+ */
+export interface TenantContext {
+  readonly tenantId: string;
+  readonly name?: string;
+  readonly [key: string]: unknown;
+}
+
+/**
+ * Device context for responsive resolution.
+ */
+export interface DeviceContext {
+  readonly isMobile: boolean;
+  readonly isTablet?: boolean;
+  readonly isDesktop?: boolean;
+  readonly viewport?: string;
 }
 
 /**
  * Complete context available during resolution.
+ * Aligned with EvaluationContext for consistency.
  */
 export interface ResolverContext {
   readonly entityName?: string;
   readonly pageType?: string;
   readonly fieldName?: string;
   readonly fieldType?: string;
-  readonly user?: Readonly<UserContext>;
+  readonly actor?: Readonly<ActorContext>;
   readonly featureFlags?: Readonly<FeatureFlags>;
+  readonly tenant?: Readonly<TenantContext>;
+  readonly device?: Readonly<DeviceContext>;
   readonly routeParams: Readonly<RouteParams>;
   readonly parentData?: unknown;
   readonly depth: number;
@@ -315,26 +340,18 @@ export interface WidgetTypeOverrideConfig {
 // ============================================================================
 
 /**
- * Condition object for conditional registration.
- */
-export interface RegistrationCondition {
-  readonly entity?: string;
-  readonly field?: string;
-  readonly fieldType?: string;
-  readonly roles?: ReadonlyArray<string>;
-  readonly featureFlags?: Readonly<Record<string, boolean>>;
-}
-
-/**
- * Condition function for complex conditions.
+ * Match function for conditional registration.
+ * Full programmatic control over when a registration applies.
  */
 export type ConditionFn = (context: Readonly<ResolverContext>) => boolean;
 
 /**
  * Conditional registration configuration.
+ * Uses a function-based `match` for full programmatic control.
  */
 export interface ConditionalRegistrationConfig<C extends ComponentType<unknown>> {
-  readonly condition: RegistrationCondition | ConditionFn;
+  /** Function to determine if this registration matches the current context. */
+  readonly match: (ctx: Readonly<ResolverContext>) => boolean;
   readonly key: string;
   readonly component: C;
   readonly description?: string;

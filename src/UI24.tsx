@@ -7,6 +7,8 @@ import { AppRouter, IAppRouter } from './routes/AppRouter';
 import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider, AppStateProvider, AppStaticProvider } from './core/context';
 import { ResponseModalProvider } from './core/context/ResponseModalContext';
 import { IUi24Config } from './core/context';
+import { IConditionSystemConfig } from './core/context/types';
+import { setConditionSystemConfig } from './core/context/conditionSystemConfig';
 
 // Log UI24 version on load
 const UI24_VERSION = process.env.UI24_VERSION || 'unknown';
@@ -21,6 +23,27 @@ type IUI24 = {
     ui24config: IUi24Config
 }
 
+/**
+ * Configure the condition system before React mounts.
+ * Call this in your app's entry point before rendering <UI24 />.
+ * 
+ * @example
+ * import { configure } from 'ui24';
+ * 
+ * configure({
+ *   featureFlagProvider: { getFlags: () => ({ richText: true }) },
+ *   tenantProvider: { getTenant: () => ({ tenantId: 'acme', name: 'Acme' }) },
+ *   responsiveDevice: true,
+ *   contextProviders: {
+ *     subscription: { getContext: () => ({ tier: 'pro', isPro: true }) },
+ *     preferences: { getContext: () => ({ locale: 'en-US', theme: 'dark' }) },
+ *   },
+ * });
+ */
+export function configure(config: IConditionSystemConfig): void {
+  setConditionSystemConfig(config);
+}
+
 const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
 
     return (
@@ -31,9 +54,7 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
                         <AppContextProvider>
                             <ThemeProvider>
                                 <AuthProvider>
-                                    {/* NEW: AppStaticProvider provides actor, device, tenant, feature flags */}
                                     <AppStaticProvider>
-                                        {/* AppStateProvider transforms auth token into clean actor structure */}
                                         <AppStateProvider>
                                             <ApiProvider>
                                                 <ResponseModalProvider>

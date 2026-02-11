@@ -97,7 +97,7 @@
 
 import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider, Timeline } from 'antd';
 import dayjs from 'dayjs';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
 import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link, MarkdownPreview } from '../core/common';
@@ -105,6 +105,7 @@ import { IApiConfig, useApi, useAppContext } from '../core/context';
 import { HelpText } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
+import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { OpenInModal } from '../modal/Modal';
@@ -114,6 +115,7 @@ import { QRCode } from 'antd';
 import * as Icons from '@ant-design/icons';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
+import { resolveStringOrDefault } from '../core/types/evaluation';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 import { formatDuration, formatTTL } from '../core/utils/duration';
@@ -409,7 +411,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
               if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
                 return {
                   key: index,
-                  label: item.label,
+                  label: resolveStringOrDefault(item.label),
                   children: <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
                 }
               }
@@ -417,8 +419,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
               if (item.fieldType === 'image') {
                 return {
                   key: index,
-                  label: item.label,
-                  children: <img src={item.initialValue} alt={item.label} style={{ width: '100px', height: '100px' }} />
+                  label: resolveStringOrDefault(item.label),
+                  children: <img src={item.initialValue} alt={resolveStringOrDefault(item.label)} style={{ width: '100px', height: '100px' }} />
                 }
               }
 
@@ -426,7 +428,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                 return {
                   key: index,
-                  label: item.label,
+                  label: resolveStringOrDefault(item.label),
                   children: <List
                     itemLayout="horizontal"
                     dataSource={item.initialValue as unknown as any[]}
@@ -438,7 +440,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                               </code>
                           </pre> */}
 
-                        {makeDescriptionCard({ name: item.label + " - " + index, layout: 'vertical', data: item })}
+                        {makeDescriptionCard({ name: resolveStringOrDefault(item.label, 'Item') + " - " + index, layout: 'vertical', data: item })}
                       </List.Item>
                     )}
                   />
@@ -447,7 +449,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
               return {
                 key: index,
-                label: item.label,
+                label: resolveStringOrDefault(item.label),
                 children: item.initialValue
               }
 
@@ -456,8 +458,16 @@ const Details: React.FC<IDetailsComponentProps> = ({
     </>
   }
 
-  // Determine columns to render
-  const items = recordInfo.filter(item => !item.hidden);
+  // ── Condition evaluation for detail fields ──
+  const { visibilityResults: detailVisibilities } = useEvaluatedItems(recordInfo);
+
+  // Determine columns to render — filter by condition + static hidden
+  const items = recordInfo.filter((item, idx) => {
+    // If there's a visibility condition, use its result
+    if (item.visibility !== undefined) return detailVisibilities[idx];
+    // Otherwise, use legacy static hidden check
+    return !item.hidden;
+  });
   const columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 3); // Details can have up to 3 columns
 
   return (
@@ -501,14 +511,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.relationConfig) {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <RelationFieldRenderer
                             relationConfig={item.relationConfig}
                             value={value}
                             record={detailResponse || {}}
                             routeParams={routeParams}
-                            label={item.label}
+                            label={resolveStringOrDefault(item.label)}
                           />
                         </div>
                       );
@@ -521,7 +531,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       {
                         fieldName: item.name || item.column || '',
                         entityName,
-                        explicitRenderer: item.renderer,
+                        explicitRenderer: typeof item.renderer === 'string' ? item.renderer : undefined,
                         routeParams
                       }
                     );
@@ -532,7 +542,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         {
                           fieldName: item.name || item.column || '',
                           value,
-                          label: item.label,
+                          label: resolveStringOrDefault(item.label),
                           config: item as DetailFieldConfig,
                           routeParams
                         }
@@ -541,8 +551,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       const Renderer = CustomDetailRenderer as React.ComponentType<typeof customDetailProps>;
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <Renderer {...customDetailProps} />
                         </div>
                       );
@@ -552,8 +562,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (value === null || value === undefined) {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <span>—</span>
                         </div>
                       );
@@ -578,8 +588,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <Link url={linkUrl} className="details-link">
                             {displayText} ({value})
                           </Link>
@@ -590,14 +600,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.openInModal) {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <OpenInModal
                             modalType="details"
                             primaryIndex={value}
                             modalPageConfig={{
-                              pageTitle: item.label,
-                              propertiesConfig: [ item ],
+                              pageTitle: resolveStringOrDefault(item.label),
+                              propertiesConfig: [ { ...item, label: resolveStringOrDefault(item.label) } ],
                             }}
                           >
                             {value}
@@ -615,8 +625,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div className="details-fixed-block">
                             <CustomBlockNoteEditor value={value as any} readOnly={true} />
                           </div>
@@ -643,17 +653,17 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (isComplexData && item.fieldType !== 'multi-select') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
-                          <JsonField data={value} title={item.label} maxDepth={2} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                          <JsonField data={value} title={resolveStringOrDefault(item.label)} maxDepth={2} />
                         </div>
                       );
                     }
                     if (item.fieldType === 'markdown') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div className="details-fixed-block">
                             <MarkdownPreview value={value} />
                           </div>
@@ -663,8 +673,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if ([ 'textarea', 'code' ].includes(item.fieldType)) {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div className="details-fixed-block">
                             <JsonDescription data={value} />
                           </div>
@@ -674,17 +684,17 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'image') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
-                          <img src={value} alt={item.label} className="details-image" />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                          <img src={value} alt={resolveStringOrDefault(item.label)} className="details-image" />
                         </div>
                       );
                     }
                     if (item.fieldType === 'color') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <CustomColorPicker value={value} disabled />
                         </div>
                       );
@@ -692,8 +702,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'number') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div>
                             {Number(value)}
                           </div>
@@ -703,8 +713,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'range') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div>
                             {`${value}%`}
                           </div>
@@ -714,8 +724,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'rating') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div>
                             {`${value}/5`}
                           </div>
@@ -725,8 +735,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'file') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <a href={value} target="_blank" rel="noopener noreferrer">
                             Download File
                           </a>
@@ -738,8 +748,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'url') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <a href={value} target="_blank" rel="noopener noreferrer">
                             {value}
                           </a>
@@ -751,8 +761,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'phone') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <a href={`tel:${value}`}>{value}</a>
                         </div>
                       );
@@ -766,8 +776,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       }).format(Number(value) || 0);
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div>{formatted}</div>
                         </div>
                       );
@@ -777,8 +787,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'percentage') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div>{Number(value)}%</div>
                         </div>
                       );
@@ -788,8 +798,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'slider') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <Slider
                               value={Number(value)}
@@ -813,8 +823,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div>{durationValue}</div>
                         </div>
                       );
@@ -855,8 +865,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <TTLRenderer />
                         </div>
                       );
@@ -866,8 +876,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'badge') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <Badge
                             status={item.status || 'default'}
                             text={String(value)}
@@ -882,8 +892,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       const tags = Array.isArray(value) ? value : [ value ];
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {tags.map((tag: any, i: number) => (
                               <Tag key={i} color={item.color}>
@@ -906,8 +916,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <Progress
                             type={type}
                             percent={Number(value) || 0}
@@ -922,8 +932,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'avatar') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <Avatar
                             src={value}
                             size={item.size || 'default'}
@@ -941,8 +951,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       const IconComponent = (Icons as any)[ String(value) ];
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           {IconComponent ? (
                             <IconComponent
                               style={{
@@ -964,8 +974,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         : value;
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <a
                             href={href}
                             target={item.target || '_blank'}
@@ -981,8 +991,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'video') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <video
                             src={value}
                             controls={item.controls !== false}
@@ -996,8 +1006,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     if (item.fieldType === 'audio') {
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <audio
                             src={value}
                             controls={item.controls !== false}
@@ -1012,8 +1022,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       const qrSize = typeof item.size === 'number' ? item.size : 128;
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <QRCode
                             value={String(value)}
                             size={qrSize}
@@ -1176,8 +1186,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       if (timelineItems.length === 0) {
                         return (
                           <div key={index} className="details-field-container">
-                            <div className="details-field-label">{item.label}</div>
-                            <HelpText helpText={item.helpText} />
+                            <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                            <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                             <span style={{ color: '#8c8c8c' }}>No events</span>
                           </div>
                         );
@@ -1185,8 +1195,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                       return (
                         <div key={index} className="details-field-container">
-                          <div className="details-field-label">{item.label}</div>
-                          <HelpText helpText={item.helpText} />
+                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                           <div style={{ paddingTop: '8px' }}>
                             <Timeline
                               mode={config.mode || 'left'}
@@ -1199,8 +1209,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     return (
                       <div key={index} className="details-field-container">
-                        <div className="details-field-label">{item.label}</div>
-                        <HelpText helpText={item.helpText} />
+                        <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
+                        <HelpText helpText={resolveStringOrDefault(item.helpText)} />
                         <div>
                           {value !== undefined && value !== null && value !== '' ? (
                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (

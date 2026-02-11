@@ -50,7 +50,6 @@ import type {
   WidgetRegistrationConfig,
   WidgetTypeOverrideConfig,
   ConditionalRegistrationConfig,
-  RegistrationCondition,
   ConditionFn,
   RegistrationInfo,
   RegistrationCategory,
@@ -87,7 +86,7 @@ interface WidgetRegistration {
 }
 
 interface ConditionalRegistration {
-  readonly condition: RegistrationCondition | ConditionFn;
+  readonly condition: ConditionFn;
   readonly key: string;
   readonly component: ComponentType<unknown>;
   readonly description?: string;
@@ -494,13 +493,20 @@ class ExtensionRegistryImpl {
 
   /**
    * Register conditional override.
-   * Applied when condition matches context (roles, feature flags, entity, etc.).
+   * Uses a function-based match for full programmatic control.
+   * 
+   * @example
+   * ExtensionRegistry.when({
+   *   key: 'page:list',
+   *   match: (ctx) => ctx.actor?.groups.includes('admin'),
+   *   component: AdminListPage,
+   * });
    */
   public when<C extends ComponentType<unknown>>(config: ConditionalRegistrationConfig<C>): void {
     this.warnIfInitialized('when', config.key);
 
     this.conditionals.push({
-      condition: config.condition,
+      condition: config.match,
       key: config.key,
       component: config.component as ComponentType<unknown>,
       description: config.description
@@ -511,6 +517,7 @@ class ExtensionRegistryImpl {
 
   /**
    * Find matching conditional registration.
+   * Calls the registered match function against the current context.
    */
   private findMatchingConditional(
     key: string,
@@ -519,55 +526,11 @@ class ExtensionRegistryImpl {
     for (const reg of this.conditionals) {
       if (reg.key !== key) continue;
 
-      const matches = typeof reg.condition === 'function'
-        ? reg.condition(context)
-        : this.matchesCondition(reg.condition, context);
-
-      if (matches) {
+      if (reg.condition(context)) {
         return reg.component;
       }
     }
     return null;
-  }
-
-  /**
-   * Check if context matches condition object.
-   */
-  private matchesCondition(
-    condition: RegistrationCondition,
-    context: Readonly<ResolverContext>
-  ): boolean {
-    // Entity match
-    if (condition.entity && condition.entity !== context.entityName) {
-      return false;
-    }
-
-    // Field name match
-    if (condition.field && condition.field !== context.fieldName) {
-      return false;
-    }
-
-    // Field type match
-    if (condition.fieldType && condition.fieldType !== context.fieldType) {
-      return false;
-    }
-
-    // Role match (ANY role)
-    if (condition.roles && condition.roles.length > 0) {
-      const userRoles = context.user?.roles ?? [];
-      const hasRole = condition.roles.some(role => userRoles.includes(role));
-      if (!hasRole) return false;
-    }
-
-    // Feature flag match (ALL flags)
-    if (condition.featureFlags) {
-      const flags = context.featureFlags ?? {};
-      for (const [ flag, expected ] of Object.entries(condition.featureFlags)) {
-        if (flags[ flag ] !== expected) return false;
-      }
-    }
-
-    return true;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -743,7 +706,7 @@ class ExtensionRegistryImpl {
         entity: context.entityName,
         field: context.fieldName,
         fieldType: context.fieldType,
-        roles: context.user?.roles
+        roles: context.actor?.groups
       });
     }
   }

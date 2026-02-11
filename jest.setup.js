@@ -1,5 +1,32 @@
 // jest.setup.js
 
+// Polyfill TextEncoder/TextDecoder (needed by react-router-dom v6+ in jsdom)
+const { TextEncoder, TextDecoder } = require('util');
+global.TextEncoder = TextEncoder;
+global.TextDecoder = TextDecoder;
+
+// Mock IntersectionObserver (not available in jsdom)
+global.IntersectionObserver = class IntersectionObserver {
+  constructor(callback) { this._callback = callback; }
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
+// Mock matchMedia (not available in jsdom)
+global.matchMedia = global.matchMedia || function(query) {
+  return {
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: function() {},
+    removeListener: function() {},
+    addEventListener: function() {},
+    removeEventListener: function() {},
+    dispatchEvent: function() { return false; },
+  };
+};
+
 // Simple in-memory storage mock
 const storageMock = (() => {
   let store = {};

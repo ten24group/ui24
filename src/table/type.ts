@@ -1,6 +1,6 @@
 import { IApiConfig, IDualApiConfig } from "../core/context";
 import { FieldType, PropertyType } from "../core/types/field-types";
-import type { Template, VisibilityConfig, IFieldTypeProperties } from "../core/types";
+import type { Template, Condition, ConditionalValue, IFieldTypeProperties } from "../core/types";
 import { IModalConfig, IResponseDisplayConfig } from "../modal/Modal";
 import { IActionDrawerConfig } from "../modal/Drawer";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
@@ -35,7 +35,7 @@ export interface ITableExpandableConfig {
     pageType: 'list' | 'details' | 'form' | 'dashboard' | 'accordion';
     pageConfig?: ITableFilters;
   };
-  rowExpandable?: VisibilityConfig;
+  rowExpandable?: Condition;
   defaultExpanded?: boolean;
   expandIcon?: string;
   indentSize?: number;
@@ -135,7 +135,7 @@ export interface IFilterSegment {
   icon?: string;
   filters: Record<string, any>;
   default?: boolean;
-  visibility?: VisibilityConfig;
+  visibility?: Condition;
   badge?: number | string;
   badgeStatus?: 'success' | 'processing' | 'error' | 'warning' | 'default';
 }
@@ -175,7 +175,7 @@ export interface ITableConfig {
     readonly enabled: boolean;
     /** Selection type: 'checkbox' for multi-select, 'radio' for single-select */
     readonly type?: 'checkbox' | 'radio';
-    readonly visibility?: VisibilityConfig;  // Conditional row selection
+    readonly visibility?: Condition;  // Conditional row selection
   };  // Row selection configuration (from backend tableConfig.rowSelection)
   /**
    * Expandable row configuration.
@@ -255,6 +255,8 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * From backend: tableConfig.columns[].defaultVisible
    */
   defaultVisible?: boolean;
+  /** Condition for conditional visibility of this column */
+  visibility?: Condition;
   isFilterable?: boolean;
   isIdentifier?: boolean;
   isSortable?: boolean;
@@ -291,11 +293,14 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * Custom renderer key for this field/column.
    * When specified, the frontend uses this key to look up a registered custom renderer
    * via ExtensionRegistry.getFieldRenderer() or getColumnRenderer().
+   * Supports ConditionalValue for dynamic renderer selection based on context.
    * 
    * @example
    * renderer: 'address-picker'
+   * // or conditional:
+   * renderer: { rules: [{ when: { device: { isMobile: { eq: true } } }, value: 'compact-view' }], default: 'full-view' }
    */
-  renderer?: string;
+  renderer?: string | ConditionalValue<string>;
 
   /**
    * Configuration passed to the custom renderer.
@@ -466,11 +471,24 @@ export type IPageAction = {
   drawerConfigRef?: IEntityConfigReference;
 
   /**
-   * Visibility configuration for conditional rendering.
-   * Controls visibility and enablement based on actor roles, record state, context, and custom logic.
-   * Evaluated using the universal evaluation system.
+   * Visibility condition for conditional rendering.
+   * Supports the full Condition type: named refs, feature flags, device,
+   * inline field checks, logical operators, and app-defined context.
+   * Supports the full Condition type including named refs, inline checks, etc.
    */
-  visibility?: VisibilityConfig;
+  visibility?: Condition;
+
+  /**
+   * Enablement condition — evaluated separately from visibility.
+   * When false, the action renders as disabled.
+   * Supports the full Condition type.
+   */
+  enablement?: Condition;
+
+  /**
+   * Tooltip message shown when the action is disabled by an enablement condition.
+   */
+  disabledMessage?: string;
 
   /**
    * Link target attribute for external URLs.
@@ -493,5 +511,7 @@ export interface IActionIndexValue {
 }
 
 export interface IRecord {
-  [ key: string ]: string;
+  [ key: string ]: any;
+  /** Original unformatted record data, used for accurate condition evaluation */
+  __raw__?: Record<string, unknown>;
 }

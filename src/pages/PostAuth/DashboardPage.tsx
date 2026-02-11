@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { WidgetRenderer } from '../../dashboard/WidgetRenderer';
 import { IStatWidgetProps } from '../../dashboard/widgets/StatWidget';
 import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
@@ -11,6 +11,8 @@ import { IDetailsConfig } from '../../detail/Details';
 import { IForm } from '../../core/forms/formConfig';
 import { IModalConfig } from '../../modal/Modal';
 import { PageDataProvider } from '../../core/context/PageDataContext';
+import { useEvaluatedItems } from '../../core/hooks/useEvaluatedItems';
+import type { Condition } from '../../core/types/evaluation';
 
 export type DefaultTimePeriod = {
   period: TimePeriod;
@@ -21,6 +23,8 @@ export type IDashboardWidgetConfig = {
   colSpan?: number;
   maxWidth?: number | string;
   width?: number | string;
+  /** Condition for conditional visibility of this dashboard widget */
+  visibility?: Condition;
 } & (
     | {
       type: 'stat';
@@ -238,6 +242,10 @@ export const DashboardPage: React.FC<{
       return initial;
     });
 
+    // Batch evaluate visibility conditions for all widgets
+    const widgets = useMemo(() => dashboardConfig?.widgets || [], [dashboardConfig?.widgets]);
+    const { visibilityResults: widgetVisibilityResults } = useEvaluatedItems(widgets);
+
     if (!dashboardConfig || !dashboardConfig.widgets) {
       return <div> </div>;
     }
@@ -267,6 +275,9 @@ export const DashboardPage: React.FC<{
           }}
         >
           {dashboardConfig?.widgets?.map((widget, idx) => {
+            // Skip hidden widgets
+            if (!widgetVisibilityResults[idx]) return null;
+
             // Per-widget time period state
             let widgetTimePeriod;
             let widgetTz;

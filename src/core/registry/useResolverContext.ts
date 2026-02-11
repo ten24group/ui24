@@ -6,7 +6,8 @@
 
 import { useMemo } from 'react';
 import { usePageStaticContext } from '../context/PageStaticContext';
-import type { ResolverContext, RouteParams, UserContext, FeatureFlags } from './types';
+import { useAppStaticContext } from '../context/AppStaticContext';
+import type { ResolverContext, RouteParams, ActorContext, FeatureFlags, TenantContext, DeviceContext } from './types';
 
 /**
  * Options for building resolver context.
@@ -42,6 +43,7 @@ export interface UseResolverContextOptions {
  */
 export function useResolverContext(options: UseResolverContextOptions = {}): Readonly<ResolverContext> {
   const pageStatic = usePageStaticContext();
+  const appStatic = useAppStaticContext();
 
   const {
     routeParams = {},
@@ -51,21 +53,49 @@ export function useResolverContext(options: UseResolverContextOptions = {}): Rea
     parentData
   } = options;
 
-  // TODO: Get user context from auth provider
-  // For now, return undefined - apps can inject via options later
-  const user: UserContext | undefined = undefined;
+  // Map AppStaticContext actor to ResolverContext actor
+  const actor: ActorContext | undefined = useMemo(() => {
+    if (!appStatic?.actor?.actorId) return undefined;
+    return {
+      actorId: appStatic.actor.actorId,
+      groups: appStatic.actor.groups ?? [],
+      permissions: appStatic.actor.permissions,
+    };
+  }, [appStatic?.actor]);
 
-  // TODO: Get feature flags from config provider
-  // For now, return undefined - apps can inject via options later
-  const featureFlags: FeatureFlags | undefined = undefined;
+  // Get feature flags from AppStaticContext (boolean toggles + string variants)
+  const featureFlags: FeatureFlags | undefined = useMemo(() => {
+    const flags = appStatic?.featureFlags;
+    if (!flags || Object.keys(flags).length === 0) return undefined;
+    return flags as FeatureFlags;
+  }, [appStatic?.featureFlags]);
+
+  // Get tenant from AppStaticContext
+  const tenant: TenantContext | undefined = useMemo(() => {
+    if (!appStatic?.tenant?.tenantId) return undefined;
+    return appStatic.tenant as TenantContext;
+  }, [appStatic?.tenant]);
+
+  // Get device from AppStaticContext
+  const device: DeviceContext | undefined = useMemo(() => {
+    if (!appStatic?.device) return undefined;
+    return {
+      isMobile: appStatic.device.isMobile,
+      isTablet: appStatic.device.isTablet,
+      isDesktop: appStatic.device.isDesktop,
+      viewport: appStatic.device.viewport,
+    };
+  }, [appStatic?.device]);
 
   return useMemo<ResolverContext>(() => ({
     entityName: pageStatic?.entityName,
     pageType: pageStatic?.pageType,
     fieldName,
     fieldType,
-    user,
+    actor,
     featureFlags,
+    tenant,
+    device,
     routeParams,
     parentData,
     depth
@@ -74,8 +104,10 @@ export function useResolverContext(options: UseResolverContextOptions = {}): Rea
     pageStatic?.pageType,
     fieldName,
     fieldType,
-    user,
+    actor,
     featureFlags,
+    tenant,
+    device,
     routeParams,
     parentData,
     depth
@@ -93,8 +125,10 @@ export function buildResolverContext(options: {
   readonly pageType?: string;
   readonly fieldName?: string;
   readonly fieldType?: string;
-  readonly user?: Readonly<UserContext>;
+  readonly actor?: Readonly<ActorContext>;
   readonly featureFlags?: Readonly<FeatureFlags>;
+  readonly tenant?: Readonly<TenantContext>;
+  readonly device?: Readonly<DeviceContext>;
   readonly routeParams?: Readonly<RouteParams>;
   readonly parentData?: unknown;
   readonly depth?: number;
@@ -104,8 +138,10 @@ export function buildResolverContext(options: {
     pageType: options.pageType,
     fieldName: options.fieldName,
     fieldType: options.fieldType,
-    user: options.user,
+    actor: options.actor,
     featureFlags: options.featureFlags,
+    tenant: options.tenant,
+    device: options.device,
     routeParams: options.routeParams ?? {},
     parentData: options.parentData,
     depth: options.depth ?? 0

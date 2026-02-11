@@ -114,6 +114,7 @@ import { dayjsCustom } from '../core/dayjs';
 import { CreateButtons } from '../core/forms';
 import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
+import type { FormFieldConditionProps } from '../core/forms/FormField/FormField';
 import { IForm } from '../core/forms/formConfig';
 import { useApi } from '../core/context';
 //import { CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
@@ -122,6 +123,9 @@ import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
 import { substituteUrlParams, getNestedValue } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
+import { useResolveBatch } from '../core/hooks/useResolveBatch';
+import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
+import { ConditionalValue } from '../core/types/evaluation';
 import { formStyles } from '../core/forms/FormField/styles';
 import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -385,8 +389,11 @@ export function Form({
     if (!apiConfig) {
       if (!onSubmit && !onSubmitSuccessCallback) {
         notifyError("No API is configured for this form. Please contact support.");
+        return;
       }
-      // Still allow custom handlers (if present) to run below.
+      // Call custom handlers directly and return (no API call to make)
+      onSubmit && onSubmit(values);
+      onSubmitSuccessCallback && onSubmitSuccessCallback(values);
       return;
     }
 
@@ -566,17 +573,75 @@ export function Form({
 
   const [ form ] = AntForm.useForm();
 
+  // Ref to hold the latest condition evaluation results for fields.
+  // Used in submit handlers (defined before conditionPropsMap) to skip
+  // validation of condition-hidden/disabled fields.
+  const conditionPropsMapRef = React.useRef<FormFieldConditionProps[]>([]);
+
   /**
    * IMPORTANT (2026-01):
    * In some environments we run React 19 with antd v5 (see console warning).
    * We've observed cases where clicking a <Button htmlType="submit"> triggers a native
    * form submit event but does NOT reliably trigger antd's `onFinish` callback.
    *
-   * To avoid a "Submit does nothing" UX, we wrap the submit button to explicitly
-   * call `form.validateFields()` and then invoke our `onFinish` handler.
+   * To avoid a "Submit does nothing" UX, we:
+   * 1. Wrap submit buttons in `formButtons` to explicitly call `form.validateFields()`
+   * 2. Intercept native form submit events via `onSubmitCapture` for child submit buttons
+   *    (e.g., auth forms that render their own submit button as children)
    *
    * This keeps behavior consistent regardless of the underlying submit event plumbing.
    */
+
+  // React 19 + antd v5 workaround: intercept native form submit for child buttons
+  // that use htmlType="submit" (e.g., OTP login, password reset forms).
+  // This fires during the capture phase, before antd's own handler.
+  const handleNativeFormSubmit = React.useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setValidationErrors([]);
+    try {
+      // Only validate active fields (exclude condition-hidden/disabled)
+      const currentConditionProps = conditionPropsMapRef.current;
+      const activeFieldNames = formPropertiesConfig
+        .filter((_: any, i: number) => {
+          const cp = currentConditionProps[ i ];
+          return !cp?.conditionHidden && !cp?.conditionDisabled;
+        })
+        .map((f: any) => f.name)
+        .filter(Boolean);
+
+      // Validate only active (non-hidden, non-disabled) fields
+      if (activeFieldNames.length > 0) {
+        await form.validateFields(activeFieldNames);
+      }
+      // Get ALL field values (including hidden/disabled) for submission.
+      // validateFields() only returns validated fields, so we use getFieldsValue(true)
+      // to include condition-hidden fields whose values should still be submitted.
+      const values = form.getFieldsValue(true);
+      await onFinish(values);
+    } catch (err: any) {
+      if (err?.errorFields?.length > 0) {
+        const getFieldLabel = (fieldPath: string[]): string => {
+          const fieldName = fieldPath.join('.');
+          const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
+          const lbl = fieldConfig?.label;
+          return (typeof lbl === 'string' ? lbl : '') || fieldConfig?.name || fieldName;
+        };
+        const errors = err.errorFields.map((f: any) => {
+          const fieldLabel = getFieldLabel(f.name || []);
+          let message = f.errors?.join(', ') || 'This field is required';
+          message = message.replace(/undefined/gi, '');
+          return { field: fieldLabel, message };
+        });
+        setValidationErrors(errors);
+        const firstErrorField = err.errorFields[ 0 ]?.name;
+        if (firstErrorField) {
+          form.scrollToField(firstErrorField, { behavior: 'smooth', block: 'center' });
+        }
+        notifyError(`Please fix ${errors.length} validation error${errors.length > 1 ? 's' : ''} before submitting.`);
+      }
+    }
+  }, [ form, onFinish, formPropertiesConfig, notifyError ]);
   const effectiveFormButtons = useMemo(() => {
     const isSubmit = (btn: any): boolean => {
       if (typeof btn === 'string') return btn === 'submit';
@@ -591,14 +656,31 @@ export function Form({
     const handleSubmitClick = async () => {
       setValidationErrors([]);
       try {
-        const values = await form.validateFields();
+        // Only validate fields that are NOT condition-hidden or condition-disabled.
+        // This prevents required-but-hidden fields from blocking form submission.
+        const currentConditionProps = conditionPropsMapRef.current;
+        const activeFieldNames = formPropertiesConfig
+          .filter((_: any, i: number) => {
+            const cp = currentConditionProps[ i ];
+            return !cp?.conditionHidden && !cp?.conditionDisabled;
+          })
+          .map((f: any) => f.name)
+          .filter(Boolean);
+
+        // Validate only active (non-hidden, non-disabled) fields
+        if (activeFieldNames.length > 0) {
+          await form.validateFields(activeFieldNames);
+        }
+        // Get ALL field values (including hidden/disabled) for submission
+        const values = form.getFieldsValue(true);
         await onFinish(values);
       } catch (err: any) {
         if (err?.errorFields?.length > 0) {
           const getFieldLabel = (fieldPath: string[]): string => {
             const fieldName = fieldPath.join('.');
             const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
-            return fieldConfig?.label || fieldConfig?.name || fieldName;
+            const lbl = fieldConfig?.label;
+            return (typeof lbl === 'string' ? lbl : '') || fieldConfig?.name || fieldName;
           };
           const errors = err.errorFields.map((f: any) => {
             const fieldLabel = getFieldLabel(f.name || []);
@@ -661,9 +743,79 @@ export function Form({
     });
   }, [ initialRecord, debouncedFormValues, pageType, entityName, onDataChange ]);
 
+  // ── Condition evaluation for form fields ──
+  // Batch evaluate visibility, enablement, and resolve ConditionalValue fields for all fields.
+  const rendererValues = useMemo(
+    () => formPropertiesConfig.map(item => item.renderer as string | ConditionalValue<string> | undefined),
+    [ formPropertiesConfig ]
+  );
+  const labelValues = useMemo(
+    () => formPropertiesConfig.map(item => item.label as string | ConditionalValue<string> | undefined),
+    [ formPropertiesConfig ]
+  );
+  const placeholderValues = useMemo(
+    () => formPropertiesConfig.map(item => item.placeholder as string | ConditionalValue<string> | undefined),
+    [ formPropertiesConfig ]
+  );
+  const helpTextValues = useMemo(
+    () => formPropertiesConfig.map(item => item.helpText as string | ConditionalValue<string> | undefined),
+    [ formPropertiesConfig ]
+  );
+
+  const { getItemProps: getFieldConditionProps } = useEvaluatedItems(formPropertiesConfig);
+  const resolvedRenderers = useResolveBatch<string>(rendererValues);
+  const resolvedLabels = useResolveBatch<string>(labelValues);
+  const resolvedPlaceholders = useResolveBatch<string>(placeholderValues);
+  const resolvedHelpTexts = useResolveBatch<string>(helpTextValues);
+
+  // Build condition props for each field
+  const conditionPropsMap = useMemo(() => {
+    return formPropertiesConfig.map((_: unknown, i: number): FormFieldConditionProps => {
+      const cProps = getFieldConditionProps(i);
+      const props: FormFieldConditionProps = {};
+      if (cProps.conditionHidden) {
+        props.conditionHidden = true;
+      }
+      if (cProps.conditionDisabled) {
+        props.conditionDisabled = true;
+        props.conditionDisabledMessage = cProps.conditionDisabledMessage;
+      }
+      if (resolvedRenderers[ i ] !== undefined) {
+        props.resolvedRenderer = resolvedRenderers[ i ] as string;
+      }
+      if (resolvedLabels[ i ] !== undefined) {
+        props.resolvedLabel = resolvedLabels[ i ] as string;
+      }
+      if (resolvedPlaceholders[ i ] !== undefined) {
+        props.resolvedPlaceholder = resolvedPlaceholders[ i ] as string;
+      }
+      if (resolvedHelpTexts[ i ] !== undefined) {
+        props.resolvedHelpText = resolvedHelpTexts[ i ] as string;
+      }
+      return props;
+    });
+  }, [ getFieldConditionProps, resolvedRenderers, resolvedLabels, resolvedPlaceholders, resolvedHelpTexts, formPropertiesConfig ]);
+
+  // Keep the ref in sync so submit handlers can read the latest condition state
+  conditionPropsMapRef.current = conditionPropsMap;
+
   // Determine columns to render
+  // Keep condition-hidden fields (they render as hidden Form.Item to preserve values)
   let columns: IFormField[][] = [];
-  const items = formPropertiesConfig.filter(item => !item.hidden);
+  const items = formPropertiesConfig.filter((item, idx) => {
+    // If there's a visibility condition, always include (FormField handles hidden rendering)
+    if (item.visibility !== undefined) return true;
+    // Otherwise, use legacy static hidden check
+    return !item.hidden;
+  });
+
+  // Map from filtered items back to original formPropertiesConfig indices
+  const itemOriginalIndices: number[] = [];
+  formPropertiesConfig.forEach((item, idx) => {
+    if (item.visibility !== undefined || !item.hidden) {
+      itemOriginalIndices.push(idx);
+    }
+  });
 
   // Special case: if we have only one item and it's a map with many properties, 
   // create multiple columns for the nested properties
@@ -681,24 +833,31 @@ export function Form({
     columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 2);
   }
 
-  const renderFormField = (item: IFormField, index: number) => (
-    <React.Fragment key={"fe" + index}>
-      <FormField {...item} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
-        if (newValue.index !== undefined && typeof newValue.value === "object") {
-          const currentValue = form.getFieldValue(newValue.name) || [];
-          form.setFieldsValue({
-            [ newValue.name ]: [
-              ...currentValue.slice(0, newValue.index),
-              { ...currentValue[ newValue.index ], ...newValue.value },
-              ...currentValue.slice(newValue.index + 1)
-            ]
-          })
-        } else {
-          form.setFieldsValue({ [ newValue.name ]: newValue.value })
-        }
-      }} />
-    </React.Fragment>
-  );
+  const renderFormField = (item: IFormField, index: number) => {
+    // Find original index to get condition props
+    const filteredIdx = items.indexOf(item);
+    const originalIdx = filteredIdx >= 0 ? itemOriginalIndices[ filteredIdx ] : index;
+    const condProps = conditionPropsMap[ originalIdx ] || {};
+
+    return (
+      <React.Fragment key={"fe" + index}>
+        <FormField {...item} {...condProps} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
+          if (newValue.index !== undefined && typeof newValue.value === "object") {
+            const currentValue = form.getFieldValue(newValue.name) || [];
+            form.setFieldsValue({
+              [ newValue.name ]: [
+                ...currentValue.slice(0, newValue.index),
+                { ...currentValue[ newValue.index ], ...newValue.value },
+                ...currentValue.slice(newValue.index + 1)
+              ]
+            })
+          } else {
+            form.setFieldsValue({ [ newValue.name ]: newValue.value })
+          }
+        }} />
+      </React.Fragment>
+    );
+  };
 
   // Set initial form values - run when data loads OR when props actually change
   // CRITICAL: Must detect actual changes vs re-renders to preserve user input after validation errors
@@ -794,6 +953,7 @@ export function Form({
             {...stableFormConfig}
             layout="vertical"
             onFinish={onFinish}
+            onSubmitCapture={handleNativeFormSubmit}
             disabled={loader}
           >
             {helpText && (

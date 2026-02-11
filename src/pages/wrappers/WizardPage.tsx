@@ -6,6 +6,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { useEvaluatedItems } from '../../core/hooks/useEvaluatedItems';
 import { Card, message } from 'antd';
 import { FormWizard, type IWizardPageConfig, type WizardApiClient } from '../../core/common/FormWizard';
 import { useApi } from '../../core/context/ApiContext';
@@ -78,6 +79,10 @@ export const WizardPage: React.FC<IWizardPageProps> = ({
   const operationExecutor = useOperationExecutor();
   const { callApiMethod } = useApi();
   const [ isSubmitting, setIsSubmitting ] = useState(false);
+
+  // Batch evaluate step visibility and filter to only visible steps
+  const stepsArr = useMemo(() => steps || [], [steps]);
+  const { visibleItems: visibleSteps } = useEvaluatedItems(stepsArr);
 
   // Create API client wrapper for FormWizard's dynamic field loading
   const wizardApiClient: WizardApiClient = useMemo(() => {
@@ -166,7 +171,7 @@ export const WizardPage: React.FC<IWizardPageProps> = ({
       >
         {helpText && <div style={{ marginBottom: '20px', color: '#666' }}>{helpText}</div>}
         <FormWizard
-          steps={steps}
+          steps={visibleSteps}
           onComplete={handleComplete}
           onCancel={showCancel !== false ? handleCancel : undefined}
           initialValues={initialValues}

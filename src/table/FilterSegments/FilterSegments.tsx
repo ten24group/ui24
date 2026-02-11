@@ -22,7 +22,7 @@ import React, { useMemo, useEffect } from 'react';
 import { Segmented, Badge, ConfigProvider, theme } from 'antd';
 import { IFilterSegment, IFilterSegmentGroup } from '../type';
 import { resolveFilterPlaceholders, PlaceholderContext } from '../../core/utils/placeholderResolver';
-import { useEvaluationBatch } from '../../core/hooks/useEvaluation';
+import { useEvaluatedItems } from '../../core/hooks/useEvaluatedItems';
 import './FilterSegments.css';
 
 interface FilterSegmentsProps {
@@ -96,20 +96,17 @@ export const FilterSegments: React.FC<FilterSegmentsProps> = ({
     return segmentGroups.flatMap(group => group.segments);
   }, [ segmentGroups ]);
 
-  // Evaluate visibility for all segments
-  const visibilityResults = useEvaluationBatch(
-    allSegments.map(segment => segment.visibility)
-  );
+  // Evaluate visibility for all segments using condition system
+  const { visibilityResults: segmentVisResults } = useEvaluatedItems(allSegments);
 
   // Create visibility map
   const visibilityMap = useMemo(() => {
     const map = new Map<string, boolean>();
     allSegments.forEach((segment, index) => {
-      const result = visibilityResults[ index ];
-      map.set(segment.id, result?.visible !== false);
+      map.set(segment.id, segmentVisResults[index]);
     });
     return map;
-  }, [ allSegments, visibilityResults ]);
+  }, [ allSegments, segmentVisResults ]);
 
   // Filter visible groups and their segments
   const visibleGroups = useMemo(() => {
