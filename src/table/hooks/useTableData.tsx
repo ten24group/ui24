@@ -1,5 +1,5 @@
 import React from 'react';
-import { useApi, IApiConfig } from '../../core/context';
+import { useApi } from '../../core/context';
 import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig, ITableApiConfig } from '../type';
@@ -9,8 +9,9 @@ import { PASS_THROUGH_URL_PARAMS } from '../constants';
 import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver';
 import { usePlaceholderContext } from './usePlaceholderContext';
 import { useFormat } from '../../core';
+import { queryClient } from '../../core/query/QueryProvider';
+import { queryKeys } from '../../core/query/queryKeys';
 
-// Utility to replace URL parameters with values
 const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
   return url.replace(/:(\w+)/g, (_, param) => params[ param ] || `:${param}`);
 };
@@ -22,21 +23,15 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
     for (let key in filters) {
       const value = filters[ key ];
 
-      // Check if value is an object with operators
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        // Nested structure with operators
         for (let operator in value) {
           if (operator === 'eq') {
-            // Special case: .eq operator outputs as plain param (no .eq suffix)
-            // {sport: {eq: "basketball"}} → sport=basketball
             if (Array.isArray(value[ operator ])) {
               transformedFilters[ key ] = value[ operator ].join(",");
             } else {
               transformedFilters[ key ] = value[ operator ];
             }
           } else {
-            // Other operators: keep the operator suffix
-            // {sport: {neq: "football"}} → sport.neq=football
             if (Array.isArray(value[ operator ])) {
               transformedFilters[ `${key}.${operator}` ] = value[ operator ].join(",");
             } else {
@@ -45,7 +40,6 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
           }
         }
       } else {
-        // Plain value (shouldn't happen now, but handle it)
         if (Array.isArray(value)) {
           transformedFilters[ key ] = value.join(",");
         } else {
@@ -59,7 +53,7 @@ const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET
 };
 
 interface IUseTableDataProps {
-  apiConfig: ITableApiConfig;  // Extended config with defaultSort support
+  apiConfig: ITableApiConfig;
   routeParams?: Record<string, string>;
   appliedFilters: Record<string, any>;
   searchQuery: string;
@@ -69,8 +63,8 @@ interface IUseTableDataProps {
   propertiesConfig: ITablePropertiesConfig[];
   recordIdentifierKey: string;
   isSearchMode: boolean;
-  fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
-  pageSize: number; // Number of records per page
+  fetchStrategy?: 'eager' | 'lazy';
+  pageSize: number;
 }
 
 export const useTableData = ({
@@ -84,12 +78,12 @@ export const useTableData = ({
   propertiesConfig,
   recordIdentifierKey,
   isSearchMode,
-  fetchStrategy = 'eager', // Default to eager fetching
+  fetchStrategy = 'eager',
   pageSize,
 }: IUseTableDataProps) => {
   const [ listRecords, setListRecords ] = React.useState([]);
   const [ isLoading, setIsLoading ] = React.useState(false);
-  const [ isInitialLoad, setIsInitialLoad ] = React.useState(true);  // Track initial load for skeleton
+  const [ isInitialLoad, setIsInitialLoad ] = React.useState(true);
   const [ currentPage, setCurrentPage ] = React.useState(1);
   const [ pageCursor, setPageCursor ] = React.useState<Record<number, string>>({ 1: "" });
   const [ isLastPage, setIsLastPage ] = React.useState(false);
@@ -100,13 +94,9 @@ export const useTableData = ({
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
 
-  // Build placeholder context for resolving filter placeholders
   const placeholderContext = usePlaceholderContext(routeParams);
 
   // Reset pagination when filters, sort, or pageSize change
-  // This prevents stale pagination cursors from being used with new filter sets
-  // Without this, changing filters and then paginating would send old filter values to the API
-  // Note: The fetch is triggered by useTable.tsx via fetchTrigger when appliedFilters/sort change
   React.useEffect(() => {
     setPageCursor({ 1: "" });
     setCurrentPage(1);
@@ -126,43 +116,41 @@ export const useTableData = ({
       .join(',');
   };
 
+  // Derive entity name from apiUrl for React Query cache keying
+  const entityName = React.useMemo(() => {
+    const url = apiConfig.apiUrl || '';
+    const parts = url.split('/').filter(Boolean);
+    const lastPart = parts[ parts.length - 1 ] || 'unknown';
+    return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
+  }, [ apiConfig.apiUrl ]);
+
+  // Keep callApiMethod in a ref so the fetchQuery callback always has the latest reference
+  const callApiMethodRef = React.useRef(callApiMethod);
+  callApiMethodRef.current = callApiMethod;
+
   const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string, filtersOverride?: Record<string, any>) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
     const isSearchActive = isSearchMode;
     const sortString = getSortString();
     const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursor[ pageNumber ] || "";
 
-    // Use filtersOverride if provided, otherwise use appliedFilters from state
-    // filtersOverride is critical for segment changes: allows immediate fetch with new filters
-    // without waiting for React's setState to complete (avoids stale closure issues)
     const effectiveFilters = filtersOverride !== undefined ? filtersOverride : appliedFilters;
-
-    // Resolve all placeholders in filters before sending to API
     const resolvedFilters = resolveFilterPlaceholders(effectiveFilters, placeholderContext);
-
     const filterPayload = getFilterPayload(resolvedFilters, apiConfig.apiMethod);
 
-    const payload = {
+    const payload: Record<string, any> = {
       ...filterPayload,
     };
 
-    // Add non-filter pass-through params from URL (debug, trace, mock, etc.)
-    // These are system params that bypass filter structure and go directly to API
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
-
       urlParams.forEach((value, key) => {
-        // Only allow explicitly defined pass-through params (defined in constants.ts)
-        // All filter params should come from appliedFilters state, NOT from URL
         if (PASS_THROUGH_URL_PARAMS.includes(key as any)) {
           payload[ key ] = value;
         }
       });
     }
 
-    // Column fetching strategy (controlled by user in Column Settings)
-    // lazy: Only fetch visible columns (refetch when columns shown/hidden)
-    // eager: Fetch all isListable columns upfront (default, better for frequent column toggling)
     if (fetchStrategy === 'lazy') {
       const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
       const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
@@ -170,7 +158,6 @@ export const useTableData = ({
         payload.attributes = attributes.join(',');
       }
     }
-    // For eager fetching (default), omit attributes param to fetch all isListable columns
 
     if (isSearchActive) {
       payload.q = searchQuery;
@@ -185,12 +172,9 @@ export const useTableData = ({
     } else {
       payload.cursor = currentPageCursor;
       payload.count = pageSize;
-      // Database mode: send order direction (DynamoDB sorts by index SK)
-      // Priority: 1. User-selected sort, 2. apiConfig.defaultSort (string), 3. default 'asc'
       if (sort.length > 0 && sort[ 0 ].order) {
         payload.order = sort[ 0 ].order === 'ascend' ? 'asc' : 'desc';
       } else if (typeof apiConfig.defaultSort === 'string') {
-        // Database mode defaultSort is just 'asc' | 'desc'
         payload.order = apiConfig.defaultSort;
       }
     }
@@ -198,101 +182,102 @@ export const useTableData = ({
     setIsLoading(true);
 
     try {
-      const response: any = await callApiMethod({
-        ...apiConfig,
+      // Use queryClient.fetchQuery for imperative fetching with React Query caching.
+      // This gives us deduplication and short-term caching while keeping the
+      // imperative fetchRecords(page, cursor) interface the table expects.
+      const cacheKey = queryKeys.entity(entityName).list({
         apiUrl,
-        payload,
+        filters: payload,
+        sort: payload.sort || payload.order,
+        page: payload.page,
+        cursor: payload.cursor,
+        pageSize: payload.count || payload.hitsPerPage,
+        search: payload.q,
+        attributes: payload.attributes,
       });
 
-      if (response?.status === 200) {
-        const records = isSearchActive ? response.data.items
-          : apiConfig.responseKey ? response.data[ apiConfig.responseKey ] : response.data;
-
-        if (isSearchActive && response.data.facets) {
-          setFacetResults(response.data.facets);
-        }
-
-        records.forEach((record: any) => {
-          // Store raw record BEFORE any display formatting mutations
-          // This preserves original API data types for evaluation (e.g., boolean false vs "No")
-          // Only store if not already present (prevents overwriting with formatted data on re-renders)
-          if (!record.__raw__) {
-            record.__raw__ = { ...record };
-          }
-
-          formattingColumns.forEach((property) => {
-            // Use getNestedValue to handle nested data paths
-            const nestedValue = getNestedValue(record, property.dataIndex);
-
-            if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
-              record[ property.dataIndex ] = '';
-              return;
-            }
-
-            // Store the nested value in the record for the table to access
-            record[ property.dataIndex ] = nestedValue;
-
-            if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              const itemValue = nestedValue.toString().startsWith('0') ?
-                new Date(parseInt(nestedValue)).toISOString() :
-                nestedValue;
-              record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
-            } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
-              // Only format if the value is actually a boolean (not already formatted)
-              // This prevents double-formatting when fetchRecords is called multiple times
-              if (typeof nestedValue === 'boolean') {
-                record[ property.dataIndex ] = formatBoolean(nestedValue);
-              }
-            } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
-              const itemValue = nestedValue;
-              record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
-            }
+      const responseData = await queryClient.fetchQuery({
+        queryKey: cacheKey,
+        queryFn: async () => {
+          const response: any = await callApiMethodRef.current({
+            ...apiConfig,
+            apiUrl,
+            payload,
           });
 
-          const identifiers = identifierColumns.map(column => ({
-            [ column.dataIndex ]: getNestedValue(record, column.dataIndex)
-          }));
+          if (response?.status === 200) {
+            return response.data;
+          }
 
-          record[ recordIdentifierKey ] = JSON.stringify(identifiers);
+          throw response;
+        },
+        staleTime: 15 * 1000, // 15s — short for list data that changes often
+      });
+
+      const records = isSearchActive ? responseData.items
+        : apiConfig.responseKey ? responseData[ apiConfig.responseKey ] : responseData;
+
+      if (isSearchActive && responseData.facets) {
+        setFacetResults(responseData.facets);
+      }
+
+      records.forEach((record: any) => {
+        if (!record.__raw__) {
+          record.__raw__ = { ...record };
+        }
+
+        formattingColumns.forEach((property) => {
+          const nestedValue = getNestedValue(record, property.dataIndex);
+
+          if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
+            record[ property.dataIndex ] = '';
+            return;
+          }
+
+          record[ property.dataIndex ] = nestedValue;
+
+          if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
+            const itemValue = nestedValue.toString().startsWith('0') ?
+              new Date(parseInt(nestedValue)).toISOString() :
+              nestedValue;
+            record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
+          } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
+            if (typeof nestedValue === 'boolean') {
+              record[ property.dataIndex ] = formatBoolean(nestedValue);
+            }
+          } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
+            const itemValue = nestedValue;
+            record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
+          }
         });
 
-        setListRecords(records);
-        setCurrentPage(pageNumber);
+        const identifiers = identifierColumns.map(column => ({
+          [ column.dataIndex ]: getNestedValue(record, column.dataIndex)
+        }));
 
-        if (isSearchActive) {
-          setTotalRecords(response.data.total);
-        } else {
-          if (response.data?.cursor) {
-            setPageCursor(prev => ({ ...prev, [ pageNumber + 1 ]: response.data.cursor }));
-          }
-          setIsLastPage(response.data?.cursor === null);
-        }
+        record[ recordIdentifierKey ] = JSON.stringify(identifiers);
+      });
+
+      setListRecords(records);
+      setCurrentPage(pageNumber);
+
+      if (isSearchActive) {
+        setTotalRecords(responseData.total);
       } else {
-        notifyError(response?.error);
+        if (responseData?.cursor) {
+          setPageCursor(prev => ({ ...prev, [ pageNumber + 1 ]: responseData.cursor }));
+        }
+        setIsLastPage(responseData?.cursor === null);
       }
     } catch (error) {
-      // Use handleApiError to extract proper error message from API response
       const errorResult = handleApiError(error, 'Failed to fetch records');
       notifyError(errorResult.errorMessage);
-
       console.error('Error fetching records:', error);
-      // Log additional error details for debugging
-      if (error && typeof error === 'object') {
-        console.error('Error details:', {
-          message: error.message || 'Unknown error',
-          response: error.response ? {
-            status: error.response.status,
-            statusText: error.response.statusText,
-            data: error.response.data
-          } : 'No response',
-          request: error.request ? 'Request made but no response received' : 'No request made'
-        });
-      }
     } finally {
       setIsLoading(false);
-      setIsInitialLoad(false);  // Mark initial load complete
+      setIsInitialLoad(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, callApiMethod, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode, pageSize ]);
+  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode, pageSize, entityName ]);
 
   return {
     listRecords,
@@ -306,4 +291,4 @@ export const useTableData = ({
     fetchRecords,
     pageSize
   };
-}; 
+};

@@ -21,6 +21,8 @@ import { NeedsAsyncError } from '../../../core/utils/NeedsAsyncError';
 import { useNewEvaluationContext } from '../../../core/context/NewEvaluationContext';
 import { CollapsibleSectionCard } from './CollapsibleSectionCard';
 import { substituteUrlParams, useApi } from '../../../core';
+import { queryClient } from '../../../core/query/QueryProvider';
+import { queryKeys } from '../../../core/query/queryKeys';
 
 /**
  * Badge configuration for sections.
@@ -142,28 +144,36 @@ function useSectionBadge(
   const [ apiFetchedValue, setApiFetchedValue ] = useState<number | undefined>(undefined);
   const [ loading, setLoading ] = useState(false);
 
+  // Store callApiMethod in a ref for use in queryFn
+  const callApiMethodRef = useRef(callApiMethod);
+  callApiMethodRef.current = callApiMethod;
+
   useEffect(() => {
     if (!badgeConfig || typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
-      // Template type - no API fetch needed
       return;
     }
 
     if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
-      // API fetch
       let cancelled = false;
       setLoading(true);
 
       const fetchCount = async () => {
         try {
           const url = substituteUrlParams(badgeConfig.apiEndpoint, routeParams);
-          const response = await callApiMethod<any>({ apiUrl: url, apiMethod: 'GET' });
+
+          const responseData = await queryClient.fetchQuery({
+            queryKey: queryKeys.sections(`badge:${url}`),
+            queryFn: async () => {
+              const response = await callApiMethodRef.current<any>({ apiUrl: url, apiMethod: 'GET' });
+              return response.data;
+            },
+            staleTime: 60 * 1000, // 1min — badges don't need to be real-time
+          });
+
           if (cancelled) return;
 
-          const responseData = response.data as Record<string, any>;
           const responseKey = badgeConfig.responseKey || 'count';
-
-          // Use evaluateTemplateValue to handle JSONPath in responseKey
-          const countValue = evaluateTemplateValue(`{${responseKey}}`, responseData);
+          const countValue = evaluateTemplateValue(`{${responseKey}}`, responseData as Record<string, any>);
           const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
 
           setApiFetchedValue(typeof numValue === 'number' && !isNaN(numValue) ? numValue : undefined);
@@ -178,7 +188,7 @@ function useSectionBadge(
       fetchCount();
       return () => { cancelled = true; };
     }
-  }, [ badgeConfig, routeParams, callApiMethod ]);
+  }, [ badgeConfig, routeParams ]);
 
   const result = useMemo(() => {
     if (!badgeConfig) return { badgeText: undefined, showZero: false };

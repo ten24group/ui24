@@ -135,6 +135,8 @@ import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
 import { useCoreNavigator } from '../routes/Navigation';
 import { useOperationExecutor } from '../core/services/OperationExecutor';
+import { queryClient } from '../core/query/QueryProvider';
+import { queryKeys } from '../core/query/queryKeys';
 
 /**
  * Extended form configuration with column layout support and state lifting.
@@ -294,6 +296,19 @@ export function Form({
   // Store updated field values for form refresh
   const updatedFieldValuesRef = React.useRef<Record<string, any> | null>(null);
 
+  // Derive entity name from apiUrl for React Query cache keying
+  const formEntityName = React.useMemo(() => {
+    const url = detailApiConfig?.apiUrl || apiConfig?.apiUrl || entityName || '';
+    if (entityName) return entityName;
+    const parts = url.split('/').filter(Boolean);
+    const lastPart = parts[ parts.length - 1 ] || 'unknown';
+    return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
+  }, [ detailApiConfig?.apiUrl, apiConfig?.apiUrl, entityName ]);
+
+  // Store callApiMethod in a ref for use in queryFn
+  const callApiMethodRef = React.useRef(callApiMethod);
+  callApiMethodRef.current = callApiMethod;
+
   // Standard data fetch function (can be called on mount or on-demand)
   const loadAndFormatData = React.useCallback(async (showLoader = true) => {
     if (showLoader) {
@@ -301,32 +316,39 @@ export function Form({
       setLoader(true);
     }
 
-    // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
     const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
 
     let recordData = {};
     if (shouldFetchRecord) {
       try {
         let apiUrl = detailApiConfig.apiUrl;
-
-        // Use the clean utility function for URL parameter substitution
         apiUrl = substituteUrlParams(apiUrl, routeParams, identifiersToUse);
 
-        const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
+        // Build cache identifiers
+        const cacheIdentifiers: Record<string, string> = {};
+        if (identifiersToUse) cacheIdentifiers.id = String(identifiersToUse);
+        if (routeParams) Object.assign(cacheIdentifiers, routeParams);
 
-        if (response.status >= 200 && response.status < 300) {
-          const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
+        // Use queryClient.fetchQuery for caching + dedup
+        const responseData = await queryClient.fetchQuery({
+          queryKey: queryKeys.entity(formEntityName).detail(cacheIdentifiers),
+          queryFn: async () => {
+            const response: any = await callApiMethodRef.current({ ...detailApiConfig, apiUrl });
 
-          // Store initial record for state lifting
-          setInitialRecord(detailResponse);
-          recordData = detailResponse;
-        } else {
-          // Handle error response using consolidated error handler
-          const errorResult = handleApiError(response, 'Failed to load record');
-          notifyError(errorResult.formattedErrors.join('\n'));
-        }
+            if (response.status >= 200 && response.status < 300) {
+              return response.data;
+            }
+
+            throw response;
+          },
+          staleTime: 30 * 1000,
+        });
+
+        const detailResponse = detailApiConfig.responseKey ? responseData[ detailApiConfig.responseKey ] : responseData;
+
+        setInitialRecord(detailResponse);
+        recordData = detailResponse;
       } catch (error: any) {
-        // Handle network errors or other exceptions using consolidated error handler
         const errorResult = handleApiError(error, 'Failed to load record');
         notifyError(errorResult.formattedErrors.join('\n'));
       }
@@ -335,15 +357,12 @@ export function Form({
     if (recordData && Object.keys(recordData).length > 0) {
       const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
         const fieldPath = item.column || item.name || item.id;
-        // Use getNestedValue to handle dot-notation paths (e.g., 'leaguesConfig.enabled')
         const itemValue = itemValueFormatter(item, getNestedValue(recordData, fieldPath))
         return { ...item, initialValue: itemValue }
       });
 
       setFormPropertiesConfig(updatedFieldsWithInitialValues);
 
-      // Store values for form update (applied after form is available)
-      // Use showLoader param, not isRefreshing state (which is stale in async context)
       if (showLoader) {
         const refreshedValues = updatedFieldsWithInitialValues.reduce((acc, item) => {
           acc[ item.name ] = item.initialValue;
@@ -356,7 +375,7 @@ export function Form({
     setLoader(false);
     setIsRefreshing(false);
     setDataLoadedFromView(true);
-  }, [ detailApiConfig, identifiersToUse, routeParams, callApiMethod, notifyError, formPropertiesConfig, itemValueFormatter ]);
+  }, [ detailApiConfig, identifiersToUse, routeParams, notifyError, formPropertiesConfig, itemValueFormatter, formEntityName ]);
 
   // Initial load
   useEffect(() => {
@@ -453,11 +472,7 @@ export function Form({
             try {
               result[ key ] = JSON.parse(value as string);
             } catch (error) {
-              console.log("JSON parsing failed for", {
-                error,
-                field: key,
-                value: value
-              });
+              console.warn("[Form] JSON parsing failed for field:", key, error);
               // If JSON parsing fails, keep the original value
               result[ key ] = value;
             }

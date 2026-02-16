@@ -209,15 +209,7 @@ export const WidgetRenderer: React.FC<{
 
   return (
     <ErrorBoundary
-      FallbackComponent={({
-        error,
-        resetErrorBoundary,
-      }) => (
-        <ErrorFallback
-          error={new Error(`Error in ${widget.type} widget: ${error.message}`)}
-          resetErrorBoundary={resetErrorBoundary}
-        />
-      )}
+      FallbackComponent={ErrorFallback}
       onReset={() => {
         console.log(`Widget ErrorBoundary Reset for ${widget.type} widget`);
       }}

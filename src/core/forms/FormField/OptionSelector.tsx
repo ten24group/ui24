@@ -9,6 +9,8 @@ import type { IFormField, ITemplateConfig } from '../../types/field-config';
 import { handleApiError } from '../../utils/api-error-handler';
 import { useAppContext } from '../../context/AppContext';
 import { interpolateTemplate, parseSimpleTemplate } from '../../utils/template';
+import { queryClient } from '../../query/QueryProvider';
+import { queryKeys } from '../../query/queryKeys';
 
 /**
  * @deprecated Use ITemplateConfig from '../../utils/template' instead.
@@ -247,11 +249,24 @@ export const OptionSelector = ({
     // Search state
     const [ searchTerm, setSearchTerm ] = useState<string>('');
     const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Store callApiMethod in a ref for use in queryFn
+    const callApiMethodRef = useRef(callApiMethod);
+    callApiMethodRef.current = callApiMethod;
+
+    // Derive entity name from apiUrl for cache keying
+    const optionsEntityName = React.useMemo(() => {
+        if (!isFieldOptionsAPIConfig(options)) return 'static';
+        const url = (options as IFieldOptionsAPIConfig).apiUrl || '';
+        const parts = url.split('/').filter(Boolean);
+        const lastPart = parts[ parts.length - 1 ] || 'unknown';
+        return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
+    }, [ options ]);
+
     /**
-     * Fetch options from API - follows fw24 patterns
-     * @param config - API configuration
-     * @param search - Search term for remote search
-     * @param loadMore - Whether to append (load more) or replace options
+     * Fetch options from API via React Query's cache layer.
+     * Uses queryClient.fetchQuery for caching — same entity's options are shared
+     * across forms, tables (filters), and modals.
      */
     const fetchFieldOptions = async (
         config: IFieldOptionsAPIConfig, 
@@ -261,77 +276,89 @@ export const OptionSelector = ({
         setLoading(true);
         try {
             const count = config.count || 50;
-            const payload: Record<string, any> = { ...(config.filters || {}) };
-            
-            // fw24 patterns:
-            // - cursor: for pagination (like DynamoDB)
-            // - count: number of records
-            // - search: search query
-            if (loadMore && cursor) {
-                payload.cursor = cursor;
-            }
-            payload.count = count;
-            
-            if (config.disableSearch !== true && search) {
-                payload.search = search;
-            }
-            
-            const response = await callApiMethod({ 
+            const currentCursor = loadMore ? cursor : '';
+
+            const cacheKey = queryKeys.entity(optionsEntityName).fieldOptions({
                 apiUrl: config.apiUrl,
-                apiMethod: config.apiMethod,
-                payload
+                fieldName: config.optionMapping?.value as string || '',
+                search: search || undefined,
+                cursor: currentCursor || undefined,
             });
 
-            if (response.status === 200) {
-                const rawOptions = response.data[config.responseKey] as Array<any>;
-                
-                // Format options
-                let formattedOptions: Array<IOptions>;
-                if (!config.optionMapping) {
-                    formattedOptions = rawOptions;
-                } else {
-                    formattedOptions = rawOptions.map((option) => ({
+            // Type for the API response: a record with an options array + optional pagination cursor
+            interface FieldOptionsResponse { cursor?: string; [key: string]: unknown; }
+
+            const responseData = await queryClient.fetchQuery<FieldOptionsResponse>({
+                queryKey: cacheKey,
+                queryFn: async (): Promise<FieldOptionsResponse> => {
+                    const payload: Record<string, unknown> = { ...(config.filters || {}) };
+                    
+                    if (loadMore && cursor) {
+                        payload.cursor = cursor;
+                    }
+                    payload.count = count;
+                    
+                    if (config.disableSearch !== true && search) {
+                        payload.search = search;
+                    }
+                    
+                    const response = await callApiMethodRef.current({ 
+                        apiUrl: config.apiUrl,
+                        apiMethod: config.apiMethod,
+                        payload
+                    });
+
+                    if (response.status === 200) {
+                        return response.data as FieldOptionsResponse;
+                    }
+                    throw response;
+                },
+                staleTime: 5 * 60 * 1000, // 5min — options change rarely
+            });
+
+            const rawOptionsData = responseData[config.responseKey];
+            const rawOptions = Array.isArray(rawOptionsData) ? rawOptionsData : [];
+            
+            let formattedOptions: Array<IOptions>;
+            if (!config.optionMapping) {
+                formattedOptions = rawOptions.filter(
+                    (opt): opt is IOptions => typeof opt === 'object' && opt !== null && 'label' in opt && 'value' in opt
+                );
+            } else {
+                formattedOptions = rawOptions
+                    .filter((opt): opt is Record<string, string | number> => typeof opt === 'object' && opt !== null)
+                    .map((option) => ({
                         label: typeof config.optionMapping.label === 'string'
-                            ? option[config.optionMapping.label]
+                            ? String(option[config.optionMapping.label] ?? '')
                             : interpolateTemplate(config.optionMapping.label, option),
                         value: typeof config.optionMapping.value === 'string'
-                            ? option[config.optionMapping.value]
+                            ? option[config.optionMapping.value] ?? ''
                             : interpolateTemplate(config.optionMapping.value, option),
                     }));
-                }
-
-                // Update state
-                let updatedOptions: Array<IOptions>;
-                if (loadMore) {
-                    // Merge with existing options
-                    const combined = [...fieldOptions, ...formattedOptions];
-                    
-                    // Deduplicate by value (use Map to keep last occurrence)
-                    const uniqueMap = new Map<string | number, IOptions>();
-                    combined.forEach(opt => uniqueMap.set(opt.value, opt));
-                    updatedOptions = Array.from(uniqueMap.values());
-                } else {
-                    updatedOptions = formattedOptions;
-                }
-                
-                // Sort all options by label (with safety checks)
-                updatedOptions.sort((a, b) => {
-                    const labelA = String(a.label || a.value || '').toLowerCase();
-                    const labelB = String(b.label || b.value || '').toLowerCase();
-                    return labelA.localeCompare(labelB);
-                });
-                
-                setFieldOptions(updatedOptions);
-                
-                // Check for more data (fw24 cursor pattern)
-                const nextCursor = (response.data as any)?.cursor;
-                setCursor(nextCursor || '');
-                setHasMore(!!nextCursor);
-            } else if (response.status >= 400) {
-                const errorResult = handleApiError(response, 'Failed to load options');
-                notifyError(errorResult.errorMessage);
             }
-        } catch (error: any) {
+
+            let updatedOptions: Array<IOptions>;
+            if (loadMore) {
+                const combined = [...fieldOptions, ...formattedOptions];
+                const uniqueMap = new Map<string | number, IOptions>();
+                combined.forEach(opt => uniqueMap.set(opt.value, opt));
+                updatedOptions = Array.from(uniqueMap.values());
+            } else {
+                updatedOptions = formattedOptions;
+            }
+            
+            updatedOptions.sort((a, b) => {
+                const labelA = String(a.label || a.value || '').toLowerCase();
+                const labelB = String(b.label || b.value || '').toLowerCase();
+                return labelA.localeCompare(labelB);
+            });
+            
+            setFieldOptions(updatedOptions);
+            
+            const nextCursor = typeof responseData.cursor === 'string' ? responseData.cursor : '';
+            setCursor(nextCursor);
+            setHasMore(nextCursor.length > 0);
+        } catch (error: unknown) {
             const errorResult = handleApiError(error, 'Failed to load options');
             notifyError(errorResult.errorMessage);
         } finally {

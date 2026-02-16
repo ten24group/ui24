@@ -2,7 +2,7 @@ import React, { useEffect, useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
 import { IApiConfig } from "../core/context";
-import { Pagination as AntPagination, Badge, Tag, Progress, Avatar, Rate } from "antd";
+import { Pagination as AntPagination } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
@@ -10,7 +10,7 @@ import { addFilterUI } from "./Filters/addFilterUI";
 import { usePagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
-import { FilterFilled, PlayCircleOutlined, AudioOutlined, QrcodeOutlined } from "@ant-design/icons";
+import { FilterFilled } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
@@ -23,10 +23,10 @@ import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/
 import { OpenInModal } from "../modal/Modal";
 import { generateJsonPreview } from "../core/utils/jsonUtils";
 import { createModalConfig } from "./utils/modalConfigHelper";
-import * as Icons from '@ant-design/icons';
-import { formatDuration, formatTTL, DurationUnit, TTLUnit, DurationFormat, TTLFormat } from "../core/utils/duration";
 import { getColumnRenderer, type ColumnConfig } from "../core/registry";
 import { useEvaluatedItems } from "../core/hooks/useEvaluatedItems";
+import { fieldTypeRegistry } from "../core/registry/FieldTypeRegistry";
+import "../core/registry/field-types"; // ensure built-in registrations run
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -270,7 +270,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Determine initial mode FIRST (needed to get correct defaultSort)
   const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
     if (isDualApiConfig(apiConfig)) {
-      return true; // Default to search mode for dual config
+      return process.env.REACT_APP_DEFAULT_LIST_MODE !== 'database'; // Default to search unless REACT_APP_DEFAULT_LIST_MODE=database
     }
     return apiConfig.useSearch || false;
   });
@@ -619,48 +619,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
 
-  // Field type renderers - create once
-  const colorRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    const colorValue = typeof text === 'string' ? text : '';
-    if (!colorValue) return <span>—</span>;
-    return (
-      <>
-        <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
-          <rect width="12" height="12" fill={colorValue} strokeWidth={1} stroke="rgb(0,0,0)" />
-        </svg>
-        <span style={{ marginLeft: 8 }}> {colorValue}</span>
-      </>
-    );
-  }, []);
-
-  const imageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    const imageUrl = typeof text === 'string' ? text : '';
-    if (!imageUrl) return <span>—</span>;
-    return (
-      <img
-        src={imageUrl}
-        alt="Preview"
-        style={{
-          width: '40px',
-          height: '40px',
-          objectFit: 'cover',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-        onClick={() => window.open(imageUrl, '_blank')}
-      />
-    );
-  }, []);
-
-  const fileRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    const fileUrl = typeof text === 'string' ? text : '';
-    if (!fileUrl) return <span>—</span>;
-    return (
-      <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>
-        Download
-      </a>
-    );
-  }, []);
+  // Renderers for simple field types are now in the FieldTypeRegistry (field-types/ files).
+  // Only modal-based complex renderers remain here.
 
   // Complex field renderers with modal support using existing OpenInModal component
   const jsonRenderer = (
@@ -798,183 +758,6 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     );
   };
 
-  const numberRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const num = typeof text === 'number' ? text : parseFloat(String(text));
-    return isNaN(num) ? <span>—</span> : <span>{num.toLocaleString()}</span>;
-  }, []);
-
-  const rangeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    return <span>{String(text)}%</span>;
-  }, []);
-
-  const ratingRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const rating = typeof text === 'number' ? text : parseFloat(String(text));
-    if (isNaN(rating)) return <span>—</span>;
-    return <Rate disabled value={rating} style={{ fontSize: 14 }} />;
-  }, []);
-
-  // NEW field type renderers
-  const urlRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    const url = String(text);
-    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>{url.length > 30 ? url.substring(0, 30) + '...' : url}</a>;
-  }, []);
-
-  const phoneRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return <a href={`tel:${text}`} style={{ color: '#1677ff' }}>{String(text)}</a>;
-  }, []);
-
-  const currencyRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const num = typeof text === 'number' ? text : parseFloat(String(text));
-    if (isNaN(num)) return <span>—</span>;
-    return <span>${num.toFixed(2)}</span>;
-  }, []);
-
-  const percentageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    return <span>{Number(text)}%</span>;
-  }, []);
-
-  const sliderRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    return <span>{String(text)}</span>;
-  }, []);
-
-  // Duration renderer - uses shared formatDuration utility with unit and format support
-  const createDurationRenderer = React.useCallback((
-    unit: DurationUnit = 'seconds',
-    format: DurationFormat = 'auto'
-  ) => {
-    return (text: unknown): React.ReactNode => <span>{formatDuration(text, unit, format)}</span>;
-  }, []);
-
-  // TTL renderer - displays time remaining until expiration with auto-refresh support
-  const createTTLRenderer = React.useCallback((
-    unit: TTLUnit = 'seconds',
-    format: TTLFormat = 'auto',
-    autoRefresh?: number
-  ) => {
-    return (text: unknown): React.ReactNode => {
-      const TTLCell = () => {
-        const [ ttlValue, setTtlValue ] = React.useState(() => formatTTL(text, unit, format));
-        const isExpired = ttlValue === 'expired';
-
-        // Auto-refresh support
-        React.useEffect(() => {
-          if (!autoRefresh || autoRefresh <= 0 || isExpired) {
-            return;
-          }
-
-          const interval = setInterval(() => {
-            const newValue = formatTTL(text, unit, format);
-            setTtlValue(newValue);
-          }, autoRefresh * 1000);
-
-          return () => clearInterval(interval);
-        }, [ autoRefresh, isExpired ]);
-
-        return (
-          <span style={{
-            color: isExpired ? '#ff4d4f' : undefined,
-            fontWeight: isExpired ? 500 : undefined
-          }}>
-            {ttlValue}
-          </span>
-        );
-      };
-
-      return <TTLCell />;
-    };
-  }, []);
-
-  const badgeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return <Badge status="default" text={String(text)} />;
-  }, []);
-
-  const tagRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    if (Array.isArray(text)) {
-      return (
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {text.map((tag: any, i: number) => (
-            <Tag key={i}>{String(tag)}</Tag>
-          ))}
-        </div>
-      );
-    }
-    return <Tag>{String(text)}</Tag>;
-  }, []);
-
-  const progressRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const value = typeof text === 'number' ? text : parseFloat(String(text));
-    if (isNaN(value)) return <span>—</span>;
-    return <Progress percent={value} size="small" style={{ width: 120 }} />;
-  }, []);
-
-  const avatarRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return <Avatar src={String(text)} size="small" />;
-  }, []);
-
-  const iconRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    const IconComponent = (Icons as any)[ String(text) ];
-    return IconComponent ? <IconComponent style={{ fontSize: 18 }} /> : <span>{String(text)}</span>;
-  }, []);
-
-  const linkRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    const url = String(text);
-    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>Link</a>;
-  }, []);
-
-  const videoRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return (
-      <Button
-        size="small"
-        icon={<PlayCircleOutlined />}
-        type="link"
-        onClick={() => window.open(String(text), '_blank')}
-      >
-        Video
-      </Button>
-    );
-  }, []);
-
-  const audioRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return (
-      <Button
-        size="small"
-        icon={<AudioOutlined />}
-        type="link"
-        onClick={() => window.open(String(text), '_blank')}
-      >
-        Audio
-      </Button>
-    );
-  }, []);
-
-  const qrcodeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return (
-      <Button
-        size="small"
-        icon={<QrcodeOutlined />}
-        type="link"
-      >
-        QR
-      </Button>
-    );
-  }, []);
 
   const columns = addFilterUI(
     addActionUI(conditionVisibleProperties, handleReload, routeParams),
@@ -1034,149 +817,41 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         const fieldType = column.fieldType.toLowerCase();
         const columnName = column.name || column.title || column.dataIndex;
 
-        // Image fields
-        if (fieldType === 'image') {
-          renderer = imageRenderer;
-        }
-        // File fields
-        else if (fieldType === 'file') {
-          renderer = fileRenderer;
-        }
-        // Color fields
-        else if (fieldType === 'color') {
-          renderer = colorRenderer;
-        }
-        // JSON/Map fields - modal-based
-        else if (fieldType === 'json' || column.type === 'map') {
+        // Structural checks first (modal-based complex types)
+        if (fieldType === 'json' || column.type === 'map') {
           renderer = (text: unknown, record: Record<string, unknown>) =>
             jsonRenderer(text, record, columnName, column);
         }
-        // List/Array fields (but not multi-select which is already formatted as string) - modal-based
         else if (column.type === 'list' && fieldType !== 'multi-select') {
           renderer = (text: unknown, record: Record<string, unknown>) =>
             listRenderer(text, record, columnName, column);
         }
-        // Rich text fields - modal-based
         else if (fieldType === 'rich-text' || fieldType === 'wysiwyg') {
           renderer = (text: unknown, record: Record<string, unknown>) =>
             richTextRenderer(text, record, columnName, column);
         }
-        // Textarea, code, markdown - show preview with modal for full content
-        else if (fieldType === 'textarea' || fieldType === 'code' || fieldType === 'markdown' || fieldType === 'longtext') {
-          renderer = (text: unknown, record: Record<string, unknown>): React.ReactNode => {
+        else if ([ 'textarea', 'code', 'markdown', 'longtext' ].includes(fieldType)) {
+          renderer = (text: unknown, _record: Record<string, unknown>): React.ReactNode => {
             if (!text) return <span>—</span>;
-
             const preview = generateContentPreview(text);
             if (!preview) return <span>—</span>;
-
-            // If content is short, show inline
-            if (typeof text === 'string' && text.length < 50) {
-              return <span>{text}</span>;
-            }
-
-            // Show preview button with modal for longer content
+            if (typeof text === 'string' && text.length < 50) return <span>{text}</span>;
             const detailsConfig = createModalConfig(column.fieldType, text, column);
-
             return (
-              <OpenInModal
-                modalType="details"
-                modalTitle={columnName}
-                modalWidth={800}
-                modalPageConfig={detailsConfig}
-              >
-                <Button
-                  size="small"
-                  icon={<FileTextOutlined />}
-                  type="link"
-                >
-                  {preview}
-                </Button>
+              <OpenInModal modalType="details" modalTitle={columnName} modalWidth={800} modalPageConfig={detailsConfig}>
+                <Button size="small" icon={<FileTextOutlined />} type="link">{preview}</Button>
               </OpenInModal>
             );
           };
         }
-        // Number fields
-        else if (fieldType === 'number') {
-          renderer = numberRenderer;
-        }
-        // Range fields
-        else if (fieldType === 'range') {
-          renderer = rangeRenderer;
-        }
-        // Rating fields
-        else if (fieldType === 'rating') {
-          renderer = ratingRenderer;
-        }
-        // URL fields
-        else if (fieldType === 'url') {
-          renderer = urlRenderer;
-        }
-        // Phone fields
-        else if (fieldType === 'phone') {
-          renderer = phoneRenderer;
-        }
-        // Currency fields
-        else if (fieldType === 'currency') {
-          renderer = currencyRenderer;
-        }
-        // Percentage fields
-        else if (fieldType === 'percentage') {
-          renderer = percentageRenderer;
-        }
-        // Slider fields
-        else if (fieldType === 'slider') {
-          renderer = sliderRenderer;
-        }
-        // Duration fields - use durationUnit and format from column config
-        else if (fieldType === 'duration') {
-          renderer = createDurationRenderer(
-            column.durationUnit || 'seconds',
-            column.durationFormat || 'auto'
-          );
-        }
-        // TTL fields - displays time remaining until expiration with auto-refresh
-        else if (fieldType === 'ttl') {
-          renderer = createTTLRenderer(
-            column.ttlUnit || 'seconds',
-            column.ttlFormat || 'auto',
-            column.ttlAutoRefresh
-          );
-        }
-        // Badge fields
-        else if (fieldType === 'badge') {
-          renderer = badgeRenderer;
-        }
-        // Tag fields
-        else if (fieldType === 'tag' || fieldType === 'tags') {
-          renderer = tagRenderer;
-        }
-        // Progress fields
-        else if (fieldType === 'progress') {
-          renderer = progressRenderer;
-        }
-        // Avatar fields
-        else if (fieldType === 'avatar') {
-          renderer = avatarRenderer;
-        }
-        // Icon fields
-        else if (fieldType === 'icon') {
-          renderer = iconRenderer;
-        }
-        // Link fields
-        else if (fieldType === 'link') {
-          renderer = linkRenderer;
-        }
-        // Video fields
-        else if (fieldType === 'video') {
-          renderer = videoRenderer;
-        }
-        // Audio fields
-        else if (fieldType === 'audio') {
-          renderer = audioRenderer;
-        }
-        // QR Code fields
-        else if (fieldType === 'qrcode') {
-          renderer = qrcodeRenderer;
+        else {
+          // Registry-based lookup for all other field types
+          const TableComponent = fieldTypeRegistry.get(fieldType, 'table');
+          if (TableComponent) {
+            renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => (
+              <TableComponent value={text} record={record} column={column} rowIndex={rowIndex} routeParams={routeParams} />
+            );
+          }
         }
       }
 

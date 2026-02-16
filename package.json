@@ -39,6 +39,7 @@
     "dist"
   ],
   "peerDependencies": {
+    "@tanstack/react-query": "^5.75.0",
     "antd": "^5.27.0",
     "axios": "^1.11.0",
     "react": "^19.2.0",
@@ -51,6 +52,7 @@
     "@babel/preset-react": "^7.27.1",
     "@babel/preset-typescript": "^7.27.1",
     "@smithy/types": "^4.3.2",
+    "@tanstack/react-query": "^5.90.21",
     "@testing-library/jest-dom": "^6.7.0",
     "@testing-library/react": "^16.3.0",
     "@types/jest": "^30.0.0",

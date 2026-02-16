@@ -9,6 +9,8 @@ import { ResponseModalProvider } from './core/context/ResponseModalContext';
 import { IUi24Config } from './core/context';
 import { IConditionSystemConfig } from './core/context/types';
 import { setConditionSystemConfig } from './core/context/conditionSystemConfig';
+import { QueryProvider } from './core/query/QueryProvider';
+import './core/registry/field-types'; // Register built-in field types at startup
 
 // Log UI24 version on load
 const UI24_VERSION = process.env.UI24_VERSION || 'unknown';
@@ -57,9 +59,11 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
                                     <AppStaticProvider>
                                         <AppStateProvider>
                                             <ApiProvider>
-                                                <ResponseModalProvider>
-                                                    <AppRouter customRoutes={customRoutes} />
-                                                </ResponseModalProvider>
+                                                <QueryProvider>
+                                                    <ResponseModalProvider>
+                                                        <AppRouter customRoutes={customRoutes} />
+                                                    </ResponseModalProvider>
+                                                </QueryProvider>
                                             </ApiProvider>
                                         </AppStateProvider>
                                     </AppStaticProvider>

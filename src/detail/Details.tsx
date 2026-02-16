@@ -95,12 +95,11 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider, Timeline } from 'antd';
-import dayjs from 'dayjs';
+import { Descriptions, DescriptionsProps, List, Skeleton, Spin } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
-import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link, MarkdownPreview } from '../core/common';
+import { CustomBlockNoteEditor, ErrorFallback, JsonDescription, JsonField, Link } from '../core/common';
 import { IApiConfig, useApi, useAppContext } from '../core/context';
 import { HelpText } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
@@ -111,16 +110,17 @@ import { handleApiError } from '../core/utils/api-error-handler';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';
 import { detailsStyles } from './styles';
-import { QRCode } from 'antd';
-import * as Icons from '@ant-design/icons';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { resolveStringOrDefault } from '../core/types/evaluation';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
-import { formatDuration, formatTTL } from '../core/utils/duration';
 import { evaluateTemplate } from '../core/utils/template';
 import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from '../core/registry';
+import { queryClient } from '../core/query/QueryProvider';
+import { queryKeys } from '../core/query/queryKeys';
+import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
+import '../core/registry/field-types'; // ensure built-in registrations run
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
@@ -320,6 +320,19 @@ const Details: React.FC<IDetailsComponentProps> = ({
     return initialValue;
   }
 
+  // Derive entity name from apiUrl for React Query cache keying
+  const detailEntityName = React.useMemo(() => {
+    const url = detailApiConfig?.apiUrl || entityName || '';
+    if (entityName) return entityName;
+    const parts = url.split('/').filter(Boolean);
+    const lastPart = parts[ parts.length - 1 ] || 'unknown';
+    return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
+  }, [ detailApiConfig?.apiUrl, entityName ]);
+
+  // Store callApiMethod in a ref for use in queryFn
+  const callApiMethodRef = React.useRef(callApiMethod);
+  callApiMethodRef.current = callApiMethod;
+
   // Standard data fetch function (can be called on mount or on-demand)
   const fetchRecordInfo = React.useCallback(async (showLoader = true) => {
     if (showLoader) {
@@ -331,28 +344,39 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
     if (!apiUrl) return;
 
-    // Use the clean utility function for URL parameter substitution
     apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
 
     try {
-      const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
+      // Use queryClient.fetchQuery for caching + dedup while keeping the imperative interface
+      const cacheIdentifiers: Record<string, string> = {};
+      if (identifier) cacheIdentifiers.id = String(identifier);
+      if (routeParams) Object.assign(cacheIdentifiers, routeParams);
 
-      if (response.status >= 200 && response.status < 300) {
-        const fetchedDetailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
-        setDetailResponse(fetchedDetailResponse)
+      const responseData = await queryClient.fetchQuery({
+        queryKey: queryKeys.entity(detailEntityName).detail(cacheIdentifiers),
+        queryFn: async () => {
+          const response: any = await callApiMethodRef.current({ ...detailApiConfig, apiUrl });
 
-        const formatted = recordInfo.map(item => {
-          const propertyPath = item.column || item.name || item.id;
-          const nestedValue = getNestedValue(fetchedDetailResponse, propertyPath);
-          const formattedValue = valueFormatter(item, nestedValue);
-          return { ...item, initialValue: formattedValue }
-        });
+          if (response.status >= 200 && response.status < 300) {
+            return response.data;
+          }
 
-        setRecordInfo(formatted)
-      } else if (response.status >= 400 && response.status < 600) {
-        const errorResult = handleApiError(response, 'Failed to load details');
-        notifyError(errorResult.formattedErrors.join('\n'));
-      }
+          throw response;
+        },
+        staleTime: 30 * 1000, // 30s for detail data
+      });
+
+      const fetchedDetailResponse = detailApiConfig.responseKey ? responseData[ detailApiConfig.responseKey ] : responseData;
+      setDetailResponse(fetchedDetailResponse)
+
+      const formatted = recordInfo.map(item => {
+        const propertyPath = item.column || item.name || item.id;
+        const nestedValue = getNestedValue(fetchedDetailResponse, propertyPath);
+        const formattedValue = valueFormatter(item, nestedValue);
+        return { ...item, initialValue: formattedValue }
+      });
+
+      setRecordInfo(formatted)
 
       setDataLoaded(true);
       setIsRefreshing(false);
@@ -363,7 +387,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
       setDataLoaded(true);
       setIsRefreshing(false);
     }
-  }, [ identifiers, dynamicID, detailApiConfig, routeParams, callApiMethod, recordInfo, notifyError ]);
+  }, [ identifiers, dynamicID, detailApiConfig, routeParams, recordInfo, notifyError, detailEntityName ]);
 
   // Expose refresh function to parent wrapper via ref
   useEffect(() => {
@@ -464,7 +488,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
   // Determine columns to render — filter by condition + static hidden
   const items = recordInfo.filter((item, idx) => {
     // If there's a visibility condition, use its result
-    if (item.visibility !== undefined) return detailVisibilities[idx];
+    if (item.visibility !== undefined) return detailVisibilities[ idx ];
     // Otherwise, use legacy static hidden check
     return !item.hidden;
   });
@@ -472,18 +496,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
   return (
     <ErrorBoundary
-      FallbackComponent={({
-        error,
-        resetErrorBoundary,
-      }) => (
-        <ErrorFallback
-          error={new Error(`Error loading details: ${error.message}`)}
-          resetErrorBoundary={resetErrorBoundary}
-        />
-      )}
+      FallbackComponent={ErrorFallback}
       onReset={() => {
-        console.log("Details ErrorBoundary Reset");
-        // Potentially re-fetch data here if appropriate
+        // Re-fetch data on error boundary reset
+        fetchRecordInfo(false);
       }}
     >
       {!dataLoaded ? (
@@ -617,40 +633,20 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     }
 
                     // ============================================================================
-                    // Smart Complex Data Rendering - All complex types handled by JsonField
+                    // Field Type Registry lookup — replaces the massive if/else chain
                     // ============================================================================
 
-                    // Check WYSIWYG fields FIRST before complex data check
-                    // WYSIWYG content is stored as JSON objects, so must be checked before isComplexData
-                    if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div className="details-fixed-block">
-                            <CustomBlockNoteEditor value={value as any} readOnly={true} />
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Handle complex data (JSON, maps, lists, objects)
-                    // Excludes multi-select and WYSIWYG fields which are handled separately
-                    // 
-                    // JsonField provides interactive JSON viewing with:
-                    // - Toggle between Description (formatted table) and JSON (raw) views
-                    // - Copy to clipboard button
-                    // - Smart depth-based rendering in both modes
-                    // Works for: fieldType: 'json', type: 'map', type: 'list', and generic objects
-                    // Example: syncMetadata with toggle to switch between views + copy button
-
+                    // Check for WYSIWYG before complex data (stored as JSON objects)
+                    // and handle complex data (json, map, list, objects) structurally
                     const isComplexData =
-                      item.type === 'list' ||
-                      item.type === 'map' ||
-                      (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
-                      (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
+                      !['rich-text', 'wysiwyg', 'multi-select', 'timeline'].includes(item.fieldType) && (
+                        item.type === 'list' ||
+                        item.type === 'map' ||
+                        (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
+                        (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+                      );
 
-                    if (isComplexData && item.fieldType !== 'multi-select') {
+                    if (isComplexData) {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
@@ -659,554 +655,26 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         </div>
                       );
                     }
-                    if (item.fieldType === 'markdown') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div className="details-fixed-block">
-                            <MarkdownPreview value={value} />
-                          </div>
-                        </div>
-                      );
-                    }
-                    if ([ 'textarea', 'code' ].includes(item.fieldType)) {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div className="details-fixed-block">
-                            <JsonDescription data={value} />
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'image') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <img src={value} alt={resolveStringOrDefault(item.label)} className="details-image" />
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'color') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <CustomColorPicker value={value} disabled />
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'number') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>
-                            {Number(value)}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'range') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>
-                            {`${value}%`}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'rating') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>
-                            {`${value}/5`}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'file') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a href={value} target="_blank" rel="noopener noreferrer">
-                            Download File
-                          </a>
-                        </div>
-                      );
-                    }
 
-                    // URL field
-                    if (item.fieldType === 'url') {
+                    // Registry-based detail renderer lookup
+                    const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
+                    if (DetailRenderer) {
                       return (
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
                           <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a href={value} target="_blank" rel="noopener noreferrer">
-                            {value}
-                          </a>
-                        </div>
-                      );
-                    }
-
-                    // Phone field
-                    if (item.fieldType === 'phone') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a href={`tel:${value}`}>{value}</a>
-                        </div>
-                      );
-                    }
-
-                    // Currency field
-                    if (item.fieldType === 'currency') {
-                      const formatted = new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: item.currencySymbol || 'USD',
-                      }).format(Number(value) || 0);
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>{formatted}</div>
-                        </div>
-                      );
-                    }
-
-                    // Percentage field
-                    if (item.fieldType === 'percentage') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>{Number(value)}%</div>
-                        </div>
-                      );
-                    }
-
-                    // Slider field (display as value with slider visual)
-                    if (item.fieldType === 'slider') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <Slider
-                              value={Number(value)}
-                              disabled
-                              style={{ flex: 1 }}
-                              min={item.min}
-                              max={item.max}
-                            />
-                            <span>{value}</span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Duration field - uses durationUnit and format from field config
-                    if (item.fieldType === 'duration') {
-                      const durationValue = formatDuration(
-                        value,
-                        item.durationUnit || 'seconds',
-                        item.durationFormat || 'auto'
-                      );
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>{durationValue}</div>
-                        </div>
-                      );
-                    }
-
-                    // TTL field - displays time remaining until expiration with auto-refresh support
-                    if (item.fieldType === 'ttl') {
-                      const TTLRenderer = () => {
-                        const [ ttlValue, setTtlValue ] = React.useState(() =>
-                          formatTTL(value, item.ttlUnit || 'seconds', item.ttlFormat || 'auto')
-                        );
-                        const isExpired = ttlValue === 'expired';
-
-                        // Auto-refresh support
-                        const refreshInterval = item.ttlAutoRefresh;
-                        React.useEffect(() => {
-                          if (!refreshInterval || refreshInterval <= 0 || isExpired) {
-                            return;
-                          }
-
-                          const interval = setInterval(() => {
-                            const newValue = formatTTL(value, item.ttlUnit || 'seconds', item.ttlFormat || 'auto');
-                            setTtlValue(newValue);
-                          }, refreshInterval * 1000);
-
-                          return () => clearInterval(interval);
-                        }, [ refreshInterval, isExpired ]);
-
-                        return (
-                          <div style={{
-                            color: isExpired ? '#ff4d4f' : undefined,
-                            fontWeight: isExpired ? 500 : undefined
-                          }}>
-                            {ttlValue}
-                          </div>
-                        );
-                      };
-
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <TTLRenderer />
-                        </div>
-                      );
-                    }
-
-                    // Badge field
-                    if (item.fieldType === 'badge') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Badge
-                            status={item.status || 'default'}
-                            text={String(value)}
-                            color={item.color}
+                          <DetailRenderer
+                            value={value}
+                            label={resolveStringOrDefault(item.label)}
+                            config={item}
+                            routeParams={routeParams}
+                            record={detailResponse || {}}
                           />
                         </div>
                       );
                     }
 
-                    // Tag field (single or multiple)
-                    if (item.fieldType === 'tag' || item.fieldType === 'tags') {
-                      const tags = Array.isArray(value) ? value : [ value ];
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            {tags.map((tag: any, i: number) => (
-                              <Tag key={i} color={item.color}>
-                                {String(tag)}
-                              </Tag>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Progress field
-                    if (item.fieldType === 'progress') {
-                      const type = item.progressType || 'line';
-                      // Map badge status to progress status
-                      let progressStatus: 'success' | 'exception' | 'normal' | 'active' = 'normal';
-                      if (item.status === 'success') progressStatus = 'success';
-                      else if (item.status === 'error' || item.status === 'warning') progressStatus = 'exception';
-                      else if (item.status === 'processing') progressStatus = 'active';
-
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Progress
-                            type={type}
-                            percent={Number(value) || 0}
-                            status={progressStatus}
-                            showInfo={true}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Avatar field
-                    if (item.fieldType === 'avatar') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Avatar
-                            src={value}
-                            size={item.size || 'default'}
-                            shape={item.shape || 'circle'}
-                            icon={item.icon ? React.createElement((Icons as any)[ item.icon ]) : undefined}
-                          >
-                            {item.text || String(value).charAt(0).toUpperCase()}
-                          </Avatar>
-                        </div>
-                      );
-                    }
-
-                    // Icon field
-                    if (item.fieldType === 'icon') {
-                      const IconComponent = (Icons as any)[ String(value) ];
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          {IconComponent ? (
-                            <IconComponent
-                              style={{
-                                fontSize: item.size || 24,
-                                color: item.color
-                              }}
-                            />
-                          ) : (
-                            <span>{value}</span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // Link field
-                    if (item.fieldType === 'link') {
-                      const href = item.linkConfig?.routePattern
-                        ? substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse }, value)
-                        : value;
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a
-                            href={href}
-                            target={item.target || '_blank'}
-                            rel="noopener noreferrer"
-                          >
-                            {value}
-                          </a>
-                        </div>
-                      );
-                    }
-
-                    // Video field
-                    if (item.fieldType === 'video') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <video
-                            src={value}
-                            controls={item.controls !== false}
-                            style={{ maxWidth: '100%', maxHeight: '400px' }}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Audio field
-                    if (item.fieldType === 'audio') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <audio
-                            src={value}
-                            controls={item.controls !== false}
-                            style={{ width: '100%' }}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // QR Code field
-                    if (item.fieldType === 'qrcode') {
-                      const qrSize = typeof item.size === 'number' ? item.size : 128;
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <QRCode
-                            value={String(value)}
-                            size={qrSize}
-                            errorLevel={item.errorLevel || 'M'}
-                            icon={item.logoImage}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Timeline field - renders array data as vertical timeline
-                    if (item.fieldType === 'timeline') {
-                      const config = item.timelineConfig || {};
-                      const itemMapping = config.itemMapping || {};
-                      const labelField = itemMapping.labelField || 'name';
-                      const timestampField = itemMapping.timestampField || 'ts';
-                      const descriptionField = itemMapping.descriptionField;
-                      const typeField = itemMapping.typeField;
-                      const iconField = itemMapping.iconField;
-                      const timestampFormat = config.timestampFormat || 'MMM D, h:mm:ss A';
-                      const showTimestamp = config.showTimestamp !== false;
-
-                      // Convert data to array if needed
-                      let items: any[] = [];
-                      if (Array.isArray(value)) {
-                        items = value;
-                      } else if (value && typeof value === 'object') {
-                        // If it's an object with checkpoints or events array, use that
-                        items = value.checkpoints || value.events || [];
-                      }
-
-                      // Apply maxItems limit
-                      if (config.maxItems && items.length > config.maxItems) {
-                        items = items.slice(0, config.maxItems);
-                      }
-
-                      // Reverse if configured
-                      if (config.reverse) {
-                        items = [ ...items ].reverse();
-                      }
-
-                      // Helper to get color from type/level
-                      const getColorFromType = (type?: string): string => {
-                        switch (type) {
-                          // Status types
-                          case 'success': return '#52c41a';
-                          case 'warning': return '#faad14';
-                          case 'error': return '#ff4d4f';
-                          // Observability levels
-                          case 'critical': return '#cf1322';
-                          case 'warn': return '#faad14';
-                          case 'debug': return '#8c8c8c';
-                          case 'trace': return '#bfbfbf';
-                          case 'info':
-                          default: return '#1890ff';
-                        }
-                      };
-
-                      // Build timeline items
-                      const timelineItems = items.map((item: any, idx: number) => {
-                        const label = item[ labelField ] || `Event ${idx + 1}`;
-                        const timestamp = item[ timestampField ];
-                        const description = descriptionField ? item[ descriptionField ] : undefined;
-                        const type = typeField ? item[ typeField ] : undefined;
-                        const iconName = iconField ? item[ iconField ] : undefined;
-
-                        // Detect additional data (fields beyond standard timeline fields)
-                        const standardFields = new Set([
-                          labelField,
-                          timestampField,
-                          descriptionField,
-                          typeField,
-                          iconField
-                        ].filter(Boolean));
-
-                        const allFields = Object.keys(item);
-                        const additionalFields = allFields.filter(field => !standardFields.has(field));
-                        const hasAdditionalData = additionalFields.length > 0;
-
-                        // Format timestamp
-                        let formattedTime = '';
-                        if (timestamp && showTimestamp) {
-                          try {
-                            // Handle epoch timestamps (number) vs ISO strings
-                            const ts = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
-                            if (!isNaN(ts)) {
-                              formattedTime = dayjs(ts).format(timestampFormat);
-                            }
-                          } catch {
-                            // Ignore invalid timestamps
-                          }
-                        }
-
-                        // Get icon if specified
-                        let dotIcon = undefined;
-                        if (iconName && (Icons as any)[ iconName ]) {
-                          const IconComponent = (Icons as any)[ iconName ];
-                          dotIcon = <IconComponent />;
-                        }
-
-                        return {
-                          key: idx,
-                          dot: dotIcon,
-                          color: getColorFromType(type),
-                          children: (
-                            <div className="timeline-item-content">
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                                  <span style={{ fontWeight: 500 }}>{label}</span>
-                                  {hasAdditionalData && (
-                                    <OpenInModal
-                                      modalType="details"
-                                      modalPageConfig={{
-                                        propertiesConfig: additionalFields.map(field => ({
-                                          name: field,
-                                          label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
-                                          fieldType: 'json' as const,
-                                          column: field
-                                        })),
-                                        detailResponse: item
-                                      }}
-                                      modalTitle={label || 'Event Details'}
-                                      modalWidth={800}
-                                    >
-                                      <button
-                                        type="button"
-                                        style={{
-                                          padding: '0 4px',
-                                          minWidth: 'auto',
-                                          height: 'auto',
-                                          border: 'none',
-                                          background: 'transparent',
-                                          cursor: 'pointer',
-                                          color: '#1890ff',
-                                          display: 'inline-flex',
-                                          alignItems: 'center'
-                                        }}
-                                      >
-                                        {React.createElement((Icons as any).InfoCircleOutlined)}
-                                      </button>
-                                    </OpenInModal>
-                                  )}
-                                </div>
-                                {formattedTime && (
-                                  <span style={{ fontSize: '12px', color: '#8c8c8c', marginLeft: '8px', whiteSpace: 'nowrap' }}>
-                                    {formattedTime}
-                                  </span>
-                                )}
-                              </div>
-                              {description && (
-                                <div style={{ fontSize: '13px', color: '#595959', marginTop: '4px' }}>
-                                  {description}
-                                </div>
-                              )}
-                            </div>
-                          ),
-                        };
-                      });
-
-                      if (timelineItems.length === 0) {
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                            <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                            <span style={{ color: '#8c8c8c' }}>No events</span>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div style={{ paddingTop: '8px' }}>
-                            <Timeline
-                              mode={config.mode || 'left'}
-                              items={timelineItems}
-                            />
-                          </div>
-                        </div>
-                      );
-                    }
-
+                    // Default fallback — smart text rendering
                     return (
                       <div key={index} className="details-field-container">
                         <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>

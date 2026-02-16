@@ -540,18 +540,9 @@ export const Table = ({
 
   return (
     <ErrorBoundary
-      FallbackComponent={({
-        error,
-        resetErrorBoundary,
-      }) => (
-        <ErrorFallback
-          error={new Error(`Error in table: ${error.message}`)}
-          resetErrorBoundary={resetErrorBoundary}
-        />
-      )}
+      FallbackComponent={ErrorFallback}
       onReset={() => {
         console.log("Table ErrorBoundary Reset");
-        // Optionally, trigger a table data reload
         handleReload();
       }}
     >

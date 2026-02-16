@@ -23,6 +23,8 @@ import type { Template } from '../types';
 import { substituteUrlParams } from '../utils';
 import { ApiErrorHandlerResult, handleApiError } from '../utils/api-error-handler';
 import { evaluateTemplateValue } from '../utils/template';
+import { queryClient } from '../query/QueryProvider';
+import { queryKeys } from '../query/queryKeys';
 
 // ============================================================================
 // TYPES
@@ -161,6 +163,10 @@ export class OperationExecutor {
       const conditionalOverrides = config.conditionalBehavior(data);
       effectiveConfig = { ...config, ...conditionalOverrides };
     }
+
+    // Invalidate React Query cache for the affected entity.
+    // Derive entity name from apiUrl (same pattern as Form.tsx / Details.tsx).
+    this.invalidateEntityCache(config.apiConfig.apiUrl);
 
     // 1. Response Modal / Chaining (Priority 1)
     // Check for response modal config OR dynamic chaining config
@@ -374,6 +380,28 @@ export class OperationExecutor {
       return evaluateTemplateValue(template, context, fallback);
     } catch {
       return fallback;
+    }
+  }
+
+  /**
+   * Invalidate React Query cache for the entity derived from an API URL.
+   * E.g. '/api/team/:teamId' → entity 'team', '/admin/player' → entity 'player'
+   */
+  private invalidateEntityCache(apiUrl?: string): void {
+    if (!apiUrl) return;
+
+    const parts = apiUrl.split('/').filter(Boolean);
+    // Walk backwards to find the first non-parameter segment
+    let entityName: string | undefined;
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (!parts[i].startsWith(':')) {
+        entityName = parts[i];
+        break;
+      }
+    }
+
+    if (entityName && entityName !== 'unknown') {
+      queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).all });
     }
   }
 
