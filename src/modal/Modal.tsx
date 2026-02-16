@@ -357,6 +357,17 @@ export const Modal = ({
     };
   }, []);
 
+  // Validation: Warn if both navigateTo and responseConfig are specified (mutually exclusive)
+  // IMPORTANT: Must be called before any conditional returns to satisfy Rules of Hooks
+  React.useEffect(() => {
+    if (navigateTo && responseConfig?.showModal) {
+      console.warn(
+        '[Modal] Both navigateTo and responseConfig.showModal are specified. ' +
+        'navigateTo takes precedence. This might be a configuration error.'
+      );
+    }
+  }, [ navigateTo, responseConfig ]);
+
   // ============================================================================
   // NEW: Using OperationExecutor for centralized operation handling
   // ============================================================================
@@ -631,16 +642,6 @@ export const Modal = ({
     )
   }
 
-
-  // Validation: Warn if both navigateTo and responseConfig are specified (mutually exclusive)
-  React.useEffect(() => {
-    if (navigateTo && responseConfig?.showModal) {
-      console.warn(
-        '[Modal] Both navigateTo and responseConfig.showModal are specified. ' +
-        'navigateTo takes precedence. This might be a configuration error.'
-      );
-    }
-  }, [ navigateTo, responseConfig ]);
 
   if ([ "list", "form", "details", "accordion", "dashboard", "wizard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists

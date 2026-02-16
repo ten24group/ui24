@@ -21,18 +21,34 @@ import { useTableStateContext } from './TableStateContext';
 import { useDetailStateContext } from './DetailStateContext';
 
 /**
+ * Safe JSON.stringify that handles circular references without throwing.
+ * Returns undefined if serialization fails (circular refs, BigInt, etc.).
+ */
+function safeStringify(value: unknown): string | undefined {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    // Circular references or other serialization errors — fall through
+    return undefined;
+  }
+}
+
+/**
  * Deep-compare helper that only returns the new value if it's meaningfully
  * different from the previous one (by JSON stringification).
  * This prevents re-renders when context providers produce structurally
  * identical but referentially different objects.
+ *
+ * If the value cannot be serialized (e.g. circular references), the new
+ * reference is always treated as changed to avoid stale data.
  */
 function useStableValue<T>(value: T): T {
   const ref = useRef(value);
   const prevJson = useRef<string | undefined>(undefined);
 
-  // JSON.stringify(undefined) returns undefined (not a string),
-  // so use a fallback to ensure consistent comparison.
-  const json = JSON.stringify(value) ?? '__undefined__';
+  // safeStringify returns undefined for circular structures / non-serializable values.
+  // In that case we always accept the new value (safe fallback).
+  const json = safeStringify(value) ?? '__undefined__';
   if (json !== prevJson.current) {
     ref.current = value;
     prevJson.current = json;
