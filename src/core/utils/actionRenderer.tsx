@@ -8,6 +8,7 @@ import { OpenInDrawer } from "../../modal/Drawer";
 import { IPageAction } from "../../table/type";
 import { substituteUrlParams } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
+import { isExternalUrl, resolveAnchorProps } from "../utils/link-utils";
 
 export type MenuItem = Required<MenuProps>[ 'items' ][ number ];
 
@@ -255,16 +256,14 @@ export const renderSingleAction = ({
     url = substituteUrlParams(url, routeParams);
   }
 
-  // Check if this is an external URL (starts with http:// or https://)
-  const isExternalUrl = /^https?:\/\//i.test(url);
-  const target = action.target || (isExternalUrl ? '_blank' : undefined);
+  const external = isExternalUrl(url);
+  const { target, rel } = resolveAnchorProps(action.target, url);
 
-  // Helper to handle navigation - external URLs open in new tab if target is _blank
   const handleNavigation = (e?: React.MouseEvent) => {
     if (isDisabled) return;
     if (e) e.preventDefault();
 
-    if (target === '_blank' || isExternalUrl) {
+    if (target === '_blank' || external) {
       window.open(url, target || '_blank', 'noopener,noreferrer');
     } else {
       onNavigate?.(url);
@@ -286,7 +285,7 @@ export const renderSingleAction = ({
       <a
         href={isDisabled ? undefined : url}
         target={target}
-        rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+        rel={rel}
         onClick={handleNavigation}
       >
         <Icon iconName={action.icon} />

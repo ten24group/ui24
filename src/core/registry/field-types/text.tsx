@@ -1,9 +1,14 @@
 import React from 'react';
 import { Input } from 'antd';
-import type { BuiltInFormFieldProps, BuiltInDetailFieldProps } from './types';
+import type { BuiltInFormFieldProps, BuiltInDetailFieldProps, BuiltInTableFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
+import { resolveAnchorProps } from '../../utils/link-utils';
 
 const { TextArea } = Input;
+
+// ============================================================================
+// Form renderers
+// ============================================================================
 
 const TextForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, value, onChange, id }) => (
   <Input type="text" prefix={prefixIcon} placeholder={placeholder} value={value} onChange={onChange} id={id} />
@@ -31,13 +36,20 @@ const PhoneForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, v
 
 const HiddenForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id }) => <Input type="hidden" value={value} onChange={onChange} id={id} />;
 const CustomForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, value, onChange, id }) => <Input placeholder={placeholder} value={value} onChange={onChange} id={id} />;
+const LinkFormField: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, value, onChange, id }) => (
+  <Input type="url" prefix={prefixIcon} placeholder={placeholder || "Enter URL"} value={value} onChange={onChange} id={id} />
+);
 
+// ============================================================================
 // Detail renderers
-const TextDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
+// ============================================================================
+
+const TextDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
   if (value === null || value === undefined || value === '') return <span>—</span>;
   const str = String(value);
   if (str.match(/^https?:\/\//i)) {
-    return <a href={str} target="_blank" rel="noopener noreferrer">{str}</a>;
+    const { target, rel } = resolveAnchorProps(config.target, str);
+    return <a href={str} target={target} rel={rel}>{str}</a>;
   }
   if (str.length > 100) {
     return (
@@ -58,10 +70,11 @@ const TextareaDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
   );
 };
 
-const UrlDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
+const UrlDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
   if (value === null || value === undefined) return <span>—</span>;
   const str = String(value);
-  return <a href={str} target="_blank" rel="noopener noreferrer">{str}</a>;
+  const { target, rel } = resolveAnchorProps(config.target, str);
+  return <a href={str} target={target} rel={rel}>{str}</a>;
 };
 
 const PhoneDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
@@ -69,10 +82,6 @@ const PhoneDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
   const str = String(value);
   return <a href={`tel:${str}`}>{str}</a>;
 };
-
-const LinkFormField: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, value, onChange, id }) => (
-  <Input type="url" prefix={prefixIcon} placeholder={placeholder || "Enter URL"} value={value} onChange={onChange} id={id} />
-);
 
 const CodeDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
   if (value === null || value === undefined) return <span>—</span>;
@@ -83,22 +92,25 @@ const CodeDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
   );
 };
 
+// ============================================================================
 // Table renderers
-import type { BuiltInTableFieldProps } from './types';
+// ============================================================================
 
-const TextTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
+const TextTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   if (value === null || value === undefined) return <span>—</span>;
   const str = String(value);
   if (str.match(/^https?:\/\//i)) {
-    return <a href={str} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>{str.length > 30 ? str.substring(0, 30) + '...' : str}</a>;
+    const { target, rel } = resolveAnchorProps(column?.target, str);
+    return <a href={str} target={target} rel={rel} style={{ color: '#1677ff' }}>{str.length > 30 ? str.substring(0, 30) + '...' : str}</a>;
   }
   return <>{str}</>;
 };
 
-const UrlTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
+const UrlTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   if (!value) return <span>—</span>;
   const url = String(value);
-  return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>{url.length > 30 ? url.substring(0, 30) + '...' : url}</a>;
+  const { target, rel } = resolveAnchorProps(column?.target, url);
+  return <a href={url} target={target} rel={rel} style={{ color: '#1677ff' }}>{url.length > 30 ? url.substring(0, 30) + '...' : url}</a>;
 };
 
 const PhoneTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
@@ -106,11 +118,16 @@ const PhoneTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
   return <a href={`tel:${value}`} style={{ color: '#1677ff' }}>{String(value)}</a>;
 };
 
-const LinkTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
+const LinkTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   if (!value) return <span>—</span>;
   const url = String(value);
-  return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>Link</a>;
+  const { target, rel } = resolveAnchorProps(column?.target, url);
+  return <a href={url} target={target} rel={rel} style={{ color: '#1677ff' }}>Link</a>;
 };
+
+// ============================================================================
+// Registrations
+// ============================================================================
 
 export const textRegistrations: Record<string, FieldTypeRegistration> = {
   text: { form: TextForm, detail: TextDetail, table: TextTable },

@@ -23,6 +23,7 @@ import type { Template } from '../types';
 import { substituteUrlParams } from '../utils';
 import { ApiErrorHandlerResult, handleApiError } from '../utils/api-error-handler';
 import { evaluateTemplateValue } from '../utils/template';
+import { IRedirectOptions, navigateToUrl } from '../utils/link-utils';
 import { queryClient } from '../query/QueryProvider';
 import { queryKeys } from '../query/queryKeys';
 
@@ -43,14 +44,7 @@ export interface OperationConfig {
 
   // ===== Success Behavior =====
   submitSuccessRedirect?: string;
-  /**
-   * Navigation options for submitSuccessRedirect
-   * Uses react-router-dom's NavigateOptions: { replace?: boolean; state?: unknown; }
-   */
-  submitSuccessRedirectOptions?: {
-    replace?: boolean;
-    state?: unknown;
-  };
+  submitSuccessRedirectOptions?: IRedirectOptions;
   responseConfig?: IResponseDisplayConfig;
   dynamicConfigKey?: string; // Extract next-step config from response
   conditionalBehavior?: (data: any) => Partial<OperationConfig>;
@@ -342,13 +336,8 @@ export class OperationExecutor {
   // NAVIGATION
   // ==========================================================================
 
-  private navigateToUrl(url: string, options?: OperationConfig[ 'submitSuccessRedirectOptions' ]): void {
-    // External URL detection
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('//')) {
-      window.location.href = url;
-    } else {
-      this.deps.navigate(url, options);
-    }
+  private navigateToUrl(url: string, options?: IRedirectOptions): void {
+    navigateToUrl(url, this.deps.navigate, options);
   }
 
   // ==========================================================================

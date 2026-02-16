@@ -606,7 +606,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div key={index} className="details-field-container">
                           <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
                           <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Link url={linkUrl} className="details-link">
+                          <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
                             {displayText} ({value})
                           </Link>
                         </div>
@@ -682,7 +682,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         <div>
                           {value !== undefined && value !== null && value !== '' ? (
                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (
-                              <a href={value} target="_blank" rel="noopener noreferrer">
+                              <a href={value} target={item.target || '_blank'} rel={(item.target || '_blank') === '_blank' ? 'noopener noreferrer' : undefined}>
                                 {value}
                               </a>
                             ) : typeof value === 'object' ? (

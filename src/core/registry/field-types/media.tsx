@@ -1,8 +1,13 @@
 import React from 'react';
 import { Input, QRCode } from 'antd';
 import { FileUploader } from '../../common/';
-import type { BuiltInFormFieldProps, BuiltInDetailFieldProps } from './types';
+import type { BuiltInFormFieldProps, BuiltInDetailFieldProps, BuiltInTableFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
+import { resolveAnchorProps } from '../../utils/link-utils';
+
+// ============================================================================
+// Form renderers
+// ============================================================================
 
 const FileForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange }) => (
   <FileUploader
@@ -65,14 +70,18 @@ const QrcodeForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, value, onCha
   <Input placeholder={placeholder || "Enter value for QR code"} value={value} onChange={onChange} id={id} />
 );
 
+// ============================================================================
 // Detail renderers
+// ============================================================================
+
 const ImageDetail: React.FC<BuiltInDetailFieldProps> = ({ value, label }) => (
   <img src={String(value)} alt={label} className="details-image" />
 );
 
-const FileDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => (
-  <a href={String(value)} target="_blank" rel="noopener noreferrer">Download File</a>
-);
+const FileDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
+  const { target, rel } = resolveAnchorProps(config.target, String(value));
+  return <a href={String(value)} target={target} rel={rel}>Download File</a>;
+};
 
 const VideoDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => (
   <video
@@ -102,8 +111,9 @@ const QRCodeDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
   );
 };
 
+// ============================================================================
 // Table renderers
-import type { BuiltInTableFieldProps } from './types';
+// ============================================================================
 
 const ImageTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
   const imageUrl = typeof value === 'string' ? value : '';
@@ -118,34 +128,33 @@ const ImageTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
   );
 };
 
-const FileTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
+const FileTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   const fileUrl = typeof value === 'string' ? value : '';
   if (!fileUrl) return <span>—</span>;
-  return <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>Download</a>;
+  const { target, rel } = resolveAnchorProps(column?.target, fileUrl);
+  return <a href={fileUrl} target={target} rel={rel} style={{ color: '#1677ff' }}>Download</a>;
 };
 
-const VideoTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
+const VideoTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   if (!value) return <span>—</span>;
-  return (
-    <a href={String(value)} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>
-      Video
-    </a>
-  );
+  const { target, rel } = resolveAnchorProps(column?.target, String(value));
+  return <a href={String(value)} target={target} rel={rel} style={{ color: '#1677ff' }}>Video</a>;
 };
 
-const AudioTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
+const AudioTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   if (!value) return <span>—</span>;
-  return (
-    <a href={String(value)} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>
-      Audio
-    </a>
-  );
+  const { target, rel } = resolveAnchorProps(column?.target, String(value));
+  return <a href={String(value)} target={target} rel={rel} style={{ color: '#1677ff' }}>Audio</a>;
 };
 
 const QRCodeTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
   if (!value) return <span>—</span>;
   return <span>QR</span>;
 };
+
+// ============================================================================
+// Registrations
+// ============================================================================
 
 export const mediaRegistrations: Record<string, FieldTypeRegistration> = {
   file: { form: FileForm, detail: FileDetail, table: FileTable },
