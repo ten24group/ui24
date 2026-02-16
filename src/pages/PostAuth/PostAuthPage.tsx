@@ -232,22 +232,8 @@ export const RenderFromPageType = ({
     return { Component: OverrideComponent, props: overrideProps };
   }, [ entityName, resolvedPageType, identifiers, routeParams, depth, listPageConfig, detailsPageConfig, formPageConfig ]);
 
-  // If entity override exists, render it instead of standard page
-  if (entityOverrideResult) {
-    const { Component, props } = entityOverrideResult;
-    return (
-      <ErrorBoundary
-        FallbackComponent={ErrorFallback}
-        onReset={() => {
-          console.log(`[RenderFromPageType] Entity override error boundary reset: ${entityName}`);
-        }}
-      >
-        <Component {...props} />
-      </ErrorBoundary>
-    );
-  }
-
   // Check ExtensionRegistry for custom page types
+  // IMPORTANT: Must be called before any early returns to satisfy Rules of Hooks
   const extensionPageResult = useMemo(() => {
     if (!resolvedPageType) return null;
 
@@ -281,6 +267,21 @@ export const RenderFromPageType = ({
 
     return { Component: CustomPageComponent, props: pageProps };
   }, [ resolvedPageType, entityName, routeParams, depth, identifiers, listPageConfig, detailsPageConfig, formPageConfig, dashboardPageConfig, customPageConfig, accordionsPageConfig ]);
+
+  // If entity override exists, render it instead of standard page
+  if (entityOverrideResult) {
+    const { Component, props } = entityOverrideResult;
+    return (
+      <ErrorBoundary
+        FallbackComponent={ErrorFallback}
+        onReset={() => {
+          console.log(`[RenderFromPageType] Entity override error boundary reset: ${entityName}`);
+        }}
+      >
+        <Component {...props} />
+      </ErrorBoundary>
+    );
+  }
 
   // If ExtensionRegistry has a custom page type, render it
   if (extensionPageResult) {
