@@ -128,7 +128,7 @@ export const useTableData = ({
   const callApiMethodRef = React.useRef(callApiMethod);
   callApiMethodRef.current = callApiMethod;
 
-  const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string, filtersOverride?: Record<string, any>) => {
+  const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string, filtersOverride?: Record<string, any>, options?: { forceRefresh?: boolean }) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
     const isSearchActive = isSearchMode;
     const sortString = getSortString();
@@ -196,6 +196,12 @@ export const useTableData = ({
         attributes: payload.attributes,
       });
 
+      // When the user explicitly triggers a refresh (Refresh Data, Reset, auto-refresh timer),
+      // invalidate the cache so fetchQuery always hits the server.
+      if (options?.forceRefresh) {
+        await queryClient.invalidateQueries({ queryKey: cacheKey });
+      }
+
       const responseData = await queryClient.fetchQuery({
         queryKey: cacheKey,
         queryFn: async () => {
@@ -214,17 +220,21 @@ export const useTableData = ({
         staleTime: 15 * 1000, // 15s — short for list data that changes often
       });
 
-      const records = isSearchActive ? responseData.items
+      const rawRecords = isSearchActive ? responseData.items
         : apiConfig.responseKey ? responseData[ apiConfig.responseKey ] : responseData;
 
       if (isSearchActive && responseData.facets) {
         setFacetResults(responseData.facets);
       }
 
+      // Shallow-clone each record to avoid mutating React Query cached objects.
+      // fetchQuery returns cached references within staleTime — mutating them in-place
+      // causes already-formatted values (e.g. dates) to be re-formatted on the next
+      // cache hit, producing garbled results.
+      const records = (rawRecords || []).map((r: any) => ({ ...r }));
+
       records.forEach((record: any) => {
-        if (!record.__raw__) {
-          record.__raw__ = { ...record };
-        }
+        record.__raw__ = { ...record };
 
         formattingColumns.forEach((property) => {
           const nestedValue = getNestedValue(record, property.dataIndex);

@@ -461,11 +461,11 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, resetMode);
     setSort(convertDefaultSortToSorterResult(defaultSort));
 
-    fetchRecords(1, "");
+    fetchRecords(1, "", undefined, { forceRefresh: true });
   }, [ fetchRecords, apiConfig, resolvedDefaultFilters ]);
 
   const handleReload = React.useCallback(() => {
-    fetchRecords(currentPage, pageCursor[ currentPage ]);
+    fetchRecords(currentPage, pageCursor[ currentPage ], undefined, { forceRefresh: true });
   }, [ fetchRecords, currentPage, pageCursor ]);
 
   const getColumnNameByKey = (dataIndex: string) => {
