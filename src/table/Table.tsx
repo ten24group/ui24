@@ -112,8 +112,7 @@ import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
-import { AutoRefreshSelector } from '../core/components/AutoRefreshSelector';
-import { FreshnessIndicator } from '../core/common/FreshnessIndicator';
+import { RefreshControl } from '../core/common/RefreshControl';
 import { EmptyState } from '../core/common/EmptyState';
 import { useCoreNavigator } from '../routes/Navigation';
 import './Table.css';
@@ -562,7 +561,6 @@ export const Table = ({
             {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {dataUpdatedAt && <FreshnessIndicator timestamp={dataUpdatedAt} onRefresh={handleReload} />}
             {canToggleSearchMode && (
               <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
                 <Button
@@ -584,16 +582,10 @@ export const Table = ({
             <Tooltip title="Reset">
               <Button icon={<ClearOutlined />} onClick={handleRefresh} />
             </Tooltip>
-            <Tooltip title="Refresh Data">
-              <Button icon={<ReloadOutlined />} onClick={handleReload} />
-            </Tooltip>
-            <AutoRefreshSelector
-              isEnabled={autoRefresh.isEnabled}
-              interval={autoRefresh.interval}
-              timeUntilRefresh={autoRefresh.timeUntilRefresh}
-              onToggle={autoRefresh.toggleEnabled}
-              onIntervalChange={autoRefresh.setInterval}
-              size="middle"
+            <RefreshControl
+              onRefresh={handleReload}
+              dataUpdatedAt={dataUpdatedAt}
+              autoRefresh={autoRefresh}
             />
             <Tooltip title="Column Settings">
               <Dropdown

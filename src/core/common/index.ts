@@ -17,11 +17,11 @@ export * from './MarkdownPreview';
 // Form Wizard (Multi-step forms)
 export * from './FormWizard';
 
-// Data Freshness Indicator
-export * from './FreshnessIndicator';
-
 // Empty State
 export * from './EmptyState';
 
 // Masked Input
 export * from './MaskedInput';
+
+// Unified Refresh Control
+export * from './RefreshControl';

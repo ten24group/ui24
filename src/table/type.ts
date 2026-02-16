@@ -6,8 +6,6 @@ import { IActionDrawerConfig } from "../modal/Drawer";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 import type { IEntityConfigReference } from "../core/hooks/useEntityConfig";
-/** @deprecated Unused — pagination is now config-driven via ITableConfig.pagination */
-type ITablePagination = "default";
 
 /**
  * Pagination configuration for tables.
@@ -200,8 +198,6 @@ export interface ITableConfig {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   records?: Array<any>;
-  /** @deprecated Unused — pagination is now config-driven via `pagination` */
-  paginationType?: ITablePagination;
   routeParams?: Record<string, any>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
   entityName?: string;  // Entity name from backend config generation

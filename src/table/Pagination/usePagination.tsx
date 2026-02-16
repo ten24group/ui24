@@ -77,9 +77,6 @@ export const useCursorPagination = ({
   return { Pagination };
 };
 
-/** @deprecated Use useCursorPagination — kept as alias for backward compatibility */
-export const usePagination = useCursorPagination;
-
 // ============================================================================
 // OFFSET PAGINATION (search mode — known total)
 // ============================================================================

@@ -113,7 +113,6 @@ import { detailsStyles } from './styles';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { resolveStringOrDefault } from '../core/types/evaluation';
-import { FreshnessIndicator } from '../core/common/FreshnessIndicator';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
 import { useCoreNavigator } from '../routes/Navigation';
@@ -192,7 +191,7 @@ export interface IDetailsComponentProps extends IDetailsConfig {
   columnsConfig?: IColumnsConfig;
   routeParams?: Record<string, any>;
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
-  onDataChange?: (data: { record?: any; pageType?: string; entityName?: string }) => void;
+  onDataChange?: (data: { record?: any; pageType?: string; entityName?: string; dataUpdatedAt?: string }) => void;
   refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
 }
 
@@ -250,9 +249,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
     onDataChange({
       record: detailResponse,
       pageType: 'view',
-      entityName
+      entityName,
+      dataUpdatedAt: dataUpdatedAt || undefined,
     });
-  }, [ detailResponse, entityName, onDataChange ]);
+  }, [ detailResponse, entityName, onDataChange, dataUpdatedAt ]);
 
   // Utility function to recursively deserialize JSON strings
   const deserializeJsonStrings = (value: any): any => {
@@ -460,7 +460,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
       setRecordInfo(formatted);
       setDataLoaded(true);
-      setDataUpdatedAt(new Date().toISOString());
     } else if (detailApiConfig) {
       // Otherwise, fetch from API
       fetchRecordInfo(false);  // Don't show refresh loader on initial load
@@ -580,11 +579,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
       ) : (
         // Show spinner overlay only for refresh (keeps content visible)
         <Spin spinning={isRefreshing}>
-          {dataUpdatedAt && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <FreshnessIndicator timestamp={dataUpdatedAt} onRefresh={() => fetchRecordInfo(true)} />
-            </div>
-          )}
           <div style={detailsStyles.container}>
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>

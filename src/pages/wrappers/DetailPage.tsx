@@ -2,10 +2,9 @@
  * DetailPage Wrapper - Owns detail state and provides DetailStateContext.
  * Renders PageHeader and the existing Details component with state management.
  */
-import { ReloadOutlined } from '@ant-design/icons';
-import { Button, Card } from 'antd';
+import { Card } from 'antd';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { AutoRefreshSelector } from '../../core/components/AutoRefreshSelector';
+import { RefreshControl } from '../../core/common/RefreshControl';
 import { useModalContext } from '../../core/context';
 import { DetailStateProvider } from '../../core/context/DetailStateContext';
 import { useAutoRefresh } from '../../core/hooks';
@@ -38,6 +37,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   // 1. Wrapper owns state
   const [ record, setRecord ] = useState<any>(detailProps.detailResponse || null);
   const [ isLoading, setIsLoading ] = useState<boolean>(!detailProps.detailResponse);
+  const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
 
   // 2. Ref to Details component's refresh function
   const refreshFnRef = useRef<(() => Promise<void>) | null>(null);
@@ -56,10 +56,13 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   }), [ record, isLoading ]);
 
   // 5. Create onDataChange callback that updates our state
-  const handleDataChange = useCallback((data: { record?: any; pageType?: string; entityName?: string }) => {
+  const handleDataChange = useCallback((data: { record?: any; pageType?: string; entityName?: string; dataUpdatedAt?: string }) => {
     if (data.record !== undefined) {
       setRecord(data.record);
       setIsLoading(false);
+    }
+    if (data.dataUpdatedAt) {
+      setDataUpdatedAt(data.dataUpdatedAt);
     }
   }, []);
 
@@ -70,7 +73,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({
     }
   }, []);
 
-  // 7. Auto-refresh functionality
+  // Determine if this detail page fetches its own data.
+  // When detailResponse is provided (e.g., sections using parentData), there's nothing to refresh —
+  // the parent owns the data and its refresh controls.
+  const fetchesOwnData = !detailProps.detailResponse && !!detailProps.detailApiConfig;
+
+  // 7. Auto-refresh functionality — only when this page fetches its own data
   const autoRefresh = useAutoRefresh({
     onRefresh: handleRefresh,
     enabled: false,
@@ -80,28 +88,20 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   // Check if we're in a modal - skip PageHeader if true (modal already has title)
   const { isInModal } = useModalContext();
 
-  // 8. Create refresh controls to append to PageHeader actions
+  // 8. Single unified refresh control — replaces separate refresh button + auto-refresh + freshness.
+  // Only shown when this page fetches its own data (not when data comes from parent).
   const refreshControls = useMemo(() => {
-    if (isInModal) return null;
+    if (isInModal || !fetchesOwnData) return null;
 
     return (
-      <React.Fragment key="refresh-controls">
-        <Button
-          icon={<ReloadOutlined />}
-          type='primary'
-          onClick={handleRefresh}
-        >
-        </Button>
-        <AutoRefreshSelector
-          isEnabled={autoRefresh.isEnabled}
-          interval={autoRefresh.interval}
-          timeUntilRefresh={autoRefresh.timeUntilRefresh}
-          onToggle={autoRefresh.toggleEnabled}
-          onIntervalChange={autoRefresh.setInterval}
-        />
-      </React.Fragment>
+      <RefreshControl
+        key="refresh-control"
+        onRefresh={handleRefresh}
+        dataUpdatedAt={dataUpdatedAt}
+        autoRefresh={autoRefresh}
+      />
     );
-  }, [ isInModal, handleRefresh, autoRefresh.isEnabled, autoRefresh.interval, autoRefresh.timeUntilRefresh, autoRefresh.toggleEnabled, autoRefresh.setInterval ]);
+  }, [ isInModal, fetchesOwnData, handleRefresh, dataUpdatedAt, autoRefresh ]);
 
   return (
     <DetailStateProvider value={detailState}>
@@ -145,4 +145,3 @@ export const DetailPage: React.FC<DetailPageProps> = ({
     </DetailStateProvider>
   );
 };
-
