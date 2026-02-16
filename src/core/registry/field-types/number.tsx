@@ -3,39 +3,52 @@ import { Input, InputNumber, Slider, Rate } from 'antd';
 import { formatDuration, formatTTL } from '../../utils/duration';
 import type { BuiltInFormFieldProps, BuiltInDetailFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
+import { MaskedInput } from '../../common/MaskedInput';
 
 const NumberForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, value, onChange, id }) => (
   <Input type="number" prefix={prefixIcon} placeholder={placeholder} value={value} onChange={onChange} id={id} />
 );
 
-const CurrencyForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, currencySymbol, precision, value, onChange, id }) => (
-  <InputNumber
-    prefix={currencySymbol || '$'}
-    placeholder={placeholder}
-    style={{ width: '100%' }}
-    precision={precision || 2}
-    value={value}
-    onChange={onChange}
-    id={id}
-  />
-);
+const CurrencyForm: React.FC<BuiltInFormFieldProps> = (props) => {
+  const { placeholder, currencySymbol, precision, value, onChange, id, mask, maskOptions } = props;
+  if (mask) {
+    return <MaskedInput mask={mask} format="currency" maskOptions={maskOptions} value={value} onChange={onChange} placeholder={placeholder} id={id} />;
+  }
+  return (
+    <InputNumber
+      prefix={currencySymbol || '$'}
+      placeholder={placeholder}
+      style={{ width: '100%' }}
+      precision={precision || 2}
+      value={value}
+      onChange={onChange}
+      id={id}
+    />
+  );
+};
 
-const PercentageForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, min, max, value, onChange, id }) => (
-  <InputNumber
-    min={min ?? 0}
-    max={max ?? 100}
-    formatter={(v) => `${v}%`}
-    parser={(v) => {
-      const parsed = v?.replace('%', '');
-      return parsed ? Number(parsed) : 0;
-    }}
-    placeholder={placeholder}
-    style={{ width: '100%' }}
-    value={value}
-    onChange={onChange}
-    id={id}
-  />
-);
+const PercentageForm: React.FC<BuiltInFormFieldProps> = (props) => {
+  const { placeholder, min, max, value, onChange, id, mask, maskOptions } = props;
+  if (mask) {
+    return <MaskedInput mask={mask} format="percentage" maskOptions={maskOptions} value={value} onChange={onChange} placeholder={placeholder} id={id} />;
+  }
+  return (
+    <InputNumber
+      min={min ?? 0}
+      max={max ?? 100}
+      formatter={(v) => `${v}%`}
+      parser={(v) => {
+        const parsed = v?.replace('%', '');
+        return parsed ? Number(parsed) : 0;
+      }}
+      placeholder={placeholder}
+      style={{ width: '100%' }}
+      value={value}
+      onChange={onChange}
+      id={id}
+    />
+  );
+};
 
 const SliderForm: React.FC<BuiltInFormFieldProps> = ({ min, max, step, marks, vertical, value, onChange, id }) => (
   <Slider
@@ -54,8 +67,8 @@ const RangeForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, value, onChan
   <Input type="range" placeholder={placeholder} value={value} onChange={onChange} id={id} />
 );
 
-const RatingForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id }) => (
-  <Rate allowHalf value={value} onChange={onChange} id={id} />
+const RatingForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id, count }) => (
+  <Rate allowHalf count={count} value={value} onChange={onChange} id={id} />
 );
 
 const DurationForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id }) => (
@@ -214,11 +227,26 @@ const TTLTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
 
 export const numberRegistrations: Record<string, FieldTypeRegistration> = {
   number: { form: NumberForm, detail: NumberDetail, table: NumberTable },
-  currency: { form: CurrencyForm, detail: CurrencyDetail, table: CurrencyTable },
-  percentage: { form: PercentageForm, detail: PercentageDetail, table: PercentageTable },
+  currency: {
+    form: CurrencyForm, detail: CurrencyDetail, table: CurrencyTable,
+    defaults: {
+      form: { currencySymbol: '$', precision: 2 },
+    },
+  },
+  percentage: {
+    form: PercentageForm, detail: PercentageDetail, table: PercentageTable,
+    defaults: {
+      form: { min: 0, max: 100 },
+    },
+  },
   slider: { form: SliderForm, detail: SliderDetail, table: SliderTable },
   range: { form: RangeForm, detail: RangeDetail, table: RangeTable },
-  rating: { form: RatingForm, detail: RatingDetail, table: RatingTable },
+  rating: {
+    form: RatingForm, detail: RatingDetail, table: RatingTable,
+    defaults: {
+      form: { count: 5 },
+    },
+  },
   duration: { form: DurationForm, detail: DurationDetail, table: DurationTable },
   ttl: { detail: TTLDetail, table: TTLTable },
   progress: { form: ProgressForm },

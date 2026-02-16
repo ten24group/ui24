@@ -32,6 +32,7 @@ import { IApiConfig, ModalContextProvider, useApi } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
 import { IForm } from '../core/forms/formConfig';
 import { Template } from '../core/types';
+import type { ConditionalValue } from '../core/types/evaluation';
 import { evaluateTemplateObject, getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { evaluateTemplateValue } from '../core/utils/template';
@@ -129,7 +130,8 @@ export interface IModalConfig {
 
   /** EITHER: Make API call (existing pattern) */
   apiConfig?: IApiConfig;
-  submitSuccessRedirect?: string;
+  /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
+  submitSuccessRedirect?: string | ConditionalValue<string>;
   /**
    * Navigation options for submitSuccessRedirect
    * Uses react-router-dom's NavigateOptions: { replace?: boolean; state?: unknown; }

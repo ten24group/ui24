@@ -89,6 +89,7 @@ export const useTableData = ({
   const [ isLastPage, setIsLastPage ] = React.useState(false);
   const [ totalRecords, setTotalRecords ] = React.useState(0);
   const [ facetResults, setFacetResults ] = React.useState<Record<string, Record<string, number>>>({});
+  const [ dataUpdatedAt, setDataUpdatedAt ] = React.useState<string | null>(null);
 
   const { callApiMethod } = useApi();
   const { notifyError } = useAppContext();
@@ -277,6 +278,7 @@ export const useTableData = ({
 
       setListRecords(records);
       setCurrentPage(pageNumber);
+      setDataUpdatedAt(new Date().toISOString());
 
       if (isSearchActive) {
         setTotalRecords(responseData.total);
@@ -310,6 +312,7 @@ export const useTableData = ({
     totalRecords,
     facetResults,
     fetchRecords,
-    pageSize
+    pageSize,
+    dataUpdatedAt,
   };
 };

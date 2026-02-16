@@ -1,13 +1,13 @@
 import React, { useEffect, useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
+import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig, IPaginationConfig } from "./type";
 import { IApiConfig } from "../core/context";
-import { Pagination as AntPagination } from "antd";
+import { Badge } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
 import { addFilterUI } from "./Filters/addFilterUI";
-import { usePagination } from "./Pagination/usePagination";
+import { useCursorPagination, OffsetPagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
 import { FilterFilled } from "@ant-design/icons";
@@ -26,7 +26,10 @@ import { createModalConfig } from "./utils/modalConfigHelper";
 import { getColumnRenderer, type ColumnConfig } from "../core/registry";
 import { useEvaluatedItems } from "../core/hooks/useEvaluatedItems";
 import { fieldTypeRegistry } from "../core/registry/FieldTypeRegistry";
+import { Icon } from "../core/common/Icons/Icons";
 import "../core/registry/field-types"; // ensure built-in registrations run
+import { conditionEvaluator } from "../core/utils/ConditionEvaluator";
+import { useNewEvaluationContext } from "../core/context/NewEvaluationContext";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -35,6 +38,7 @@ interface IuseTable {
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
   fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
   initialPageSize?: number; // Default page size from backend config
+  paginationConfig?: IPaginationConfig; // Config-driven pagination options
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -242,12 +246,15 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10 }: IuseTable) => {
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10, paginationConfig }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
   // Build placeholder context once for resolving dynamic filter values
   const placeholderContext = usePlaceholderContext(routeParams);
+
+  // Evaluation context for conditional cell formatting (#26)
+  const evaluationContext = useNewEvaluationContext();
 
   // NOTE: registry resolution is handled via getColumnRenderer() (non-hook, safe for loops)
 
@@ -334,7 +341,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     totalRecords,
     facetResults,
     fetchRecords,
-    pageSize: currentPageSize
+    pageSize: currentPageSize,
+    dataUpdatedAt,
   } = useTableData({
     apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
     routeParams,
@@ -533,33 +541,26 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1); // Trigger refetch via useEffect with updated pageSize
   }, []);
 
-  //Pagination
-  const { Pagination: CursorPagination } = usePagination({
+  // Pagination — both modes use shared components from Pagination/usePagination.tsx
+  const { Pagination: CursorPagination } = useCursorPagination({
     pageCursor,
     getRecords: fetchRecords,
     currentPage,
     isLastPage,
     pageSize,
     onPageSizeChange: handlePageSizeChange,
-    currentPageRecordCount: listRecords.length
+    currentPageRecordCount: listRecords.length,
+    paginationConfig,
   });
 
-  const NumericalPagination = () => (
-    <AntPagination
-      current={currentPage}
-      total={totalRecords}
+  const NumericalPaginationElement = (
+    <OffsetPagination
+      currentPage={currentPage}
+      totalRecords={totalRecords}
       pageSize={currentPageSize}
-      onChange={(page, newPageSize) => {
-        if (newPageSize !== currentPageSize) {
-          handlePageSizeChange(newPageSize);
-        } else {
-          fetchRecords(page);
-        }
-      }}
-      onShowSizeChange={(_, size) => handlePageSizeChange(size)}
-      showSizeChanger
-      showTotal={(total, range) => `${range[ 0 ]}-${range[ 1 ]} of ${total}`}
-      pageSizeOptions={[ '10', '20', '50', '100' ]}
+      onPageChange={fetchRecords}
+      onPageSizeChange={handlePageSizeChange}
+      paginationConfig={paginationConfig}
     />
   );
 
@@ -859,11 +860,54 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
           // Registry-based lookup for all other field types
           const TableComponent = fieldTypeRegistry.get(fieldType, 'table');
           if (TableComponent) {
+            // Merge smart defaults from registry (#98): defaults < entity config
+            const tableDefaults = fieldTypeRegistry.getDefaults(fieldType, 'table');
+            const mergedColumn = tableDefaults ? { ...tableDefaults, ...column } : column;
             renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => (
-              <TableComponent value={text} record={record} column={column} rowIndex={rowIndex} routeParams={routeParams} />
+              <TableComponent value={text} record={record} column={mergedColumn} rowIndex={rowIndex} routeParams={routeParams} />
             );
           }
         }
+      }
+
+      // Wrap renderer with conditional cell formatting (#26)
+      if (column.formatting && column.formatting.length > 0 && renderer) {
+        const baseRenderer = renderer;
+        const formattingRules = column.formatting;
+        renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => {
+          const rawRecord = (record as { __raw__?: Record<string, unknown> }).__raw__ || record;
+          let cellStyle: React.CSSProperties = {};
+          let cellClassName = '';
+          let matchedBadge: { status: string } | undefined;
+          let matchedIcon: { name: string; color?: string } | undefined;
+          for (const rule of formattingRules) {
+            try {
+              const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+              if (match) {
+                if (rule.style) Object.assign(cellStyle, rule.style);
+                if (rule.className) cellClassName += (cellClassName ? ' ' : '') + rule.className;
+                if (rule.badge && !matchedBadge) matchedBadge = rule.badge;
+                if (rule.icon && !matchedIcon) matchedIcon = rule.icon;
+              }
+            } catch {
+              // Fail-safe: skip rule on evaluation error
+            }
+          }
+          let content = baseRenderer(text, record, rowIndex);
+          const hasStyleOrClass = Object.keys(cellStyle).length > 0 || cellClassName;
+          if (hasStyleOrClass) {
+            content = <span style={cellStyle} className={cellClassName || undefined}>{content}</span>;
+          }
+          if (matchedIcon) {
+            content = <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon iconName={matchedIcon.name} />{content}
+            </span>;
+          }
+          if (matchedBadge) {
+            content = <Badge status={matchedBadge.status as any} text={content} />;
+          }
+          return content;
+        };
       }
 
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
@@ -934,7 +978,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     listRecords,
     isLoading,
     isInitialLoad,
-    Pagination: isSearchMode ? <NumericalPagination /> : CursorPagination,
+    Pagination: isSearchMode ? NumericalPaginationElement : CursorPagination,
     DisplayAppliedFilters,
     onSearch,
     handleTableChange,
@@ -961,5 +1005,6 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setAppliedFilters,  // Exposed for FilterSegments to update filters
     setFetchTrigger,    // Exposed to trigger refetch after state updates
     fetchRecords,       // Exposed to allow immediate fetch with filtersOverride (bypasses React async setState)
+    dataUpdatedAt,      // Timestamp of last successful data fetch (#106)
   };
 };

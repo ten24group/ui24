@@ -2,7 +2,7 @@ import React from 'react';
 import { Button, Card, Form, Input, Tooltip } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
 import { useUi24Config } from '../../context';
-import { HelpText, LabelAndHelpText } from './components';
+import { resolveHelpConfig, HelpText, HelpIcon, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
 import { IFormField, IFormFieldResponse, IPreDefinedValidations } from '../../types/field-config';
 import { useFieldRenderer, type FormFieldConfig } from '../../registry';
@@ -55,25 +55,37 @@ const MakeFormItem = ({
         config: { ...restFormItemProps, name, fieldType, label } as Readonly<FormFieldConfig>
     });
 
+    // Normalize legacy helpText into unified IHelpConfig
+    const help = resolveHelpConfig({ helpText, help: restFormItemProps.help });
+
+    // Build label with optional help icon for tooltip/popover placement
+    const labelWithHelp = help?.placement && help.placement !== 'below'
+        ? <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}<HelpIcon help={help} /></span>
+        : label;
+
     if (CustomFieldRenderer && customFieldProps) {
         return <>
             <Form.Item
                 name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
                 rules={validationRules}
-                label={label}
+                label={labelWithHelp}
                 style={style}
                 valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
             >
                 <CustomFieldRenderer {...customFieldProps} />
             </Form.Item>
-            <HelpText helpText={helpText} />
+            <HelpText help={help} />
         </>;
     }
 
     // Built-in field types — lookup from registry
     const BuiltInRenderer = fieldTypeRegistry.get(fieldType || 'text', 'form');
 
+    // Merge smart defaults from registry (#98): defaults < entity config < explicit props
+    const smartDefaults = fieldTypeRegistry.getDefaults(fieldType || 'text', 'form');
+
     const builtInProps: BuiltInFormFieldProps = {
+        ...(smartDefaults || {}),
         fieldType,
         name,
         placeholder,
@@ -92,7 +104,7 @@ const MakeFormItem = ({
         <Form.Item
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
-            label={label}
+            label={labelWithHelp}
             style={style}
             valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
         >
@@ -101,11 +113,9 @@ const MakeFormItem = ({
                 : <Input type="text" prefix={prefixIcon} placeholder={placeholder} />
             }
         </Form.Item>
-        <HelpText helpText={helpText} />
+        <HelpText help={help} />
     </>
 }
-
-
 
 const MakeFormListItem = ({
     name,
@@ -116,9 +126,11 @@ const MakeFormListItem = ({
     items,
     setFormValue,
     helpText,
+    help: helpProp,
 }: ResolvedFormField) => {
     const parentFieldName = name;
     const fieldName = namePrefixPath?.length ? [ ...namePrefixPath, name ] : name;
+    const help = resolveHelpConfig({ helpText, help: helpProp });
 
     // Convert Form.List rules to Form.Item compatible validator
     // Form.List rules expect { validator } format, but Form.Item needs standard rules
@@ -139,7 +151,7 @@ const MakeFormListItem = ({
 
     // For complex list items (list of objects), use the card-based approach
     return <>
-        {label && <LabelAndHelpText label={label} helpText={helpText} />}
+        {label && <LabelAndHelpText label={label} help={help} />}
         {/* Wrap Form.List in Form.Item for proper validation display */}
         <Form.Item
             name={fieldName}
@@ -198,11 +210,13 @@ const MakeFormMapItem = ({
     properties,
     setFormValue,
     helpText,
+    help: helpProp,
 }: ResolvedFormField) => {
     const parentFieldName = name;
+    const help = resolveHelpConfig({ helpText, help: helpProp });
 
     return <>
-        {label && <LabelAndHelpText label={label} helpText={helpText} />}
+        {label && <LabelAndHelpText label={label} help={help} />}
         <Card size="small" style={{ backgroundColor: "#8080801c" }} >
             <div style={formStyles.mapCardContainer}>
                 {properties?.map((property: IFormField, index: number) => (

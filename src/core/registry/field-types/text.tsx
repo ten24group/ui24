@@ -3,16 +3,34 @@ import { Input } from 'antd';
 import type { BuiltInFormFieldProps, BuiltInDetailFieldProps, BuiltInTableFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 import { resolveAnchorProps } from '../../utils/link-utils';
+import { MaskedInput } from '../../common/MaskedInput';
 
 const { TextArea } = Input;
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+/** Formats that trigger MaskedInput rendering */
+const MASKED_FORMATS = new Set(['phone', 'ssn', 'zip', 'zipPlus4', 'creditCard', 'date', 'ein']);
+
+/** Check if a field has mask or format that should trigger masked input */
+const shouldUseMask = (props: BuiltInFormFieldProps): boolean => {
+  if (props.mask) return true;
+  return !!(props.format && MASKED_FORMATS.has(props.format));
+};
 
 // ============================================================================
 // Form renderers
 // ============================================================================
 
-const TextForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, value, onChange, id }) => (
-  <Input type="text" prefix={prefixIcon} placeholder={placeholder} value={value} onChange={onChange} id={id} />
-);
+const TextForm: React.FC<BuiltInFormFieldProps> = (props) => {
+  const { placeholder, prefixIcon, value, onChange, id, mask, format, maskOptions } = props;
+  if (shouldUseMask(props)) {
+    return <MaskedInput mask={mask} format={format} maskOptions={maskOptions} value={value} onChange={onChange} placeholder={placeholder} id={id} />;
+  }
+  return <Input type="text" prefix={prefixIcon} placeholder={placeholder} value={value} onChange={onChange} id={id} />;
+};
 
 const TextareaForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, value, onChange, id }) => (
   <TextArea placeholder={placeholder} value={value} onChange={onChange} id={id} />
@@ -30,9 +48,11 @@ const UrlForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, val
   <Input type="url" prefix={prefixIcon} placeholder={placeholder} value={value} onChange={onChange} id={id} />
 );
 
-const PhoneForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, prefixIcon, value, onChange, id }) => (
-  <Input type="tel" prefix={prefixIcon} placeholder={placeholder} value={value} onChange={onChange} id={id} />
-);
+const PhoneForm: React.FC<BuiltInFormFieldProps> = (props) => {
+  const { placeholder, prefixIcon, value, onChange, id, mask, maskOptions } = props;
+  // Phone fields default to masked input with phone preset
+  return <MaskedInput mask={mask} format="phone" maskOptions={maskOptions} value={value} onChange={onChange} placeholder={placeholder || '(___) ___-____'} id={id} />;
+};
 
 const HiddenForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id }) => <Input type="hidden" value={value} onChange={onChange} id={id} />;
 const CustomForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, value, onChange, id }) => <Input placeholder={placeholder} value={value} onChange={onChange} id={id} />;
@@ -133,11 +153,35 @@ export const textRegistrations: Record<string, FieldTypeRegistration> = {
   text: { form: TextForm, detail: TextDetail, table: TextTable },
   textarea: { form: TextareaForm, detail: TextareaDetail },
   password: { form: PasswordForm, detail: TextDetail },
-  email: { form: EmailForm, detail: TextDetail, table: TextTable },
-  url: { form: UrlForm, detail: UrlDetail, table: UrlTable },
+  email: {
+    form: EmailForm,
+    detail: TextDetail,
+    table: TextTable,
+    defaults: {
+      detail: { target: '_blank' },  // mailto link in detail
+      table: { target: '_blank' },
+    },
+  },
+  url: {
+    form: UrlForm,
+    detail: UrlDetail,
+    table: UrlTable,
+    defaults: {
+      detail: { target: '_blank' },
+      table: { target: '_blank' },
+    },
+  },
   phone: { form: PhoneForm, detail: PhoneDetail, table: PhoneTable },
   hidden: { form: HiddenForm },
   custom: { form: CustomForm, detail: TextDetail },
-  link: { form: LinkFormField, detail: UrlDetail, table: LinkTable },
+  link: {
+    form: LinkFormField,
+    detail: UrlDetail,
+    table: LinkTable,
+    defaults: {
+      detail: { target: '_blank' },
+      table: { target: '_blank' },
+    },
+  },
   code: { detail: CodeDetail },
 };

@@ -99,9 +99,9 @@ import { Descriptions, DescriptionsProps, List, Skeleton, Spin } from 'antd';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useParams } from "react-router-dom";
-import { CustomBlockNoteEditor, ErrorFallback, JsonDescription, JsonField, Link } from '../core/common';
+import { CustomBlockNoteEditor, ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../core/common';
 import { IApiConfig, useApi, useAppContext } from '../core/context';
-import { HelpText } from '../core/forms/FormField/components';
+import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
@@ -113,8 +113,10 @@ import { detailsStyles } from './styles';
 
 import { IDetailFieldConfig, Template } from '../core/types/field-config';
 import { resolveStringOrDefault } from '../core/types/evaluation';
+import { FreshnessIndicator } from '../core/common/FreshnessIndicator';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
+import { useCoreNavigator } from '../routes/Navigation';
 import { evaluateTemplate } from '../core/utils/template';
 import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from '../core/registry';
 import { queryClient } from '../core/query/QueryProvider';
@@ -124,6 +126,33 @@ import '../core/registry/field-types'; // ensure built-in registrations run
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
+
+/**
+ * Reusable wrapper for each field in the detail view.
+ * Renders the label (with optional help icon), help text, and children content.
+ * Eliminates the repeated container/label/help pattern across all field branches.
+ */
+const DetailsFieldWrapper: React.FC<{
+  item: IPropertiesConfig;
+  index: number;
+  children: React.ReactNode;
+}> = ({ item, index, children }) => {
+  const help = resolveHelpConfig({
+    helpText: resolveStringOrDefault(item.helpText),
+    help: item.help,
+  });
+
+  return (
+    <div key={index} className="details-field-container">
+      <div className="details-field-label">
+        {resolveStringOrDefault(item.label)}
+        <HelpIcon help={help} />
+      </div>
+      <HelpText help={help} />
+      {children}
+    </div>
+  );
+};
 
 /**
  * Detail API configuration interface.
@@ -207,8 +236,11 @@ const Details: React.FC<IDetailsComponentProps> = ({
   const { callApiMethod } = useApi();
   const [ dataLoaded, setDataLoaded ] = useState(false);
   const [ isRefreshing, setIsRefreshing ] = useState(false);  // Separate loading state for refresh
+  const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
+  const [ recordNotFound, setRecordNotFound ] = useState(false);
   const { resolveConfigRef } = useEntityConfig();
   const { formatDate, formatBoolean } = useFormat();
+  const coreNavigate = useCoreNavigator();
   // NOTE: registry resolution is handled via getFieldRenderer() (non-hook, safe for loops)
 
   // Lift detail state to wrapper (if callback provided)
@@ -367,6 +399,16 @@ const Details: React.FC<IDetailsComponentProps> = ({
       });
 
       const fetchedDetailResponse = detailApiConfig.responseKey ? responseData[ detailApiConfig.responseKey ] : responseData;
+
+      // Detect empty/missing record
+      if (!fetchedDetailResponse || (typeof fetchedDetailResponse === 'object' && Object.keys(fetchedDetailResponse).length === 0)) {
+        setRecordNotFound(true);
+        setDataLoaded(true);
+        setIsRefreshing(false);
+        return;
+      }
+
+      setRecordNotFound(false);
       setDetailResponse(fetchedDetailResponse)
 
       const formatted = recordInfo.map(item => {
@@ -380,8 +422,17 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
       setDataLoaded(true);
       setIsRefreshing(false);
+      setDataUpdatedAt(new Date().toISOString());
 
     } catch (error: any) {
+      // Detect 404 — record genuinely doesn't exist
+      if (error?.status === 404 || error?.response?.status === 404) {
+        setRecordNotFound(true);
+        setDataLoaded(true);
+        setIsRefreshing(false);
+        return;
+      }
+
       const errorResult = handleApiError(error, 'Failed to load details');
       notifyError(errorResult.formattedErrors.join('\n'));
       setDataLoaded(true);
@@ -409,6 +460,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
       setRecordInfo(formatted);
       setDataLoaded(true);
+      setDataUpdatedAt(new Date().toISOString());
     } else if (detailApiConfig) {
       // Otherwise, fetch from API
       fetchRecordInfo(false);  // Don't show refresh loader on initial load
@@ -511,24 +563,40 @@ const Details: React.FC<IDetailsComponentProps> = ({
             </div>
           ))}
         </div>
+      ) : recordNotFound ? (
+        // Record not found — show contextual empty state
+        <EmptyState
+          variant="noData"
+          entityName={detailEntityName}
+          config={{
+            noData: {
+              title: `${detailEntityName || 'Record'} not found`,
+              description: 'The record you are looking for may have been deleted or does not exist.',
+              action: { label: 'Go Back', url: '..' }
+            }
+          }}
+          onNavigate={coreNavigate}
+        />
       ) : (
         // Show spinner overlay only for refresh (keeps content visible)
         <Spin spinning={isRefreshing}>
+          {dataUpdatedAt && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <FreshnessIndicator timestamp={dataUpdatedAt} onRefresh={() => fetchRecordInfo(true)} />
+            </div>
+          )}
           <div style={detailsStyles.container}>
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
                 {columnItems
                   .filter((item) => !item.hidden)
                   .map((item: IPropertiesConfig, index: number) => {
-                    // Render each field as before
                     const value = item.initialValue;
 
-                    // Relation field rendering using shared RelationFieldRenderer
+                    // Relation field rendering
                     if (item.relationConfig) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <RelationFieldRenderer
                             relationConfig={item.relationConfig}
                             value={value}
@@ -536,11 +604,11 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             routeParams={routeParams}
                             label={resolveStringOrDefault(item.label)}
                           />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // Check for custom renderer from ExtensionRegistry
+                    // Custom renderer from ExtensionRegistry
                     const CustomDetailRenderer = getFieldRenderer(
                       '' + (item.fieldType || ''),
                       'detail',
@@ -563,29 +631,24 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           routeParams
                         }
                       );
-                      // Cast to DetailFieldRendererProps since we know context is 'detail'
                       const Renderer = CustomDetailRenderer as React.ComponentType<typeof customDetailProps>;
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <Renderer {...customDetailProps} />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // Only show "—" for null/undefined, not for falsy values like 0, false, "", [], {}
+                    // Null/undefined → em dash
                     if (value === null || value === undefined) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <span>—</span>
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // If linkConfig exists, treat as link (isLink is optional/redundant)
+                    // Link fields
                     if (item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
@@ -593,8 +656,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         value
                       );
 
-                      // Evaluate template in displayText if it's a Template type
-                      // Context includes routeParams and full record data for placeholder resolution
                       const templateContext = { ...routeParams, ...detailResponse };
                       const displayText = item.linkConfig.displayText
                         ? (typeof item.linkConfig.displayText === 'string'
@@ -603,21 +664,18 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         : value;
 
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
                             {displayText} ({value})
                           </Link>
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
+                    // Modal fields
                     if (item.openInModal) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <OpenInModal
                             modalType="details"
                             primaryIndex={value}
@@ -628,16 +686,11 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           >
                             {value}
                           </OpenInModal>
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // ============================================================================
-                    // Field Type Registry lookup — replaces the massive if/else chain
-                    // ============================================================================
-
-                    // Check for WYSIWYG before complex data (stored as JSON objects)
-                    // and handle complex data (json, map, list, objects) structurally
+                    // Complex data (json, map, list, objects)
                     const isComplexData =
                       !['rich-text', 'wysiwyg', 'multi-select', 'timeline'].includes(item.fieldType) && (
                         item.type === 'list' ||
@@ -648,37 +701,33 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     if (isComplexData) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <JsonField data={value} title={resolveStringOrDefault(item.label)} maxDepth={2} />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // Registry-based detail renderer lookup
+                    // Registry-based detail renderer
                     const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
                     if (DetailRenderer) {
+                      const detailDefaults = fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
+                      const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index}>
                           <DetailRenderer
                             value={value}
                             label={resolveStringOrDefault(item.label)}
-                            config={item}
+                            config={mergedConfig}
                             routeParams={routeParams}
                             record={detailResponse || {}}
                           />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
                     // Default fallback — smart text rendering
                     return (
-                      <div key={index} className="details-field-container">
-                        <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                        <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                      <DetailsFieldWrapper key={index} item={item} index={index}>
                         <div>
                           {value !== undefined && value !== null && value !== '' ? (
                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (
@@ -705,7 +754,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             <span>—</span>
                           )}
                         </div>
-                      </div>
+                      </DetailsFieldWrapper>
                     );
                   })}
               </div>

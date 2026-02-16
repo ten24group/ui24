@@ -16,16 +16,20 @@ import { useCoreNavigator } from '../../routes/Navigation';
 import { useApi } from '../context/ApiContext';
 import { useAppContext } from '../context/AppContext';
 import { useResponseModalContext } from '../context/ResponseModalContext';
+import { useNewEvaluationContext } from '../context/NewEvaluationContext';
 
 import type { IResponseDisplayConfig } from '../../modal/Modal';
 import { IApiConfig } from '../context/ApiContext';
-import type { Template } from '../types';
+import type { Template, ConditionalValue } from '../types';
+import type { NewEvaluationContext } from '../types/evaluation';
+import { isConditionalValue } from '../types/evaluation';
 import { substituteUrlParams } from '../utils';
 import { ApiErrorHandlerResult, handleApiError } from '../utils/api-error-handler';
 import { evaluateTemplateValue } from '../utils/template';
 import { IRedirectOptions, navigateToUrl } from '../utils/link-utils';
 import { queryClient } from '../query/QueryProvider';
 import { queryKeys } from '../query/queryKeys';
+import { conditionEvaluator } from '../utils/ConditionEvaluator';
 
 // ============================================================================
 // TYPES
@@ -43,7 +47,8 @@ export interface OperationConfig {
   onLoading?: (isLoading: boolean) => void;
 
   // ===== Success Behavior =====
-  submitSuccessRedirect?: string;
+  /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
+  submitSuccessRedirect?: string | ConditionalValue<string>;
   submitSuccessRedirectOptions?: IRedirectOptions;
   responseConfig?: IResponseDisplayConfig;
   dynamicConfigKey?: string; // Extract next-step config from response
@@ -83,6 +88,8 @@ export interface OperationExecutorDeps {
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
   showResponseModal?: (data: any, config: IResponseDisplayConfig, onModalClose?: () => void) => void;
+  /** Evaluation context for resolving ConditionalValue (e.g., conditional redirects) */
+  evaluationContext?: NewEvaluationContext;
 }
 
 // ============================================================================
@@ -221,8 +228,20 @@ export class OperationExecutor {
 
     // 3. Redirect (Priority 2)
     if (effectiveConfig.submitSuccessRedirect) {
+      let redirectTarget = effectiveConfig.submitSuccessRedirect;
+
+      // Resolve ConditionalValue<string> using condition evaluator
+      if (isConditionalValue<string>(redirectTarget)) {
+        const evalContext: NewEvaluationContext = {
+          ...(this.deps.evaluationContext || {} as NewEvaluationContext),
+          record: data,
+          formValues: data,
+        };
+        redirectTarget = conditionEvaluator.resolveValue(redirectTarget, evalContext);
+      }
+
       const url = substituteUrlParams(
-        effectiveConfig.submitSuccessRedirect,
+        redirectTarget,
         { ...config.routeParams, ...data }
       );
 
@@ -412,6 +431,7 @@ export function useOperationExecutor(): OperationExecutor {
   const { notifySuccess, notifyError } = useAppContext();
   const navigate = useCoreNavigator();
   const { showResponseModal } = useResponseModalContext();
+  const evaluationContext = useNewEvaluationContext();
 
   return useMemo(() => {
     return new OperationExecutor({
@@ -419,7 +439,8 @@ export function useOperationExecutor(): OperationExecutor {
       callApiMethod,
       notifySuccess,
       notifyError,
-      showResponseModal
+      showResponseModal,
+      evaluationContext,
     });
-  }, [ navigate, callApiMethod, notifySuccess, notifyError, showResponseModal ]);
+  }, [ navigate, callApiMethod, notifySuccess, notifyError, showResponseModal, evaluationContext ]);
 }

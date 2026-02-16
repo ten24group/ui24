@@ -40,6 +40,16 @@ export interface FieldTypeRegistration {
   coerceValue?: (raw: unknown) => unknown;
   /** Check if a value is considered "empty" for this field type */
   isEmpty?: (value: unknown) => boolean;
+
+  /**
+   * Context-specific smart defaults merged into field config before rendering.
+   * Entity config always wins over smart defaults (override, not replace).
+   */
+  defaults?: {
+    form?: Record<string, unknown>;
+    detail?: Record<string, unknown>;
+    table?: Record<string, unknown>;
+  };
 }
 
 type ContextRendererType = {
@@ -125,6 +135,16 @@ class FieldTypeRegistryImpl {
 
   isInitialized(): boolean {
     return this.initialized;
+  }
+
+  /**
+   * Get context-specific defaults for a field type.
+   * Returns undefined if none are registered.
+   */
+  getDefaults(fieldType: string, context: FieldContext): Record<string, unknown> | undefined {
+    const key = fieldType.toLowerCase();
+    const registration = this.builtInTypes.get(key);
+    return registration?.defaults?.[context];
   }
 
   /**

@@ -117,7 +117,6 @@ import { FormField, IFormField } from '../core/forms';
 import type { FormFieldConditionProps } from '../core/forms/FormField/FormField';
 import { IForm } from '../core/forms/formConfig';
 import { useApi } from '../core/context';
-//import { CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
@@ -125,7 +124,9 @@ import { substituteUrlParams, getNestedValue } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { useResolveBatch } from '../core/hooks/useResolveBatch';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
-import { ConditionalValue } from '../core/types/evaluation';
+import { ConditionalValue, isConditionalValue } from '../core/types/evaluation';
+import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
+import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
 import { formStyles } from '../core/forms/FormField/styles';
 import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -204,6 +205,9 @@ export function Form({
   const navigate = useCoreNavigator();
 
   const { notifyError, notifySuccess } = useAppContext()
+
+  // Evaluation context for resolving ConditionalValue defaults (#33)
+  const evaluationContext = useNewEvaluationContext();
 
   // Generate STABLE formConfig name - CRITICAL: Must not change across re-renders!
   // Otherwise React will destroy and recreate the form, losing all field errors
@@ -899,6 +903,15 @@ export function Form({
 
       // Recursive function to extract initial/default values from nested structures
       // Priority: initialValue (from API in edit mode) > defaultValue (schema default)
+      // Resolve a defaultValue that may be a ConditionalValue (#33)
+      const resolveDefault = (val: any): any => {
+        if (val === undefined || val === null) return val;
+        if (isConditionalValue(val)) {
+          return conditionEvaluator.resolveValue(val, evaluationContext);
+        }
+        return val;
+      };
+
       const extractDefaultValues = (fields: any[]): any => {
         return fields.reduce((acc, item) => {
           // For map fields with nested properties, recursively extract values
@@ -920,12 +933,12 @@ export function Form({
             if (item.initialValue !== undefined) {
               acc[ item.name ] = item.initialValue;
             } else if (item.defaultValue !== undefined) {
-              acc[ item.name ] = item.defaultValue;
+              acc[ item.name ] = resolveDefault(item.defaultValue);
             }
           }
           // For regular fields, prioritize initialValue over defaultValue
           else if (item.initialValue !== undefined || item.defaultValue !== undefined) {
-            acc[ item.name ] = item.initialValue ?? item.defaultValue;
+            acc[ item.name ] = item.initialValue ?? resolveDefault(item.defaultValue);
           }
 
           return acc;
@@ -1012,7 +1025,7 @@ export function Form({
               />
             )}
             {effectiveFormButtons.length > 0 && (
-              <div style={{ display: "flex" }}>
+              <div className="form-actions-sticky">
                 <CreateButtons formButtons={effectiveFormButtons} loader={btnLoader} routeParams={routeParams} onCancelCallback={onCancelCallback} />
               </div>
             )}

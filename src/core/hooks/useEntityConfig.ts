@@ -1,5 +1,6 @@
 import { useUi24Config } from '../context/UI24Context';
 import { IFilterSegment, IFilterSegmentGroup } from '../../table/type';
+import type { ConditionalValue } from '../types/evaluation';
 
 /**
  * Column configuration for entity pages.
@@ -68,8 +69,8 @@ export interface IEntityConfigReference {
     /** Override breadcrumbs */
     breadcrumbs?: Array<{ label: string; url?: string }>;
 
-    /** Override form success redirect (for create pages) */
-    submitSuccessRedirect?: string;
+    /** Override form success redirect (for create pages). Supports ConditionalValue. */
+    submitSuccessRedirect?: string | ConditionalValue<string>;
 
     /** Override form buttons (for create pages) */
     formButtons?: Array<{ text: string; action: string; url?: string }>;

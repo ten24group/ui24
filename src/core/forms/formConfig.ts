@@ -5,6 +5,7 @@ import { IApiConfig } from "../context";
 import { IDetailApiConfig } from "../../detail/Details";
 import { ISectionsConfig } from "../../pages/PostAuth/SectionsRenderer";
 import { Template } from "../types";
+import type { ConditionalValue } from "../types/evaluation";
 import type { IResponseDisplayConfig } from "../../modal/Modal";
 
 interface IFormConfig {
@@ -24,7 +25,8 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     apiConfig?: IApiConfig;
 
     // ===== Response Handling Config (aligned with FW24) =====
-    submitSuccessRedirect?: string;
+    /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
+    submitSuccessRedirect?: string | ConditionalValue<string>;
     /**
      * Navigation options for submitSuccessRedirect
      * Uses react-router-dom's NavigateOptions: { replace?: boolean; state?: unknown; }

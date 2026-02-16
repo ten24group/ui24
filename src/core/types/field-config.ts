@@ -116,6 +116,10 @@ export interface IFieldTypeProperties {
   // Icon field properties
   library?: 'antd' | 'fontawesome' | 'material' | 'custom';
 
+  // Boolean/Switch field properties
+  checkedChildren?: React.ReactNode;
+  unCheckedChildren?: React.ReactNode;
+
   // Link field properties
   target?: '_blank' | '_self' | '_parent' | '_top';
 
@@ -128,9 +132,17 @@ export interface IFieldTypeProperties {
   logoImage?: string;
 
   // Text format properties (for url, phone, email)
-  format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage';
+  format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage' | 'ssn' | 'zip' | 'zipPlus4' | 'creditCard' | 'date' | 'ein';
   mask?: string;
   maxLength?: number;
+
+  /** Additional mask options when `mask` or `format` is specified */
+  maskOptions?: {
+    /** Whether to show placeholder characters when the field is empty (default: false) */
+    lazy?: boolean;
+    /** Character used for unfilled mask positions (default: '_') */
+    placeholderChar?: string;
+  };
 
   // Timeline field properties
   timelineConfig?: {
@@ -164,6 +176,21 @@ export interface IFieldTypeProperties {
 }
 
 /**
+ * Rich help configuration for contextual field descriptions.
+ * Single source of truth — used by IBaseFieldConfig.help, HelpText, HelpIcon.
+ */
+export interface IHelpConfig {
+  /** Description text displayed based on placement */
+  description?: string;
+  /** Short tooltip text shown on hover (for 'tooltip' placement) */
+  tooltip?: string;
+  /** URL to external documentation */
+  docsUrl?: string;
+  /** How to display the help: below field (default), as tooltip on label, or as popover */
+  placement?: 'below' | 'tooltip' | 'popover';
+}
+
+/**
  * Base field configuration - shared properties across all field types
  */
 export interface IBaseFieldConfig extends IFieldTypeProperties {
@@ -177,6 +204,13 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
   placeholder?: string | ConditionalValue<string>;
   helpText?: string | ConditionalValue<string>;
   hidden?: boolean;
+
+  /**
+   * Rich help configuration for contextual field descriptions.
+   * Supports tooltip, popover, and below-field placement.
+   * When specified, takes precedence over `helpText` for rendering.
+   */
+  help?: IHelpConfig;
 
   // Condition system
   /** Condition for conditional visibility (hides the field when false) */

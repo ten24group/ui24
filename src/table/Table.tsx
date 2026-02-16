@@ -113,6 +113,9 @@ import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
 import { AutoRefreshSelector } from '../core/components/AutoRefreshSelector';
+import { FreshnessIndicator } from '../core/common/FreshnessIndicator';
+import { EmptyState } from '../core/common/EmptyState';
+import { useCoreNavigator } from '../routes/Navigation';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
@@ -153,7 +156,11 @@ export const Table = ({
   onDataChange,  // Callback to lift state to wrapper
   showToolbar = true,
   showPagination = true,
+  emptyState,
+  rowFormatting,
+  pagination: paginationConfig,
 }: ITableConfig) => {
+  const coreNavigate = useCoreNavigator();
   // Build placeholder context for segments and filters
   const placeholderContext = usePlaceholderContext(routeParams);
 
@@ -231,13 +238,15 @@ export const Table = ({
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode,
+    dataUpdatedAt,
   } = useTable({
     propertiesConfig,
     apiConfig,
     routeParams,
     defaultFilters: initialFiltersForTable, // Pass merged defaults here
     fetchStrategy,
-    initialPageSize // Pass backend page size config
+    initialPageSize, // Pass backend page size config
+    paginationConfig,
   });
 
   // Auto-refresh functionality
@@ -301,11 +310,11 @@ export const Table = ({
   const evaluationContext = useNewEvaluationContext();
 
   // Bulk action condition evaluation
-  const bulkActionsArr = useMemo(() => bulkActions ? [...bulkActions] : [], [bulkActions]);
+  const bulkActionsArr = useMemo(() => bulkActions ? [ ...bulkActions ] : [], [ bulkActions ]);
   const bulkExtraCtx = useMemo(() => ({
     selectedRecords,
     queryParams: routeParams,
-  }), [selectedRecords, routeParams]);
+  }), [ selectedRecords, routeParams ]);
 
   const { visibilityResults: bulkVisResults, enablementResults: bulkEnResults, getItemProps: getBulkActionProps } =
     useEvaluatedItems(bulkActionsArr, { additionalContext: bulkExtraCtx });
@@ -320,14 +329,14 @@ export const Table = ({
         return {
           ...action,
           _evaluated: {
-            visible: bulkVisResults[index],
-            enabled: bulkEnResults[index],
+            visible: bulkVisResults[ index ],
+            enabled: bulkEnResults[ index ],
             disabledMessage: props.conditionDisabledMessage || '',
           }
         };
       })
       .filter(action => action._evaluated.visible !== false);
-  }, [bulkActionsArr, bulkVisResults, bulkEnResults, getBulkActionProps]);
+  }, [ bulkActionsArr, bulkVisResults, bulkEnResults, getBulkActionProps ]);
 
   // Row selection configuration for AntTable - using AntD's native row selection API
   const rowSelection = useMemo(() => {
@@ -548,66 +557,67 @@ export const Table = ({
     >
 
       {showToolbar && (
-      <div className="table-toolbar">
-        <div style={{ flex: 1 }}>
-          {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {canToggleSearchMode && (
-            <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
-              <Button
-                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
-                onClick={toggleSearchMode}
-                type={isSearchMode ? "default" : "primary"}
-              />
-            </Tooltip>
-          )}
-          {hasExpandableConfig && (
-            <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>
-              <Button
-                icon={allExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
-                onClick={allExpanded ? handleCollapseAll : handleExpandAll}
-                type={someExpanded ? "primary" : "default"}
-              />
-            </Tooltip>
-          )}
-          <Tooltip title="Reset">
-            <Button icon={<ClearOutlined />} onClick={handleRefresh} />
-          </Tooltip>
-          <Tooltip title="Refresh Data">
-            <Button icon={<ReloadOutlined />} onClick={handleReload} />
-          </Tooltip>
-          <AutoRefreshSelector
-            isEnabled={autoRefresh.isEnabled}
-            interval={autoRefresh.interval}
-            timeUntilRefresh={autoRefresh.timeUntilRefresh}
-            onToggle={autoRefresh.toggleEnabled}
-            onIntervalChange={autoRefresh.setInterval}
-            size="middle"
-          />
-          <Tooltip title="Column Settings">
-            <Dropdown
-              popupRender={() => (
-                <ColumnSettings
-                  columns={columnSettings}
-                  onColumnChange={handleColumnSettingsChange}
-                  onReset={resetColumnSettings}
-                  fetchStrategy={currentFetchStrategy}
-                  onFetchStrategyChange={handleFetchStrategyChange}
+        <div className="table-toolbar">
+          <div style={{ flex: 1 }}>
+            {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {dataUpdatedAt && <FreshnessIndicator timestamp={dataUpdatedAt} onRefresh={handleReload} />}
+            {canToggleSearchMode && (
+              <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
+                <Button
+                  icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
+                  onClick={toggleSearchMode}
+                  type={isSearchMode ? "default" : "primary"}
                 />
-              )}
-              trigger={[ 'click' ]}
-            >
-              <Button icon={<SettingOutlined />} />
-            </Dropdown>
-          </Tooltip>
-          <Tooltip title="View Applied Filters & Sorts">
-            <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
-              <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
-            </Badge>
-          </Tooltip>
+              </Tooltip>
+            )}
+            {hasExpandableConfig && (
+              <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>
+                <Button
+                  icon={allExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
+                  onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+                  type={someExpanded ? "primary" : "default"}
+                />
+              </Tooltip>
+            )}
+            <Tooltip title="Reset">
+              <Button icon={<ClearOutlined />} onClick={handleRefresh} />
+            </Tooltip>
+            <Tooltip title="Refresh Data">
+              <Button icon={<ReloadOutlined />} onClick={handleReload} />
+            </Tooltip>
+            <AutoRefreshSelector
+              isEnabled={autoRefresh.isEnabled}
+              interval={autoRefresh.interval}
+              timeUntilRefresh={autoRefresh.timeUntilRefresh}
+              onToggle={autoRefresh.toggleEnabled}
+              onIntervalChange={autoRefresh.setInterval}
+              size="middle"
+            />
+            <Tooltip title="Column Settings">
+              <Dropdown
+                popupRender={() => (
+                  <ColumnSettings
+                    columns={columnSettings}
+                    onColumnChange={handleColumnSettingsChange}
+                    onReset={resetColumnSettings}
+                    fetchStrategy={currentFetchStrategy}
+                    onFetchStrategyChange={handleFetchStrategyChange}
+                  />
+                )}
+                trigger={[ 'click' ]}
+              >
+                <Button icon={<SettingOutlined />} />
+              </Dropdown>
+            </Tooltip>
+            <Tooltip title="View Applied Filters & Sorts">
+              <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
+                <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
+              </Badge>
+            </Tooltip>
+          </div>
         </div>
-      </div>
       )}
 
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
@@ -713,6 +723,12 @@ export const Table = ({
         </div>
       ) : (
         <>
+          {/* Pagination: top or both */}
+          {showPagination && (paginationConfig?.position === 'top' || paginationConfig?.position === 'both') && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+              {renderPagination()}
+            </div>
+          )}
           <AntTable
             scroll={{ x: true }}
             columns={columns}
@@ -730,11 +746,51 @@ export const Table = ({
             onChange={handleTableChange}
             rowSelection={rowSelection}
             expandable={expandable}
+            rowClassName={rowFormatting && rowFormatting.length > 0 ? (record) => {
+              const rawRecord = record.__raw__ || record;
+              const classNames: string[] = [];
+              for (const rule of rowFormatting) {
+                try {
+                  const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+                  if (match && rule.className) {
+                    classNames.push(rule.className);
+                  }
+                } catch {
+                  // Fail-safe: skip rule on evaluation error
+                }
+              }
+              return classNames.join(' ');
+            } : undefined}
+            onRow={rowFormatting && rowFormatting.length > 0 ? (record) => {
+              const rawRecord = record.__raw__ || record;
+              const rowStyle: React.CSSProperties = {};
+              for (const rule of rowFormatting) {
+                try {
+                  const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+                  if (match && rule.style) {
+                    Object.assign(rowStyle, rule.style);
+                  }
+                } catch { /* fail-safe */ }
+              }
+              return Object.keys(rowStyle).length > 0 ? { style: rowStyle } : {};
+            } : undefined}
+            locale={{
+              emptyText: (
+                <EmptyState
+                  variant={hasActiveFilters ? 'noResults' : 'noData'}
+                  entityName={entityName}
+                  config={emptyState}
+                  onClearFilters={hasActiveFilters ? clearAllFilters : undefined}
+                  onNavigate={coreNavigate}
+                />
+              ),
+            }}
           />
-          {showPagination && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-            {renderPagination()}
-          </div>
+          {/* Pagination: bottom (default) or both */}
+          {showPagination && paginationConfig?.position !== 'top' && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              {renderPagination()}
+            </div>
           )}
         </>
       )}

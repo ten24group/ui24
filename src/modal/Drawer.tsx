@@ -32,6 +32,7 @@ import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { type IWizardPageConfig } from '../core/common/FormWizard';
 import { Template } from '../core/types';
+import type { ConditionalValue } from '../core/types/evaluation';
 import { evaluateTemplateValue } from '../core/utils/template';
 import { Link } from '../core/common';
 import { INavigateToConfig, IResponseDisplayConfig } from './Modal';
@@ -86,7 +87,8 @@ export interface IActionDrawerConfig extends IDrawerConfig {
 
   /** EITHER: Make API call */
   apiConfig?: IApiConfig;
-  submitSuccessRedirect?: string;
+  /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
+  submitSuccessRedirect?: string | ConditionalValue<string>;
   submitSuccessRedirectOptions?: {
     replace?: boolean;
     state?: unknown;

@@ -6,7 +6,23 @@ import { IActionDrawerConfig } from "../modal/Drawer";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 import type { IEntityConfigReference } from "../core/hooks/useEntityConfig";
+/** @deprecated Unused — pagination is now config-driven via ITableConfig.pagination */
 type ITablePagination = "default";
+
+/**
+ * Pagination configuration for tables.
+ * Controls page size options, total display, quick jumper, and position.
+ */
+export interface IPaginationConfig {
+  /** Available page size options. @default [10, 20, 50, 100] */
+  pageSizeOptions?: number[];
+  /** Show total record count. @default true */
+  showTotal?: boolean;
+  /** Show quick jumper input (offset mode only). @default false */
+  showQuickJumper?: boolean;
+  /** Position of pagination controls. @default 'bottom' */
+  position?: 'top' | 'bottom' | 'both';
+}
 
 /**
  * Expandable row configuration for tables.
@@ -162,14 +178,46 @@ export interface IFilterSegmentGroup {
  * Bulk actions come from entitySchema.model.listPageConfig.tableConfig.bulkActions
  * Row selection comes from entitySchema.model.listPageConfig.tableConfig.rowSelection
  */
+/**
+ * Empty state configuration for tables.
+ * Supports two variants: noData (zero records) and noResults (filters active, no matches).
+ */
+export interface ITableEmptyStateConfig {
+  /** Custom illustration URL (applies to both noData and noResults variants) */
+  image?: string;
+  noData?: {
+    title?: string;
+    description?: string;
+    action?: { label: string; url?: string };
+  };
+  noResults?: {
+    title?: string;
+    showClearFilters?: boolean;
+  };
+}
+
 export interface ITableConfig {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   records?: Array<any>;
+  /** @deprecated Unused — pagination is now config-driven via `pagination` */
   paginationType?: ITablePagination;
   routeParams?: Record<string, any>;
   defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
   entityName?: string;  // Entity name from backend config generation
+
+  /**
+   * Empty state configuration for when the table has no data.
+   * Customizes the message and actions shown when there are no records.
+   */
+  emptyState?: ITableEmptyStateConfig;
+
+  /**
+   * Conditional row formatting rules.
+   * Each rule's condition is evaluated against the row record.
+   * When matched, the specified className/style is applied to the entire row.
+   */
+  rowFormatting?: Array<IFormattingRule>;
   bulkActions?: ReadonlyArray<IPageAction>;  // Actions shown when multiple rows selected (from backend tableConfig.bulkActions)
   rowSelection?: {
     readonly enabled: boolean;
@@ -252,12 +300,44 @@ export interface ITableConfig {
    * @default true
    */
   showPagination?: boolean;
+
+  /**
+   * Pagination configuration.
+   * Controls page size options, total display, quick jumper, and position.
+   * 
+   * Note: `pageSize` remains at the top level of ITableConfig (not duplicated here).
+   */
+  pagination?: IPaginationConfig;
+}
+
+/**
+ * Conditional formatting rule for cell or row styling.
+ * When the condition matches the row record, the style/className is applied.
+ */
+export interface IFormattingRule {
+  /** Condition evaluated against row data */
+  when: Condition;
+  /** Inline CSS styles to apply */
+  style?: React.CSSProperties;
+  /** CSS class name to apply */
+  className?: string;
+  /** Badge configuration (for cell formatting) */
+  badge?: { status: string };
+  /** Icon configuration (for cell formatting) */
+  icon?: { name: string; color?: string };
 }
 
 export interface ITablePropertiesConfig extends IFieldTypeProperties {
   name: string;
   dataIndex: string;
   actions?: Array<IPageAction>;
+
+  /**
+   * Conditional cell formatting rules.
+   * Each rule's condition is evaluated against the row record.
+   * When matched, the specified style/className/badge is applied to the cell.
+   */
+  formatting?: Array<IFormattingRule>;
   hidden?: boolean;
   /**
    * Controls initial visibility of the column in list pages.
