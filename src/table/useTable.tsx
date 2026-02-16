@@ -320,6 +320,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // This ensures tables load data immediately after initialization (with merged defaults + URL filters)
   const [ fetchTrigger, setFetchTrigger ] = React.useState(1);
 
+  // Ref to signal that the next fetchTrigger-driven fetch should bypass the React Query cache.
+  // Set to true before incrementing fetchTrigger (e.g., Reset button) so the effect can pass forceRefresh.
+  const forceNextFetchRef = React.useRef(false);
+
   const {
     listRecords,
     isLoading,
@@ -443,7 +447,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // fetchTrigger starts at 1, so this triggers the initial fetch on mount
   // Subsequent increments trigger refetch (from filters, search, sort, etc.)
   React.useEffect(() => {
-    fetchRecords(1);
+    const shouldForce = forceNextFetchRef.current;
+    forceNextFetchRef.current = false;
+    fetchRecords(1, undefined, undefined, shouldForce ? { forceRefresh: true } : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ fetchTrigger ]); // Depend on fetchTrigger, not appliedFilters (avoids circular updates)
 
@@ -461,8 +467,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, resetMode);
     setSort(convertDefaultSortToSorterResult(defaultSort));
 
-    fetchRecords(1, "", undefined, { forceRefresh: true });
-  }, [ fetchRecords, apiConfig, resolvedDefaultFilters ]);
+    // Use fetchTrigger instead of calling fetchRecords directly.
+    // Direct calls would use stale closure values (old filters/sort/search/mode).
+    // fetchTrigger defers the fetch to the next render where fetchRecords has the correct state.
+    forceNextFetchRef.current = true;
+    setFetchTrigger(prev => prev + 1);
+  }, [ apiConfig, resolvedDefaultFilters ]);
 
   const handleReload = React.useCallback(() => {
     fetchRecords(currentPage, pageCursor[ currentPage ], undefined, { forceRefresh: true });
@@ -530,7 +540,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     currentPage,
     isLastPage,
     pageSize,
-    onPageSizeChange: handlePageSizeChange
+    onPageSizeChange: handlePageSizeChange,
+    currentPageRecordCount: listRecords.length
   });
 
   const NumericalPagination = () => (

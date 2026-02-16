@@ -128,11 +128,18 @@ export const useTableData = ({
   const callApiMethodRef = React.useRef(callApiMethod);
   callApiMethodRef.current = callApiMethod;
 
+  // Keep pageCursor in a ref so fetchRecords doesn't need it as a dependency.
+  // pageCursor changes on every successful page fetch (new cursor saved), which would
+  // cascade: new fetchRecords → new handleRefresh/handleReload → new usePagination props.
+  // Callers almost always pass forceCursor explicitly; the ref is only a fallback.
+  const pageCursorRef = React.useRef(pageCursor);
+  pageCursorRef.current = pageCursor;
+
   const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string, filtersOverride?: Record<string, any>, options?: { forceRefresh?: boolean }) => {
     const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
     const isSearchActive = isSearchMode;
     const sortString = getSortString();
-    const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursor[ pageNumber ] || "";
+    const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursorRef.current[ pageNumber ] || "";
 
     const effectiveFilters = filtersOverride !== undefined ? filtersOverride : appliedFilters;
     const resolvedFilters = resolveFilterPlaceholders(effectiveFilters, placeholderContext);
@@ -277,7 +284,9 @@ export const useTableData = ({
         if (responseData?.cursor) {
           setPageCursor(prev => ({ ...prev, [ pageNumber + 1 ]: responseData.cursor }));
         }
-        setIsLastPage(responseData?.cursor === null);
+        // Detect last page: no cursor returned (null/undefined/empty) OR partial page
+        // (fewer records than pageSize — the API returned less than we asked for)
+        setIsLastPage(!responseData?.cursor || records.length < pageSize);
       }
     } catch (error) {
       const errorResult = handleApiError(error, 'Failed to fetch records');
@@ -287,7 +296,9 @@ export const useTableData = ({
       setIsLoading(false);
       setIsInitialLoad(false);
     }
-  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, pageCursor, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode, pageSize, entityName ]);
+  // pageCursor is accessed via pageCursorRef (avoids cascading recreations on every cursor update)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode, pageSize, entityName ]);
 
   return {
     listRecords,
