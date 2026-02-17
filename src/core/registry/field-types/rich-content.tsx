@@ -1,9 +1,15 @@
 import React from 'react';
+import { Button } from 'antd';
+import { EyeOutlined, FileTextOutlined } from '@ant-design/icons';
 import { CustomBlockNoteEditor } from '../../common/';
 import { CodeEditor } from '../../common/CodeEditor';
 import { MarkdownPreview } from '../../common/MarkdownPreview';
+import { OpenInModal } from '../../../modal/Modal';
+import { createModalConfig } from '../../../table/utils/modalConfigHelper';
+import { generateContentPreview } from '../../utils/contentPreview';
+import { generateJsonPreview } from '../../utils/jsonUtils';
 import type { Block } from '@blocknote/core';
-import type { BuiltInFormFieldProps, BuiltInDetailFieldProps } from './types';
+import type { BuiltInFormFieldProps, BuiltInDetailFieldProps, BuiltInTableFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 
 interface CodeEditorFormControlProps {
@@ -100,10 +106,91 @@ const MarkdownDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => (
   </div>
 );
 
+// ============================================================================
+// Table renderers (modal-based preview)
+// ============================================================================
+
+/** Resolve the data key from column config (table columns pass name/column, not dataIndex) */
+const getDataKey = (column: BuiltInTableFieldProps['column']): string =>
+  column?.column || column?.name || 'value';
+
+/** Resolve a displayable column name from column config */
+const getColumnName = (column: BuiltInTableFieldProps['column'], fallback: string): string =>
+  (typeof column?.label === 'string' ? column.label : undefined) || getDataKey(column) || fallback;
+
+const RichTextTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
+  if (!value) return <span>—</span>;
+  const preview = generateContentPreview(value);
+  const detailsConfig = createModalConfig('rich-text', value, { dataIndex: getDataKey(column) });
+
+  return (
+    <OpenInModal modalType="details" modalTitle={getColumnName(column, 'Content')} modalWidth={900} modalPageConfig={detailsConfig}>
+      <Button size="small" icon={<EyeOutlined />} type="link">
+        {preview || 'View Content'}
+      </Button>
+    </OpenInModal>
+  );
+};
+
+const CodeTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
+  if (!value) return <span>—</span>;
+  const preview = generateContentPreview(value);
+  if (!preview) return <span>—</span>;
+  if (typeof value === 'string' && value.length < 50) return <span>{value}</span>;
+
+  const detailsConfig = createModalConfig('code', value, { dataIndex: getDataKey(column) });
+
+  return (
+    <OpenInModal modalType="details" modalTitle={getColumnName(column, 'Code')} modalWidth={800} modalPageConfig={detailsConfig}>
+      <Button size="small" icon={<FileTextOutlined />} type="link">{preview}</Button>
+    </OpenInModal>
+  );
+};
+
+const JsonTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
+  if (!value || (typeof value === 'object' && Object.keys(value as object).length === 0)) {
+    return <span>—</span>;
+  }
+  const previewLabel = generateJsonPreview(value, { maxStringLength: 20, maxKeys: 2 });
+  const detailsConfig = createModalConfig('json', value, { dataIndex: getDataKey(column) }, 'map');
+
+  return (
+    <OpenInModal modalType="details" modalTitle={getColumnName(column, 'JSON')} modalWidth={800} modalPageConfig={detailsConfig}>
+      <Button
+        size="small"
+        icon={<FileTextOutlined />}
+        type="link"
+        style={{ fontFamily: 'Consolas, Monaco, "Courier New", monospace', fontSize: '12px' }}
+      >
+        {previewLabel}
+      </Button>
+    </OpenInModal>
+  );
+};
+
+const MarkdownTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
+  if (!value) return <span>—</span>;
+  const preview = generateContentPreview(value);
+  if (!preview) return <span>—</span>;
+  if (typeof value === 'string' && value.length < 50) return <span>{value}</span>;
+
+  const detailsConfig = createModalConfig('markdown', value, { dataIndex: getDataKey(column) });
+
+  return (
+    <OpenInModal modalType="details" modalTitle={getColumnName(column, 'Markdown')} modalWidth={800} modalPageConfig={detailsConfig}>
+      <Button size="small" icon={<FileTextOutlined />} type="link">{preview}</Button>
+    </OpenInModal>
+  );
+};
+
+// ============================================================================
+// Registrations
+// ============================================================================
+
 export const richContentRegistrations: Record<string, FieldTypeRegistration> = {
-  'rich-text': { form: RichTextForm, detail: RichTextDetail },
-  wysiwyg: { form: RichTextForm, detail: RichTextDetail },
-  code: { form: CodeForm },
-  json: { form: JsonForm },
-  markdown: { form: MarkdownForm, detail: MarkdownDetail },
+  'rich-text': { form: RichTextForm, detail: RichTextDetail, table: RichTextTable },
+  wysiwyg: { form: RichTextForm, detail: RichTextDetail, table: RichTextTable },
+  code: { form: CodeForm, table: CodeTable },
+  json: { form: JsonForm, table: JsonTable },
+  markdown: { form: MarkdownForm, detail: MarkdownDetail, table: MarkdownTable },
 };

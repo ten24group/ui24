@@ -1,9 +1,13 @@
 import React from 'react';
-import { Input } from 'antd';
+import { Input, Button } from 'antd';
+import { FileTextOutlined } from '@ant-design/icons';
 import type { BuiltInFormFieldProps, BuiltInDetailFieldProps, BuiltInTableFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 import { resolveAnchorProps } from '../../utils/link-utils';
 import { MaskedInput } from '../../common/MaskedInput';
+import { OpenInModal } from '../../../modal/Modal';
+import { createModalConfig } from '../../../table/utils/modalConfigHelper';
+import { generateContentPreview } from '../../utils/contentPreview';
 
 const { TextArea } = Input;
 
@@ -12,7 +16,7 @@ const { TextArea } = Input;
 // ============================================================================
 
 /** Formats that trigger MaskedInput rendering */
-const MASKED_FORMATS = new Set(['phone', 'ssn', 'zip', 'zipPlus4', 'creditCard', 'date', 'ein']);
+const MASKED_FORMATS = new Set([ 'phone', 'ssn', 'zip', 'zipPlus4', 'creditCard', 'date', 'ein' ]);
 
 /** Check if a field has mask or format that should trigger masked input */
 const shouldUseMask = (props: BuiltInFormFieldProps): boolean => {
@@ -145,13 +149,41 @@ const LinkTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   return <a href={url} target={target} rel={rel} style={{ color: '#1677ff' }}>Link</a>;
 };
 
+/** Table renderer for textarea / longtext — inline if short, modal if long */
+const TextareaTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
+  if (!value) return <span>—</span>;
+  const preview = generateContentPreview(value);
+  if (!preview) return <span>—</span>;
+  if (typeof value === 'string' && value.length < 50) return <span>{value}</span>;
+
+  const dataKey = column?.column || column?.name || 'value';
+  const detailsConfig = createModalConfig(
+    column?.fieldType || 'textarea',
+    value,
+    { dataIndex: dataKey },
+  );
+  const columnName = (typeof column?.label === 'string' ? column.label : undefined) || dataKey;
+
+  return (
+    <OpenInModal modalType="details" modalTitle={columnName} modalWidth={800} modalPageConfig={detailsConfig}>
+      <Button size="small" icon={<FileTextOutlined />} type="link">{preview}</Button>
+    </OpenInModal>
+  );
+};
+
 // ============================================================================
 // Registrations
 // ============================================================================
 
 export const textRegistrations: Record<string, FieldTypeRegistration> = {
-  text: { form: TextForm, detail: TextDetail, table: TextTable },
-  textarea: { form: TextareaForm, detail: TextareaDetail },
+  text: {
+    form: TextForm, detail: TextDetail, table: TextTable,
+    defaults: { table: { ellipsis: true } },
+  },
+  textarea: {
+    form: TextareaForm, detail: TextareaDetail, table: TextareaTable,
+    defaults: { table: { ellipsis: true, width: 200 } },
+  },
   password: { form: PasswordForm, detail: TextDetail },
   email: {
     form: EmailForm,
@@ -182,6 +214,10 @@ export const textRegistrations: Record<string, FieldTypeRegistration> = {
       detail: { target: '_blank' },
       table: { target: '_blank' },
     },
+  },
+  longtext: {
+    form: TextareaForm, detail: TextareaDetail, table: TextareaTable,
+    defaults: { table: { ellipsis: true, width: 200 } },
   },
   code: { detail: CodeDetail },
 };

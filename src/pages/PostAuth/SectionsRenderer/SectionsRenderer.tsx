@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Tabs, Collapse, Alert, theme, Badge, ConfigProvider, Skeleton } from 'antd';
-import type { TabsProps, CollapseProps, CardProps } from 'antd';
+import type { TabsProps, CollapseProps } from 'antd';
 import { CaretRightOutlined, WarningOutlined } from '@ant-design/icons';
 import * as AntIcons from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
@@ -13,6 +13,7 @@ import { ITableConfig } from '../../../table/type';
 import { IDetailsConfig } from '../../../detail/Details';
 import { IForm } from '../../../core/forms/formConfig';
 import { IDashboardPageConfig } from '../DashboardPage';
+import type { ICustomPageConfig } from '../CustomPage/CustomPage';
 import { useEntityConfig } from '../../../core/hooks';
 import type { Condition } from '../../../core/types/evaluation';
 import type { IEntityConfigReference } from '../../../core/hooks/useEntityConfig';
@@ -21,7 +22,7 @@ import { NeedsAsyncError } from '../../../core/utils/NeedsAsyncError';
 import { useNewEvaluationContext } from '../../../core/context/NewEvaluationContext';
 import { CollapsibleSectionCard } from './CollapsibleSectionCard';
 import { substituteUrlParams, useApi } from '../../../core';
-import { queryClient } from '../../../core/query/QueryProvider';
+import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../../../core/query/queryKeys';
 
 /**
@@ -52,7 +53,7 @@ export type SectionBadgeConfig =
 
 /**
  * Section configuration interface
- * Defines a single section that can render any page type (list, details, form, dashboard)
+ * Defines a single section that can render any page type (list, details, form, dashboard, custom)
  */
 export interface ISectionConfig {
   readonly label: Template;
@@ -60,13 +61,25 @@ export interface ISectionConfig {
   readonly badge?: SectionBadgeConfig | ReadonlyArray<SectionBadgeConfig> | Array<SectionBadgeConfig>;
   readonly visibility?: Condition;
   readonly sortOrder?: number;
-  readonly pageType: 'list' | 'details' | 'form' | 'dashboard';
+  readonly pageType: 'list' | 'details' | 'form' | 'dashboard' | 'custom';
   readonly listPageConfig?: ITableConfig;
   readonly detailsPageConfig?: IDetailsConfig & {
     readonly useParentData?: boolean;
   };
   readonly formPageConfig?: IForm;
   readonly dashboardPageConfig?: IDashboardPageConfig;
+
+  /**
+   * Custom page configuration (when pageType='custom').
+   * Uses ExtensionRegistry to render a registered component.
+   * 
+   * @example
+   * customPageConfig: {
+   *   componentKey: 'SocialDistributionStatus',
+   *   componentProps: { postId: ':postId' }
+   * }
+   */
+  readonly customPageConfig?: ICustomPageConfig;
 
   /** 
    * Reference to existing entity config (recommended - avoids duplication)
@@ -132,8 +145,13 @@ export interface ISectionsConfig {
 }
 
 /**
- * Hook to handle badge value extraction
- * Supports Template (with JSONPath) and API fetching
+ * Hook to handle badge value extraction.
+ * Supports Template (with JSONPath) and API fetching via useQuery.
+ *
+ * API-based badges use TanStack Query's declarative `useQuery` hook (not
+ * imperative `queryClient.fetchQuery`) so the badge automatically re-fetches
+ * when the query becomes stale, and the loading/error states are managed by
+ * the query cache rather than manual `useState`.
  */
 function useSectionBadge(
   badgeConfig: SectionBadgeConfig | undefined,
@@ -141,54 +159,44 @@ function useSectionBadge(
   routeParams: Record<string, any>
 ): { badgeText: string | number | undefined; loading: boolean; showZero: boolean } {
   const { callApiMethod } = useApi();
-  const [ apiFetchedValue, setApiFetchedValue ] = useState<number | undefined>(undefined);
-  const [ loading, setLoading ] = useState(false);
 
-  // Store callApiMethod in a ref for use in queryFn
+  // Store callApiMethod in a ref so the queryFn always uses the latest instance
+  // without destabilising the query key
   const callApiMethodRef = useRef(callApiMethod);
   callApiMethodRef.current = callApiMethod;
 
-  useEffect(() => {
-    if (!badgeConfig || typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
-      return;
-    }
+  // Determine if this badge config requires an API call
+  const isApiConfig = !!badgeConfig
+    && typeof badgeConfig === 'object'
+    && !('composite' in badgeConfig)
+    && 'apiEndpoint' in badgeConfig
+    && !!badgeConfig.apiEndpoint;
 
-    if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
-      let cancelled = false;
-      setLoading(true);
+  // Pre-resolve the URL so it can be used as part of the query key
+  const resolvedApiUrl = useMemo(() => {
+    if (!isApiConfig || typeof badgeConfig !== 'object' || !('apiEndpoint' in badgeConfig)) return '';
+    return substituteUrlParams(badgeConfig.apiEndpoint, routeParams);
+  }, [ isApiConfig, badgeConfig, routeParams ]);
 
-      const fetchCount = async () => {
-        try {
-          const url = substituteUrlParams(badgeConfig.apiEndpoint, routeParams);
+  // ── Declarative API fetch via useQuery ──
+  const { data: apiResponseData, isLoading: apiLoading } = useQuery({
+    queryKey: queryKeys.sections(`badge:${resolvedApiUrl}`),
+    queryFn: async () => {
+      const response = await callApiMethodRef.current<Record<string, unknown>>({ apiUrl: resolvedApiUrl, apiMethod: 'GET' });
+      return response.data;
+    },
+    enabled: isApiConfig && !!resolvedApiUrl,
+    staleTime: 60 * 1000, // 1min — badges don't need to be real-time
+  });
 
-          const responseData = await queryClient.fetchQuery({
-            queryKey: queryKeys.sections(`badge:${url}`),
-            queryFn: async () => {
-              const response = await callApiMethodRef.current<any>({ apiUrl: url, apiMethod: 'GET' });
-              return response.data;
-            },
-            staleTime: 60 * 1000, // 1min — badges don't need to be real-time
-          });
-
-          if (cancelled) return;
-
-          const responseKey = badgeConfig.responseKey || 'count';
-          const countValue = evaluateTemplateValue(`{${responseKey}}`, responseData as Record<string, any>);
-          const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
-
-          setApiFetchedValue(typeof numValue === 'number' && !isNaN(numValue) ? numValue : undefined);
-        } catch (error) {
-          console.warn('[useSectionBadge] API fetch failed:', error);
-          if (!cancelled) setApiFetchedValue(undefined);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-      };
-
-      fetchCount();
-      return () => { cancelled = true; };
-    }
-  }, [ badgeConfig, routeParams ]);
+  // Extract the numeric value from the API response
+  const apiFetchedValue = useMemo<number | undefined>(() => {
+    if (!isApiConfig || !apiResponseData || typeof badgeConfig !== 'object' || !('apiEndpoint' in badgeConfig)) return undefined;
+    const responseKey = badgeConfig.responseKey || 'count';
+    const countValue = evaluateTemplateValue(`{${responseKey}}`, apiResponseData as Record<string, any>);
+    const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
+    return typeof numValue === 'number' && !isNaN(numValue) ? numValue : undefined;
+  }, [ isApiConfig, apiResponseData, badgeConfig ]);
 
   const result = useMemo(() => {
     if (!badgeConfig) return { badgeText: undefined, showZero: false };
@@ -209,7 +217,7 @@ function useSectionBadge(
     }
 
     // 2. Template config with showZero option
-    if ('template' in badgeConfig && badgeConfig.template) {
+    if ('template' in badgeConfig && badgeConfig.template && !('apiEndpoint' in badgeConfig)) {
       const text = evaluateTemplateValue(badgeConfig.template, context);
       return {
         badgeText: text && text.trim() !== '' ? text : undefined,
@@ -219,7 +227,7 @@ function useSectionBadge(
 
     // 3. API fetched value
     if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
-      if (loading) return { badgeText: undefined, showZero: false };
+      if (apiLoading) return { badgeText: undefined, showZero: false };
       if (apiFetchedValue === undefined || (apiFetchedValue === 0 && !badgeConfig.showZero)) {
         return { badgeText: undefined, showZero: badgeConfig.showZero ?? false };
       }
@@ -239,9 +247,9 @@ function useSectionBadge(
     }
 
     return { badgeText: undefined, showZero: false };
-  }, [ badgeConfig, parentData, routeParams, apiFetchedValue, loading ]);
+  }, [ badgeConfig, parentData, routeParams, apiFetchedValue, apiLoading ]);
 
-  return { ...result, loading };
+  return { ...result, loading: apiLoading };
 }
 
 /**
@@ -337,6 +345,7 @@ const SectionContent: React.FC<{
     detailsPageConfig: finalDetailsPageConfig,
     formPageConfig: finalFormPageConfig,
     dashboardPageConfig: finalDashboardPageConfig,
+    customPageConfig: section.customPageConfig,
     depth: depth + 1 // Increment depth for nested entity pages to prevent infinite section nesting
   };
 
@@ -364,8 +373,6 @@ const SectionLabelWithBadge: React.FC<{
       if (IconComponent) {
         iconNode = React.createElement(IconComponent);
       }
-    } else if (React.isValidElement(section.icon)) {
-      iconNode = section.icon;
     }
   }
 

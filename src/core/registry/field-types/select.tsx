@@ -3,7 +3,7 @@ import { OptionSelector } from '../../forms/FormField/OptionSelector';
 import type { BuiltInFormFieldProps } from './types';
 import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 
-const SelectForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, addNewOption, addNewOptionConfig, setFormValue, name, placeholder }) => (
+const SelectForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, addNewOption, addNewOptionConfig, setFormValue, name, placeholder, dependencyFilters }) => (
   <OptionSelector
     value={initialValue}
     fieldType={fieldType}
@@ -14,10 +14,11 @@ const SelectForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, 
       if (setFormValue && name) setFormValue({ name, value: newSelections });
     }}
     placeholder={placeholder}
+    dependencyFilters={dependencyFilters}
   />
 );
 
-const MultiSelectForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, addNewOption, addNewOptionConfig, setFormValue, name, placeholder }) => (
+const MultiSelectForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, addNewOption, addNewOptionConfig, setFormValue, name, placeholder, dependencyFilters }) => (
   <OptionSelector
     value={initialValue}
     fieldType={fieldType}
@@ -28,18 +29,19 @@ const MultiSelectForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldT
       if (setFormValue && name) setFormValue({ name, value: newSelections });
     }}
     placeholder={placeholder}
+    dependencyFilters={dependencyFilters}
   />
 );
 
-const CheckboxForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options }) => (
-  <OptionSelector value={initialValue} fieldType={fieldType} options={options || []} />
+const CheckboxForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, dependencyFilters }) => (
+  <OptionSelector value={initialValue} fieldType={fieldType} options={options || []} dependencyFilters={dependencyFilters} />
 );
 
-const RadioForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options }) => (
-  <OptionSelector value={initialValue} fieldType={fieldType} options={options || []} />
+const RadioForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, dependencyFilters }) => (
+  <OptionSelector value={initialValue} fieldType={fieldType} options={options || []} dependencyFilters={dependencyFilters} />
 );
 
-const AutocompleteForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, addNewOption, setFormValue, name }) => (
+const AutocompleteForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, fieldType, options, addNewOption, setFormValue, name, dependencyFilters }) => (
   <OptionSelector
     value={initialValue}
     fieldType={fieldType}
@@ -48,10 +50,11 @@ const AutocompleteForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, field
     onOptionChange={(newSelections) => {
       if (setFormValue && name) setFormValue({ name, value: newSelections });
     }}
+    dependencyFilters={dependencyFilters}
   />
 );
 
-const TagsForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, options, setFormValue, name }) => (
+const TagsForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, options, setFormValue, name, dependencyFilters }) => (
   <OptionSelector
     value={initialValue}
     fieldType="multi-select"
@@ -59,15 +62,17 @@ const TagsForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, options, setF
     onOptionChange={(newSelections) => {
       if (setFormValue && name) setFormValue({ name, value: newSelections });
     }}
+    dependencyFilters={dependencyFilters}
   />
 );
 
-const IconForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, options }) => (
+const IconForm: React.FC<BuiltInFormFieldProps> = ({ initialValue, options, dependencyFilters }) => (
   <OptionSelector
     value={initialValue}
     fieldType="select"
     options={options || []}
     placeholder="Select icon"
+    dependencyFilters={dependencyFilters}
   />
 );
 

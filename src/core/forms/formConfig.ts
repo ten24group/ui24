@@ -44,6 +44,18 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
     skipSuccessToast?: boolean; // Skip success toast
     skipErrorToast?: boolean; // Skip error toast
 
+    /** Config-driven notification control. Overrides successMessage/errorMessage when provided. */
+    notification?: {
+        success?: { message?: Template; description?: Template; type?: 'message' | 'notification'; duration?: number; };
+        error?: { message?: Template; description?: Template; type?: 'message' | 'notification'; duration?: number; };
+        skip?: boolean | 'success' | 'error';
+    };
+    /** Action throttling — cooldown period after execution */
+    throttle?: {
+        cooldownMs?: number;
+        showCountdown?: boolean;
+    };
+
     // ===== Other Config =====
     defaultValues?: Record<string, any>;
     disabled?: boolean;

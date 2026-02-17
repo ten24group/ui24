@@ -22,6 +22,8 @@ interface IFormButton {
     href?: string;
     url?: string;
     danger?: boolean;
+    /** Action identifier — set by Form.tsx effectiveFormButtons (e.g. 'submit', 'cancel') */
+    action?: string;
     onClick?: (event: React.MouseEvent<HTMLElement>) => void;
     /**
      * Visibility condition for conditional rendering.
@@ -79,9 +81,13 @@ interface ICreateButtons {
     loader?: boolean
     routeParams?: Record<string, string>
     onCancelCallback?: () => void  // For modal cancel/close
+    /** Text to show on submit button during throttle cooldown (e.g. "Wait 5s") */
+    throttleText?: string;
+    /** Whether the submit button should be disabled due to throttle cooldown */
+    isThrottled?: boolean;
 }
 
-export const CreateButtons = React.memo(({ formButtons, loader = false, routeParams = {}, onCancelCallback }: ICreateButtons) => {
+export const CreateButtons = React.memo(({ formButtons, loader = false, routeParams = {}, onCancelCallback, throttleText, isThrottled }: ICreateButtons) => {
 
     const renderButton = (
         buttonConfig: IFormButton = { text: "Unknown" },
@@ -123,6 +129,12 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
             }
         };
 
+        // Apply throttle state to submit buttons
+        // Check both htmlType and action — Form.tsx overrides htmlType to 'button' for React 19 compat
+        const isSubmitBtn = htmlType === 'submit' || (buttonConfig).action === 'submit';
+        const showThrottleText = isSubmitBtn && isThrottled && throttleText;
+        const throttleDisabled = isSubmitBtn && isThrottled;
+
         return <Form.Item>
             <Button
                 type={buttonConfig?.buttonType}
@@ -132,11 +144,14 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
                 htmlType={htmlType}
                 className={buttonConfig?.className}
                 danger={buttonConfig.danger}
-                loading={loader}
-                disabled={isDisabled}
+                loading={loader && !throttleDisabled}
+                disabled={isDisabled || throttleDisabled}
             >
-                {processedUrl && !shouldUseCallback && <Link title={buttonConfig.text} url={processedUrl} />}
-                {(!processedUrl || shouldUseCallback) && buttonConfig.text}
+                {showThrottleText
+                    ? throttleText
+                    : processedUrl && !shouldUseCallback
+                        ? <Link title={buttonConfig.text} url={processedUrl} />
+                        : buttonConfig.text}
             </Button>
         </Form.Item>
     }

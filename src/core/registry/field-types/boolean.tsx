@@ -9,6 +9,8 @@ const BooleanForm: React.FC<BuiltInFormFieldProps> = ({ checked, onChange, id, c
 
 const sharedDefaults = {
   form: { checkedChildren: 'Yes', unCheckedChildren: 'No' },
+  detail: { trueText: 'Yes', falseText: 'No' },
+  table: { trueText: 'Yes', falseText: 'No' },
 };
 
 export const booleanRegistrations: Record<string, FieldTypeRegistration> = {

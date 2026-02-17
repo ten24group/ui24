@@ -55,8 +55,8 @@ export interface IEntityConfigReference {
   /** Entity name (e.g., 'team', 'game', 'user') */
   entityName: string;
 
-  /** Which page config to reference: 'view', 'create', or 'list' */
-  pageType: 'view' | 'create' | 'list';
+  /** Which page config to reference */
+  pageType: 'view' | 'create' | 'edit' | 'list';
 
   /** Optional overrides to apply to the referenced config */
   overrideConfig?: {

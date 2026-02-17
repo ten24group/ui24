@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useState, useRef } from 'react';
+import React, { createContext, useContext, ReactNode, useState, useRef, useCallback, useMemo } from 'react';
 import axios, { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { useAuth } from './AuthContext';
 import { useUi24Config } from './UI24Context';
@@ -405,8 +405,21 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         return executor();
     };
 
+    // Stable reference: the implementation above is recreated each render (new axios
+    // instance, fresh interceptors), but consumers always see the same function ref.
+    // This prevents useQuery/useEffect dependency cascades in consumers.
+    const callApiMethodImplRef = useRef(callApiMethod);
+    callApiMethodImplRef.current = callApiMethod;
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const stableCallApiMethod = useCallback(<T,>(apiConfig: IApiConfig & { dedupe?: boolean }) => {
+        return callApiMethodImplRef.current<T>(apiConfig);
+    }, []) as typeof callApiMethod;
+
+    const contextValue = useMemo(() => ({ callApiMethod: stableCallApiMethod }), [stableCallApiMethod]);
+
     return (
-        <ApiContext.Provider value={{ callApiMethod }}>
+        <ApiContext.Provider value={contextValue}>
             {children}
         </ApiContext.Provider>
     );

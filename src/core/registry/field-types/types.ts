@@ -51,6 +51,13 @@ export interface BuiltInFormFieldProps extends Partial<IFormField> {
 
   /** Format config from app settings (date/time formats) */
   formatConfig?: Record<string, string>;
+
+  /**
+   * Computed dependency filters from `dependsOn` config.
+   * When a field declares `dependsOn: ['country']`, the form rendering layer
+   * watches those field values and passes them here for cascading options.
+   */
+  dependencyFilters?: Record<string, unknown>;
 }
 
 /**

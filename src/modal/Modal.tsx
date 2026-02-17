@@ -45,6 +45,7 @@ import { ITableConfig } from '../table/type';
 import { getDefaultModalWidth } from './modalUtils';
 import { useOperationExecutor } from '../core/services/OperationExecutor';
 import { type IWizardPageConfig } from '../core/common/FormWizard';
+import { useThrottleCountdown } from '../core/hooks/useThrottleCountdown';
 
 // Simple modal depth tracking for stack effect
 export const ModalDepthContext = React.createContext(0);
@@ -193,6 +194,19 @@ export interface IModalConfig {
    */
   errorMessage?: Template;
 
+  /** Config-driven notification control. Overrides successMessage/errorMessage when provided. */
+  notification?: {
+    success?: { message?: Template; description?: Template; type?: 'message' | 'notification'; duration?: number; };
+    error?: { message?: Template; description?: Template; type?: 'message' | 'notification'; duration?: number; };
+    skip?: boolean | 'success' | 'error';
+  };
+
+  /** Action throttling — cooldown period after execution */
+  throttle?: {
+    cooldownMs?: number;
+    showCountdown?: boolean;
+  };
+
   primaryIndex?: string;
   useDynamicIdFromParams?: boolean;
   onSuccessCallback?: (response?: any) => void;
@@ -327,6 +341,8 @@ export const Modal = ({
   skipSuccessToast = false,
   skipErrorToast = false,
   closeModalOnError = false,
+  notification,
+  throttle,
   routeParams = {},
   identifiers,
   modalWidth,
@@ -370,6 +386,15 @@ export const Modal = ({
     }
   }, [ navigateTo, responseConfig ]);
 
+  // Throttle countdown for confirm modal button (#64)
+  const throttleOpKey = apiConfig?.apiUrl || undefined;
+  const { isThrottled, buttonText: throttleText, startPolling } = useThrottleCountdown(
+    operationExecutor,
+    throttleOpKey,
+    !!(throttle?.cooldownMs),
+    !!(throttle?.showCountdown)
+  );
+
   // ============================================================================
   // NEW: Using OperationExecutor for centralized operation handling
   // ============================================================================
@@ -396,6 +421,8 @@ export const Modal = ({
         skipSuccessToast,
         skipErrorToast,
         closeModalOnError,
+        ...(notification && { notification }),
+        ...(throttle && { throttle }),
         abortSignal: abortControllerRef.current.signal
       },
       {
@@ -404,6 +431,9 @@ export const Modal = ({
         // ✅ NO onChain needed - response modal handled globally
       }
     );
+
+    // Start polling cooldown after execution completes (for countdown display)
+    if (throttle?.showCountdown) startPolling();
   };
 
 
@@ -621,9 +651,10 @@ export const Modal = ({
           open={true}
           onOk={confirmApiAction}
           onCancel={onCancelCallback}
-          okText="Confirm"
+          okText={throttleText || "Confirm"}
           cancelText="Cancel"
           loading={loading}
+          okButtonProps={{ disabled: isThrottled || loading }}
           width={effectiveWidth}
           wrapClassName={`modal-depth-${currentDepth}`}
         >
@@ -715,8 +746,9 @@ export const Modal = ({
                     errorMessage,
                     skipSuccessToast,
                     skipErrorToast,
-                    closeModalOnError
-                    // ✅ NO showResponseModal needed - Form uses global context via OperationExecutor
+                    closeModalOnError,
+                    ...(notification && { notification }),
+                    ...(throttle && { throttle }),
                   } as any : undefined
                 }
                 detailsPageConfig={
@@ -742,7 +774,9 @@ export const Modal = ({
                     errorMessage,
                     skipSuccessToast,
                     skipErrorToast,
-                    closeModalOnError
+                    closeModalOnError,
+                    ...(notification && { notification }),
+                    ...(throttle && { throttle }),
                   } as any : undefined
                 }
                 dashboardPageConfig={

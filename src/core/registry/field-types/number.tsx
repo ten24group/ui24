@@ -226,7 +226,10 @@ const TTLTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
 };
 
 export const numberRegistrations: Record<string, FieldTypeRegistration> = {
-  number: { form: NumberForm, detail: NumberDetail, table: NumberTable },
+  number: {
+    form: NumberForm, detail: NumberDetail, table: NumberTable,
+    defaults: { table: { align: 'right' } },
+  },
   currency: {
     form: CurrencyForm, detail: CurrencyDetail, table: CurrencyTable,
     defaults: {

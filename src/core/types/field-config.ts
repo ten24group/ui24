@@ -120,6 +120,20 @@ export interface IFieldTypeProperties {
   checkedChildren?: React.ReactNode;
   unCheckedChildren?: React.ReactNode;
 
+  // Clipboard
+  /** When true, shows a copy-to-clipboard icon on hover (detail/table views) */
+  copyable?: boolean;
+
+  // Embed field properties
+  /** Configuration for embedded external content (iframe or markdown) */
+  embedConfig?: {
+    type: 'iframe' | 'markdown';
+    /** Height of the embed container in pixels (default: 400) */
+    height?: number;
+    /** Sandbox attribute for iframe security (default: 'allow-scripts allow-same-origin') */
+    sandbox?: string;
+  };
+
   // Link field properties
   target?: '_blank' | '_self' | '_parent' | '_top';
 
@@ -242,6 +256,18 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
    */
   rendererConfig?: Readonly<Record<string, unknown>>;
 
+  /**
+   * Field dependency — when the named field(s) change, this field's options are refreshed.
+   * The parent field's value is included as a filter parameter in the options API call.
+   * 
+   * @example
+   * // state field depends on country: changing country refetches state options
+   * dependsOn: 'country'
+   * // or multiple:
+   * dependsOn: ['country', 'region']
+   */
+  dependsOn?: string | string[];
+
   // Nested structures (for list/map types)
   properties?: Array<any>; // Will be properly typed in specific interfaces
   items?: {
@@ -357,11 +383,7 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
     identifierMapping?:
     | { source: string; target: string; }
     | Array<{ source: string; target: string; }>;
-    modalConfigRef?: {
-      entityName: string;
-      pageType: 'view' | 'create' | 'list';
-      overrideConfig?: Record<string, any>;
-    };
+    modalConfigRef?: IEntityConfigReference;
     modalWidth?: number | string;
     modalTitle?: string;
     displayConfig?: {

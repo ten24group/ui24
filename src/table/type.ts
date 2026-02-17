@@ -6,6 +6,7 @@ import { IActionDrawerConfig } from "../modal/Drawer";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
 import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 import type { IEntityConfigReference } from "../core/hooks/useEntityConfig";
+import type { ViewConfig } from "../core/common/ViewSwitcher/types";
 
 /**
  * Pagination configuration for tables.
@@ -304,6 +305,90 @@ export interface ITableConfig {
    * Note: `pageSize` remains at the top level of ITableConfig (not duplicated here).
    */
   pagination?: IPaginationConfig;
+
+  /**
+   * Table density (row padding) settings.
+   * Maps to antd Table `size` prop.
+   */
+  density?: {
+    default: 'default' | 'compact' | 'comfortable';
+    allowToggle?: boolean;
+    /** Persist user preference to localStorage (keyed by entityName) */
+    persist?: boolean;
+  };
+
+  /**
+   * Column resize settings.
+   * When enabled, column headers become resizable by dragging.
+   */
+  columnResizing?: {
+    enabled: boolean;
+    /** Persist column widths to localStorage (keyed by entityName) */
+    persist?: boolean;
+    /** Minimum column width in pixels (default: 60) */
+    minWidth?: number;
+  };
+
+  /**
+   * Pinned (frozen) columns configuration.
+   * Maps to antd Table `fixed: 'left' | 'right'` on columns.
+   * When pinned columns exist, horizontal scroll is enabled via `scroll={{ x: 'max-content' }}`.
+   */
+  pinnedColumns?: {
+    left?: string[];
+    right?: string[];
+  };
+
+  /**
+   * Context menu (right-click) configuration for table rows.
+   * Items follow the same shape as IPageAction (reuses action infrastructure).
+   */
+  contextMenu?: {
+    items: Array<IPageAction & { divider?: boolean }>;
+  };
+
+  /**
+   * Display mode toggle (table rows vs card grid).
+   * For basic table/card toggle. Use `viewSwitcher` for the unified multi-view system.
+   */
+  displayMode?: {
+    default: 'table' | 'card';
+    /** Allow user to toggle between views */
+    allowToggle?: boolean;
+    /** Card view configuration */
+    cardConfig?: {
+      /** Number of columns in the card grid (default: responsive) */
+      columns?: number;
+      /** Field name for card title */
+      titleField: string;
+      /** Field name for card description */
+      descriptionField?: string;
+      /** Field name for card image/avatar */
+      imageField?: string;
+      /** Additional fields to show as summary on the card */
+      summaryFields?: string[];
+    };
+    /** Persist user view preference to localStorage */
+    remember?: boolean;
+  };
+
+  /**
+   * Unified view switcher configuration.
+   * When provided, replaces the basic `displayMode` toggle with a multi-view toolbar.
+   * Supports: table, card-grid, kanban, calendar, map.
+   * Only renders views for which implementations exist (table + card-grid currently).
+   */
+  viewSwitcher?: ViewConfig;
+
+  /**
+   * Loading state configuration (#57).
+   * Controls how loading states are displayed before data is ready.
+   * @default { type: 'skeleton' }
+   */
+  loading?: {
+    type: 'skeleton' | 'spinner';
+    rows?: number;
+  };
 }
 
 /**
@@ -358,6 +443,23 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
    * From backend: tableConfig.columns[].groupTitle
    */
   groupTitle?: string;
+
+  /**
+   * Composite column configuration — renders multiple fields in one column.
+   * 
+   * @example
+   * composite: { fields: ['firstName', 'lastName', 'email'], layout: 'stacked' }
+   * // or with template:
+   * composite: { fields: ['firstName', 'lastName'], template: '{firstName} {lastName}' }
+   */
+  composite?: {
+    /** Field names to extract from the record */
+    fields: string[];
+    /** Optional template for formatting (supports {field} placeholders) */
+    template?: Template;
+    /** Layout: 'stacked' = vertical, 'inline' = horizontal with separator */
+    layout?: 'stacked' | 'inline';
+  };
 
   /**
    * Template for rendering column values.
@@ -592,6 +694,35 @@ export type IPageAction = {
    * }
    */
   target?: '_blank' | '_self' | '_parent' | '_top';
+
+  // =========================================================================
+  // CLIPBOARD COPY ACTION (#60)
+  // =========================================================================
+
+  /**
+   * Copy action configuration. When set, clicking the action copies data to clipboard.
+   * Works with single records (row actions) and multiple records (bulk actions).
+   *
+   * @example
+   * // Copy record as JSON
+   * { label: 'Copy JSON', icon: 'copy', copyConfig: { format: 'json' } }
+   *
+   * @example
+   * // Copy specific fields as CSV
+   * { label: 'Export CSV', icon: 'download', copyConfig: { format: 'csv', fields: ['name', 'email'] } }
+   *
+   * @example
+   * // Copy using template
+   * { label: 'Copy Name', icon: 'copy', copyConfig: { format: 'text', template: '{firstName} {lastName}' } }
+   */
+  copyConfig?: {
+    /** Output format */
+    format: 'json' | 'csv' | 'text';
+    /** Restrict to specific fields (default: all fields). Only for json/csv. */
+    fields?: string[];
+    /** Template for text format (supports {field} placeholders) */
+    template?: Template;
+  };
 };
 
 export interface IActionIndexValue {

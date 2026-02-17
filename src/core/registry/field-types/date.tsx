@@ -16,7 +16,16 @@ const TimeForm: React.FC<BuiltInFormFieldProps> = ({ formatConfig, value, onChan
 );
 
 export const dateRegistrations: Record<string, FieldTypeRegistration> = {
-  date: { form: DateForm },
-  datetime: { form: DatetimeForm },
-  time: { form: TimeForm },
+  date: {
+    form: DateForm,
+    defaults: { table: { ellipsis: false, width: 160 } },
+  },
+  datetime: {
+    form: DatetimeForm,
+    defaults: { table: { ellipsis: false, width: 180 } },
+  },
+  time: {
+    form: TimeForm,
+    defaults: { table: { ellipsis: false, width: 120 } },
+  },
 };

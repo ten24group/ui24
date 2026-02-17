@@ -44,6 +44,7 @@ function makeDeps(overrides: Partial<OperationExecutorDeps> = {}): OperationExec
     callApiMethod: jest.fn(),
     notifySuccess: jest.fn(),
     notifyError: jest.fn(),
+    notify: jest.fn(),
     showResponseModal: jest.fn(),
     ...overrides,
   };

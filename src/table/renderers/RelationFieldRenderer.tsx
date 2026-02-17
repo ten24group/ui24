@@ -28,6 +28,7 @@ import { substituteUrlParams, getNestedValue } from '../../core/utils';
 import { evaluateTemplateValue } from '../../core/utils/template';
 import type { Template } from '../../core/types';
 import { RelatedRecordPeek } from './RelatedRecordPeek';
+import type { IEntityConfigReference } from '../../core/hooks/useEntityConfig';
 
 /**
  * Relation identifier mapping from source entity field to target entity parameter.
@@ -40,27 +41,6 @@ export interface RelationIdentifier {
   source: string;
   /** Target parameter name */
   target: string;
-}
-
-/**
- * Entity configuration reference for lazy loading modal configs.
- * Instead of embedding full configs, we reference them by entity name and page type.
- * 
- * Matches backend type from fw24/src/entity/base-entity.ts (IEntityConfigReference)
- */
-export interface IEntityConfigReference {
-  /** Entity name (e.g., 'team', 'game', 'user') */
-  entityName: string;
-  /** Page type to reference */
-  pageType: 'view' | 'create' | 'list';
-  /** Optional config overrides */
-  overrideConfig?: {
-    pageTitle?: string;
-    defaultFilters?: Record<string, any>;
-    hideFields?: string[];
-    showOnlyFields?: string[];
-    [ key: string ]: any;
-  };
 }
 
 /**

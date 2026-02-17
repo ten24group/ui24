@@ -11,21 +11,29 @@ import type {
   ResolverContext
 } from './types';
 
+interface GetFieldRendererOptions {
+  fieldName?: string;
+  entityName?: string;
+  explicitRenderer?: string;
+  routeParams?: Readonly<Record<string, string | number | undefined>>;
+}
+
 /**
  * Get a custom field renderer from the registry.
  * 
  * This is NOT a hook - it's a synchronous registry lookup.
  * Safe to call inside loops, conditions, etc.
+ * 
+ * Uses overloads so the return type narrows based on the `context` argument:
+ * - context='form' → ComponentType<FormFieldRendererProps> | null
+ * - context='detail' → ComponentType<DetailFieldRendererProps> | null
  */
+export function getFieldRenderer(fieldType: string, context: 'form', options: GetFieldRendererOptions): ComponentType<FormFieldRendererProps> | null;
+export function getFieldRenderer(fieldType: string, context: 'detail', options: GetFieldRendererOptions): ComponentType<DetailFieldRendererProps> | null;
 export function getFieldRenderer(
   fieldType: string,
   context: 'form' | 'detail',
-  options: {
-    fieldName?: string;
-    entityName?: string;
-    explicitRenderer?: string;
-    routeParams?: Readonly<Record<string, string | number | undefined>>;
-  }
+  options: GetFieldRendererOptions
 ): ComponentType<FormFieldRendererProps> | ComponentType<DetailFieldRendererProps> | null {
   const resolverContext = buildResolverContext({
     fieldName: options.fieldName,
@@ -40,7 +48,6 @@ export function getFieldRenderer(
     explicitRenderer: options.explicitRenderer
   });
 
-  // Cast away ColumnRendererProps since we know context is 'form' or 'detail'
   return renderer as ComponentType<FormFieldRendererProps> | ComponentType<DetailFieldRendererProps> | null;
 }
 

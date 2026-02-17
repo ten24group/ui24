@@ -44,6 +44,8 @@ export const queryKeys = {
       fieldName?: string;
       search?: string;
       cursor?: string;
+      filters?: Record<string, unknown>;
+      deps?: Record<string, unknown>;
     }) => ['entity', entityName, 'fieldOptions', params] as const,
   }),
 

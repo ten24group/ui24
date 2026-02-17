@@ -93,31 +93,82 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
-import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons';
+import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge, Space } from "antd";
+import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined, ColumnHeightOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { Resizable } from 'react-resizable';
 import { useTable } from "./useTable";
-import { ITableConfig } from "./type";
+import { ITableConfig, IRecord } from "./type";
 import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { renderSingleAction } from '../core/utils/actionRenderer';
-import { Condition } from '../core/types/evaluation';
 import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
 import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { substituteUrlParams } from '../core/utils';
+import { TableContextMenu, useTableContextMenu } from './ContextMenu/ContextMenu';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
 import { RefreshControl } from '../core/common/RefreshControl';
 import { EmptyState } from '../core/common/EmptyState';
+import { PageSkeleton } from '../core/common/PageSkeleton';
 import { useCoreNavigator } from '../routes/Navigation';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
+import { CardView } from './CardView/CardView';
+import { ViewSwitcher, ViewContainer, useViewState } from '../core/common/ViewSwitcher';
+
+// ============================================================================
+// RESIZABLE TABLE HEADER (#113)
+// ============================================================================
+
+/**
+ * ResizableTitle — wraps a table header cell to make it resizable by dragging.
+ * Uses react-resizable's Resizable component.
+ */
+interface ResizableTitleProps extends React.HTMLAttributes<HTMLTableCellElement> {
+  onResize?: (e: React.SyntheticEvent, data: { size: { width: number } }) => void;
+  width?: number;
+}
+
+const ResizableTitle: React.FC<ResizableTitleProps> = (props) => {
+  const { onResize, width, ...restProps } = props;
+
+  if (!width) {
+    return <th {...restProps} />;
+  }
+
+  return (
+    <Resizable
+      width={width}
+      height={0}
+      handle={
+        <span
+          className="react-resizable-handle"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            right: -5,
+            bottom: 0,
+            top: 0,
+            width: 10,
+            cursor: 'col-resize',
+            zIndex: 1,
+          }}
+        />
+      }
+      onResize={onResize}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      <th {...restProps} />
+    </Resizable>
+  );
+};
 
 /**
  * Main Table component for rendering data tables with advanced features.
@@ -141,7 +192,6 @@ import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
  */
 export const Table = ({
   propertiesConfig,
-  records = [], //not using as of now
   apiConfig,
   routeParams,
   defaultFilters,
@@ -158,6 +208,13 @@ export const Table = ({
   emptyState,
   rowFormatting,
   pagination: paginationConfig,
+  density: densityConfig,
+  columnResizing: columnResizingConfig,
+  pinnedColumns: pinnedColumnsConfig,
+  contextMenu: contextMenuConfig,
+  displayMode: displayModeConfig,
+  viewSwitcher: viewSwitcherConfig,
+  loading: loadingConfig,
 }: ITableConfig) => {
   const coreNavigate = useCoreNavigator();
   // Build placeholder context for segments and filters
@@ -183,10 +240,13 @@ export const Table = ({
       ? segments
       : [ { id: 'default-group', segments: segments } ];
 
-    groups.forEach((group: any) => {
+    groups.forEach(group => {
+      // Normalize: grouped format has { segments: [...] }, flat format was wrapped above
+      const segs = 'segments' in group ? group.segments : [ group ];
+
       // Find segment with explicit default=true flag
       // NOTE: Only explicit defaults are used; we don't fallback to first segment
-      const defaultSeg = group.segments.find((s: any) => s.default);
+      const defaultSeg = segs.find(s => s.default);
 
       if (defaultSeg && defaultSeg.filters && Object.keys(defaultSeg.filters).length > 0) {
         // Resolve placeholders (e.g., :actor.actorId) before merging
@@ -257,9 +317,144 @@ export const Table = ({
 
   const [ showFilters, setShowFilters ] = React.useState(false);
 
+  // Density state (#113) — maps to antd Table size prop
+  const densityDefault = densityConfig?.default || 'default';
+  const densityStorageKey = entityName ? `ui24-table-density-${entityName}` : null;
+
+  const [ density, setDensity ] = useState<'default' | 'compact' | 'comfortable'>(() => {
+    if (densityConfig?.persist && densityStorageKey) {
+      const stored = localStorage.getItem(densityStorageKey);
+      if (stored === 'compact' || stored === 'comfortable' || stored === 'default') return stored;
+    }
+    return densityDefault;
+  });
+
+  const cycleDensity = useCallback(() => {
+    setDensity(prev => {
+      const next = prev === 'default' ? 'compact' : prev === 'compact' ? 'comfortable' : 'default';
+      if (densityConfig?.persist && densityStorageKey) {
+        localStorage.setItem(densityStorageKey, next);
+      }
+      return next;
+    });
+  }, [ densityConfig?.persist, densityStorageKey ]);
+
+  const antTableSize = density === 'compact' ? 'small' : density === 'comfortable' ? 'large' : 'middle';
+
+  // Pinned (frozen) columns (#113) — apply fixed: 'left'/'right' based on config
+  const hasPinnedColumns = !!(pinnedColumnsConfig?.left?.length || pinnedColumnsConfig?.right?.length);
+  const leftPinned = useMemo(() => new Set(pinnedColumnsConfig?.left || []), [ pinnedColumnsConfig?.left ]);
+  const rightPinned = useMemo(() => new Set(pinnedColumnsConfig?.right || []), [ pinnedColumnsConfig?.right ]);
+
+  // Column resize state (#113) — tracked widths per column, persisted to localStorage
+  const resizeEnabled = !!columnResizingConfig?.enabled;
+  const resizeMinWidth = columnResizingConfig?.minWidth || 60;
+  const resizeStorageKey = entityName && columnResizingConfig?.persist ? `ui24-col-widths-${entityName}` : null;
+
+  const [ columnWidths, setColumnWidths ] = useState<Record<string, number>>(() => {
+    if (resizeStorageKey) {
+      try {
+        const stored = localStorage.getItem(resizeStorageKey);
+        if (stored) return JSON.parse(stored);
+      } catch { /* ignore */ }
+    }
+    return {};
+  });
+
+  const handleColumnResize = useCallback((dataIndex: string) => (_e: any, { size }: { size: { width: number } }) => {
+    setColumnWidths(prev => {
+      const next = { ...prev, [ dataIndex ]: Math.max(size.width, resizeMinWidth) };
+      if (resizeStorageKey) {
+        try { localStorage.setItem(resizeStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  }, [ resizeMinWidth, resizeStorageKey ]);
+
+  // Context menu (#110) — uses reusable component
+  const ctxMenu = useTableContextMenu();
+
+  // Display mode state (#32) — table vs card
+  const displayDefault = displayModeConfig?.default || 'table';
+  const displayStorageKey = entityName ? `ui24-display-mode-${entityName}` : null;
+
+  const [ displayMode, setDisplayMode ] = useState<'table' | 'card'>(() => {
+    if (displayModeConfig?.remember && displayStorageKey) {
+      const stored = localStorage.getItem(displayStorageKey);
+      if (stored === 'table' || stored === 'card') return stored;
+    }
+    return displayDefault;
+  });
+
+  const toggleDisplayMode = useCallback(() => {
+    setDisplayMode(prev => {
+      const next = prev === 'table' ? 'card' : 'table';
+      if (displayModeConfig?.remember && displayStorageKey) {
+        localStorage.setItem(displayStorageKey, next);
+      }
+      return next;
+    });
+  }, [ displayModeConfig?.remember, displayStorageKey ]);
+
+  // Unified ViewSwitcher (#119) — replaces displayMode toggle when configured
+  const viewState = useViewState(
+    viewSwitcherConfig || { available: [ 'table' ], default: 'table' },
+    entityName
+  );
+
+  // Resolve which view is active: viewSwitcher takes priority over displayMode
+  const useUnifiedSwitcher = !!viewSwitcherConfig && viewSwitcherConfig.available.length > 1;
+  const isCardView = useUnifiedSwitcher
+    ? viewState.activeView === 'card-grid'
+    : displayMode === 'card';
+
+  // Resolve card config from unified viewSwitcher or legacy displayMode
+  const resolvedCardConfig = viewSwitcherConfig?.cardConfig || displayModeConfig?.cardConfig;
+
+  // Card view record click handler — navigate to the detail page using the identifier column's first action URL
+  const handleCardRecordClick = useCallback((record: IRecord) => {
+    const identifierCol = propertiesConfig.find(p => p.isIdentifier);
+    const firstAction = identifierCol?.actions?.[ 0 ];
+    if (firstAction?.url) {
+      const url = substituteUrlParams(firstAction.url, { ...routeParams, ...record });
+      coreNavigate(url);
+    }
+  }, [ propertiesConfig, routeParams, coreNavigate ]);
+
   // Ref to always access latest appliedFilters in callbacks (avoids stale closures)
   const appliedFiltersRef = useRef(appliedFilters);
   appliedFiltersRef.current = appliedFilters;
+
+  // Handler for filter segment changes (extracted from JSX to comply with Rules of Hooks)
+  const handleSegmentChange = useCallback((segmentId: string, filtersToAdd: Record<string, any>, filtersToRemove: Record<string, any>) => {
+    // Use ref to get latest filters (avoids stale closures)
+    const currentFilters = appliedFiltersRef.current;
+    let newFilters = { ...currentFilters };
+
+    // 1. Remove filters from previous segment
+    if (filtersToRemove) {
+      Object.keys(filtersToRemove).forEach(key => {
+        delete newFilters[ key ];
+      });
+    }
+
+    // 2. Add filters from new segment
+    if (filtersToAdd) {
+      Object.assign(newFilters, filtersToAdd);
+    }
+
+    // 3. Restore default filters for removed keys (if they exist)
+    Object.keys(filtersToRemove || {}).forEach(key => {
+      if (resolvedDefaultFilters[ key ] !== undefined && newFilters[ key ] === undefined) {
+        newFilters[ key ] = resolvedDefaultFilters[ key ];
+      }
+    });
+
+    // 4. Update state and fetch — React batches setAppliedFilters + fetchRecords
+    // into one render, so the reactive payload memo picks up new filters
+    setAppliedFilters(newFilters);
+    fetchRecords(1);
+  }, [ resolvedDefaultFilters, setAppliedFilters, fetchRecords ]);
 
   // Track selected row keys for bulk actions and row selection
   const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
@@ -537,7 +732,7 @@ export const Table = ({
       // Optional: Custom indent size
       indentSize: expandableConfig.indentSize,
     };
-  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys, evaluationContext ]);
+  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys, evaluationContext, placeholderContext ]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -545,6 +740,93 @@ export const Table = ({
     }
     return Pagination;
   };
+
+  // ── Memoized table props (avoid new references each render) ──
+
+  const resolvedColumns = useMemo(() => {
+    let cols = columns;
+    if (hasPinnedColumns) {
+      cols = cols.map(col => {
+        const key = String(col.dataIndex || col.key || '');
+        if (key && leftPinned.has(key)) return { ...col, fixed: 'left' as const };
+        if (key && rightPinned.has(key)) return { ...col, fixed: 'right' as const };
+        return col;
+      });
+    }
+    if (resizeEnabled) {
+      cols = cols.map(col => {
+        const key = String(col.dataIndex || col.key || '');
+        if (!key || key === 'action') return col;
+        const width = columnWidths[key] || (typeof col.width === 'number' ? col.width : 150);
+        return {
+          ...col,
+          width,
+          onHeaderCell: () => ({
+            width,
+            onResize: handleColumnResize(key),
+          }),
+        };
+      });
+    }
+    return cols;
+  }, [columns, hasPinnedColumns, leftPinned, rightPinned, resizeEnabled, columnWidths, handleColumnResize]);
+
+  const tableRowClassName = useMemo(() => {
+    if (!rowFormatting || rowFormatting.length === 0) return undefined;
+    return (record: IRecord) => {
+      const rawRecord = record.__raw__ || record;
+      const classNames: string[] = [];
+      for (const rule of rowFormatting) {
+        try {
+          const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+          if (match && rule.className) {
+            classNames.push(rule.className);
+          }
+        } catch {
+          // Fail-safe: skip rule on evaluation error
+        }
+      }
+      return classNames.join(' ');
+    };
+  }, [rowFormatting, evaluationContext]);
+
+  const tableOnRow = useCallback((record: IRecord) => {
+    const props: Record<string, unknown> = {};
+    if (rowFormatting && rowFormatting.length > 0) {
+      const rawRecord = record.__raw__ || record;
+      const rowStyle: React.CSSProperties = {};
+      for (const rule of rowFormatting) {
+        try {
+          const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+          if (match && rule.style) Object.assign(rowStyle, rule.style);
+        } catch { /* fail-safe */ }
+      }
+      if (Object.keys(rowStyle).length > 0) props.style = rowStyle;
+    }
+    if (contextMenuConfig?.items?.length) {
+      props.onContextMenu = (e: React.MouseEvent) => {
+        ctxMenu.show(e, record);
+      };
+    }
+    return props;
+  }, [rowFormatting, evaluationContext, contextMenuConfig, ctxMenu]);
+
+  const tableLocale = useMemo(() => ({
+    emptyText: (
+      <EmptyState
+        variant={hasActiveFilters ? 'noResults' : 'noData'}
+        entityName={entityName}
+        config={emptyState}
+        onClearFilters={hasActiveFilters ? clearAllFilters : undefined}
+        onNavigate={coreNavigate}
+      />
+    ),
+  }), [hasActiveFilters, entityName, emptyState, clearAllFilters, coreNavigate]);
+
+  const tableLoading = useMemo(() => ({
+    indicator: <div><Spin /></div>,
+    spinning: isLoading,
+  }), [isLoading]);
 
   return (
     <ErrorBoundary
@@ -579,6 +861,20 @@ export const Table = ({
                 />
               </Tooltip>
             )}
+            {useUnifiedSwitcher ? (
+              <ViewSwitcher
+                available={viewState.availableViews}
+                active={viewState.activeView}
+                onChange={viewState.switchView}
+              />
+            ) : displayModeConfig?.allowToggle ? (
+              <Tooltip title={displayMode === 'table' ? 'Card View' : 'Table View'}>
+                <Button
+                  icon={displayMode === 'table' ? <AppstoreOutlined /> : <UnorderedListOutlined />}
+                  onClick={toggleDisplayMode}
+                />
+              </Tooltip>
+            ) : null}
             <Tooltip title="Reset">
               <Button icon={<ClearOutlined />} onClick={handleRefresh} />
             </Tooltip>
@@ -587,6 +883,11 @@ export const Table = ({
               dataUpdatedAt={dataUpdatedAt}
               autoRefresh={autoRefresh}
             />
+            {densityConfig?.allowToggle && (
+              <Tooltip title={`Density: ${density}`}>
+                <Button icon={<ColumnHeightOutlined />} onClick={cycleDensity} />
+              </Tooltip>
+            )}
             <Tooltip title="Column Settings">
               <Dropdown
                 popupRender={() => (
@@ -636,7 +937,7 @@ export const Table = ({
           </div>
           <Space>
             {visibleBulkActions.map((action, index) => {
-              const rendered = renderSingleAction({
+              const node = renderSingleAction({
                 action,
                 key: `bulk-action-${index}`,
                 isDropdownItem: false,
@@ -644,10 +945,11 @@ export const Table = ({
                 isDisabled: action._evaluated?.enabled === false,
                 disabledMessage: action._evaluated?.disabledMessage || '',
                 routeParams,
-                record: undefined,  // Bulk actions don't have a single record
-                onSuccessCallback: handleReload,  // Refresh table after bulk action
+                record: undefined,
+                selectedRecords,
+                onSuccessCallback: handleReload,
               });
-              return rendered as React.ReactNode;
+              return <React.Fragment key={`bulk-action-${index}`}>{node}</React.Fragment>;
             })}
           </Space>
         </div>
@@ -659,39 +961,7 @@ export const Table = ({
           segments={segments}
           isSearchMode={isSearchMode}
           appliedFilters={appliedFilters}
-          onSegmentChange={useCallback((segmentId: string, filtersToAdd: Record<string, any>, filtersToRemove: Record<string, any>) => {
-            // Use ref to get latest filters (avoids stale closures)
-            const currentFilters = appliedFiltersRef.current;
-            let newFilters = { ...currentFilters };
-
-            // 1. Remove filters from previous segment
-            // These are the keys controlled by the segment we're switching away from
-            if (filtersToRemove) {
-              Object.keys(filtersToRemove).forEach(key => {
-                delete newFilters[ key ];
-              });
-            }
-
-            // 2. Add filters from new segment
-            // If switching to "All" (empty filters), this step does nothing
-            if (filtersToAdd) {
-              Object.assign(newFilters, filtersToAdd);
-            }
-
-            // 3. Restore default filters for removed keys (if they exist)
-            // Example: Switching from "Active" (status=active) to "All" (empty)
-            // If defaultFilters has status=pending, restore it
-            Object.keys(filtersToRemove || {}).forEach(key => {
-              if (resolvedDefaultFilters[ key ] !== undefined && newFilters[ key ] === undefined) {
-                newFilters[ key ] = resolvedDefaultFilters[ key ];
-              }
-            });
-
-            // 4. Update state and fetch immediately with new filters
-            // fetchRecords accepts filtersOverride to bypass React's async setState
-            setAppliedFilters(newFilters);
-            fetchRecords(1, undefined, newFilters);
-          }, [ resolvedDefaultFilters, setAppliedFilters, fetchRecords ])}
+          onSegmentChange={handleSegmentChange}
           placeholderContext={placeholderContext}
         />
       )}
@@ -709,10 +979,9 @@ export const Table = ({
       )}
 
       {isInitialLoad ? (
-        // Show skeleton loader on initial load for instant page transition
-        <div>
-          <Skeleton active paragraph={{ rows: 10 }} />
-        </div>
+        loadingConfig?.type === 'spinner'
+          ? <div style={{ textAlign: 'center', padding: '60px 0' }}><Spin size="large" /></div>
+          : <PageSkeleton type="table" columns={propertiesConfig?.length || 5} rows={loadingConfig?.rows} />
       ) : (
         <>
           {/* Pagination: top or both */}
@@ -721,62 +990,34 @@ export const Table = ({
               {renderPagination()}
             </div>
           )}
-          <AntTable
-            scroll={{ x: true }}
-            columns={columns}
-            rowKey={recordIdentifierKey}
-            dataSource={listRecords}
-            pagination={false}
-            loading={{
-              indicator: (
-                <div>
-                  <Spin />
-                </div>
-              ),
-              spinning: isLoading,
-            }}
-            onChange={handleTableChange}
-            rowSelection={rowSelection}
-            expandable={expandable}
-            rowClassName={rowFormatting && rowFormatting.length > 0 ? (record) => {
-              const rawRecord = record.__raw__ || record;
-              const classNames: string[] = [];
-              for (const rule of rowFormatting) {
-                try {
-                  const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
-                  if (match && rule.className) {
-                    classNames.push(rule.className);
-                  }
-                } catch {
-                  // Fail-safe: skip rule on evaluation error
-                }
-              }
-              return classNames.join(' ');
-            } : undefined}
-            onRow={rowFormatting && rowFormatting.length > 0 ? (record) => {
-              const rawRecord = record.__raw__ || record;
-              const rowStyle: React.CSSProperties = {};
-              for (const rule of rowFormatting) {
-                try {
-                  const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
-                  if (match && rule.style) {
-                    Object.assign(rowStyle, rule.style);
-                  }
-                } catch { /* fail-safe */ }
-              }
-              return Object.keys(rowStyle).length > 0 ? { style: rowStyle } : {};
-            } : undefined}
-            locale={{
-              emptyText: (
-                <EmptyState
-                  variant={hasActiveFilters ? 'noResults' : 'noData'}
-                  entityName={entityName}
-                  config={emptyState}
-                  onClearFilters={hasActiveFilters ? clearAllFilters : undefined}
-                  onNavigate={coreNavigate}
-                />
-              ),
-            }}
+          <ViewContainer
+            activeView={useUnifiedSwitcher ? viewState.activeView : (isCardView ? 'card-grid' : 'table')}
+            tableView={
+              <AntTable<IRecord>
+                scroll={{ x: hasPinnedColumns ? 'max-content' : true }}
+                size={antTableSize}
+                components={resizeEnabled ? { header: { cell: ResizableTitle } } : undefined}
+                columns={resolvedColumns}
+                rowKey={recordIdentifierKey}
+                dataSource={listRecords}
+                pagination={false}
+                loading={tableLoading}
+                onChange={handleTableChange}
+                rowSelection={rowSelection}
+                expandable={expandable}
+                rowClassName={tableRowClassName}
+                onRow={tableOnRow}
+                locale={tableLocale}
+              />
+            }
+            cardGridView={resolvedCardConfig ? (
+              <CardView
+                records={listRecords}
+                cardConfig={resolvedCardConfig}
+                recordIdentifierKey={recordIdentifierKey}
+                onRecordClick={handleCardRecordClick}
+              />
+            ) : undefined}
           />
           {/* Pagination: bottom (default) or both */}
           {showPagination && paginationConfig?.position !== 'top' && (
@@ -785,6 +1026,17 @@ export const Table = ({
             </div>
           )}
         </>
+      )}
+      {/* Context menu overlay (#110) */}
+      {contextMenuConfig && (
+        <TableContextMenu
+          {...ctxMenu.menuProps}
+          config={contextMenuConfig}
+          routeParams={routeParams}
+          conditionEvaluator={conditionEvaluator}
+          evaluationContext={evaluationContext}
+          onNavigate={coreNavigate}
+        />
       )}
     </ErrorBoundary>
   );

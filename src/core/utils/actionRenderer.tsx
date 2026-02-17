@@ -9,6 +9,7 @@ import { IPageAction } from "../../table/type";
 import { substituteUrlParams } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
 import { isExternalUrl, resolveAnchorProps } from "../utils/link-utils";
+import { executeCopyToClipboard } from "../utils/copyUtils";
 
 export type MenuItem = Required<MenuProps>[ 'items' ][ number ];
 
@@ -23,6 +24,8 @@ interface RenderActionOptions {
   routeParams?: Record<string, string>;
   primaryIndex?: string;
   record?: Record<string, any>;
+  /** Selected records for bulk actions (copy, etc.) */
+  selectedRecords?: ReadonlyArray<Record<string, any>>;
   onSuccessCallback?: (response?: any) => void;
   onNavigate?: (url: string) => void;
 }
@@ -35,7 +38,10 @@ interface RenderActionOptions {
  * 1. Inline modal config: { openInModal: true, modalConfig: {...} }
  * 2. Route resolution: { openInModal: true, url: "/view-user/:id" }
  */
-export const renderSingleAction = ({
+export function renderSingleAction(opts: RenderActionOptions & { isDropdownItem: true }): MenuItem | null;
+export function renderSingleAction(opts: RenderActionOptions & { isDropdownItem?: false }): React.ReactNode | null;
+export function renderSingleAction(opts: RenderActionOptions): React.ReactNode | MenuItem | null;
+export function renderSingleAction({
   action,
   key,
   isDropdownItem = false,
@@ -46,9 +52,10 @@ export const renderSingleAction = ({
   routeParams = {},
   primaryIndex,
   record,
+  selectedRecords,
   onSuccessCallback,
   onNavigate
-}: RenderActionOptions): React.ReactNode | MenuItem | null => {
+}: RenderActionOptions): React.ReactNode | MenuItem | null {
   // Check if action should be hidden in modal context
   if (isInModal && action.hideInModal) {
     return null;
@@ -244,6 +251,42 @@ export const renderSingleAction = ({
     return drawerTrigger;
   }
 
+  // Pattern: Clipboard copy action (#60)
+  if (action.copyConfig) {
+    const copyConfig = action.copyConfig;
+    const handleCopy = () => {
+      if (isDisabled) return;
+      const records = selectedRecords && selectedRecords.length > 0
+        ? selectedRecords
+        : record ? [ record ] : [];
+      if (records.length === 0) return;
+      executeCopyToClipboard(records, copyConfig);
+    };
+
+    if (isDropdownItem) {
+      return {
+        key,
+        label: evaluatedLabel,
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
+        onClick: handleCopy
+      } as MenuItem;
+    }
+
+    if (isTableRowAction) {
+      return wrapWithTooltip(
+        <a href="#" onClick={(e) => { e.preventDefault(); handleCopy(); }}>
+          <Icon iconName={action.icon || 'copy'} />
+        </a>
+      );
+    }
+
+    return wrapWithTooltip(
+      <Button key={key} type="primary" disabled={isDisabled} onClick={handleCopy}>
+        {evaluatedLabel}
+      </Button>
+    );
+  }
+
   // Pattern 3: Regular navigation
   let url = action.url || '';
 
@@ -304,5 +347,5 @@ export const renderSingleAction = ({
       {evaluatedLabel}
     </Button>
   );
-};
+}
 

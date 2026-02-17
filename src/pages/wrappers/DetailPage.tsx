@@ -8,6 +8,7 @@ import { RefreshControl } from '../../core/common/RefreshControl';
 import { useModalContext } from '../../core/context';
 import { DetailStateProvider } from '../../core/context/DetailStateContext';
 import { useAutoRefresh } from '../../core/hooks';
+
 import { Details, IDetailsComponentProps } from '../../detail/Details';
 import { IPageHeader, PageHeader } from '../PostAuth/PageHeader/PageHeader';
 import { ISectionsConfig, SectionsRenderer } from '../PostAuth/SectionsRenderer';

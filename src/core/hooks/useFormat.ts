@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useUi24Config } from "../context";
 import { Dayjs } from 'dayjs';
 import { dayjsCustom } from "../dayjs";
@@ -8,11 +9,16 @@ export const useFormat = () => {
 
     /**
      * Formats a date using a specified format string.
-     * @param {Date} date - The date to format.
-     * @param {string} type - The format-type to use.
-     * @returns {string} The formatted date.
+     *
+     * Wrapped in useCallback — stable reference that only changes when formatConfig changes.
+     * This prevents infinite re-render loops when used as a dependency in useEffect/useMemo.
+     *
+     * @param {string | Date | Dayjs | number} date - The date to format.
+     * @param {'date' | 'time' | 'datetime'} type - The format-type to use (maps to formatConfig key).
+     * @param {string} timezone - The timezone to use for formatting (default: 'UTC').
+     * @returns {string} The formatted date string, or the original value if invalid/empty.
      */
-    const formatDate = (date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
+    const formatDate = useCallback((date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
         try {
             // Return empty string for null, undefined, or empty values
             if (date === null || date === undefined || date === '') {
@@ -44,30 +50,35 @@ export const useFormat = () => {
             });
             return error.message;
         }
-    }
+    }, [ formatConfig ]);
 
     /**
-     *  Formats a boolean value to a string.
-     * @param value - The boolean value to format.
-     * @returns The formatted boolean value.
-     * 
+     * Formats a boolean value to a string.
+     *
+     * Wrapped in useCallback — stable reference that only changes when formatConfig changes.
+     * This prevents infinite re-render loops when used as a dependency in useEffect/useMemo.
+     *
+     * @param value - The boolean value to format. Accepts boolean, string ('true'/'yes'/'1'), or number (1/0).
+     * @returns The formatted boolean value (e.g., "YES" / "NO"), or the original value if not recognized.
+     *
      * @example
      * ```ts
-     * formatBoolean(true); // returns "YES"
+     * formatBoolean(true);    // returns "YES" (or formatConfig.boolean.true)
+     * formatBoolean(false);   // returns "NO"  (or formatConfig.boolean.false)
+     * formatBoolean('yes');   // returns "YES"
+     * formatBoolean(null);    // returns null (preserves missing data)
      * ```
      */
-    const formatBoolean = (value: unknown): string => {
+    const formatBoolean = useCallback((value: unknown): string => {
         // IMPORTANT: Treat null/undefined as "no value" (not false).
         // The Details view sometimes formats booleans even when backend omits the field,
         // and we must not render "False" for missing data (e.g., audit success is often undefined).
         if (value === null || value === undefined) return value as any;
 
-        // Strict boolean
         if (typeof value === 'boolean') {
             return value ? (formatConfig?.boolean?.true || 'True') : (formatConfig?.boolean?.false || 'False');
         }
 
-        // Common coercions (strings/numbers) for resilience
         if (typeof value === 'string') {
             const v = value.trim().toLowerCase();
             if (v === 'true' || v === 'yes' || v === '1') return formatConfig?.boolean?.true || 'True';
@@ -82,7 +93,7 @@ export const useFormat = () => {
         }
 
         return value as any;
-    }
+    }, [ formatConfig ]);
 
     return { formatDate, formatBoolean };
 };

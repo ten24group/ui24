@@ -1,5 +1,4 @@
 import React from 'react';
-import { useApi } from '../../core/context';
 import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig, ITableApiConfig } from '../type';
@@ -9,8 +8,7 @@ import { PASS_THROUGH_URL_PARAMS } from '../constants';
 import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver';
 import { usePlaceholderContext } from './usePlaceholderContext';
 import { useFormat } from '../../core';
-import { queryClient } from '../../core/query/QueryProvider';
-import { queryKeys } from '../../core/query/queryKeys';
+import { useEntityList } from '../../core/query/useEntityList';
 
 const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
   return url.replace(/:(\w+)/g, (_, param) => params[ param ] || `:${param}`);
@@ -65,6 +63,8 @@ interface IUseTableDataProps {
   isSearchMode: boolean;
   fetchStrategy?: 'eager' | 'lazy';
   pageSize: number;
+  /** Starting page number (optional, defaults to 1) */
+  initialPage?: number;
 }
 
 export const useTableData = ({
@@ -80,42 +80,76 @@ export const useTableData = ({
   isSearchMode,
   fetchStrategy = 'eager',
   pageSize,
+  initialPage,
 }: IUseTableDataProps) => {
-  const [ listRecords, setListRecords ] = React.useState([]);
-  const [ isLoading, setIsLoading ] = React.useState(false);
-  const [ isInitialLoad, setIsInitialLoad ] = React.useState(true);
-  const [ currentPage, setCurrentPage ] = React.useState(1);
+  // ── Pagination state (accumulated across pages, not derivable from a single response) ──
+  const [ currentPage, setCurrentPage ] = React.useState(initialPage || 1);
   const [ pageCursor, setPageCursor ] = React.useState<Record<number, string>>({ 1: "" });
   const [ isLastPage, setIsLastPage ] = React.useState(false);
   const [ totalRecords, setTotalRecords ] = React.useState(0);
-  const [ facetResults, setFacetResults ] = React.useState<Record<string, Record<string, number>>>({});
-  const [ dataUpdatedAt, setDataUpdatedAt ] = React.useState<string | null>(null);
 
-  const { callApiMethod } = useApi();
+  // ── Component-level loading flag with minimum display time ──
+  // The skeleton must be visible long enough for the user to perceive it (≥300ms).
+  // With warm TanStack Query cache, data returns instantly on mount, so a naive
+  // flag would flip in one frame (16ms) — invisible. This approach guarantees the
+  // skeleton renders for at least MIN_SKELETON_MS, matching Detail/Form page UX
+  // where processing takes multiple render cycles.
+  const [ hasReceivedData, setHasReceivedData ] = React.useState(false);
+  const mountTimeRef = React.useRef(Date.now());
+
+  // ── Stable hooks (after root-cause fixes to providers) ──
   const { notifyError } = useAppContext();
   const { formatDate, formatBoolean } = useFormat();
-
   const placeholderContext = usePlaceholderContext(routeParams);
 
-  // Reset pagination when filters, sort, or pageSize change
+  // Skip reset effect on first mount — initial state already correct
+  const isFirstMount = React.useRef(true);
+
+  // Tracks the last-processed rawResponse to avoid redundant pagination state updates.
+  // Declared here (before the reset effect) because the reset effect needs to clear it
+  // when mode/filter changes occur, ensuring the next response is always processed.
+  const prevRawResponseRef = React.useRef<Record<string, unknown> | null>(null);
+
+  // Reset pagination when filters, sort, pageSize, or search mode change.
+  // isSearchMode is included because switching between database/search endpoints
+  // invalidates the cursor state (database cursors are meaningless for search, and vice versa).
+  // Also clears prevRawResponseRef so the pagination side-effect processes the
+  // next response from the new query (prevents stale ref from blocking updates).
   React.useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
     setPageCursor({ 1: "" });
     setCurrentPage(1);
-  }, [ appliedFilters, sort, pageSize ]);
+    setIsLastPage(false);
+    setTotalRecords(0);
+    prevRawResponseRef.current = null;
+  }, [ appliedFilters, sort, pageSize, isSearchMode ]);
 
-  const identifierColumns = React.useMemo(() => propertiesConfig.filter(property => property.isIdentifier), [ propertiesConfig ]);
-  const formattingColumns = React.useMemo(() => propertiesConfig.filter(property =>
-    [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle', 'json' ]
-      .includes(property.fieldType?.toLocaleLowerCase())
-  ), [ propertiesConfig ]);
+  const currentCursor = pageCursor[ currentPage ] || '';
 
-  const getSortString = () => {
+  // ── Derived column configs (stable when propertiesConfig is stable) ──
+  const identifierColumns = React.useMemo(
+    () => propertiesConfig.filter(property => property.isIdentifier),
+    [ propertiesConfig ]
+  );
+
+  const formattingColumns = React.useMemo(
+    () => propertiesConfig.filter(property =>
+      [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle', 'json' ]
+        .includes(property.fieldType?.toLocaleLowerCase())
+    ),
+    [ propertiesConfig ]
+  );
+
+  const getSortString = React.useCallback(() => {
     if (!sort.length) return '';
     return sort
       .map(s => s.field && s.order ? `${s.field as string}:${s.order === 'ascend' ? 'asc' : 'desc'}` : null)
       .filter(Boolean)
       .join(',');
-  };
+  }, [ sort ]);
 
   // Derive entity name from apiUrl for React Query cache keying
   const entityName = React.useMemo(() => {
@@ -125,36 +159,26 @@ export const useTableData = ({
     return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
   }, [ apiConfig.apiUrl ]);
 
-  // Keep callApiMethod in a ref so the fetchQuery callback always has the latest reference
-  const callApiMethodRef = React.useRef(callApiMethod);
-  callApiMethodRef.current = callApiMethod;
+  // ── Reactive API URL ──
+  const apiUrl = React.useMemo(
+    () => replaceUrlParams(apiConfig.apiUrl, routeParams),
+    [ apiConfig.apiUrl, routeParams ]
+  );
 
-  // Keep pageCursor in a ref so fetchRecords doesn't need it as a dependency.
-  // pageCursor changes on every successful page fetch (new cursor saved), which would
-  // cascade: new fetchRecords → new handleRefresh/handleReload → new usePagination props.
-  // Callers almost always pass forceCursor explicitly; the ref is only a fallback.
-  const pageCursorRef = React.useRef(pageCursor);
-  pageCursorRef.current = pageCursor;
-
-  const fetchRecords = React.useCallback(async (pageNumber: number = 1, forceCursor?: string, filtersOverride?: Record<string, any>, options?: { forceRefresh?: boolean }) => {
-    const apiUrl = replaceUrlParams(apiConfig.apiUrl, routeParams);
-    const isSearchActive = isSearchMode;
-    const sortString = getSortString();
-    const currentPageCursor = forceCursor !== undefined ? forceCursor : pageCursorRef.current[ pageNumber ] || "";
-
-    const effectiveFilters = filtersOverride !== undefined ? filtersOverride : appliedFilters;
-    const resolvedFilters = resolveFilterPlaceholders(effectiveFilters, placeholderContext);
+  // ── Build request payload reactively ──
+  const payload = React.useMemo(() => {
+    const resolvedFilters = resolveFilterPlaceholders(appliedFilters, placeholderContext);
     const filterPayload = getFilterPayload(resolvedFilters, apiConfig.apiMethod);
 
-    const payload: Record<string, any> = {
+    const p: Record<string, any> = {
       ...filterPayload,
     };
 
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
       urlParams.forEach((value, key) => {
-        if (PASS_THROUGH_URL_PARAMS.includes(key as any)) {
-          payload[ key ] = value;
+        if ((PASS_THROUGH_URL_PARAMS as readonly string[]).includes(key)) {
+          p[ key ] = value;
         }
       });
     }
@@ -163,149 +187,193 @@ export const useTableData = ({
       const identifierColumnKeys = identifierColumns.map(c => c.dataIndex);
       const attributes = Array.from(new Set([ ...visibleColumns, ...identifierColumnKeys ]));
       if (attributes.length > 0) {
-        payload.attributes = attributes.join(',');
+        p.attributes = attributes.join(',');
       }
     }
 
-    if (isSearchActive) {
-      payload.q = searchQuery;
-      payload.page = pageNumber;
-      payload.hitsPerPage = pageSize;
+    const sortString = getSortString();
+
+    if (isSearchMode) {
+      p.q = searchQuery;
+      p.page = currentPage;
+      p.hitsPerPage = pageSize;
       if (sortString) {
-        payload.sort = sortString;
+        p.sort = sortString;
       }
       if (facetedColumns.length > 0) {
-        payload.facets = facetedColumns.join(',');
+        p.facets = facetedColumns.join(',');
       }
     } else {
-      payload.cursor = currentPageCursor;
-      payload.count = pageSize;
+      p.cursor = currentCursor;
+      p.count = pageSize;
       if (sort.length > 0 && sort[ 0 ].order) {
-        payload.order = sort[ 0 ].order === 'ascend' ? 'asc' : 'desc';
+        p.order = sort[ 0 ].order === 'ascend' ? 'asc' : 'desc';
       } else if (typeof apiConfig.defaultSort === 'string') {
-        payload.order = apiConfig.defaultSort;
+        p.order = apiConfig.defaultSort;
       }
     }
 
-    setIsLoading(true);
+    return p;
+  }, [ appliedFilters, placeholderContext, apiConfig.apiMethod, apiConfig.defaultSort,
+    fetchStrategy, identifierColumns, visibleColumns, isSearchMode, searchQuery,
+    currentPage, pageSize, sort, facetedColumns, currentCursor, getSortString ]);
 
-    try {
-      // Use queryClient.fetchQuery for imperative fetching with React Query caching.
-      // This gives us deduplication and short-term caching while keeping the
-      // imperative fetchRecords(page, cursor) interface the table expects.
-      const cacheKey = queryKeys.entity(entityName).list({
-        apiUrl,
-        filters: payload,
-        sort: payload.sort || payload.order,
-        page: payload.page,
-        cursor: payload.cursor,
-        pageSize: payload.count || payload.hitsPerPage,
-        search: payload.q,
-        attributes: payload.attributes,
-      });
+  // ── Centralized data fetching via useEntityList ──
+  const {
+    data: rawRecords,
+    rawResponse,
+    isFetching: queryIsFetching,
+    error,
+    invalidate,
+    dataUpdatedAt,
+  } = useEntityList({
+    entityName,
+    apiConfig,
+    apiUrl,
+    payload,
+    staleTime: 15_000,
+  });
 
-      // When the user explicitly triggers a refresh (Refresh Data, Reset, auto-refresh timer),
-      // invalidate the cache so fetchQuery always hits the server.
-      if (options?.forceRefresh) {
-        await queryClient.invalidateQueries({ queryKey: cacheKey });
-      }
+  // ── Process records: formatting, identifiers (derived via useMemo, no setState) ──
+  const listRecords = React.useMemo(() => {
+    if (!rawResponse) return [];
 
-      const responseData = await queryClient.fetchQuery({
-        queryKey: cacheKey,
-        queryFn: async () => {
-          const response: any = await callApiMethodRef.current({
-            ...apiConfig,
-            apiUrl,
-            payload,
-          });
+    const sourceRecords = isSearchMode
+      ? (rawResponse.items || [])
+      : (rawRecords || []);
 
-          if (response?.status === 200) {
-            return response.data;
-          }
+    if (!Array.isArray(sourceRecords)) return [];
 
-          throw response;
-        },
-        staleTime: 15 * 1000, // 15s — short for list data that changes often
-      });
+    return sourceRecords.map((record: any) => {
+      // Shallow clone to avoid mutating cached objects
+      const processed: any = { ...record };
+      processed.__raw__ = { ...record };
 
-      const rawRecords = isSearchActive ? responseData.items
-        : apiConfig.responseKey ? responseData[ apiConfig.responseKey ] : responseData;
+      formattingColumns.forEach((property) => {
+        const nestedValue = getNestedValue(processed, property.dataIndex);
 
-      if (isSearchActive && responseData.facets) {
-        setFacetResults(responseData.facets);
-      }
-
-      // Shallow-clone each record to avoid mutating React Query cached objects.
-      // fetchQuery returns cached references within staleTime — mutating them in-place
-      // causes already-formatted values (e.g. dates) to be re-formatted on the next
-      // cache hit, producing garbled results.
-      const records = (rawRecords || []).map((r: any) => ({ ...r }));
-
-      records.forEach((record: any) => {
-        record.__raw__ = { ...record };
-
-        formattingColumns.forEach((property) => {
-          const nestedValue = getNestedValue(record, property.dataIndex);
-
-          if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
-            record[ property.dataIndex ] = '';
-            return;
-          }
-
-          record[ property.dataIndex ] = nestedValue;
-
-          if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
-            const itemValue = nestedValue.toString().startsWith('0') ?
-              new Date(parseInt(nestedValue)).toISOString() :
-              nestedValue;
-            record[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as any);
-          } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
-            if (typeof nestedValue === 'boolean') {
-              record[ property.dataIndex ] = formatBoolean(nestedValue);
-            }
-          } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
-            const itemValue = nestedValue;
-            record[ property.dataIndex ] = typeof itemValue !== 'string' ? JSON.stringify(itemValue, null, 2) : itemValue;
-          }
-        });
-
-        const identifiers = identifierColumns.map(column => ({
-          [ column.dataIndex ]: getNestedValue(record, column.dataIndex)
-        }));
-
-        record[ recordIdentifierKey ] = JSON.stringify(identifiers);
-      });
-
-      setListRecords(records);
-      setCurrentPage(pageNumber);
-      setDataUpdatedAt(new Date().toISOString());
-
-      if (isSearchActive) {
-        setTotalRecords(responseData.total);
-      } else {
-        if (responseData?.cursor) {
-          setPageCursor(prev => ({ ...prev, [ pageNumber + 1 ]: responseData.cursor }));
+        if (nestedValue === null || nestedValue === undefined || nestedValue === '') {
+          processed[ property.dataIndex ] = '';
+          return;
         }
-        // Detect last page: no cursor returned (null/undefined/empty) OR partial page
-        // (fewer records than pageSize — the API returned less than we asked for)
-        setIsLastPage(!responseData?.cursor || records.length < pageSize);
+
+        processed[ property.dataIndex ] = nestedValue;
+
+        if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
+          const itemValue = nestedValue.toString().startsWith('0')
+            ? new Date(parseInt(nestedValue)).toISOString()
+            : nestedValue;
+          processed[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as 'date' | 'datetime' | 'time');
+        } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
+          if (typeof nestedValue === 'boolean') {
+            processed[ property.dataIndex ] = formatBoolean(nestedValue);
+          }
+        } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
+          processed[ property.dataIndex ] = typeof nestedValue !== 'string'
+            ? JSON.stringify(nestedValue, null, 2)
+            : nestedValue;
+        }
+      });
+
+      const identifiers = identifierColumns.map(column => ({
+        [ column.dataIndex ]: getNestedValue(processed, column.dataIndex)
+      }));
+      processed[ recordIdentifierKey ] = JSON.stringify(identifiers);
+
+      return processed;
+    });
+  }, [ rawResponse, rawRecords, isSearchMode, formattingColumns, identifierColumns,
+    recordIdentifierKey, formatDate, formatBoolean ]);
+
+  // ── Mark data as received (drives skeleton → table transition) ──
+  // Ensures the skeleton is visible for a minimum duration so users perceive it.
+  // Cold cache (slow API): skeleton shows while fetching, disappears when data arrives.
+  // Warm cache (instant data): skeleton shows for MIN_SKELETON_MS then disappears.
+  const MIN_SKELETON_MS = 300;
+  React.useEffect(() => {
+    if (!rawResponse || hasReceivedData) return;
+
+    const elapsed = Date.now() - mountTimeRef.current;
+    if (elapsed >= MIN_SKELETON_MS) {
+      // Enough time has passed (slow API) — show data immediately
+      setHasReceivedData(true);
+    } else {
+      // Data arrived too fast (warm cache) — wait for minimum display time
+      const timer = setTimeout(() => setHasReceivedData(true), MIN_SKELETON_MS - elapsed);
+      return () => clearTimeout(timer);
+    }
+  }, [ rawResponse, hasReceivedData ]);
+
+  // ── Pagination side-effect: update cursor map from response ──
+  React.useEffect(() => {
+    if (!rawResponse || rawResponse === prevRawResponseRef.current) return;
+    prevRawResponseRef.current = rawResponse;
+
+    if (isSearchMode) {
+      setTotalRecords(rawResponse.total || 0);
+    } else {
+      if (rawResponse.cursor) {
+        setPageCursor(prev => {
+          if (prev[ currentPage + 1 ] === rawResponse.cursor) return prev;
+          return { ...prev, [ currentPage + 1 ]: rawResponse.cursor };
+        });
       }
-    } catch (error) {
+      setIsLastPage(!rawResponse.cursor || (listRecords.length) < pageSize);
+    }
+  }, [ rawResponse, listRecords.length, isSearchMode, currentPage, pageSize ]);
+
+  // ── Error notification ──
+  React.useEffect(() => {
+    if (error) {
       const errorResult = handleApiError(error, 'Failed to fetch records');
       notifyError(errorResult.errorMessage);
       console.error('Error fetching records:', error);
-    } finally {
-      setIsLoading(false);
-      setIsInitialLoad(false);
     }
-  // pageCursor is accessed via pageCursorRef (avoids cascading recreations on every cursor update)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ apiConfig, routeParams, appliedFilters, searchQuery, sort, visibleColumns, facetedColumns, identifierColumns, formattingColumns, notifyError, formatDate, formatBoolean, recordIdentifierKey, isSearchMode, pageSize, entityName ]);
+  }, [ error, notifyError ]);
+
+  // ── Facets (derived) ──
+  const facetResults = React.useMemo(() => {
+    if (!rawResponse?.facets) return {};
+    return rawResponse.facets;
+  }, [ rawResponse ]);
+
+  // ── fetchRecords: sets state to trigger reactive refetch via payload change ──
+  // When pagination calls fetchRecords(page, cursor), it sets the cursor and page
+  // synchronously. The payload memo recomputes → queryKey changes → useQuery refetches.
+  // When forceRefresh is requested (manual reload), we invalidate the cache AFTER
+  // updating state, so both updates batch into a single render and the refetch uses
+  // the correct (new) query key.
+  //
+  // Note: filters are NOT passed here — they flow reactively through `appliedFilters`
+  // prop → payload memo → queryKey. Callers should `setAppliedFilters()` before calling
+  // this function; React batches both state updates into a single render.
+  const fetchRecords = React.useCallback(async (
+    pageNumber: number = 1,
+    forceCursor?: string,
+    options?: { forceRefresh?: boolean }
+  ) => {
+    if (forceCursor !== undefined) {
+      setPageCursor(prev => ({ ...prev, [ pageNumber ]: forceCursor }));
+    }
+    setCurrentPage(pageNumber);
+    // Invalidate AFTER state updates so React batches them into one render.
+    // The subsequent re-render computes a new queryKey (with updated page/cursor),
+    // and the invalidated cache ensures a fresh fetch for that key.
+    if (options?.forceRefresh) {
+      await invalidate();
+    }
+  }, [ invalidate ]);
 
   return {
     listRecords,
-    isLoading,
-    isInitialLoad,
+    // isFetching = true during ANY fetch (initial, refetch, pagination, reload).
+    // This drives the antd Table's spinning overlay indicator.
+    isLoading: queryIsFetching,
+    // Component-level flag: false until the first API response arrives after mount.
+    // Unlike TanStack Query's isLoading (which is false when cache is warm), this
+    // resets on every mount, ensuring the skeleton always shows during navigation
+    // between entities — matching the behavior of detail and form pages.
+    isInitialLoad: !hasReceivedData,
     currentPage,
     pageCursor,
     isLastPage,
@@ -313,6 +381,6 @@ export const useTableData = ({
     facetResults,
     fetchRecords,
     pageSize,
-    dataUpdatedAt,
+    dataUpdatedAt: dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : null,
   };
 };

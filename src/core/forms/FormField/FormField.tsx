@@ -8,6 +8,7 @@ import { IFormField, IFormFieldResponse, IPreDefinedValidations } from '../../ty
 import { useFieldRenderer, type FormFieldConfig } from '../../registry';
 import { resolveStringOrDefault } from '../../types/evaluation';
 import { fieldTypeRegistry } from '../../registry/FieldTypeRegistry';
+import { useRenderPipeline } from '../../rendering';
 import '../../registry/field-types'; // ensure built-in registrations run
 import type { BuiltInFormFieldProps } from '../../registry/field-types/types';
 
@@ -39,10 +40,66 @@ const MakeFormItem = ({
     setFormValue,
     addNewOption,
     defaultValue: _defaultValue, // extract to prevent leaking into Form.Item children (antd warns about defaultValue on controlled fields)
+    dependsOn,
     ...restFormItemProps
 }: ResolvedFormField) => {
 
     const { selectConfig } = useUi24Config();
+
+    // #3 Field dependency resolution: watch fields listed in `dependsOn`
+    // and build `dependencyFilters` passed to OptionSelector for cascading selects
+    const form = Form.useFormInstance();
+
+    // Rendering pipeline (#95) — unified renderer selection + smart defaults + formatting
+    // Pass actual form values as the record context so formatting conditions can evaluate
+    const { processField } = useRenderPipeline({ renderContext: 'form' });
+    const formValues = form?.getFieldsValue(true) || {};
+    const fieldConfig = { fieldType, name, label, placeholder, helpText, ...restFormItemProps };
+    const pipelineResult = processField(fieldConfig, initialValue, formValues);
+    const dependencyFilters = React.useMemo(() => {
+        if (!dependsOn || !form) return undefined;
+        const deps = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
+        const filters: Record<string, unknown> = {};
+        let hasValue = false;
+        for (const dep of deps) {
+            const val = form.getFieldValue(dep);
+            if (val !== undefined && val !== null && val !== '') {
+                filters[dep] = val;
+                hasValue = true;
+            }
+        }
+        return hasValue ? filters : undefined;
+    }, [dependsOn, form]);
+
+    // Force re-render when dependency fields change by watching all form values
+    // (antd's Form.useWatch with no specific field watches all values)
+    const watchedDeps = Form.useWatch(
+        dependsOn
+            ? (values: Record<string, unknown>) => {
+                const deps = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
+                return deps.map(d => values?.[d]);
+              }
+            : () => null,
+        form
+    );
+
+    // Clear this field's value when parent dependency value changes (#3)
+    const prevDepsRef = React.useRef<unknown[] | null>(null);
+    React.useEffect(() => {
+        if (!dependsOn || !form || !watchedDeps) return;
+        // Skip first render (don't clear on mount)
+        if (prevDepsRef.current === null) {
+            prevDepsRef.current = watchedDeps;
+            return;
+        }
+        // Check if any dependency value actually changed
+        const changed = watchedDeps.some((v: unknown, i: number) => v !== prevDepsRef.current?.[i]);
+        if (changed) {
+            form.setFieldValue(name, undefined);
+            prevDepsRef.current = watchedDeps;
+        }
+    }, [watchedDeps, dependsOn, form, name]);
+
     const formatConfig = selectConfig(config => config.formatConfig);
     const { Component: CustomFieldRenderer, props: customFieldProps } = useFieldRenderer('' + (fieldType || ''), 'form', {
         fieldName: name,
@@ -63,8 +120,11 @@ const MakeFormItem = ({
         ? <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}<HelpIcon help={help} /></span>
         : label;
 
+    // Apply formatting metadata from pipeline (#95/#26)
+    const { _formattingStyles, _formattingClassName, _registryDefaults } = pipelineResult.resolvedProps;
+
     if (CustomFieldRenderer && customFieldProps) {
-        return <>
+        const customContent = <>
             <Form.Item
                 name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
                 rules={validationRules}
@@ -76,13 +136,18 @@ const MakeFormItem = ({
             </Form.Item>
             <HelpText help={help} />
         </>;
+        // Apply formatting if present
+        if (_formattingStyles || _formattingClassName) {
+            return <div style={_formattingStyles} className={_formattingClassName}>{customContent}</div>;
+        }
+        return customContent;
     }
 
-    // Built-in field types — lookup from registry
+    // Built-in field types — lookup from registry (properly typed)
     const BuiltInRenderer = fieldTypeRegistry.get(fieldType || 'text', 'form');
 
-    // Merge smart defaults from registry (#98): defaults < entity config < explicit props
-    const smartDefaults = fieldTypeRegistry.getDefaults(fieldType || 'text', 'form');
+    // Merge smart defaults from pipeline (#95/#98): defaults < entity config < explicit props
+    const smartDefaults = _registryDefaults ?? fieldTypeRegistry.getDefaults(fieldType || 'text', 'form');
 
     const builtInProps: BuiltInFormFieldProps = {
         ...(smartDefaults || {}),
@@ -98,9 +163,10 @@ const MakeFormItem = ({
         label,
         helpText,
         ...restFormItemProps,
+        dependencyFilters,
     };
 
-    return <>
+    const formItemContent = <>
         <Form.Item
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
@@ -114,7 +180,14 @@ const MakeFormItem = ({
             }
         </Form.Item>
         <HelpText help={help} />
-    </>
+    </>;
+
+    // Wrap with formatting styles/className if pipeline produced them
+    if (_formattingStyles || _formattingClassName) {
+        return <div style={_formattingStyles} className={_formattingClassName}>{formItemContent}</div>;
+    }
+
+    return formItemContent;
 }
 
 const MakeFormListItem = ({

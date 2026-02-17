@@ -27,7 +27,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
             <span style={{ cursor: 'help' }}>{item.name}</span>
           </Tooltip>
         ) : item.name,
-        dataIndex: item.dataIndex,
+        dataIndex: item.composite?.fields?.[0] || item.dataIndex,
         key: item.dataIndex,
         name: item.name,  // Preserve name for RelationFieldRenderer label
         fieldType: item.fieldType,
@@ -39,6 +39,10 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
         template: item.template,  // For template-based rendering
         groupTitle: item.groupTitle,  // For column grouping
         durationUnit: item.durationUnit,  // For duration field rendering
+        composite: item.composite,  // For composite multi-field rendering (#28)
+        copyable: item.copyable,  // For clipboard integration (#60)
+        renderer: item.renderer,  // For custom renderer selection
+        rendererConfig: item.rendererConfig,  // For custom renderer config
       }
 
       return column;

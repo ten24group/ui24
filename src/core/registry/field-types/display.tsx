@@ -227,6 +227,9 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
 };
 
 // Table renderers
+import { Button } from 'antd';
+import { OrderedListOutlined } from '@ant-design/icons';
+import { createModalConfig } from '../../../table/utils/modalConfigHelper';
 import type { BuiltInTableFieldProps } from './types';
 
 const ColorTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
@@ -279,6 +282,30 @@ const IconTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
   return IconComp ? <IconComp style={{ fontSize: 18 }} /> : <span>{String(value)}</span>;
 };
 
+/** Table renderer for list-type fields (non-multi-select) */
+const ListTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
+  if (!Array.isArray(value) || value.length === 0) return <span>—</span>;
+
+  // Simple string/number array — show inline if short
+  if (value.every(item => typeof item === 'string' || typeof item === 'number')) {
+    if (value.length === 1) return <span>{String(value[0])}</span>;
+    if (value.length <= 3) return <span>{value.join(', ')}</span>;
+  }
+
+  // Complex or long array — show in modal
+  const dataKey = column?.column || column?.name || 'value';
+  const detailsConfig = createModalConfig(undefined, value, { dataIndex: dataKey }, 'list');
+  const columnName = (typeof column?.label === 'string' ? column.label : undefined) || dataKey;
+
+  return (
+    <OpenInModal modalType="details" modalTitle={columnName} modalWidth={800} modalPageConfig={detailsConfig}>
+      <Button size="small" icon={<OrderedListOutlined />} type="link">
+        View ({value.length})
+      </Button>
+    </OpenInModal>
+  );
+};
+
 export const displayRegistrations: Record<string, FieldTypeRegistration> = {
   color: { form: ColorForm, detail: ColorDetail, table: ColorTable },
   badge: { form: BadgeForm, detail: BadgeDetail, table: BadgeTable },
@@ -288,4 +315,5 @@ export const displayRegistrations: Record<string, FieldTypeRegistration> = {
   avatar: { detail: AvatarDetail, table: AvatarTable },
   icon: { detail: IconDetail, table: IconTable },
   timeline: { detail: TimelineDetail },
+  list: { table: ListTable },
 };

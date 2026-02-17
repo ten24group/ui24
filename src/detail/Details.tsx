@@ -95,18 +95,19 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Descriptions, DescriptionsProps, List, Skeleton, Spin } from 'antd';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Spin, Typography } from 'antd';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+import { PageSkeleton } from '../core/common/PageSkeleton';
 import { useParams } from "react-router-dom";
-import { CustomBlockNoteEditor, ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../core/common';
-import { IApiConfig, useApi, useAppContext } from '../core/context';
+import { ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../core/common';
+import { IApiConfig, useAppContext } from '../core/context';
 import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
-import { handleApiError } from '../core/utils/api-error-handler';
+import { handleApiError, isHttpStatus } from '../core/utils/api-error-handler';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';
 import { detailsStyles } from './styles';
@@ -118,13 +119,48 @@ import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer'
 import { useCoreNavigator } from '../routes/Navigation';
 import { evaluateTemplate } from '../core/utils/template';
 import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from '../core/registry';
-import { queryClient } from '../core/query/QueryProvider';
-import { queryKeys } from '../core/query/queryKeys';
+import { useEntityDetail } from '../core/query/useEntityDetail';
 import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
+import { useRenderPipeline } from '../core/rendering';
 import '../core/registry/field-types'; // ensure built-in registrations run
+
+// Stable empty object to avoid re-creating {} on every render (used as default for routeParams)
+const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
+
+/**
+ * Recursively deserialize JSON strings embedded in values.
+ * Handles nested strings that may contain JSON (e.g., DynamoDB metadata
+ * stored as serialized JSON strings within a map field).
+ *
+ * Pure function — no component dependencies, safe at module scope.
+ */
+const deserializeJsonStrings = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return deserializeJsonStrings(parsed);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  } else if (Array.isArray(value)) {
+    return value.map(item => deserializeJsonStrings(item));
+  } else if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [ key, val ] of Object.entries(value)) {
+      result[ key ] = deserializeJsonStrings(val);
+    }
+    return result;
+  }
+  return value;
+};
 
 /**
  * Reusable wrapper for each field in the detail view.
@@ -135,20 +171,39 @@ const DetailsFieldWrapper: React.FC<{
   item: IPropertiesConfig;
   index: number;
   children: React.ReactNode;
-}> = ({ item, index, children }) => {
+  resolvedLabel?: string;
+  formattingStyles?: Record<string, string | number>;
+  formattingClassName?: string;
+}> = ({ item, index, children, resolvedLabel, formattingStyles, formattingClassName }) => {
   const help = resolveHelpConfig({
     helpText: resolveStringOrDefault(item.helpText),
     help: item.help,
   });
 
+  // When copyable, wrap the value content with Typography.Text copyable
+  // Pass explicit text to ensure the raw value is copied (not the rendered children markup)
+  const content = item.copyable && item.initialValue != null
+    ? (
+      <Typography.Text
+        copyable={{ text: String(item.initialValue), tooltips: ['Copy', 'Copied'] }}
+        style={{ display: 'inline' }}
+      >
+        {children}
+      </Typography.Text>
+    )
+    : children;
+
+  const displayLabel = resolvedLabel ?? resolveStringOrDefault(item.label);
+  const containerClassName = ['details-field-container', formattingClassName].filter(Boolean).join(' ');
+
   return (
-    <div key={index} className="details-field-container">
+    <div key={index} className={containerClassName} style={formattingStyles}>
       <div className="details-field-label">
-        {resolveStringOrDefault(item.label)}
+        {displayLabel}
         <HelpIcon help={help} />
       </div>
       <HelpText help={help} />
-      {children}
+      {content}
     </div>
   );
 };
@@ -193,6 +248,8 @@ export interface IDetailsComponentProps extends IDetailsConfig {
   detailResponse?: any;  // Pre-provided response data (bypasses API call)
   onDataChange?: (data: { record?: any; pageType?: string; entityName?: string; dataUpdatedAt?: string }) => void;
   refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
+  /** Loading state configuration (#57) */
+  loading?: { type: 'skeleton' | 'spinner'; rows?: number };
 }
 
 /**
@@ -221,69 +278,28 @@ const Details: React.FC<IDetailsComponentProps> = ({
   detailApiConfig,
   identifiers,
   columnsConfig,
-  routeParams = {},
+  routeParams = EMPTY_ROUTE_PARAMS,
   detailResponse: initialDetailResponse,
   entityName,  // From backend config
   onDataChange,  // Callback to lift state to wrapper
   refreshRef,  // Ref to expose refresh function to wrapper
+  loading: loadingConfig,  // Loading state configuration (#57)
 }) => {
-  const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
-  const [ detailResponse, setDetailResponse ] = useState<any>(initialDetailResponse || null)
-  // TODO: remove the dynamic-id option from here and use the identifiers prop instead
+  // TODO(#7): Remove dynamicID fallback once all routes pass `identifiers` prop explicitly.
+  // Currently, some routes use :dynamicID as the URL param and rely on this fallback.
+  // Requires backend config generation to consistently set `identifiers` on detail pages.
   const { dynamicID } = useParams()
   const { notifyError } = useAppContext();
-  const { callApiMethod } = useApi();
-  const [ dataLoaded, setDataLoaded ] = useState(false);
-  const [ isRefreshing, setIsRefreshing ] = useState(false);  // Separate loading state for refresh
   const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
-  const [ recordNotFound, setRecordNotFound ] = useState(false);
   const { resolveConfigRef } = useEntityConfig();
   const { formatDate, formatBoolean } = useFormat();
   const coreNavigate = useCoreNavigator();
+
+  // Rendering pipeline (#95) — provides processField() for unified label resolution, formatting metadata
+  const { processField } = useRenderPipeline({ renderContext: 'detail', routeParams: routeParams || {} });
   // NOTE: registry resolution is handled via getFieldRenderer() (non-hook, safe for loops)
 
-  // Lift detail state to wrapper (if callback provided)
-  useEffect(() => {
-    if (!onDataChange || !detailResponse) return;
-
-    onDataChange({
-      record: detailResponse,
-      pageType: 'view',
-      entityName,
-      dataUpdatedAt: dataUpdatedAt || undefined,
-    });
-  }, [ detailResponse, entityName, onDataChange, dataUpdatedAt ]);
-
-  // Utility function to recursively deserialize JSON strings
-  const deserializeJsonStrings = (value: any): any => {
-    if (typeof value === 'string') {
-      // Check if the string looks like JSON
-      const trimmed = value.trim();
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          // Recursively deserialize nested strings
-          return deserializeJsonStrings(parsed);
-        } catch {
-          // If parsing fails, return the original string
-          return value;
-        }
-      }
-      return value;
-    } else if (Array.isArray(value)) {
-      return value.map(item => deserializeJsonStrings(item));
-    } else if (value && typeof value === 'object') {
-      const result: any = {};
-      for (const [ key, val ] of Object.entries(value)) {
-        result[ key ] = deserializeJsonStrings(val);
-      }
-      return result;
-    }
-    return value;
-  };
-
-  const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
+  const valueFormatter = useCallback((item: IPropertiesConfig, itemData: any) => {
     let initialValue = itemData;
 
     // First, try to deserialize any JSON strings
@@ -293,13 +309,18 @@ const Details: React.FC<IDetailsComponentProps> = ({
     // JsonDescription will handle depth detection and rendering automatically
     if (item?.type === "map" && Array.isArray(item.properties) && item.properties.length > 0) {
       initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
-        //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
+        // TODO(#7): `prop.column` is overloaded — it's the data access key AND the antd
+        // Descriptions column layout prop. Needs a dedicated `dataKey` field in IDetailFieldConfig
+        // to disambiguate. Part of the Type Safety initiative.
         acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
         return acc;
       }, {});
 
     } else if (item?.type === "list") {
-      initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
+      // item.items is { type, properties } — a structural subset of IDetailFieldConfig.
+      // Cast is safe because valueFormatter only reads type/properties/items/fieldType
+      // from the first argument, and the missing fields simply don't trigger format branches.
+      initialValue = itemData?.map((it: unknown) => valueFormatter(item.items as IDetailFieldConfig, it)) ?? [];
     } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
       // Skip formatting if value is null/undefined/empty
       if (initialValue == null || initialValue === '') {
@@ -323,34 +344,15 @@ const Details: React.FC<IDetailsComponentProps> = ({
       // Auto-detect boolean values even if fieldType is missing
       // This makes the UI more resilient to missing fieldType configurations
       initialValue = formatBoolean(itemData);
-    } else if (item?.fieldType === 'number') {
-      // format number values
+    } else if (item?.fieldType === 'number' || item?.fieldType === 'range' || item?.fieldType === 'rating') {
+      // Coerce numeric field types to actual numbers
       initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-    } else if (item?.fieldType === 'color') {
-      // format color values - keep as is for display
-      initialValue = initialValue;
-    } else if (item?.fieldType === 'range') {
-      // format range values
-      initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-    } else if (item?.fieldType === 'rating') {
-      // format rating values
-      initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-    } else if ([ 'code', 'markdown', 'json' ].includes(item?.fieldType)) {
-      // format code/markdown/json values - keep as is for display
-      initialValue = initialValue;
-    } else if ([ 'rich-text', 'wysiwyg' ].includes(item?.fieldType)) {
-      // format rich text values - keep as is for display
-      initialValue = initialValue;
-    } else if ([ 'file', 'image' ].includes(item?.fieldType)) {
-      // format file/image values - keep as is for display
-      initialValue = initialValue;
-    } else if ([ 'hidden', 'custom' ].includes(item?.fieldType)) {
-      // format hidden/custom values - keep as is for display
-      initialValue = initialValue;
     }
+    // All other field types (color, code, markdown, json, rich-text, wysiwyg,
+    // file, image, hidden, custom) pass through unchanged — no formatting needed.
 
     return initialValue;
-  }
+  }, [ formatDate, formatBoolean ]);
 
   // Derive entity name from apiUrl for React Query cache keying
   const detailEntityName = React.useMemo(() => {
@@ -361,177 +363,98 @@ const Details: React.FC<IDetailsComponentProps> = ({
     return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
   }, [ detailApiConfig?.apiUrl, entityName ]);
 
-  // Store callApiMethod in a ref for use in queryFn
-  const callApiMethodRef = React.useRef(callApiMethod);
-  callApiMethodRef.current = callApiMethod;
+  // ── Declarative data fetching via useEntityDetail ──
+  const identifier = identifiers || dynamicID;
 
-  // Standard data fetch function (can be called on mount or on-demand)
-  const fetchRecordInfo = React.useCallback(async (showLoader = true) => {
-    if (showLoader) {
-      setIsRefreshing(true);
+  const resolvedApiUrl = useMemo(() => {
+    if (!detailApiConfig?.apiUrl) return '';
+    return substituteUrlParams(detailApiConfig.apiUrl, routeParams, identifier);
+  }, [ detailApiConfig?.apiUrl, routeParams, identifier ]);
+
+  const cacheIdentifiers = useMemo((): Record<string, string> => {
+    const ids: Record<string, string> = {};
+    if (identifier) ids.id = String(identifier);
+    if (routeParams) Object.entries(routeParams).forEach(([ k, v ]) => { ids[ k ] = String(v); });
+    return ids;
+  }, [ identifier, routeParams ]);
+
+  const {
+    data: fetchedData,
+    isLoading: detailLoading,
+    isFetching: detailFetching,
+    error: detailError,
+    refetch: refetchDetail,
+  } = useEntityDetail({
+    entityName: detailEntityName,
+    apiConfig: detailApiConfig || { apiUrl: '', apiMethod: 'GET' },
+    apiUrl: resolvedApiUrl,
+    identifiers: cacheIdentifiers,
+    enabled: !!detailApiConfig && !!resolvedApiUrl && !initialDetailResponse,
+    staleTime: 30 * 1000,
+  });
+
+  // Source data: pre-loaded takes priority over fetched
+  const detailResponse = initialDetailResponse || fetchedData || null;
+
+  // Detect record-not-found (404 or empty response)
+  const recordNotFound = useMemo(() => {
+    if (detailError && isHttpStatus(detailError, 404)) {
+      return true;
     }
+    if (!initialDetailResponse && fetchedData !== undefined &&
+      fetchedData && typeof fetchedData === 'object' && Object.keys(fetchedData).length === 0) {
+      return true;
+    }
+    return false;
+  }, [ detailError, fetchedData, initialDetailResponse ]);
 
-    const identifier = identifiers || dynamicID;
-    let apiUrl = detailApiConfig?.apiUrl;
+  // Data is ready when pre-loaded OR hook finished loading OR 404 detected
+  const dataLoaded = !!initialDetailResponse || !detailLoading || recordNotFound;
 
-    if (!apiUrl) return;
+  // Format record info: combine propertiesConfig with formatted values from source data
+  const recordInfo = useMemo(() => {
+    if (!detailResponse) return propertiesConfig;
+    return propertiesConfig.map(item => {
+      const propertyPath = item.column || item.name || item.id;
+      const nestedValue = getNestedValue(detailResponse, propertyPath);
+      const formattedValue = valueFormatter(item, nestedValue);
+      return { ...item, initialValue: formattedValue };
+    });
+  }, [ detailResponse, propertiesConfig, valueFormatter ]);
 
-    apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
-
-    try {
-      // Use queryClient.fetchQuery for caching + dedup while keeping the imperative interface
-      const cacheIdentifiers: Record<string, string> = {};
-      if (identifier) cacheIdentifiers.id = String(identifier);
-      if (routeParams) Object.assign(cacheIdentifiers, routeParams);
-
-      const responseData = await queryClient.fetchQuery({
-        queryKey: queryKeys.entity(detailEntityName).detail(cacheIdentifiers),
-        queryFn: async () => {
-          const response: any = await callApiMethodRef.current({ ...detailApiConfig, apiUrl });
-
-          if (response.status >= 200 && response.status < 300) {
-            return response.data;
-          }
-
-          throw response;
-        },
-        staleTime: 30 * 1000, // 30s for detail data
-      });
-
-      const fetchedDetailResponse = detailApiConfig.responseKey ? responseData[ detailApiConfig.responseKey ] : responseData;
-
-      // Detect empty/missing record
-      if (!fetchedDetailResponse || (typeof fetchedDetailResponse === 'object' && Object.keys(fetchedDetailResponse).length === 0)) {
-        setRecordNotFound(true);
-        setDataLoaded(true);
-        setIsRefreshing(false);
-        return;
-      }
-
-      setRecordNotFound(false);
-      setDetailResponse(fetchedDetailResponse)
-
-      const formatted = recordInfo.map(item => {
-        const propertyPath = item.column || item.name || item.id;
-        const nestedValue = getNestedValue(fetchedDetailResponse, propertyPath);
-        const formattedValue = valueFormatter(item, nestedValue);
-        return { ...item, initialValue: formattedValue }
-      });
-
-      setRecordInfo(formatted)
-
-      setDataLoaded(true);
-      setIsRefreshing(false);
+  // Track data update timestamp
+  useEffect(() => {
+    if (detailResponse) {
       setDataUpdatedAt(new Date().toISOString());
-
-    } catch (error: any) {
-      // Detect 404 — record genuinely doesn't exist
-      if (error?.status === 404 || error?.response?.status === 404) {
-        setRecordNotFound(true);
-        setDataLoaded(true);
-        setIsRefreshing(false);
-        return;
-      }
-
-      const errorResult = handleApiError(error, 'Failed to load details');
-      notifyError(errorResult.formattedErrors.join('\n'));
-      setDataLoaded(true);
-      setIsRefreshing(false);
     }
-  }, [ identifiers, dynamicID, detailApiConfig, routeParams, recordInfo, notifyError, detailEntityName ]);
+  }, [ detailResponse ]);
+
+  // Show error toast for non-404 errors
+  useEffect(() => {
+    if (!detailError) return;
+    if (isHttpStatus(detailError, 404)) return;
+    const errorResult = handleApiError(detailError, 'Failed to load details');
+    notifyError(errorResult.formattedErrors.join('\n'));
+  }, [ detailError, notifyError ]);
 
   // Expose refresh function to parent wrapper via ref
   useEffect(() => {
     if (refreshRef) {
-      refreshRef.current = fetchRecordInfo;
+      refreshRef.current = async () => { await refetchDetail(); };
     }
-  }, [ fetchRecordInfo, refreshRef ]);
+  }, [ refetchDetail, refreshRef ]);
 
-  // Initial load
+  // Lift detail state to wrapper (if callback provided)
   useEffect(() => {
-    // If we have pre-provided detail response, format it immediately
-    if (initialDetailResponse) {
-      const formatted = recordInfo.map(item => {
-        const propertyPath = item.column || item.name || item.id;
-        const nestedValue = getNestedValue(initialDetailResponse, propertyPath);
-        const formattedValue = valueFormatter(item, nestedValue);
-        return { ...item, initialValue: formattedValue }
-      });
+    if (!onDataChange || !detailResponse) return;
 
-      setRecordInfo(formatted);
-      setDataLoaded(true);
-    } else if (detailApiConfig) {
-      // Otherwise, fetch from API
-      fetchRecordInfo(false);  // Don't show refresh loader on initial load
-    }
-  }, [])  // Only on mount
-
-  interface IDescriptionCardOptions {
-    name: string;
-    layout: DescriptionsProps[ 'layout' ];
-    data: Array<{ label: string; value: string | number | boolean | null } | IPropertiesConfig>;
-  }
-
-  const makeDescriptionCard = (options: IDescriptionCardOptions) => {
-    const { name, data, layout } = options;
-    return <>
-      <Descriptions
-        title={name}
-        layout={layout}
-        items={
-
-          data.filter(item => !('hidden' in item) || !item.hidden)
-            .map((item: IPropertiesConfig, index: number) => {
-
-              if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
-                return {
-                  key: index,
-                  label: resolveStringOrDefault(item.label),
-                  children: <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
-                }
-              }
-
-              if (item.fieldType === 'image') {
-                return {
-                  key: index,
-                  label: resolveStringOrDefault(item.label),
-                  children: <img src={item.initialValue} alt={resolveStringOrDefault(item.label)} style={{ width: '100px', height: '100px' }} />
-                }
-              }
-
-              if (item.type === 'list' && item.fieldType !== 'multi-select') {
-
-                return {
-                  key: index,
-                  label: resolveStringOrDefault(item.label),
-                  children: <List
-                    itemLayout="horizontal"
-                    dataSource={item.initialValue as unknown as any[]}
-                    renderItem={(item, index) => (
-                      <List.Item>
-                        {/* <pre>
-                              <code>
-                                  {JSON.stringify(item, null, 2)}
-                              </code>
-                          </pre> */}
-
-                        {makeDescriptionCard({ name: resolveStringOrDefault(item.label, 'Item') + " - " + index, layout: 'vertical', data: item })}
-                      </List.Item>
-                    )}
-                  />
-                }
-              }
-
-              return {
-                key: index,
-                label: resolveStringOrDefault(item.label),
-                children: item.initialValue
-              }
-
-            })} />
-
-    </>
-  }
+    onDataChange({
+      record: detailResponse,
+      pageType: 'view',
+      entityName,
+      dataUpdatedAt: dataUpdatedAt || undefined,
+    });
+  }, [ detailResponse, entityName, onDataChange, dataUpdatedAt ]);
 
   // ── Condition evaluation for detail fields ──
   const { visibilityResults: detailVisibilities } = useEvaluatedItems(recordInfo);
@@ -550,18 +473,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
       FallbackComponent={ErrorFallback}
       onReset={() => {
         // Re-fetch data on error boundary reset
-        fetchRecordInfo(false);
+        refetchDetail();
       }}
     >
       {!dataLoaded ? (
-        // Show skeleton loader on initial load for instant page transition
-        <div style={detailsStyles.container}>
-          {columns.map((_, colIdx) => (
-            <div key={colIdx} style={detailsStyles.column}>
-              <Skeleton active paragraph={{ rows: 8 }} />
-            </div>
-          ))}
-        </div>
+        loadingConfig?.type === 'spinner'
+          ? <div style={{ textAlign: 'center', padding: '60px 0' }}><Spin size="large" /></div>
+          : <PageSkeleton type="detail" columns={columns.length || 2} rows={loadingConfig?.rows} />
       ) : recordNotFound ? (
         // Record not found — show contextual empty state
         <EmptyState
@@ -578,7 +496,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
         />
       ) : (
         // Show spinner overlay only for refresh (keeps content visible)
-        <Spin spinning={isRefreshing}>
+        <Spin spinning={detailFetching && !detailLoading}>
           <div style={detailsStyles.container}>
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
@@ -587,16 +505,24 @@ const Details: React.FC<IDetailsComponentProps> = ({
                   .map((item: IPropertiesConfig, index: number) => {
                     const value = item.initialValue;
 
+                    // Run rendering pipeline (#95) for resolved label, formatting metadata
+                    const pipelineResult = processField(
+                      item,
+                      value,
+                      detailResponse || {},
+                    );
+                    const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
+
                     // Relation field rendering
                     if (item.relationConfig) {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <RelationFieldRenderer
                             relationConfig={item.relationConfig}
                             value={value}
                             record={detailResponse || {}}
                             routeParams={routeParams}
-                            label={resolveStringOrDefault(item.label)}
+                            label={pLabel ?? resolveStringOrDefault(item.label)}
                           />
                         </DetailsFieldWrapper>
                       );
@@ -620,14 +546,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         {
                           fieldName: item.name || item.column || '',
                           value,
-                          label: resolveStringOrDefault(item.label),
-                          config: item as DetailFieldConfig,
+                          label: pLabel ?? resolveStringOrDefault(item.label),
+                          config: item,
                           routeParams
                         }
                       );
-                      const Renderer = CustomDetailRenderer as React.ComponentType<typeof customDetailProps>;
+                      const Renderer = CustomDetailRenderer;
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <Renderer {...customDetailProps} />
                         </DetailsFieldWrapper>
                       );
@@ -636,7 +562,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // Null/undefined → em dash
                     if (value === null || value === undefined) {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <span>—</span>
                         </DetailsFieldWrapper>
                       );
@@ -652,13 +578,11 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                       const templateContext = { ...routeParams, ...detailResponse };
                       const displayText = item.linkConfig.displayText
-                        ? (typeof item.linkConfig.displayText === 'string'
-                          ? evaluateTemplate(item.linkConfig.displayText, templateContext)
-                          : evaluateTemplate(item.linkConfig.displayText, templateContext))
+                        ? evaluateTemplate(item.linkConfig.displayText, templateContext)
                         : value;
 
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
                             {displayText} ({value})
                           </Link>
@@ -669,13 +593,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // Modal fields
                     if (item.openInModal) {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <OpenInModal
                             modalType="details"
                             primaryIndex={value}
                             modalPageConfig={{
-                              pageTitle: resolveStringOrDefault(item.label),
-                              propertiesConfig: [ { ...item, label: resolveStringOrDefault(item.label) } ],
+                              pageTitle: pLabel ?? resolveStringOrDefault(item.label),
+                              propertiesConfig: [ { ...item, label: pLabel ?? resolveStringOrDefault(item.label) } ],
                             }}
                           >
                             {value}
@@ -695,22 +619,22 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     if (isComplexData) {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
-                          <JsonField data={value} title={resolveStringOrDefault(item.label)} maxDepth={2} />
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                          <JsonField data={value} title={pLabel ?? resolveStringOrDefault(item.label)} maxDepth={2} />
                         </DetailsFieldWrapper>
                       );
                     }
 
-                    // Registry-based detail renderer
+                    // Registry-based detail renderer — use pipeline defaults, lookup component directly
                     const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
                     if (DetailRenderer) {
-                      const detailDefaults = fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
+                      const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
                       const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <DetailRenderer
                             value={value}
-                            label={resolveStringOrDefault(item.label)}
+                            label={pLabel ?? resolveStringOrDefault(item.label)}
                             config={mergedConfig}
                             routeParams={routeParams}
                             record={detailResponse || {}}
@@ -721,7 +645,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     // Default fallback — smart text rendering
                     return (
-                      <DetailsFieldWrapper key={index} item={item} index={index}>
+                      <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                         <div>
                           {value !== undefined && value !== null && value !== '' ? (
                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (

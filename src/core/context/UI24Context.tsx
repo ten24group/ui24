@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useContext, useMemo, useCallback, useRef } from 'react';
 import { IApiConfig } from './ApiContext';
 import { ThemeConfig as IAntThemeConfig } from 'antd';
 
@@ -15,6 +15,31 @@ interface IFormatConfig {
     false: string; // NO, FALSE, INACTIVE
   };
   timezone?: string; // e.g. 'America/New_York'
+}
+
+export interface IEnvironmentConfig {
+  /** Environment label shown in the banner (e.g., "STAGING", "DEV") */
+  name: string;
+  /** Show a thin colored strip at the top of the page */
+  showBanner?: boolean;
+  /** Banner background color (CSS color string, default: '#faad14' amber) */
+  color?: string;
+  /** Prepend environment name to document title */
+  titlePrefix?: boolean;
+}
+
+export interface IMaintenanceConfig {
+  /** When true, app shows maintenance message instead of normal content */
+  enabled: boolean;
+  /** Custom maintenance message (default: "We're performing scheduled maintenance…") */
+  message?: string;
+  /** Roles that bypass maintenance mode (e.g., ['admin']) */
+  allowedRoles?: string[];
+}
+
+export interface IErrorPagesConfig {
+  notFound?: { title?: string; message?: string; showHomeLink?: boolean };
+  forbidden?: { title?: string; message?: string; showHomeLink?: boolean };
 }
 
 export type IUi24Config = {
@@ -51,6 +76,29 @@ export type IUi24Config = {
   pagesConfig?: Record<string, any>
   formatConfig?: IFormatConfig
   themeConfig?: IAntThemeConfig
+  /** Environment indicator (banner, title prefix) */
+  environment?: IEnvironmentConfig;
+  /** Maintenance mode gate */
+  maintenance?: IMaintenanceConfig;
+  /** Custom error page content */
+  errorPages?: IErrorPagesConfig;
+  /** Command Palette (Cmd+K) configuration (#63) */
+  commandPalette?: {
+    /** Enable/disable the command palette (default: true) */
+    enabled?: boolean;
+    /** Keyboard trigger (default: 'mod+k') */
+    trigger?: string;
+    /** Number of recent items to show (default: 5) */
+    recentCount?: number;
+    /** Entity search configuration */
+    entitySearch?: {
+      enabled?: boolean;
+      /** Restrict to specific entities (default: all) */
+      entities?: string[];
+      /** Max results per entity (default: 5) */
+      maxResults?: number;
+    };
+  };
 }
 
 interface IUi24Context {
@@ -80,26 +128,31 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
     formatConfig: { ...defaultFormatConfig, ...(initConfig?.formatConfig || {}) }
   });
 
-  const updateConfig = (newConfig: Partial<IUi24Config>) => {
+  const updateConfig = useCallback((newConfig: Partial<IUi24Config>) => {
     setConfig(prevConfig => ({ ...prevConfig, ...newConfig }));
-  };
+  }, []);
 
-  const selectConfig = <T extends keyof IUi24Config>(selector: (config: IUi24Config) => T): IUi24Config[ T ] => {
-    return selector(config);
-  };
+  // Config ref for stable selectConfig that always reads latest config
+  const configRef = useRef(config);
+  configRef.current = config;
 
-  const getPageConfig = (pageName: string) => {
-    if (config?.pagesConfig && Object.keys(config?.pagesConfig).length > 0) {
-      return config?.pagesConfig[ pageName ]
+  const selectConfig = useCallback(<T extends keyof IUi24Config>(selector: (config: IUi24Config) => T): IUi24Config[ T ] => {
+    return selector(configRef.current);
+  }, []);
+
+  const getPageConfig = useCallback((pageName: string) => {
+    const pagesConfig = configRef.current?.pagesConfig;
+    if (pagesConfig && Object.keys(pagesConfig).length > 0) {
+      return pagesConfig[ pageName ];
     }
-  };
+  }, []);
 
-  const contextValue = {
+  const contextValue = useMemo(() => ({
     config,
     updateConfig,
     selectConfig,
     getPageConfig
-  };
+  }), [config, updateConfig, selectConfig, getPageConfig]);
 
   return <Ui24Context.Provider value={contextValue}>
     {children}

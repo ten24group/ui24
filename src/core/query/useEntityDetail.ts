@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useApi, type IApiConfig } from '../context/ApiContext';
 import { queryKeys } from './queryKeys';
 
@@ -65,25 +65,43 @@ export function useEntityDetail({
   const { callApiMethod } = useApi();
   const queryClient = useQueryClient();
 
+  // ── Refs for queryFn closure stability ──
+  // queryFn must be a stable reference (useCallback with empty deps) because
+  // TanStack Query v5's observer calls setOptions() when queryFn identity changes.
+  // With React 19's useSyncExternalStore, identity changes cascade into re-renders.
+  // Refs let queryFn always read the LATEST values without changing its own identity.
+  //
+  // Note: callApiMethod is already stable (ref-wrapped useCallback in ApiContext),
+  // so it doesn't need a ref here — only props/derived values that change each render.
+  const apiConfigRef = useRef(apiConfig);
+  apiConfigRef.current = apiConfig;
+  const apiUrlRef = useRef(apiUrl);
+  apiUrlRef.current = apiUrl;
+
   const queryKey = useMemo(
     () => queryKeys.entity(entityName).detail(identifiers),
     [entityName, identifiers]
   );
 
-  const query: UseQueryResult<any> = useQuery({
+  // ── Stable queryFn ──
+  // Empty deps → never recreated. Always reads latest values from refs.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const queryFn = useCallback(async () => {
+    const response = await callApiMethod({
+      ...apiConfigRef.current,
+      apiUrl: apiUrlRef.current,
+    });
+
+    if (response.status >= 200 && response.status < 300) {
+      return response.data;
+    }
+
+    throw response;
+  }, []);
+
+  const query: UseQueryResult<Record<string, any>> = useQuery({
     queryKey,
-    queryFn: async () => {
-      const response = await callApiMethod({
-        ...apiConfig,
-        apiUrl,
-      });
-
-      if (response.status >= 200 && response.status < 300) {
-        return response.data;
-      }
-
-      throw response;
-    },
+    queryFn,
     enabled: enabled && !!apiUrl,
     ...(staleTime !== undefined ? { staleTime } : {}),
     ...(refetchInterval !== undefined ? { refetchInterval } : {}),
@@ -99,14 +117,16 @@ export function useEntityDetail({
     [queryClient, entityName]
   );
 
+  // Extract responseKey for stable memo dependency (avoids recomputation when
+  // apiConfig object reference changes but responseKey stays the same)
+  const responseKey = apiConfig.responseKey;
   const data = useMemo(() => {
     if (!query.data) return undefined;
-    const responseKey = (apiConfig as any).responseKey;
     if (responseKey && query.data[responseKey]) {
       return query.data[responseKey];
     }
     return query.data;
-  }, [query.data, apiConfig]);
+  }, [query.data, responseKey]);
 
   return {
     data,

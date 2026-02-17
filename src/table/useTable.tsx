@@ -1,8 +1,7 @@
-import React, { useEffect, useLayoutEffect } from "react";
+import React, { useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig, IPaginationConfig } from "./type";
-import { IApiConfig } from "../core/context";
-import { Badge } from "antd";
+import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig, IPaginationConfig, IRecord } from "./type";
+import { Badge, Typography } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
@@ -18,18 +17,15 @@ import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
 import { resolveFilterPlaceholders } from "../core/utils/placeholderResolver";
 import { NON_FILTER_URL_PARAMS } from "./constants";
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
-import { Button } from "antd";
-import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/icons';
-import { OpenInModal } from "../modal/Modal";
-import { generateJsonPreview } from "../core/utils/jsonUtils";
-import { createModalConfig } from "./utils/modalConfigHelper";
 import { getColumnRenderer, type ColumnConfig } from "../core/registry";
 import { useEvaluatedItems } from "../core/hooks/useEvaluatedItems";
 import { fieldTypeRegistry } from "../core/registry/FieldTypeRegistry";
 import { Icon } from "../core/common/Icons/Icons";
 import "../core/registry/field-types"; // ensure built-in registrations run
 import { conditionEvaluator } from "../core/utils/ConditionEvaluator";
+import { getNestedValue } from "../core/utils";
 import { useNewEvaluationContext } from "../core/context/NewEvaluationContext";
+import { useRenderPipeline } from "../core/rendering";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -55,6 +51,20 @@ const getCurrentApiConfig = (apiConfig: ITableApiConfig | IDualTableApiConfig, i
 
 const canToggleSearchMode = (apiConfig: ITableApiConfig | IDualTableApiConfig): boolean => {
   return isDualApiConfig(apiConfig);
+};
+
+/**
+ * Determine the default search/database mode for a given API config.
+ * Respects REACT_APP_DEFAULT_LIST_MODE env var for dual configs.
+ * Single-config entities use their `useSearch` flag.
+ *
+ * Used on both initial mount AND reset to ensure consistent behavior.
+ */
+const getDefaultSearchMode = (apiConfig: ITableApiConfig | IDualTableApiConfig): boolean => {
+  if (isDualApiConfig(apiConfig)) {
+    return process.env.REACT_APP_DEFAULT_LIST_MODE !== 'database';
+  }
+  return (apiConfig as ITableApiConfig).useSearch || false;
 };
 
 /**
@@ -152,7 +162,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
 
         Object.entries(parsed).forEach(([ key, value ]) => {
           // Skip non-filter params (infrastructure)
-          if (NON_FILTER_URL_PARAMS.includes(key as any)) {
+          if (NON_FILTER_URL_PARAMS.includes(key)) {
             return;
           }
 
@@ -205,7 +215,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
 
   queryParams.forEach((value, key) => {
     // Skip non-filter params (infrastructure like page, cursor, etc.)
-    if (NON_FILTER_URL_PARAMS.includes(key as any)) {
+    if (NON_FILTER_URL_PARAMS.includes(key)) {
       return;
     }
 
@@ -256,6 +266,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Evaluation context for conditional cell formatting (#26)
   const evaluationContext = useNewEvaluationContext();
 
+  // Rendering pipeline (#95) — provides processField() for unified field rendering
+  const { processField } = useRenderPipeline({ renderContext: 'table', routeParams: routeParams || {} });
+
   // NOTE: registry resolution is handled via getColumnRenderer() (non-hook, safe for loops)
 
   // Resolve placeholders in defaultFilters (from prop, includes segment defaults from Table.tsx)
@@ -263,29 +276,25 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
   }, [ defaultFilters, placeholderContext ]);
 
-  // Initialize appliedFilters with layered merge (lowest to highest priority):
-  // 1. resolvedDefaultFilters (prop defaults + segment defaults)
-  // 2. URL filters (one-time read for deep linking)
+  // Initialize appliedFilters from defaults + URL deep-link params (one-time on mount).
+  // URL filters take precedence over defaults when present.
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
     const urlFilters = getInitialFiltersFromUrl(location);
-
-    // URL filters take precedence (deep link behavior)
-    return { ...resolvedDefaultFilters, ...urlFilters };
+    if (Object.keys(urlFilters).length > 0) {
+      return { ...resolvedDefaultFilters, ...urlFilters };
+    }
+    return { ...resolvedDefaultFilters };
   });
   const [ searchQuery, setSearchQuery ] = React.useState<string>('');
 
-  // Determine initial mode FIRST (needed to get correct defaultSort)
-  const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
-    if (isDualApiConfig(apiConfig)) {
-      return process.env.REACT_APP_DEFAULT_LIST_MODE !== 'database'; // Default to search unless REACT_APP_DEFAULT_LIST_MODE=database
-    }
-    return apiConfig.useSearch || false;
-  });
+  // Determine initial mode FIRST (needed to get correct defaultSort).
+  // Uses getDefaultSearchMode() to respect REACT_APP_DEFAULT_LIST_MODE env var for dual configs.
+  const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => getDefaultSearchMode(apiConfig));
 
   // Then initialize sort based on the current mode
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>(() => {
-    // Determine initial mode to get correct defaultSort
-    const initialMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
+    // Use getDefaultSearchMode for consistent mode determination everywhere
+    const initialMode = getDefaultSearchMode(apiConfig);
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, initialMode);
     return convertDefaultSortToSorterResult(defaultSort);
   });
@@ -356,6 +365,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     isSearchMode,
     fetchStrategy: currentFetchStrategy, // Use current strategy (can be changed by user)
     pageSize,
+    initialPage: 1,
   });
 
   const onSearch = (value: string) => {
@@ -365,13 +375,14 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const toggleSearchMode = React.useCallback(() => {
     if (canToggleSearchMode(apiConfig)) {
-      setIsSearchMode(prev => {
-        const newMode = !prev;
-        // Reset sort to defaultSort for the new mode
-        const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
-        setSort(convertDefaultSortToSorterResult(defaultSort));
-        return newMode;
-      });
+      // Compute the new mode outside the updater so setSort can be called separately
+      // (updater functions should be pure — no side effects like calling other setState)
+      setIsSearchMode(prev => !prev);
+      // Use the current value to derive what the new mode will be after the toggle
+      // React batches these setState calls, so isSearchMode still has the old value here
+      const newMode = !isSearchMode;
+      const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
+      setSort(convertDefaultSortToSorterResult(defaultSort));
       setSearchQuery('');
       // Reset to defaultFilters (preserves pre-applied filters like relation defaults)
       setAppliedFilters(resolvedDefaultFilters);
@@ -380,9 +391,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       // - If no segments, Table.tsx useEffect on isSearchMode triggers fetch
       // This prevents double fetching
     }
-  }, [ apiConfig, resolvedDefaultFilters ]);
+  }, [ apiConfig, resolvedDefaultFilters, isSearchMode ]);
 
-  const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
+  const handleTableChange = (_pagination: unknown, _filters: unknown, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
     setSort(newSorters.filter(s => s.order)); // Only keep sorts with an active order
     setFetchTrigger(prev => prev + 1);
@@ -457,7 +468,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   React.useEffect(() => {
     const shouldForce = forceNextFetchRef.current;
     forceNextFetchRef.current = false;
-    fetchRecords(1, undefined, undefined, shouldForce ? { forceRefresh: true } : undefined);
+    fetchRecords(1, undefined, shouldForce ? { forceRefresh: true } : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ fetchTrigger ]); // Depend on fetchTrigger, not appliedFilters (avoids circular updates)
 
@@ -467,8 +478,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setAppliedFilters(resolvedDefaultFilters);
     setSearchQuery('');
 
-    // Reset to initial mode
-    const resetMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
+    // Reset to the env-configured default mode (respects REACT_APP_DEFAULT_LIST_MODE).
+    // Previously this hardcoded `true` for dual configs, which wrongly forced search mode
+    // even when the env var specified 'database' as the default.
+    const resetMode = getDefaultSearchMode(apiConfig);
     setIsSearchMode(resetMode);
 
     // Reset sort to defaultSort for the reset mode
@@ -482,9 +495,20 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1);
   }, [ apiConfig, resolvedDefaultFilters ]);
 
+  // Refs for handleReload stability — reading page/cursor from refs makes handleReload's
+  // identity depend only on fetchRecords (which is already stable). Without refs,
+  // handleReload changes on every pagination (pageCursor updates), propagating
+  // unnecessary re-renders to RefreshControl, useAutoRefresh, bulk actions, etc.
+  // Note: currentPageRef is also used by the persistence section below.
+  const currentPageRef = React.useRef(currentPage);
+  currentPageRef.current = currentPage;
+  const pageCursorRef = React.useRef(pageCursor);
+  pageCursorRef.current = pageCursor;
+
   const handleReload = React.useCallback(() => {
-    fetchRecords(currentPage, pageCursor[ currentPage ], undefined, { forceRefresh: true });
-  }, [ fetchRecords, currentPage, pageCursor ]);
+    const page = currentPageRef.current;
+    fetchRecords(page, pageCursorRef.current[ page ], { forceRefresh: true });
+  }, [ fetchRecords ]);
 
   const getColumnNameByKey = (dataIndex: string) => {
     return propertiesConfig.find((column) => column.dataIndex === dataIndex)?.name;
@@ -569,7 +593,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const selectableColumns = React.useMemo(() => conditionVisibleProperties.filter(p => !p.isIdentifier), [ conditionVisibleProperties ]);
 
-  const handleColumnSettingsChange = (newSettings) => {
+  const handleColumnSettingsChange = (newSettings: typeof columnSettings) => {
     setColumnSettings(newSettings);
     setVisibleColumns(newSettings.filter(c => c.visible).map(c => c.key));
   };
@@ -631,145 +655,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
 
-  // Renderers for simple field types are now in the FieldTypeRegistry (field-types/ files).
-  // Only modal-based complex renderers remain here.
-
-  // Complex field renderers with modal support using existing OpenInModal component
-  const jsonRenderer = (
-    text: unknown,
-    record: Record<string, unknown>,
-    columnName: string,
-    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
-  ): React.ReactNode => {
-    if (!text || (typeof text === 'object' && Object.keys(text).length === 0)) {
-      return <span>—</span>;
-    }
-
-    // Use shared utility for consistent preview generation (Table uses shorter strings for compact display)
-    const previewLabel = generateJsonPreview(text, { maxStringLength: 20, maxKeys: 2 });
-    const detailsConfig = createModalConfig('json', text, fieldConfig, 'map');
-
-    return (
-      <OpenInModal
-        modalType="details"
-        modalTitle={columnName}
-        modalWidth={800}
-        modalPageConfig={detailsConfig}
-      >
-        <Button
-          size="small"
-          icon={<FileTextOutlined />}
-          type="link"
-          style={{
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '12px'
-          }}
-        >
-          {previewLabel}
-        </Button>
-      </OpenInModal>
-    );
-  };
-
-  const listRenderer = (
-    text: unknown,
-    record: Record<string, unknown>,
-    columnName: string,
-    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
-  ): React.ReactNode => {
-    if (!Array.isArray(text) || text.length === 0) return <span>—</span>;
-
-    // Simple string/number array - show inline if short
-    if (text.every(item => typeof item === 'string' || typeof item === 'number')) {
-      if (text.length === 1) return <span>{String(text[ 0 ])}</span>;
-      if (text.length <= 3) return <span>{text.join(', ')}</span>;
-    }
-
-    // Complex array - show in modal
-    const detailsConfig = createModalConfig(undefined, text, fieldConfig, 'list');
-
-    return (
-      <OpenInModal
-        modalType="details"
-        modalTitle={columnName}
-        modalWidth={800}
-        modalPageConfig={detailsConfig}
-      >
-        <Button
-          size="small"
-          icon={<OrderedListOutlined />}
-          type="link"
-        >
-          View ({text.length})
-        </Button>
-      </OpenInModal>
-    );
-  };
-
-  // Shared utility: Generate preview text with ellipsis for text-heavy content
-  // Supports: BlockNote blocks (wysiwyg/rich-text), plain strings (code/markdown/textarea)
-  const generateContentPreview = React.useCallback((content: unknown, maxLength: number = 32): string => {
-    if (!content) return '';
-
-    try {
-      // BlockNote blocks (rich-text/wysiwyg) - structured array format
-      if (Array.isArray(content)) {
-        const extractTextFromBlock = (block: any): string => {
-          let text = '';
-          if (block.content && Array.isArray(block.content)) {
-            text += block.content.map((item: any) => item.text || '').join('');
-          }
-          if (block.children && Array.isArray(block.children)) {
-            text += ' ' + block.children.map(extractTextFromBlock).filter(Boolean).join(' ');
-          }
-          return text;
-        };
-
-        const plainText = content.map(extractTextFromBlock).filter(Boolean).join(' ').trim();
-        return plainText ? (plainText.length > maxLength ? plainText.substring(0, maxLength) + '...' : plainText) : '';
-      }
-
-      // Plain strings (code, markdown, textarea, longtext)
-      if (typeof content === 'string') {
-        const cleaned = content.trim();
-        return cleaned ? (cleaned.length > maxLength ? cleaned.substring(0, maxLength) + '...' : cleaned) : '';
-      }
-
-      return '';
-    } catch {
-      return '';
-    }
-  }, []);
-
-  const richTextRenderer = (
-    text: unknown,
-    record: Record<string, unknown>,
-    columnName: string,
-    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
-  ): React.ReactNode => {
-    if (!text) return <span>—</span>;
-
-    const preview = generateContentPreview(text);
-    const detailsConfig = createModalConfig('rich-text', text, fieldConfig);
-
-    return (
-      <OpenInModal
-        modalType="details"
-        modalTitle={columnName}
-        modalWidth={900}
-        modalPageConfig={detailsConfig}
-      >
-        <Button
-          size="small"
-          icon={<EyeOutlined />}
-          type="link"
-        >
-          {preview || 'View Content'}
-        </Button>
-      </OpenInModal>
-    );
-  };
-
+  // All field type renderers are now in the FieldTypeRegistry (field-types/ files).
 
   const columns = addFilterUI(
     addActionUI(conditionVisibleProperties, handleReload, routeParams),
@@ -784,6 +670,17 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     .map((column, index) => {
       if (column.key === 'action') return column;
 
+      // Run rendering pipeline for this column (#95)
+      // Uses processField to evaluate visibility, resolve conditional labels, and apply formatting metadata
+      const pipelineResult = processField(column, null, {}, index);
+      if (!pipelineResult.isVisible) {
+        return { ...column, hidden: true }; // Mark hidden, filtered below
+      }
+      // Apply resolved label from pipeline (handles ConditionalValue<string> on name/title)
+      if (pipelineResult.resolvedProps.label !== undefined) {
+        column = { ...column, name: pipelineResult.resolvedProps.label };
+      }
+
       let renderer = column.render;
 
       // Priority 1: Relation config renderer (for related entities)
@@ -797,6 +694,37 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
             label={column.name}
           />
         );
+      }
+      // Priority 1.5: Composite column renderer (multi-field columns)
+      else if (column.composite) {
+        const { fields, template: compositeTemplate, layout = 'stacked' } = column.composite;
+        renderer = (_value: any, record: Record<string, unknown>) => {
+          if (compositeTemplate) {
+            return <span>{evaluateTemplate(compositeTemplate, record)}</span>;
+          }
+          const values = fields.map(f => getNestedValue(record, f)).filter(v => v != null);
+          if (values.length === 0) return <span>—</span>;
+          if (layout === 'inline') {
+            return (
+              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                {values.map((v, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <span style={{ color: '#d9d9d9' }}>·</span>}
+                    <span>{String(v)}</span>
+                  </React.Fragment>
+                ))}
+              </span>
+            );
+          }
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: 1.4 }}>
+              <span style={{ fontWeight: 500 }}>{String(values[ 0 ])}</span>
+              {values.slice(1).map((v, i) => (
+                <span key={i} style={{ fontSize: '0.85em', color: '#8c8c8c' }}>{String(v)}</span>
+              ))}
+            </div>
+          );
+        };
       }
       // Priority 2: Template renderer (for composite values)
       else if (column.template) {
@@ -824,61 +752,38 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
           };
         }
       }
-      // Priority 3: Field type specific renderers (built-in)
-      if (!renderer && column.fieldType) {
-        const fieldType = column.fieldType.toLowerCase();
-        const columnName = column.name || column.title || column.dataIndex;
+      // Priority 3: Field type specific renderers (built-in via FieldTypeRegistry)
+      if (!renderer && (column.fieldType || column.type)) {
+        // Map structural types to fieldType for registry lookup
+        let effectiveFieldType = (column.fieldType || '').toLowerCase();
+        if (column.type === 'map' && !fieldTypeRegistry.get(effectiveFieldType, 'table')) {
+          effectiveFieldType = 'json';
+        }
+        if (column.type === 'list' && effectiveFieldType !== 'multi-select') {
+          effectiveFieldType = 'list';
+        }
 
-        // Structural checks first (modal-based complex types)
-        if (fieldType === 'json' || column.type === 'map') {
-          renderer = (text: unknown, record: Record<string, unknown>) =>
-            jsonRenderer(text, record, columnName, column);
-        }
-        else if (column.type === 'list' && fieldType !== 'multi-select') {
-          renderer = (text: unknown, record: Record<string, unknown>) =>
-            listRenderer(text, record, columnName, column);
-        }
-        else if (fieldType === 'rich-text' || fieldType === 'wysiwyg') {
-          renderer = (text: unknown, record: Record<string, unknown>) =>
-            richTextRenderer(text, record, columnName, column);
-        }
-        else if ([ 'textarea', 'code', 'markdown', 'longtext' ].includes(fieldType)) {
-          renderer = (text: unknown, _record: Record<string, unknown>): React.ReactNode => {
-            if (!text) return <span>—</span>;
-            const preview = generateContentPreview(text);
-            if (!preview) return <span>—</span>;
-            if (typeof text === 'string' && text.length < 50) return <span>{text}</span>;
-            const detailsConfig = createModalConfig(column.fieldType, text, column);
-            return (
-              <OpenInModal modalType="details" modalTitle={columnName} modalWidth={800} modalPageConfig={detailsConfig}>
-                <Button size="small" icon={<FileTextOutlined />} type="link">{preview}</Button>
-              </OpenInModal>
-            );
-          };
-        }
-        else {
-          // Registry-based lookup for all other field types
-          const TableComponent = fieldTypeRegistry.get(fieldType, 'table');
-          if (TableComponent) {
-            // Merge smart defaults from registry (#98): defaults < entity config
-            const tableDefaults = fieldTypeRegistry.getDefaults(fieldType, 'table');
-            const mergedColumn = tableDefaults ? { ...tableDefaults, ...column } : column;
-            renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => (
-              <TableComponent value={text} record={record} column={mergedColumn} rowIndex={rowIndex} routeParams={routeParams} />
-            );
-          }
+        const TableComponent = fieldTypeRegistry.get(effectiveFieldType, 'table');
+        if (TableComponent) {
+          // Merge smart defaults from registry (#98): defaults < entity config
+          const tableDefaults = fieldTypeRegistry.getDefaults(effectiveFieldType, 'table');
+          const mergedColumn = tableDefaults ? { ...tableDefaults, ...column } : column;
+          renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => (
+            <TableComponent value={text} record={record} column={mergedColumn} rowIndex={rowIndex} routeParams={routeParams} />
+          );
         }
       }
 
       // Wrap renderer with conditional cell formatting (#26)
       if (column.formatting && column.formatting.length > 0 && renderer) {
+        type BadgeStatus = 'success' | 'processing' | 'error' | 'warning' | 'default';
         const baseRenderer = renderer;
         const formattingRules = column.formatting;
-        renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => {
-          const rawRecord = (record as { __raw__?: Record<string, unknown> }).__raw__ || record;
+        renderer = (text: unknown, record: IRecord, rowIndex: number) => {
+          const rawRecord = record.__raw__ || record;
           let cellStyle: React.CSSProperties = {};
           let cellClassName = '';
-          let matchedBadge: { status: string } | undefined;
+          let matchedBadge: { status: BadgeStatus } | undefined;
           let matchedIcon: { name: string; color?: string } | undefined;
           for (const rule of formattingRules) {
             try {
@@ -904,9 +809,35 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
             </span>;
           }
           if (matchedBadge) {
-            content = <Badge status={matchedBadge.status as any} text={content} />;
+            content = <Badge status={matchedBadge.status} text={content} />;
           }
           return content;
+        };
+      }
+
+      // Wrap with copyable (#60) when config says so — works for ALL columns including plain text
+      if (column.copyable) {
+        const copyableBase = renderer;
+        const isComposite = !!column.composite;
+        const isJson = column.fieldType === 'json' || column.type === 'map';
+        renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => {
+          const content = copyableBase ? copyableBase(text, record, rowIndex) : (text != null ? String(text) : '—');
+          // Compute clipboard text based on column type
+          let clipboardText: string;
+          if (isComposite && column.composite) {
+            const vals = column.composite.fields.map(f => getNestedValue(record, f)).filter(v => v != null);
+            clipboardText = vals.map(String).join(' ');
+          } else if (isJson || (text && typeof text === 'object')) {
+            clipboardText = JSON.stringify(text, null, 2);
+          } else {
+            clipboardText = text != null ? String(text) : '';
+          }
+          if (!clipboardText) return content;
+          return (
+            <Typography.Text copyable={{ text: clipboardText, tooltips: [ 'Copy', 'Copied' ] }} style={{ display: 'inline' }}>
+              {content}
+            </Typography.Text>
+          );
         };
       }
 
@@ -921,6 +852,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         filterIcon: <FilterFilled style={{ color: !!appliedFilters[ column.dataIndex ] ? "#1677ff" : undefined }} />,
       };
     })
+    .filter(c => !c.hidden) // Remove pipeline-hidden columns (#95)
     .filter(c => c.key === 'action' || columnSettings.find(s => s.key === c.dataIndex)?.visible)
     .sort((a, b) => {
       const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
@@ -941,9 +873,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       return columns;
     }
 
-    const grouped: any[] = [];
+    type Column = (typeof columns)[ number ];
+    const grouped: Array<Column | { title: string; children: Column[] }> = [];
     const groupedFieldSet = new Set<string>();
-    const groupMap = new Map<string, any[]>();
+    const groupMap = new Map<string, Column[]>();
 
     // Group columns by groupTitle
     columns.forEach(col => {
@@ -971,6 +904,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
     return [ ...grouped, ...ungroupedColumns ];
   }, [ columns ]);
+
 
   return {
     recordIdentifierKey,
@@ -1006,5 +940,6 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger,    // Exposed to trigger refetch after state updates
     fetchRecords,       // Exposed to allow immediate fetch with filtersOverride (bypasses React async setState)
     dataUpdatedAt,      // Timestamp of last successful data fetch (#106)
+    processField,       // Rendering pipeline (#95) — run a field through evaluate→transform→resolve→select→format
   };
 };

@@ -2,6 +2,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import { useCallback } from 'react';
 import { useApi, type IApiConfig } from '../context/ApiContext';
 import { queryKeys } from './queryKeys';
+import { queryClient } from './QueryProvider';
 
 export interface UseEntityMutationOptions {
   /** Entity name — used to invalidate related caches on success */
@@ -90,4 +91,41 @@ export function useEntityMutation({ entityName, relatedEntities = [], onInvalida
     invalidateDetails,
     invalidateFieldOptions,
   };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Non-hook utilities — safe for class-based code (e.g., OperationExecutor)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Invalidate all React Query caches for a given entity name.
+ * Uses the singleton queryClient, so no hook context is required.
+ */
+export function invalidateEntityCacheByName(entityName: string): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).all });
+}
+
+/**
+ * Derive entity name from an API URL and invalidate its cache.
+ * Walks backwards through URL segments to find the first non-parameter segment.
+ *
+ * @example
+ * invalidateEntityCacheFromUrl('/api/team/:teamId')  // invalidates 'team'
+ * invalidateEntityCacheFromUrl('/admin/player')       // invalidates 'player'
+ */
+export function invalidateEntityCacheFromUrl(apiUrl?: string): void {
+  if (!apiUrl) return;
+
+  const parts = apiUrl.split('/').filter(Boolean);
+  let entityName: string | undefined;
+  for (let i = parts.length - 1; i >= 0; i--) {
+    if (!parts[i].startsWith(':')) {
+      entityName = parts[i];
+      break;
+    }
+  }
+
+  if (entityName && entityName !== 'unknown') {
+    invalidateEntityCacheByName(entityName);
+  }
 }

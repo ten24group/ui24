@@ -14,7 +14,7 @@
 import { useMemo } from 'react';
 import { useCoreNavigator } from '../../routes/Navigation';
 import { useApi } from '../context/ApiContext';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, NotifyOptions } from '../context/AppContext';
 import { useResponseModalContext } from '../context/ResponseModalContext';
 import { useNewEvaluationContext } from '../context/NewEvaluationContext';
 
@@ -24,11 +24,10 @@ import type { Template, ConditionalValue } from '../types';
 import type { NewEvaluationContext } from '../types/evaluation';
 import { isConditionalValue } from '../types/evaluation';
 import { substituteUrlParams } from '../utils';
-import { ApiErrorHandlerResult, handleApiError } from '../utils/api-error-handler';
+import { ApiErrorHandlerResult, handleApiError, getErrorStatus } from '../utils/api-error-handler';
 import { evaluateTemplateValue } from '../utils/template';
 import { IRedirectOptions, navigateToUrl } from '../utils/link-utils';
-import { queryClient } from '../query/QueryProvider';
-import { queryKeys } from '../query/queryKeys';
+import { invalidateEntityCacheFromUrl } from '../query/useEntityMutation';
 import { conditionEvaluator } from '../utils/ConditionEvaluator';
 
 // ============================================================================
@@ -57,10 +56,40 @@ export interface OperationConfig {
   skipSuccessToast?: boolean;
   refreshParentOnSuccess?: boolean;
 
+  // ===== Notifications =====
+  /** Config-driven notification control. Overrides successMessage/errorMessage when provided. */
+  notification?: {
+    success?: {
+      message?: Template;
+      description?: Template;
+      type?: 'message' | 'notification';
+      duration?: number;
+      placement?: 'top' | 'topLeft' | 'topRight' | 'bottom' | 'bottomLeft' | 'bottomRight';
+    };
+    error?: {
+      message?: Template;
+      description?: Template;
+      type?: 'message' | 'notification';
+      duration?: number;
+      placement?: 'top' | 'topLeft' | 'topRight' | 'bottom' | 'bottomLeft' | 'bottomRight';
+    };
+    /** Skip notifications: true = skip all, 'success' = skip success only, 'error' = skip error only */
+    skip?: boolean | 'success' | 'error';
+  };
+
   // ===== Error Behavior =====
   errorMessage?: Template;
   skipErrorToast?: boolean;
   closeModalOnError?: boolean;
+
+  // ===== Throttling =====
+  /** Action throttling — cooldown period after execution + countdown display */
+  throttle?: {
+    /** Cooldown period in milliseconds after execution (button stays disabled) */
+    cooldownMs?: number;
+    /** Show a "Try again in Xs" countdown on the button */
+    showCountdown?: boolean;
+  };
 
   // ===== Advanced =====
   transformResponse?: (data: any) => any;
@@ -87,6 +116,7 @@ export interface OperationExecutorDeps {
   callApiMethod: (config: IApiConfig) => Promise<any>;
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
+  notify: (level: 'success' | 'error' | 'warning' | 'info', options: NotifyOptions) => void;
   showResponseModal?: (data: any, config: IResponseDisplayConfig, onModalClose?: () => void) => void;
   /** Evaluation context for resolving ConditionalValue (e.g., conditional redirects) */
   evaluationContext?: NewEvaluationContext;
@@ -97,7 +127,25 @@ export interface OperationExecutorDeps {
 // ============================================================================
 
 export class OperationExecutor {
+  /** Cooldown tracker: operation key → expiry timestamp (ms) */
+  private static cooldowns = new Map<string, number>();
+
   constructor(private deps: OperationExecutorDeps) { }
+
+  /**
+   * Check if an operation is currently in cooldown.
+   * Returns remaining cooldown in ms, or 0 if not throttled.
+   */
+  getCooldownRemaining(operationKey: string): number {
+    const expiry = OperationExecutor.cooldowns.get(operationKey);
+    if (!expiry) return 0;
+    const remaining = expiry - Date.now();
+    if (remaining <= 0) {
+      OperationExecutor.cooldowns.delete(operationKey);
+      return 0;
+    }
+    return remaining;
+  }
 
   /**
    * Execute complete operation: API call + response handling
@@ -107,6 +155,17 @@ export class OperationExecutor {
     callbacks: OperationCallbacks = {}
   ): Promise<void> {
     const { apiConfig, payload, onLoading } = config;
+
+    // Throttle check — reject if within cooldown period
+    if (config.throttle?.cooldownMs) {
+      const opKey = apiConfig.apiUrl || 'unknown';
+      const remaining = this.getCooldownRemaining(opKey);
+      if (remaining > 0) {
+        const secs = Math.ceil(remaining / 1000);
+        this.deps.notifyError(`Please wait ${secs}s before retrying`);
+        return;
+      }
+    }
 
     onLoading?.(true);
 
@@ -136,7 +195,7 @@ export class OperationExecutor {
         await this.handleError(response, config, callbacks);
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Ignore intentional cancellations
       if (this.isCancellationError(error)) {
         return;
@@ -145,6 +204,12 @@ export class OperationExecutor {
       await this.handleError(error, config, callbacks);
     } finally {
       onLoading?.(false);
+
+      // Set cooldown after execution (success or failure)
+      if (config.throttle?.cooldownMs) {
+        const opKey = apiConfig.apiUrl || 'unknown';
+        OperationExecutor.cooldowns.set(opKey, Date.now() + config.throttle.cooldownMs);
+      }
     }
   }
 
@@ -165,9 +230,8 @@ export class OperationExecutor {
       effectiveConfig = { ...config, ...conditionalOverrides };
     }
 
-    // Invalidate React Query cache for the affected entity.
-    // Derive entity name from apiUrl (same pattern as Form.tsx / Details.tsx).
-    this.invalidateEntityCache(config.apiConfig.apiUrl);
+    // Invalidate React Query cache for the affected entity
+    invalidateEntityCacheFromUrl(config.apiConfig.apiUrl);
 
     // 1. Response Modal / Chaining (Priority 1)
     // Check for response modal config OR dynamic chaining config
@@ -189,15 +253,10 @@ export class OperationExecutor {
         delete cleanData[ effectiveConfig.dynamicConfigKey ];
       }
 
-      // Show toast BEFORE modal if not explicitly skipped and successMessage is provided
-      // This allows custom success messages to be shown alongside response modals
-      if (!effectiveConfig.skipSuccessToast && effectiveConfig.successMessage) {
-        const message = this.evaluateMessage(
-          effectiveConfig.successMessage,
-          data,
-          this.getDefaultSuccessMessage({ data })
-        );
-        this.deps.notifySuccess(message);
+      // Show toast BEFORE modal if not explicitly skipped
+      const hasSuccessMsg = effectiveConfig.successMessage || effectiveConfig.notification?.success?.message;
+      if (!this.shouldSkipNotification(effectiveConfig, 'success') && hasSuccessMsg) {
+        this.sendNotification('success', effectiveConfig, data, this.getDefaultSuccessMessage(response));
       }
 
       // CRITICAL: Refresh parent IMMEDIATELY on success, not when modal closes
@@ -216,14 +275,8 @@ export class OperationExecutor {
     }
 
     // 2. Toast (unless skipped)
-    // Moved after ResponseModal check so that chaining/modals implicitly skip toast (by returning early)
-    if (!effectiveConfig.skipSuccessToast) {
-      const message = this.evaluateMessage(
-        effectiveConfig.successMessage,
-        data,
-        this.getDefaultSuccessMessage(response)
-      );
-      this.deps.notifySuccess(message);
+    if (!this.shouldSkipNotification(effectiveConfig, 'success')) {
+      this.sendNotification('success', effectiveConfig, data, this.getDefaultSuccessMessage(response));
     }
 
     // 3. Redirect (Priority 2)
@@ -265,7 +318,7 @@ export class OperationExecutor {
   // ==========================================================================
 
   private async handleError(
-    error: any,
+    error: unknown,
     config: OperationConfig,
     callbacks: OperationCallbacks
   ): Promise<void> {
@@ -279,20 +332,24 @@ export class OperationExecutor {
           errorResult.validationErrors!.formErrors
         );
 
-        if (!config.skipErrorToast) {
+        if (!this.shouldSkipNotification(config, 'error')) {
           this.deps.notifyError('Please fix validation errors');
         }
         return; // Keep form/modal open for correction
       }
 
+      // Apply 429 Retry-After as dynamic cooldown (overrides static throttle config)
+      if (errorResult.retryAfterMs && config.apiConfig.apiUrl) {
+        const opKey = config.apiConfig.apiUrl;
+        OperationExecutor.cooldowns.set(opKey, Date.now() + errorResult.retryAfterMs);
+      }
+
       // Generic errors
-      if (!config.skipErrorToast) {
-        const message = this.evaluateMessage(
-          config.errorMessage,
-          error,
-          errorResult.errorMessage
-        );
-        this.deps.notifyError(message);
+      if (!this.shouldSkipNotification(config, 'error')) {
+        const errorMsg = errorResult.retryAfterMs
+          ? `Rate limited. Please wait ${Math.ceil(errorResult.retryAfterMs / 1000)}s before retrying.`
+          : errorResult.errorMessage;
+        this.sendNotification('error', config, error, errorMsg);
       }
 
       callbacks.onError?.(errorResult);
@@ -330,16 +387,16 @@ export class OperationExecutor {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         return await apiCall();
-      } catch (error: any) {
+      } catch (error: unknown) {
         const isLastAttempt = attempt === maxAttempts;
-        const status = error.status || error.response?.status;
-        const isRetryable = retryableStatuses.includes(status);
+        const status = getErrorStatus(error);
+        const isRetryable = status !== undefined && retryableStatuses.includes(status);
 
         if (isLastAttempt || !isRetryable) {
           throw error;
         }
 
-        // Calculate delay
+        // Calculate delay with exponential or linear backoff
         const delay = backoff === 'exponential'
           ? delayMs * Math.pow(2, attempt - 1)
           : delayMs * attempt;
@@ -348,6 +405,8 @@ export class OperationExecutor {
       }
     }
 
+    // Unreachable: the loop always either returns (success) or throws (last attempt / non-retryable).
+    // TypeScript needs this for the return type; keep as a safeguard.
     throw new Error('Retry logic failed unexpectedly');
   }
 
@@ -357,6 +416,61 @@ export class OperationExecutor {
 
   private navigateToUrl(url: string, options?: IRedirectOptions): void {
     navigateToUrl(url, this.deps.navigate, options);
+  }
+
+  // ==========================================================================
+  // NOTIFICATION HELPERS
+  // ==========================================================================
+
+  private shouldSkipNotification(config: OperationConfig, level: 'success' | 'error'): boolean {
+    // Legacy props take precedence for backward compatibility
+    if (level === 'success' && config.skipSuccessToast) return true;
+    if (level === 'error' && config.skipErrorToast) return true;
+
+    const skip = config.notification?.skip;
+    if (skip === true) return true;
+    if (skip === level) return true;
+    return false;
+  }
+
+  private sendNotification(
+    level: 'success' | 'error',
+    config: OperationConfig,
+    context: any,
+    defaultMessage: string
+  ): void {
+    const notifConfig = config.notification?.[level];
+
+    // If notification config exists with explicit type/description, use the rich notify
+    if (notifConfig && (notifConfig.type === 'notification' || notifConfig.description)) {
+      const message = this.evaluateMessage(
+        notifConfig.message || (level === 'success' ? config.successMessage : config.errorMessage),
+        context,
+        defaultMessage,
+      );
+      const description = notifConfig.description
+        ? this.evaluateMessage(notifConfig.description, context, '')
+        : undefined;
+
+      this.deps.notify(level, {
+        message,
+        description: description || undefined,
+        type: notifConfig.type || 'message',
+        duration: notifConfig.duration,
+        placement: notifConfig.placement,
+      });
+      return;
+    }
+
+    // Fallback to simple toast (backward compatible)
+    const template = notifConfig?.message || (level === 'success' ? config.successMessage : config.errorMessage);
+    const message = this.evaluateMessage(template, context, defaultMessage);
+
+    if (level === 'success') {
+      this.deps.notifySuccess(message);
+    } else {
+      this.deps.notifyError(message);
+    }
   }
 
   // ==========================================================================
@@ -391,30 +505,10 @@ export class OperationExecutor {
     }
   }
 
-  /**
-   * Invalidate React Query cache for the entity derived from an API URL.
-   * E.g. '/api/team/:teamId' → entity 'team', '/admin/player' → entity 'player'
-   */
-  private invalidateEntityCache(apiUrl?: string): void {
-    if (!apiUrl) return;
-
-    const parts = apiUrl.split('/').filter(Boolean);
-    // Walk backwards to find the first non-parameter segment
-    let entityName: string | undefined;
-    for (let i = parts.length - 1; i >= 0; i--) {
-      if (!parts[i].startsWith(':')) {
-        entityName = parts[i];
-        break;
-      }
-    }
-
-    if (entityName && entityName !== 'unknown') {
-      queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).all });
-    }
-  }
-
-  private isCancellationError(error: any): boolean {
-    return error.name === 'AbortError' || error.name === 'CanceledError';
+  private isCancellationError(error: unknown): boolean {
+    if (error == null || typeof error !== 'object') return false;
+    const name = (error as { name?: string }).name;
+    return name === 'AbortError' || name === 'CanceledError';
   }
 }
 
@@ -428,7 +522,7 @@ export class OperationExecutor {
  */
 export function useOperationExecutor(): OperationExecutor {
   const { callApiMethod } = useApi();
-  const { notifySuccess, notifyError } = useAppContext();
+  const { notifySuccess, notifyError, notify } = useAppContext();
   const navigate = useCoreNavigator();
   const { showResponseModal } = useResponseModalContext();
   const evaluationContext = useNewEvaluationContext();
@@ -439,8 +533,9 @@ export function useOperationExecutor(): OperationExecutor {
       callApiMethod,
       notifySuccess,
       notifyError,
+      notify,
       showResponseModal,
       evaluationContext,
     });
-  }, [ navigate, callApiMethod, notifySuccess, notifyError, showResponseModal, evaluationContext ]);
+  }, [ navigate, callApiMethod, notifySuccess, notifyError, notify, showResponseModal, evaluationContext ]);
 }

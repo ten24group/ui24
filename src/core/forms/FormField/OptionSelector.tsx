@@ -1,16 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Select as AntSelect, Radio, Checkbox, Divider, Space, Button } from 'antd';
-import { useApi } from '../../context';
 import { PlusOutlined } from '@ant-design/icons';
-import type { InputRef } from 'antd';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
-import type { IFormField, ITemplateConfig } from '../../types/field-config';
-import { handleApiError } from '../../utils/api-error-handler';
-import { useAppContext } from '../../context/AppContext';
-import { interpolateTemplate, parseSimpleTemplate } from '../../utils/template';
-import { queryClient } from '../../query/QueryProvider';
-import { queryKeys } from '../../query/queryKeys';
+import type { IFormField, IOptions, ITemplateConfig } from '../../types/field-config';
+import { interpolateTemplate } from '../../utils/template';
+import { useInfiniteFieldOptions } from '../../query/useFieldOptions';
 
 /**
  * @deprecated Use ITemplateConfig from '../../utils/template' instead.
@@ -124,10 +119,8 @@ export function isFieldOptionsAPIConfig(obj: any): obj is IFieldOptionsAPIConfig
     );
 }
 
-export interface IOptions {
-    label: string;
-    value: string | number;
-}
+// IOptions is re-exported from field-config.ts for consumers that import from here
+export type { IOptions } from '../../types/field-config';
 
 export type IFieldOptions = Array<IOptions> | IFieldOptionsAPIConfig;
 
@@ -139,6 +132,8 @@ interface IOptionSelector {
     addNewOptionConfig?: IEntityConfigReference, // NEW: Entity config reference
     value?: string,
     placeholder?: string;
+    /** Additional filters from parent field dependencies (e.g., country → state cascading) */
+    dependencyFilters?: Record<string, unknown>;
 }
 
 /**
@@ -232,243 +227,118 @@ export const OptionSelector = ({
     addNewOptionConfig,
     onOptionChange, 
     value,
-    placeholder
+    placeholder,
+    dependencyFilters,
 }: IOptionSelector) => {
 
-    const { callApiMethod } = useApi()
-    const { resolveConfigRef } = useEntityConfig()
-    const { notifyError } = useAppContext()
+    const { resolveConfigRef } = useEntityConfig();
     const [ open, setOpen ] = useState(false);
-    const [ loading, setLoading ] = useState<boolean>(false);
-    
-    // Options state
-    const [ fieldOptions, setFieldOptions ] = useState<Array<IOptions>>(Array.isArray(options) ? options : []);
-    const [ cursor, setCursor ] = useState<string>('');
-    const [ hasMore, setHasMore ] = useState<boolean>(false);
-    
-    // Search state
-    const [ searchTerm, setSearchTerm ] = useState<string>('');
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Store callApiMethod in a ref for use in queryFn
-    const callApiMethodRef = useRef(callApiMethod);
-    callApiMethodRef.current = callApiMethod;
+    const isApiConfig = isFieldOptionsAPIConfig(options);
+    const apiConfig = isApiConfig ? (options as IFieldOptionsAPIConfig) : null;
 
-    // Derive entity name from apiUrl for cache keying
-    const optionsEntityName = React.useMemo(() => {
-        if (!isFieldOptionsAPIConfig(options)) return 'static';
-        const url = (options as IFieldOptionsAPIConfig).apiUrl || '';
+    // Derive entity name from apiUrl for React Query cache keying
+    const optionsEntityName = useMemo(() => {
+        if (!apiConfig) return 'static';
+        const url = apiConfig.apiUrl || '';
         const parts = url.split('/').filter(Boolean);
         const lastPart = parts[ parts.length - 1 ] || 'unknown';
         return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
-    }, [ options ]);
+    }, [ apiConfig ]);
+
+    // Build mapOption callback for transforming raw API records → IOptions
+    const mapOption = useCallback((record: any): IOptions => {
+        if (!apiConfig?.optionMapping) {
+            // Assume record already has label/value
+            return record as IOptions;
+        }
+        const { label: labelMapping, value: valueMapping } = apiConfig.optionMapping;
+        return {
+            label: typeof labelMapping === 'string'
+                ? String(record[labelMapping] ?? '')
+                : interpolateTemplate(labelMapping, record),
+            value: typeof valueMapping === 'string'
+                ? record[valueMapping] ?? ''
+                : interpolateTemplate(valueMapping, record),
+        };
+    }, [ apiConfig?.optionMapping ]);
+
+    // Hook config for useFieldOptions — only meaningful when apiConfig exists
+    const hookApiConfig = useMemo(() => {
+        if (!apiConfig) return { apiMethod: 'GET' as const, apiUrl: '', responseKey: 'data' };
+        return {
+            apiMethod: apiConfig.apiMethod,
+            apiUrl: apiConfig.apiUrl,
+            responseKey: apiConfig.responseKey,
+            filters: apiConfig.filters,
+            count: apiConfig.count,
+            disableSearch: apiConfig.disableSearch,
+        };
+    }, [ apiConfig ]);
+
+    const isSelectLike = [ 'select', 'multi-select', 'checkbox', 'radio' ].includes(fieldType.toLowerCase());
+
+    const {
+        options: apiOptions,
+        hasMore,
+        isLoading,
+        isFetching,
+        loadMore,
+        search,
+        invalidateAll,
+    } = useInfiniteFieldOptions({
+        entityName: optionsEntityName,
+        fieldName: typeof apiConfig?.optionMapping?.value === 'string' ? apiConfig.optionMapping.value : '',
+        apiConfig: hookApiConfig,
+        dependencyFilters,
+        enabled: isApiConfig && isSelectLike,
+        mapOption: apiConfig?.optionMapping ? mapOption : undefined,
+        searchDebounce: apiConfig?.searchDebounce || 500,
+    });
+
+    // Final options: API-loaded (from hook) or static (from props)
+    const fieldOptions = isApiConfig ? apiOptions : (Array.isArray(options) ? options : []);
+    const loading = isLoading || isFetching;
+
+    // Check if API config has remote search enabled
+    const hasRemoteSearch = isApiConfig && apiConfig?.disableSearch !== true;
+
+    // Check if load more is enabled
+    const canLoadMore = isApiConfig && apiConfig?.disableLoadMore !== true;
 
     /**
-     * Fetch options from API via React Query's cache layer.
-     * Uses queryClient.fetchQuery for caching — same entity's options are shared
-     * across forms, tables (filters), and modals.
+     * Handle search: delegates to the hook's debounced search for remote,
+     * or Ant Design's filterOption for frontend search.
      */
-    const fetchFieldOptions = async (
-        config: IFieldOptionsAPIConfig, 
-        search: string = '',
-        loadMore: boolean = false
-    ): Promise<void> => {
-        setLoading(true);
-        try {
-            const count = config.count || 50;
-            const currentCursor = loadMore ? cursor : '';
-
-            const cacheKey = queryKeys.entity(optionsEntityName).fieldOptions({
-                apiUrl: config.apiUrl,
-                fieldName: config.optionMapping?.value as string || '',
-                search: search || undefined,
-                cursor: currentCursor || undefined,
-            });
-
-            // Type for the API response: a record with an options array + optional pagination cursor
-            interface FieldOptionsResponse { cursor?: string; [key: string]: unknown; }
-
-            const responseData = await queryClient.fetchQuery<FieldOptionsResponse>({
-                queryKey: cacheKey,
-                queryFn: async (): Promise<FieldOptionsResponse> => {
-                    const payload: Record<string, unknown> = { ...(config.filters || {}) };
-                    
-                    if (loadMore && cursor) {
-                        payload.cursor = cursor;
-                    }
-                    payload.count = count;
-                    
-                    if (config.disableSearch !== true && search) {
-                        payload.search = search;
-                    }
-                    
-                    const response = await callApiMethodRef.current({ 
-                        apiUrl: config.apiUrl,
-                        apiMethod: config.apiMethod,
-                        payload
-                    });
-
-                    if (response.status === 200) {
-                        return response.data as FieldOptionsResponse;
-                    }
-                    throw response;
-                },
-                staleTime: 5 * 60 * 1000, // 5min — options change rarely
-            });
-
-            const rawOptionsData = responseData[config.responseKey];
-            const rawOptions = Array.isArray(rawOptionsData) ? rawOptionsData : [];
-            
-            let formattedOptions: Array<IOptions>;
-            if (!config.optionMapping) {
-                formattedOptions = rawOptions.filter(
-                    (opt): opt is IOptions => typeof opt === 'object' && opt !== null && 'label' in opt && 'value' in opt
-                );
-            } else {
-                formattedOptions = rawOptions
-                    .filter((opt): opt is Record<string, string | number> => typeof opt === 'object' && opt !== null)
-                    .map((option) => ({
-                        label: typeof config.optionMapping.label === 'string'
-                            ? String(option[config.optionMapping.label] ?? '')
-                            : interpolateTemplate(config.optionMapping.label, option),
-                        value: typeof config.optionMapping.value === 'string'
-                            ? option[config.optionMapping.value] ?? ''
-                            : interpolateTemplate(config.optionMapping.value, option),
-                    }));
-            }
-
-            let updatedOptions: Array<IOptions>;
-            if (loadMore) {
-                const combined = [...fieldOptions, ...formattedOptions];
-                const uniqueMap = new Map<string | number, IOptions>();
-                combined.forEach(opt => uniqueMap.set(opt.value, opt));
-                updatedOptions = Array.from(uniqueMap.values());
-            } else {
-                updatedOptions = formattedOptions;
-            }
-            
-            updatedOptions.sort((a, b) => {
-                const labelA = String(a.label || a.value || '').toLowerCase();
-                const labelB = String(b.label || b.value || '').toLowerCase();
-                return labelA.localeCompare(labelB);
-            });
-            
-            setFieldOptions(updatedOptions);
-            
-            const nextCursor = typeof responseData.cursor === 'string' ? responseData.cursor : '';
-            setCursor(nextCursor);
-            setHasMore(nextCursor.length > 0);
-        } catch (error: unknown) {
-            const errorResult = handleApiError(error, 'Failed to load options');
-            notifyError(errorResult.errorMessage);
-        } finally {
-            setLoading(false);
+    const handleSearch = useCallback((value: string) => {
+        if (hasRemoteSearch) {
+            search(value);
         }
-    }
+        // Frontend search is handled by Ant Design's filterOption
+    }, [ hasRemoteSearch, search ]);
 
-    /**
-     * Initial fetch of options
-     */
-    const fetchOptions = async () => {
-        if (![ 'select', 'multi-select', 'checkbox', 'radio' ].includes(fieldType.toLowerCase())) {
-            return;
-        }
-        
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            setCursor('');
-            setSearchTerm('');
-            await fetchFieldOptions(options, '', false);
-        }
-    }
-    
-    /**
-     * Handle search with debouncing for remote search
-     */
-    const handleSearch = (value: string) => {
-        setSearchTerm(value);
-        
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            const config = options as IFieldOptionsAPIConfig;
-            
-            // Remote search (debounced)
-            if (config.disableSearch !== true) {
-                // Clear previous timeout
-                if (searchTimeoutRef.current) {
-                    clearTimeout(searchTimeoutRef.current);
-                }
-                
-                // Set new timeout
-                const debounceMs = config.searchDebounce || 500;
-                searchTimeoutRef.current = setTimeout(async () => {
-                    setCursor('');
-                    await fetchFieldOptions(config, value, false);
-                }, debounceMs);
-            }
-            // Frontend search is handled by Ant Design's filterOption
-        }
-    }
-    
-    /**
-     * Load more options (fw24 cursor-based pagination)
-     */
-    const handleLoadMore = async () => {
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            const config = options as IFieldOptionsAPIConfig;
-            
-            if (config.disableLoadMore !== true && hasMore && !loading && cursor) {
-                await fetchFieldOptions(config, searchTerm, true);
-            }
-        }
-    }
-    
     /**
      * Frontend filter function for when remote search is not enabled
      */
-    const filterOption = (input: string, option?: IOptions) => {
+    const filterOption = useCallback((input: string, option?: IOptions) => {
         if (!option) return false;
-        
-        // If remote search is enabled, don't filter on frontend
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            const config = options as IFieldOptionsAPIConfig;
-            if (config.disableSearch !== true) {
-                return true; // Remote search handles filtering
-            }
-        }
-        
-        // Frontend filtering
-        const label = option.label?.toLowerCase() || '';
-        const value = String(option.value || '').toLowerCase();
-        const searchTerm = input.toLowerCase();
-        
-        return label.includes(searchTerm) || value.includes(searchTerm);
-    }
-    
-    /**
-     * Cleanup timeout on unmount
-     */
-    useEffect(() => {
-        return () => {
-            if (searchTimeoutRef.current) {
-                clearTimeout(searchTimeoutRef.current);
-            }
-        };
-    }, []);
 
-    /**
-     * Fetch options when component mounts or options config changes
-     */
-    useEffect(() => {
-        fetchOptions();
-    }, [ options ])
+        // If remote search is enabled, don't filter on frontend (backend handles it)
+        if (hasRemoteSearch) return true;
+
+        const label = option.label?.toLowerCase() || '';
+        const val = String(option.value || '').toLowerCase();
+        const term = input.toLowerCase();
+        return label.includes(term) || val.includes(term);
+    }, [ hasRemoteSearch ]);
 
     /**
      * Get modal config for "Add New Option" feature
      */
-    const getAddNewModalConfig = (): IModalConfig | null => {
+    const getAddNewModalConfig = useCallback((): IModalConfig | null => {
         if (addNewOptionConfig) {
-            // NEW: Resolve entity config reference
             const resolvedConfig = resolveConfigRef(addNewOptionConfig);
-            
+
             if (!resolvedConfig) {
                 console.warn(
                     `[OptionSelector] Failed to resolve config for addNewOption:`,
@@ -476,7 +346,7 @@ export const OptionSelector = ({
                 );
                 return null;
             }
-            
+
             if (!resolvedConfig.formPageConfig) {
                 console.warn(
                     `[OptionSelector] Resolved config missing formPageConfig:`,
@@ -485,42 +355,31 @@ export const OptionSelector = ({
                 );
                 return null;
             }
-            
+
             return {
                 modalType: 'form',
                 modalPageConfig: resolvedConfig.formPageConfig
             };
         } else if (addNewOption) {
-            // OLD: Use legacy IModalConfig directly (backward compatibility)
             return addNewOption;
         }
-        
+
         return null;
-    }
+    }, [ addNewOptionConfig, addNewOption, resolveConfigRef ]);
 
     // Check if add new option should be enabled
     const hasAddNewOption = !!(addNewOptionConfig || addNewOption);
-    
-    // Check if API config has remote search enabled
-    const hasRemoteSearch = typeof options === 'object' && 
-                            isFieldOptionsAPIConfig(options) && 
-                            options.disableSearch !== true;
-    
-    // Check if load more is enabled
-    const canLoadMore = typeof options === 'object' && 
-                        isFieldOptionsAPIConfig(options) && 
-                        options.disableLoadMore !== true;
-    
+
     /**
      * Custom dropdown render with "Load More" button and "Add New" button
      */
-    const customDropdownRender = (menu: React.ReactElement) => {
+    const customDropdownRender = useCallback((menu: React.ReactElement) => {
         const modalConfig = getAddNewModalConfig();
-        
+
         return (
             <>
                 {menu}
-                
+
                 {/* Load More button for cursor-based pagination */}
                 {canLoadMore && hasMore && (
                     <>
@@ -528,14 +387,14 @@ export const OptionSelector = ({
                         <Button
                             type="link"
                             loading={loading}
-                            onClick={handleLoadMore}
+                            onClick={loadMore}
                             style={{ width: '100%', textAlign: 'center' }}
                         >
                             Load More
                         </Button>
                     </>
                 )}
-                
+
                 {/* Add New Record button */}
                 {hasAddNewOption && modalConfig && (
                     <>
@@ -543,7 +402,7 @@ export const OptionSelector = ({
                         <Space style={{ padding: '0 8px 4px' }}>
                             <OpenInModal
                                 onOpenCallback={() => setOpen(false)}
-                                onSuccessCallback={() => { fetchOptions() }}
+                                onSuccessCallback={() => invalidateAll()}
                                 {...modalConfig}
                                 useDynamicIdFromParams={false}
                             >
@@ -554,20 +413,22 @@ export const OptionSelector = ({
                 )}
             </>
         );
-    };
+    }, [ canLoadMore, hasMore, loading, loadMore, hasAddNewOption, getAddNewModalConfig, invalidateAll ]);
 
     return <>
         {fieldType === "checkbox" && (
             <Checkbox.Group 
                 value={[ value ]} 
                 options={fieldOptions} 
+                onChange={(checkedValues) => onOptionChange?.(checkedValues)}
             />
         )}
         
         {fieldType === "radio" && (
             <Radio.Group 
-                value={[ value ]} 
+                value={value} 
                 options={fieldOptions} 
+                onChange={(e) => onOptionChange?.(e.target.value)}
             />
         )}
         
