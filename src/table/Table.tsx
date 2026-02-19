@@ -102,7 +102,7 @@ import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ErrorFallback } from '../core/common';
+import { ErrorFallback, QueryErrorState } from '../core/common/ErrorFallback';
 import { renderSingleAction } from '../core/utils/actionRenderer';
 import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
 import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
@@ -115,13 +115,17 @@ import { FilterSegments } from './FilterSegments/FilterSegments';
 import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
 import { RefreshControl } from '../core/common/RefreshControl';
 import { EmptyState } from '../core/common/EmptyState';
-import { PageSkeleton } from '../core/common/PageSkeleton';
+import { DataLoadingState } from '../core/common/DataLoadingState';
 import { useCoreNavigator } from '../routes/Navigation';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
 import { CardView } from './CardView/CardView';
 import { ViewSwitcher, ViewContainer, useViewState } from '../core/common/ViewSwitcher';
+import { useDeepLink } from './hooks/useDeepLink';
+import { DataQualityIndicator } from '../core/common/DataQualityIndicator';
+import { useTableViews, type TableViewState } from './hooks/useTableViews';
+import { ViewSelector } from './components/ViewSelector';
 
 // ============================================================================
 // RESIZABLE TABLE HEADER (#113)
@@ -215,6 +219,12 @@ export const Table = ({
   displayMode: displayModeConfig,
   viewSwitcher: viewSwitcherConfig,
   loading: loadingConfig,
+  errorHandling: errorHandlingConfig,
+  retry: retryConfig,
+  deepLink: deepLinkConfig,
+  dataSource: preloadedRecords,
+  views: viewsConfig,
+  dataQuality: dataQualityConfig,
 }: ITableConfig) => {
   const coreNavigate = useCoreNavigator();
   // Build placeholder context for segments and filters
@@ -298,15 +308,47 @@ export const Table = ({
     toggleSearchMode,
     canToggleSearchMode,
     dataUpdatedAt,
+    fetchError,
+    currentPage,
+    sort: activeSort,
   } = useTable({
     propertiesConfig,
     apiConfig,
     routeParams,
-    defaultFilters: initialFiltersForTable, // Pass merged defaults here
+    defaultFilters: initialFiltersForTable,
     fetchStrategy,
-    initialPageSize, // Pass backend page size config
+    initialPageSize,
     paginationConfig,
+    dataSource: preloadedRecords,
   });
+
+  // Deep linking: bidirectional URL sync (#21)
+  useDeepLink(deepLinkConfig, {
+    filters: appliedFilters,
+    search: searchQuery,
+    sort: activeSort.map(s => ({ field: String(s.field ?? s.columnKey ?? ''), order: String(s.order ?? '') })),
+    page: currentPage,
+  });
+
+  // Saved views (#19)
+  const currentViewState = useMemo<TableViewState>(() => ({
+    columns: columnSettings.filter(c => c.visible).map(c => c.key),
+    sort: activeSort.map(s => ({ field: String(s.field ?? s.columnKey ?? ''), order: String(s.order ?? '') })),
+    filters: appliedFilters,
+    pageSize: initialPageSize,
+    search: searchQuery,
+  }), [columnSettings, activeSort, appliedFilters, initialPageSize, searchQuery]);
+
+  const savedViews = useTableViews(entityName, viewsConfig, currentViewState);
+
+  const handleLoadView = useCallback((viewId: string): TableViewState | undefined => {
+    const state = savedViews.loadView(viewId);
+    if (!state) return undefined;
+    if (state.filters) setAppliedFilters(state.filters as Record<string, string>);
+    if (state.search !== undefined) onSearch(state.search);
+    setFetchTrigger(prev => prev + 1);
+    return state;
+  }, [savedViews, setAppliedFilters, onSearch, setFetchTrigger]);
 
   // Auto-refresh functionality
   const autoRefresh = useAutoRefresh({
@@ -663,7 +705,7 @@ export const Table = ({
               <RenderFromPageType
                 pageType="details"
                 detailsPageConfig={{
-                  detailResponse: record,  // Pass record data directly - no API fetch needed
+                  dataSource: record as Record<string, unknown>,
                   propertiesConfig: detailFields,
                   columnsConfig: {
                     numColumns,
@@ -768,8 +810,25 @@ export const Table = ({
         };
       });
     }
+    if (dataQualityConfig?.enabled && dataQualityConfig.showInList) {
+      const qualityCol = {
+        title: 'Completeness',
+        dataIndex: '__dataQuality',
+        key: '__dataQuality',
+        width: 60,
+        render: (_: unknown, record: Record<string, unknown>) => (
+          <DataQualityIndicator
+            record={record}
+            config={dataQualityConfig}
+            propertiesConfig={propertiesConfig}
+            mode="compact"
+          />
+        ),
+      };
+      cols = [...cols, qualityCol];
+    }
     return cols;
-  }, [columns, hasPinnedColumns, leftPinned, rightPinned, resizeEnabled, columnWidths, handleColumnResize]);
+  }, [columns, hasPinnedColumns, leftPinned, rightPinned, resizeEnabled, columnWidths, handleColumnResize, dataQualityConfig, propertiesConfig]);
 
   const tableRowClassName = useMemo(() => {
     if (!rowFormatting || rowFormatting.length === 0) return undefined;
@@ -832,7 +891,6 @@ export const Table = ({
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
       onReset={() => {
-        console.log("Table ErrorBoundary Reset");
         handleReload();
       }}
     >
@@ -875,6 +933,16 @@ export const Table = ({
                 />
               </Tooltip>
             ) : null}
+            {savedViews.enabled && (
+              <ViewSelector
+                views={savedViews.views}
+                activeViewId={savedViews.activeViewId}
+                onLoad={handleLoadView}
+                onSave={savedViews.saveView}
+                onDelete={savedViews.deleteView}
+                allowUserViews={viewsConfig?.allowUserViews}
+              />
+            )}
             <Tooltip title="Reset">
               <Button icon={<ClearOutlined />} onClick={handleRefresh} />
             </Tooltip>
@@ -978,10 +1046,15 @@ export const Table = ({
         />
       )}
 
-      {isInitialLoad ? (
-        loadingConfig?.type === 'spinner'
-          ? <div style={{ textAlign: 'center', padding: '60px 0' }}><Spin size="large" /></div>
-          : <PageSkeleton type="table" columns={propertiesConfig?.length || 5} rows={loadingConfig?.rows} />
+      {fetchError && listRecords.length === 0 && !isInitialLoad ? (
+        <QueryErrorState
+          error={fetchError}
+          onRetry={handleReload}
+          errorHandling={errorHandlingConfig}
+          retry={retryConfig}
+        />
+      ) : isInitialLoad ? (
+        <DataLoadingState type={loadingConfig?.type} pageType="table" columns={propertiesConfig?.length || 5} rows={loadingConfig?.rows} />
       ) : (
         <>
           {/* Pagination: top or both */}

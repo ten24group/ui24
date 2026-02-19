@@ -4,9 +4,12 @@ import type { Template, Condition, ConditionalValue, IFieldTypeProperties } from
 import { IModalConfig, IResponseDisplayConfig } from "../modal/Modal";
 import { IActionDrawerConfig } from "../modal/Drawer";
 import type { IRelationFieldConfig } from "./renderers/RelationFieldRenderer";
-import { ISectionsConfig } from "../pages/PostAuth/SectionsRenderer";
 import type { IEntityConfigReference } from "../core/hooks/useEntityConfig";
 import type { ViewConfig } from "../core/common/ViewSwitcher/types";
+import type { IErrorHandlingConfig, IRetryConfig } from "../core/common/ErrorFallback";
+import type { IViewsConfig } from "./hooks/useTableViews";
+import type { ITableDataChangePayload, IPageConfigBase, IMaskingConfig, IDerivedFieldConfig } from "../core/types/field-config";
+import type { IDataQualityConfig } from "../core/common/DataQualityIndicator";
 
 /**
  * Pagination configuration for tables.
@@ -195,13 +198,11 @@ export interface ITableEmptyStateConfig {
   };
 }
 
-export interface ITableConfig {
+export interface ITableConfig extends IPageConfigBase {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
-  records?: Array<any>;
-  routeParams?: Record<string, any>;
-  defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
-  entityName?: string;  // Entity name from backend config generation
+  dataSource?: Array<Record<string, unknown>>;
+  defaultFilters?: Record<string, unknown>;
 
   /**
    * Empty state configuration for when the table has no data.
@@ -268,23 +269,7 @@ export interface ITableConfig {
    */
   pageSize?: number;
 
-  /**
-   * Additional sections to display below or alongside the main table.
-   * From backend: entitySchema.model.listPageConfig.sectionsConfig
-   * 
-   * Enables multi-section list pages with tabs or accordion UI.
-   * Sections have access to table state (selected records, filters) via routeParams.
-   */
-  sectionsConfig?: ISectionsConfig;
-
-  onDataChange?: (data: {
-    selectedRecords?: ReadonlyArray<Record<string, unknown>>;
-    filters?: ITableFilters;
-    searchQuery?: string;
-    pageType?: string;
-    entityName?: string;
-    selectedRowKeys?: ReadonlyArray<React.Key>;
-  }) => void;
+  onDataChange?: (data: ITableDataChangePayload) => void;
 
   /**
    * Whether to show the table toolbar (search, refresh, column settings, filters).
@@ -380,15 +365,29 @@ export interface ITableConfig {
    */
   viewSwitcher?: ViewConfig;
 
+  /** Error handling configuration (#58). Custom messages per status code, fallback mode. */
+  errorHandling?: IErrorHandlingConfig;
+  /** Retry configuration (#58). Controls retry button and automatic retry behavior. */
+  retry?: IRetryConfig;
+
   /**
-   * Loading state configuration (#57).
-   * Controls how loading states are displayed before data is ready.
-   * @default { type: 'skeleton' }
+   * Deep linking configuration (#21).
+   * When enabled, table state (filters, sort, page, search, segment) is
+   * synced bidirectionally with the URL query string.
    */
-  loading?: {
-    type: 'skeleton' | 'spinner';
-    rows?: number;
+  deepLink?: {
+    enabled: boolean;
+    /** Which state slices to include in the URL (default: all) */
+    include?: Array<'filters' | 'sort' | 'page' | 'segment' | 'search'>;
+    /** Optional prefix for URL params to avoid collisions */
+    prefix?: string;
   };
+
+  /** Saved views configuration (#19) */
+  views?: IViewsConfig;
+
+  /** Data quality configuration (#65) — adds a completeness column when showInList is true */
+  dataQuality?: IDataQualityConfig;
 }
 
 /**
@@ -412,6 +411,8 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
   name: string;
   dataIndex: string;
   actions?: Array<IPageAction>;
+  masking?: IMaskingConfig;
+  derived?: IDerivedFieldConfig;
 
   /**
    * Conditional cell formatting rules.
@@ -661,10 +662,16 @@ export type IPageAction = {
   drawerConfigRef?: IEntityConfigReference;
 
   /**
+   * Permission shorthand (#102). Auto-expanded to:
+   *   visibility: { actor: { permissions: { [permission]: { eq: true } } } }
+   * Merged with any explicit `visibility` condition via AND.
+   */
+  permission?: string;
+
+  /**
    * Visibility condition for conditional rendering.
    * Supports the full Condition type: named refs, feature flags, device,
    * inline field checks, logical operators, and app-defined context.
-   * Supports the full Condition type including named refs, inline checks, etc.
    */
   visibility?: Condition;
 

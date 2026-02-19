@@ -1,6 +1,6 @@
 import React from 'react';
 import { Input, Badge, Tag, Progress, Avatar, Timeline } from 'antd';
-import dayjs from 'dayjs';
+import { useFormat } from '../../hooks/useFormat';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
 import { OpenInModal } from '../../../modal/Modal';
 import * as Icons from '@ant-design/icons';
@@ -84,6 +84,7 @@ const IconDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
 };
 
 const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
+  const { formatDate } = useFormat();
   const tlConfig = config.timelineConfig || {};
   const itemMapping = tlConfig.itemMapping || {};
   const labelField = itemMapping.labelField || 'name';
@@ -91,7 +92,6 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
   const descriptionField = itemMapping.descriptionField;
   const typeField = itemMapping.typeField;
   const iconField = itemMapping.iconField;
-  const timestampFormat = tlConfig.timestampFormat || 'MMM D, h:mm:ss A';
   const showTimestamp = tlConfig.showTimestamp !== false;
 
   let items: Array<Record<string, unknown>> = [];
@@ -143,7 +143,7 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
       try {
         const ts = typeof timestamp === 'number' ? timestamp : Date.parse(String(timestamp));
         if (!isNaN(ts)) {
-          formattedTime = dayjs(ts).format(timestampFormat);
+          formattedTime = formatDate(ts, 'datetime');
         }
       } catch {
         // Ignore invalid timestamps
@@ -175,7 +175,7 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
                       fieldType: 'json' as const,
                       column: field
                     })),
-                    detailResponse: item
+                    dataSource: item as Record<string, unknown>
                   }}
                   modalTitle={label || 'Event Details'}
                   modalWidth={800}

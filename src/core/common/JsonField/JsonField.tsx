@@ -4,7 +4,7 @@ import { CopyOutlined, CheckOutlined, TableOutlined, CodeOutlined, ExpandAltOutl
 import { JsonDescription } from '../JsonDescription/JsonDescription';
 import { JsonViewer } from '../JsonViewer/JsonViewer';
 import { OpenInModal } from '../../../modal/Modal';
-import { IDetailsConfig } from '../../../detail/Details';
+import type { IDetailsConfig } from '../../types/field-config';
 
 interface JsonFieldProps {
   data: any;
@@ -66,7 +66,7 @@ export const JsonField: React.FC<JsonFieldProps> = ({
       type: 'map' as const,
       column: 'data'
     }],
-    detailResponse: { data }
+    dataSource: { data }
   }), [data]);
 
   const handleCopy = async () => {

@@ -105,7 +105,7 @@
  * @see {@link useApi} for API integration
  */
 
-import { Form as AntForm, Spin, Alert } from 'antd';
+import { Form as AntForm, Alert } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -118,22 +118,25 @@ import { IForm } from '../core/forms/formConfig';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
-import { substituteUrlParams, getNestedValue } from '../core/utils';
+import { substituteUrlParams, getNestedValue, deriveEntityName } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { useResolveBatch } from '../core/hooks/useResolveBatch';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { ConditionalValue, isConditionalValue } from '../core/types/evaluation';
+import type { IFormDataChangePayload } from '../core/types/field-config';
 import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
 import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
-import { PageSkeleton } from '../core/common/PageSkeleton';
+import { DataLoadingState } from '../core/common/DataLoadingState';
 import { ErrorFallback } from '../core/common';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
 import { useOperationExecutor } from '../core/services/OperationExecutor';
 import { useThrottleCountdown } from '../core/hooks/useThrottleCountdown';
+import { DiffReviewModal } from '../core/common/DiffReview/DiffReviewModal';
+import { useDerivedFieldValues } from '../core/hooks/useDerivedFields';
 import { useEntityDetail } from '../core/query/useEntityDetail';
 
 // Stable empty objects to avoid re-creating {} on every render (used as defaults)
@@ -145,12 +148,7 @@ const EMPTY_DEFAULT_VALUES: Record<string, any> = {};
  */
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, string>;
-  entityName?: string;  // From backend config generation
-  onDataChange?: (data: { record?: any; formValues?: Record<string, any>; pageType?: string; entityName?: string }) => void;
-  /** Loading state configuration (#57) */
-  loading?: { type: 'skeleton' | 'spinner'; rows?: number };
-  /** Whether form action buttons should stick to the bottom of the viewport (#41). Default: true */
+  onDataChange?: (data: IFormDataChangePayload) => void;
   stickyActions?: boolean;
 }
 
@@ -209,6 +207,9 @@ export function Form({
   helpText,  // Help text to display above form fields
   loading: loadingConfig,  // Loading state configuration (#57)
   stickyActions = true,  // Sticky form action buttons (#41)
+  _prefillFieldNames,  // Internal: fields pre-filled from URL that should be locked
+  reviewBeforeSave,  // Diff-on-save review configuration (#36)
+  dataSource,  // Pre-loaded record data (bypasses API call in edit mode)
 }: IFormWithColumnsConfig) {
   const { notifyError, notifySuccess } = useAppContext()
 
@@ -239,6 +240,10 @@ export function Form({
 
   // Track initial record (for edit mode)
   const [ initialRecord, setInitialRecord ] = useState<any>(null);
+
+  // Diff-on-save state (#36)
+  const [ diffReviewOpen, setDiffReviewOpen ] = useState(false);
+  const [ pendingSubmitValues, setPendingSubmitValues ] = useState<Record<string, any> | null>(null);
 
   // Track previous values to detect actual changes (not just re-renders)
   const prevFormPropertiesConfigRef = React.useRef<IFormField[] | null>(null);
@@ -303,29 +308,13 @@ export function Form({
   // Store updated field values for form refresh
   const updatedFieldValuesRef = React.useRef<Record<string, any> | null>(null);
 
-  // Derive entity name from apiUrl for React Query cache keying
-  const formEntityName = React.useMemo(() => {
-    const url = detailApiConfig?.apiUrl || apiConfig?.apiUrl || entityName || '';
-    if (entityName) return entityName;
-    const parts = url.split('/').filter(Boolean);
-    const lastPart = parts[ parts.length - 1 ] || 'unknown';
-    return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
-  }, [ detailApiConfig?.apiUrl, apiConfig?.apiUrl, entityName ]);
+  const formEntityName = React.useMemo(
+    () => deriveEntityName(detailApiConfig?.apiUrl || apiConfig?.apiUrl, entityName),
+    [ detailApiConfig?.apiUrl, apiConfig?.apiUrl, entityName ]
+  );
 
   // ── Declarative data fetching for edit mode via useEntityDetail ──
-  const isEditMode = !!(detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0));
-
-  const resolvedEditApiUrl = React.useMemo(() => {
-    if (!detailApiConfig?.apiUrl || !isEditMode) return '';
-    return substituteUrlParams(detailApiConfig.apiUrl, routeParams, identifiersToUse);
-  }, [ detailApiConfig?.apiUrl, routeParams, identifiersToUse, isEditMode ]);
-
-  const editCacheIdentifiers = React.useMemo((): Record<string, string> => {
-    const ids: Record<string, string> = {};
-    if (identifiersToUse) ids.id = String(identifiersToUse);
-    if (routeParams) Object.entries(routeParams).forEach(([ k, v ]) => { ids[ k ] = String(v); });
-    return ids;
-  }, [ identifiersToUse, routeParams ]);
+  const isEditMode = !!dataSource || !!(detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0));
 
   const {
     data: editData,
@@ -334,11 +323,11 @@ export function Form({
     error: editError,
     refetch: refetchEditData,
   } = useEntityDetail({
-    entityName: formEntityName,
     apiConfig: detailApiConfig || { apiUrl: '', apiMethod: 'GET' },
-    apiUrl: resolvedEditApiUrl,
-    identifiers: editCacheIdentifiers,
-    enabled: isEditMode,
+    routeParams,
+    identifier: identifiersToUse,
+    entityName: formEntityName,
+    enabled: isEditMode && !dataSource,
     staleTime: 30 * 1000,
   });
 
@@ -348,22 +337,23 @@ export function Form({
   const formPropertiesConfigRef = React.useRef(formPropertiesConfig);
   formPropertiesConfigRef.current = formPropertiesConfig;
 
-  // When edit data arrives from the hook, format and update form properties
+  // When edit data arrives (from API or pre-loaded dataSource), format and update form properties
+  const resolvedEditData = dataSource || editData;
   useEffect(() => {
-    if (!editData || !isEditMode) return;
+    if (!resolvedEditData || !isEditMode) return;
 
-    setInitialRecord(editData);
+    setInitialRecord(resolvedEditData);
 
     const currentConfig = formPropertiesConfigRef.current;
     const updatedFieldsWithInitialValues = currentConfig.map((item: IFormField) => {
       const fieldPath = item.column || item.name || item.id;
-      const itemValue = itemValueFormatter(item, getNestedValue(editData, fieldPath));
+      const itemValue = itemValueFormatter(item, getNestedValue(resolvedEditData, fieldPath));
       return { ...item, initialValue: itemValue };
     });
 
     setFormPropertiesConfig(updatedFieldsWithInitialValues);
     setDataLoadedFromView(true);
-  }, [ editData, isEditMode, itemValueFormatter ]);
+  }, [ resolvedEditData, isEditMode, itemValueFormatter ]);
 
   // Handle edit data fetch errors
   useEffect(() => {
@@ -638,6 +628,14 @@ export function Form({
       // validateFields() only returns validated fields, so we use getFieldsValue(true)
       // to include condition-hidden fields whose values should still be submitted.
       const values = form.getFieldsValue(true);
+
+      // Diff-on-save (#36): intercept submit and show review modal if enabled
+      if (reviewBeforeSave?.enabled && identifiersToUse && initialRecord) {
+        setPendingSubmitValues(values);
+        setDiffReviewOpen(true);
+        return;
+      }
+
       await onFinishRef.current(values);
     } catch (err: any) {
       if (err?.errorFields?.length > 0) {
@@ -706,6 +704,24 @@ export function Form({
 
   // Watch form values
   const formValues = AntForm.useWatch([], form) || form.getFieldsValue(true);
+
+  // Computed / derived field values (#35)
+  const derivedValues = useDerivedFieldValues(formPropertiesConfig, formValues || {}, evaluationContext);
+  const prevDerivedRef = React.useRef<Record<string, unknown>>({});
+  useEffect(() => {
+    const changed: Record<string, unknown> = {};
+    let hasChanges = false;
+    for (const [key, val] of Object.entries(derivedValues)) {
+      if (prevDerivedRef.current[key] !== val) {
+        changed[key] = val;
+        hasChanges = true;
+      }
+    }
+    if (hasChanges) {
+      form.setFieldsValue(changed);
+      prevDerivedRef.current = derivedValues;
+    }
+  }, [derivedValues, form]);
 
   // NEW: Determine pageType from initialRecord
   const pageType = useMemo(() => {
@@ -822,10 +838,11 @@ export function Form({
     const filteredIdx = items.indexOf(item);
     const originalIdx = filteredIdx >= 0 ? itemOriginalIndices[ filteredIdx ] : index;
     const condProps = conditionPropsMap[ originalIdx ] || {};
+    const isPrefillLocked = _prefillFieldNames?.has(item.name);
 
     return (
       <React.Fragment key={"fe" + index}>
-        <FormField {...item} {...condProps} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
+        <FormField {...item} {...condProps} conditionDisabled={condProps.conditionDisabled || isPrefillLocked} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
           if (newValue.index !== undefined && typeof newValue.value === "object") {
             const currentValue = form.getFieldValue(newValue.name) || [];
             form.setFieldsValue({
@@ -928,9 +945,7 @@ export function Form({
   return (
     <>
       {!dataLoadedFromView ? (
-        loadingConfig?.type === 'spinner'
-          ? <div style={{ textAlign: 'center', padding: '60px 0' }}><Spin size="large" /></div>
-          : <PageSkeleton type="form" rows={loadingConfig?.rows || formPropertiesConfig?.length || 6} />
+        <DataLoadingState type={loadingConfig?.type} pageType="form" rows={loadingConfig?.rows || formPropertiesConfig?.length || 6} />
       ) : (
         <ErrorBoundary
           FallbackComponent={ErrorFallback}
@@ -997,6 +1012,33 @@ export function Form({
             )}
           </AntForm>
         </ErrorBoundary>
+      )}
+      {reviewBeforeSave?.enabled && (
+        <DiffReviewModal
+          open={diffReviewOpen}
+          onConfirm={async () => {
+            setDiffReviewOpen(false);
+            if (pendingSubmitValues) {
+              await onFinishRef.current(pendingSubmitValues);
+              setPendingSubmitValues(null);
+            }
+          }}
+          onCancel={() => {
+            setDiffReviewOpen(false);
+            setPendingSubmitValues(null);
+          }}
+          originalValues={initialRecord || {}}
+          currentValues={pendingSubmitValues || {}}
+          config={{
+            fields: reviewBeforeSave.fields,
+            requireConfirmFor: reviewBeforeSave.requireConfirmFor,
+            format: reviewBeforeSave.format,
+          }}
+          fieldLabels={Object.fromEntries(
+            formPropertiesConfig.map(f => [f.name, typeof f.label === 'string' ? f.label : f.name])
+          )}
+          loading={btnLoader}
+        />
       )}
     </>
   );

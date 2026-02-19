@@ -7,7 +7,7 @@ import { TablePage } from '../wrappers/TablePage';
 import { DetailPage } from '../wrappers/DetailPage';
 import { Accordion } from './Accordion/Accordion';
 import { ITableConfig } from '../../table/type';
-import { IDetailsConfig } from '../../detail/Details';
+import type { IDetailsConfig } from '../../core/types/field-config';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../../core/common';
@@ -105,9 +105,7 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuth
               {!children && (
                 <ErrorBoundary
                   FallbackComponent={ErrorFallback}
-                  onReset={() => {
-                    console.log("PostAuthPage ErrorBoundary Reset");
-                  }}
+                  onReset={() => {}}
                 >
                   <RenderFromPageType {...props} />
                 </ErrorBoundary>
@@ -274,9 +272,7 @@ export const RenderFromPageType = ({
     return (
       <ErrorBoundary
         FallbackComponent={ErrorFallback}
-        onReset={() => {
-          console.log(`[RenderFromPageType] Entity override error boundary reset: ${entityName}`);
-        }}
+        onReset={() => {}}
       >
         <Component {...props} />
       </ErrorBoundary>
@@ -289,9 +285,7 @@ export const RenderFromPageType = ({
     return (
       <ErrorBoundary
         FallbackComponent={ErrorFallback}
-        onReset={() => {
-          console.log(`[RenderFromPageType] Extension page error boundary reset: ${resolvedPageType}`);
-        }}
+        onReset={() => {}}
       >
         <Component {...props} />
       </ErrorBoundary>

@@ -9,7 +9,8 @@ import { useModalContext } from '../../core/context';
 import { DetailStateProvider } from '../../core/context/DetailStateContext';
 import { useAutoRefresh } from '../../core/hooks';
 
-import { Details, IDetailsComponentProps } from '../../detail/Details';
+import { Details } from '../../detail/Details';
+import type { IDetailsComponentProps } from '../../core/types/field-config';
 import { IPageHeader, PageHeader } from '../PostAuth/PageHeader/PageHeader';
 import { ISectionsConfig, SectionsRenderer } from '../PostAuth/SectionsRenderer';
 
@@ -36,8 +37,8 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   ...detailProps  // This contains all other props EXCEPT the ones destructured above
 }) => {
   // 1. Wrapper owns state
-  const [ record, setRecord ] = useState<any>(detailProps.detailResponse || null);
-  const [ isLoading, setIsLoading ] = useState<boolean>(!detailProps.detailResponse);
+  const [ record, setRecord ] = useState<any>(detailProps.dataSource || null);
+  const [ isLoading, setIsLoading ] = useState<boolean>(!detailProps.dataSource);
   const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
 
   // 2. Ref to Details component's refresh function
@@ -75,9 +76,7 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   }, []);
 
   // Determine if this detail page fetches its own data.
-  // When detailResponse is provided (e.g., sections using parentData), there's nothing to refresh —
-  // the parent owns the data and its refresh controls.
-  const fetchesOwnData = !detailProps.detailResponse && !!detailProps.detailApiConfig;
+  const fetchesOwnData = !detailProps.dataSource && !!detailProps.detailApiConfig;
 
   // 7. Auto-refresh functionality — only when this page fetches its own data
   const autoRefresh = useAutoRefresh({

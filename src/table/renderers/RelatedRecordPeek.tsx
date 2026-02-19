@@ -11,7 +11,6 @@ import { Popover, Descriptions, Spin, Typography } from 'antd';
 import type { IEntityConfigReference } from '../../core/hooks/useEntityConfig';
 import { useEntityConfig } from '../../core/hooks/useEntityConfig';
 import { useEntityDetail } from '../../core/query';
-import { substituteUrlParams } from '../../core/utils';
 import { Link } from '../../core/common';
 
 const { Text } = Typography;
@@ -62,12 +61,6 @@ export const RelatedRecordPeek: React.FC<RelatedRecordPeekProps> = ({
     return viewConfig.detailsPageConfig.detailApiConfig;
   }, [viewConfig]);
 
-  // Resolve the API URL with identifiers
-  const apiUrl = useMemo(() => {
-    if (!apiConfig?.apiUrl) return '';
-    return substituteUrlParams(apiConfig.apiUrl, identifiers);
-  }, [apiConfig, identifiers]);
-
   // Pick which fields to show: explicit override > first N listable fields from config
   const displayFields = useMemo(() => {
     if (fieldOverrides?.length) return fieldOverrides;
@@ -89,10 +82,9 @@ export const RelatedRecordPeek: React.FC<RelatedRecordPeekProps> = ({
   const { data, isLoading, error } = useEntityDetail({
     entityName: entityConfigRef.entityName,
     apiConfig: apiConfig ?? { apiUrl: '', apiMethod: 'GET' },
-    apiUrl,
-    identifiers,
-    enabled: hovered && !!apiUrl,
-    staleTime: 60_000, // 1 min — preview data doesn't need to be real-time
+    routeParams: identifiers,
+    enabled: hovered,
+    staleTime: 60_000,
   });
 
   const handleOpenChange = useCallback((open: boolean) => {

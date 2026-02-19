@@ -1,5 +1,31 @@
 import React from 'react';
+import { Button, Result, Typography } from 'antd';
+import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import type { FallbackProps } from 'react-error-boundary';
+import type { Template } from '../types';
+import { getErrorStatus } from '../utils/api-error-handler';
+
+const { Text, Paragraph } = Typography;
+
+/** Configuration for error handling behavior on a page/component */
+export interface IErrorHandlingConfig {
+  /** Custom messages per HTTP status code */
+  messages?: Record<number, string | Template>;
+  /** Fallback mode: 'message' (default), 'reduced-view', or 'custom' */
+  fallback?: 'message' | 'reduced-view' | 'custom';
+  /** Extension registry key for custom fallback component */
+  fallbackKey?: string;
+}
+
+/** Configuration for retry behavior */
+export interface IRetryConfig {
+  /** Show a retry button in error state (default: true) */
+  showRetryButton?: boolean;
+  /** Maximum number of automatic retries before showing error state */
+  maxRetries?: number;
+  /** Backoff strategy for automatic retries */
+  backoff?: 'exponential';
+}
 
 /**
  * Safely extract a displayable message from an unknown error value.
@@ -9,38 +35,97 @@ export function toErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === 'string') return error;
   if (typeof error === 'object' && error !== null && 'message' in error) {
-    const msg = error.message;
+    const msg = (error as Record<string, unknown>).message;
     if (typeof msg === 'string') return msg;
   }
   return 'An unknown error occurred';
 }
 
+/** Resolve error message using error handling config (custom messages per status code) */
+function resolveErrorMessage(error: unknown, config?: IErrorHandlingConfig): string {
+  if (config?.messages) {
+    const statusCode = getErrorStatus(error);
+    if (statusCode !== undefined && config.messages[statusCode]) {
+      return String(config.messages[statusCode]);
+    }
+  }
+  return toErrorMessage(error);
+}
+
+/** ErrorBoundary fallback — shown when a React render error is caught */
 export const ErrorFallback: React.FC<FallbackProps> = ({ error, resetErrorBoundary }) => {
   const message = toErrorMessage(error);
+
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const { logActivity } = require('../devtools/devtoolsBridge');
+      logActivity({
+        type: 'error',
+        label: message,
+        data: { message, stack: error instanceof Error ? error.stack : undefined },
+      });
+    } catch { /* noop */ }
+  }
+
   return (
-    <div role="alert" style={{ padding: '20px', border: '1px solid #ff4d4f', borderRadius: '4px', backgroundColor: '#fff0f6' }}>
-      <h3 style={{ color: '#ff4d4f', marginBottom: '10px' }}>Something went wrong!</h3>
-      <pre style={{ color: '#d43808', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: '200px', overflowY: 'auto', padding: '10px', backgroundColor: '#fffbe6', border: '1px solid #ffe58f' }}>
-        {message}
-      </pre>
-      <button
-        onClick={resetErrorBoundary}
-        style={{
-          marginTop: '15px',
-          padding: '8px 15px',
-          backgroundColor: '#1890ff',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          fontSize: '14px',
-        }}
-      >
-        Try again
-      </button>
-      <p style={{ marginTop: '10px', fontSize: '12px', color: '#8c8c8c' }}>
-        If the problem persists, please contact support.
-      </p>
-    </div>
+    <Result
+      status="error"
+      title="Something went wrong"
+      subTitle={<Text type="secondary">{message}</Text>}
+      extra={[
+        <Button key="retry" type="primary" icon={<ReloadOutlined />} onClick={resetErrorBoundary}>
+          Try again
+        </Button>
+      ]}
+    />
+  );
+};
+
+interface QueryErrorStateProps {
+  error: unknown;
+  onRetry?: () => void;
+  errorHandling?: IErrorHandlingConfig;
+  retry?: IRetryConfig;
+  /** Use compact layout for embedding inside table empty states, etc. */
+  compact?: boolean;
+}
+
+/**
+ * Inline error state for query/fetch failures.
+ * Renders within the page layout (not a full-page takeover like ErrorBoundary).
+ */
+export const QueryErrorState: React.FC<QueryErrorStateProps> = ({
+  error,
+  onRetry,
+  errorHandling,
+  retry,
+  compact = false,
+}) => {
+  const message = resolveErrorMessage(error, errorHandling);
+  const showRetry = retry?.showRetryButton !== false && onRetry;
+
+  if (compact) {
+    return (
+      <div style={{ padding: '16px', textAlign: 'center' }}>
+        <WarningOutlined style={{ fontSize: 24, color: '#faad14', marginBottom: 8 }} />
+        <Paragraph type="secondary" style={{ marginBottom: 8 }}>{message}</Paragraph>
+        {showRetry && (
+          <Button size="small" icon={<ReloadOutlined />} onClick={onRetry}>Retry</Button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <Result
+      status="warning"
+      title="Failed to load data"
+      subTitle={<Text type="secondary">{message}</Text>}
+      extra={showRetry ? [
+        <Button key="retry" type="primary" icon={<ReloadOutlined />} onClick={onRetry}>
+          Retry
+        </Button>
+      ] : undefined}
+    />
   );
 };

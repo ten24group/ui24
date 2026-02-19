@@ -34,6 +34,20 @@ export interface ITenantProvider {
 }
 
 /**
+ * i18n provider interface (#22).
+ * Apps bring their own i18n library (react-intl, i18next, custom).
+ * ui24 only needs translate + getLocale.
+ */
+export interface II18nProvider {
+  /** Translate a key into the current locale. Falls back to the key itself if no translation found. */
+  translate(key: string, params?: Record<string, string | number>): string;
+  /** Return the current locale string (e.g. 'en-US', 'de-DE') */
+  getLocale(): string;
+  /** Optional: subscribe to locale changes */
+  subscribe?(callback: (locale: string) => void): () => void;
+}
+
+/**
  * Configuration passed to UI24.configure().
  * Apps call this before the React tree mounts.
  */
@@ -46,4 +60,6 @@ export interface IConditionSystemConfig {
   responsiveDevice?: boolean;
   /** App-defined context providers (any number, any data) */
   contextProviders?: Record<string, IContextProvider>;
+  /** i18n provider for translating labels, placeholders, etc. (#22) */
+  i18nProvider?: II18nProvider;
 }

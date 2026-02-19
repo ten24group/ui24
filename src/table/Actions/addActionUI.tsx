@@ -163,7 +163,7 @@ const ListPageActionInner = React.memo(({
   getRecordsCallback: () => void,
   routeParams: Record<string, string>,
   isInModal: boolean,
-  navigate: (path: string) => void
+  navigate: (pathOrDelta: string | number) => void
 }) => {
 
   // Use raw API data for evaluation (before display formatting mutations)
@@ -212,7 +212,7 @@ const ListPageActionInner = React.memo(({
           onSuccessCallback: () => {
             getRecordsCallback()
           },
-          onNavigate: (url) => navigate(url),
+          onNavigate: (urlOrDelta) => navigate(urlOrDelta),
         }) as MenuItem;
       })
       .filter(Boolean);
@@ -253,7 +253,7 @@ const ListPageActionInner = React.memo(({
     onSuccessCallback: () => {
       getRecordsCallback()
     },
-    onNavigate: (url) => navigate(url)
+    onNavigate: (urlOrDelta) => navigate(urlOrDelta)
   }) as React.ReactNode;
 
   if (isDisabled && disabledMessage) {

@@ -27,7 +27,7 @@ interface RenderActionOptions {
   /** Selected records for bulk actions (copy, etc.) */
   selectedRecords?: ReadonlyArray<Record<string, any>>;
   onSuccessCallback?: (response?: any) => void;
-  onNavigate?: (url: string) => void;
+  onNavigate?: (urlOrDelta: string | number) => void;
 }
 
 /**
@@ -80,6 +80,12 @@ export function renderSingleAction({
     return <Tooltip title={evaluatedTooltip}><span style={{ display: 'inline-block' }}>{content}</span></Tooltip>;
   };
 
+  const renderPageHeaderButton = (onClick?: () => void) => (
+    <Button type="primary" disabled={isDisabled} onClick={onClick}>
+      {action.icon && <><Icon iconName={action.icon} />{' '}</>}{evaluatedLabel}
+    </Button>
+  );
+
   // Pattern 1: Modal with inline config
   if (action.openInModal && action.modalConfig) {
     // Merge record data with routeParams for template resolution (initialValues)
@@ -99,12 +105,11 @@ export function renderSingleAction({
       >
         {wrapWithTooltip(
           isDropdownItem ? (
-            // For dropdown items, don't include icon in label - MenuItem handles it separately
             evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "delete"} />
           ) : (
-            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenInModal>
@@ -141,12 +146,11 @@ export function renderSingleAction({
       >
         {wrapWithTooltip(
           isDropdownItem ? (
-            // For dropdown items, don't include icon in label - MenuItem handles it separately
             evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "eye"} />
           ) : (
-            <Button type="primary">{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenRouteInModal>
@@ -192,7 +196,7 @@ export function renderSingleAction({
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "edit"} />
           ) : (
-            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenInDrawer>
@@ -235,7 +239,7 @@ export function renderSingleAction({
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "eye"} />
           ) : (
-            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenRouteInDrawer>
@@ -281,32 +285,36 @@ export function renderSingleAction({
     }
 
     return wrapWithTooltip(
-      <Button key={key} type="primary" disabled={isDisabled} onClick={handleCopy}>
-        {evaluatedLabel}
-      </Button>
+      renderPageHeaderButton(handleCopy)
     );
   }
 
   // Pattern 3: Regular navigation
-  let url = action.url || '';
+  const rawUrl = action.url || '';
+  const isBackAction = rawUrl === '__back__';
 
-  // Use the existing substituteUrlParams utility properly
-  if (record) {
-    // For table rows: use record data as routeParams and primaryIndex as fallback
-    url = substituteUrlParams(url, record, primaryIndex);
-  } else {
-    // For page headers: use routeParams as is
-    url = substituteUrlParams(url, routeParams);
+  let url = rawUrl;
+  if (!isBackAction) {
+    // Use the existing substituteUrlParams utility properly
+    if (record) {
+      // For table rows: use record data as routeParams and primaryIndex as fallback
+      url = substituteUrlParams(url, record, primaryIndex);
+    } else {
+      // For page headers: use routeParams as is
+      url = substituteUrlParams(url, routeParams);
+    }
   }
 
-  const external = isExternalUrl(url);
+  const external = !isBackAction && isExternalUrl(url);
   const { target, rel } = resolveAnchorProps(action.target, url);
 
   const handleNavigation = (e?: React.MouseEvent) => {
     if (isDisabled) return;
     if (e) e.preventDefault();
 
-    if (target === '_blank' || external) {
+    if (isBackAction) {
+      onNavigate?.(-1);
+    } else if (target === '_blank' || external) {
       window.open(url, target || '_blank', 'noopener,noreferrer');
     } else {
       onNavigate?.(url);
@@ -336,16 +344,9 @@ export function renderSingleAction({
     );
   }
 
-  // For page headers, return Button
+  // For page headers, return Button with optional icon
   return wrapWithTooltip(
-    <Button
-      key={key}
-      type="primary"
-      disabled={isDisabled}
-      onClick={() => handleNavigation()}
-    >
-      {evaluatedLabel}
-    </Button>
+    renderPageHeaderButton(() => handleNavigation())
   );
 }
 

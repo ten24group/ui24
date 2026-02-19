@@ -6,6 +6,7 @@
  */
 import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode } from 'react';
+import { useDevToolsReport } from '../devtools/devtoolsBridge';
 
 export interface DetailStateContextValue {
   record: any | null;
@@ -21,6 +22,8 @@ export const DetailStateProvider = ({
   children: ReactNode;
   value: DetailStateContextValue;
 }) => {
+  useDevToolsReport('detail', 'Detail', value);
+
   return (
     <DetailStateContext.Provider value={value}>
       {children}

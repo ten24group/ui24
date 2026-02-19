@@ -6,6 +6,7 @@
  */
 import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode } from 'react';
+import { useDevToolsReport } from '../devtools/devtoolsBridge';
 
 export interface FormStateContextValue {
   record: any | null;
@@ -24,6 +25,8 @@ export const FormStateProvider = ({
   children: ReactNode;
   value: FormStateContextValue;
 }) => {
+  useDevToolsReport('form', 'Form', value);
+
   return (
     <FormStateContext.Provider value={value}>
       {children}

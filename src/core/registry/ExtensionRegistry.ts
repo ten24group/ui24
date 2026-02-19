@@ -194,6 +194,17 @@ class ExtensionRegistryImpl {
     return results;
   }
 
+  /**
+   * List all registered components with their metadata.
+   */
+  public listComponents(): ReadonlyArray<ComponentRegistration & { key: string }> {
+    const result: Array<ComponentRegistration & { key: string }> = [];
+    this.components.forEach((reg, key) => {
+      result.push({ ...reg, key });
+    });
+    return result;
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE TYPES
   // ══════════════════════════════════════════════════════════════════════════

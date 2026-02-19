@@ -8,6 +8,7 @@ import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useModalDepth } from '../../modal/Modal';
+import { useDevToolsReport } from '../devtools/devtoolsBridge';
 
 export interface PageStaticContextValue {
   // NOTE: keep this aligned with PostAuthPage supported page types.
@@ -70,6 +71,8 @@ export const PageStaticProvider = ({
       }
     };
   }, [ pageType, entityName, stableConfig, params, location.search, location.pathname, modalDepth ]);
+
+  useDevToolsReport('page', entityName || pageType || 'page', value, modalDepth);
 
   return (
     <PageStaticContext.Provider value={value}>

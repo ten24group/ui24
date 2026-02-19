@@ -1,4 +1,5 @@
 import { useUi24Config } from '../context/UI24Context';
+import type { IApiConfig, IDualApiConfig } from '../context';
 import { IFilterSegment, IFilterSegmentGroup } from '../../table/type';
 import type { ConditionalValue } from '../types/evaluation';
 
@@ -12,40 +13,10 @@ export interface IEntityPageColumnConfig {
 }
 
 /**
- * API method types
+ * Union type for all API configuration formats.
+ * Matches the backend IEntityConfigReference.overrideConfig.apiConfig.
  */
-export type ApiMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-
-/**
- * Basic API configuration for modals and details
- */
-export interface IModalApiConfig {
-  apiMethod: ApiMethod;
-  responseKey?: string;
-  apiUrl: string;
-}
-
-/**
- * Extended API configuration for list pages (single mode)
- */
-export interface IListApiConfigSingle extends IModalApiConfig {
-  useSearch?: boolean;
-  defaultSort?: { field: string; order: 'asc' | 'desc' };
-}
-
-/**
- * Dual API configuration for list pages (search + database)
- */
-export interface IListApiConfigDual {
-  search: IModalApiConfig;
-  database: IModalApiConfig;
-}
-
-/**
- * Union type for all API configuration formats
- * Matches the backend IEntityConfigReference.overrideConfig.apiConfig
- */
-export type ApiConfigOverride = IModalApiConfig | IListApiConfigDual | IListApiConfigSingle;
+export type ApiConfigOverride = IApiConfig | IDualApiConfig | (IApiConfig & { defaultSort?: { field: string; order: 'asc' | 'desc' } });
 
 /**
  * Entity Configuration Reference (from fw24)
@@ -142,18 +113,12 @@ export interface IEntityConfigReference {
   };
 }
 
-/**
- * Type guard to check if API config is dual (search + database)
- */
-function isDualApiConfig(config: any): config is IListApiConfigDual {
-  return config && typeof config === 'object' && 'search' in config && 'database' in config;
+function isDualApiConfig(config: unknown): config is IDualApiConfig {
+  return !!config && typeof config === 'object' && 'search' in config && 'database' in config;
 }
 
-/**
- * Type guard to check if API config is single with extended options
- */
-function isListApiConfigSingle(config: any): config is IListApiConfigSingle {
-  return config && typeof config === 'object' && 'apiMethod' in config && 'apiUrl' in config;
+function isSingleApiConfig(config: unknown): config is IApiConfig {
+  return !!config && typeof config === 'object' && 'apiMethod' in config && 'apiUrl' in config;
 }
 
 /**

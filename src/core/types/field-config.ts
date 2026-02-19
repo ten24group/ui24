@@ -1,9 +1,22 @@
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import { FieldType, PropertyType } from './field-types';
 import { IModalConfig } from '../../modal/Modal';
 import { GetSignedUploadUrlAPIConfig } from '../common';
 import { IEntityConfigReference } from '../hooks';
 import type { Condition, ConditionalValue } from './evaluation';
+import type { IApiConfig } from '../context/ApiContext';
+import type { ISectionsConfig } from '../../pages/PostAuth/SectionsRenderer';
+import type { IColumnsConfig } from '../forms/shared/utils';
+import type { IDataQualityConfig } from '../common/DataQualityIndicator';
+import type { IErrorHandlingConfig, IRetryConfig } from '../common/ErrorFallback';
+
+export interface IDetailApiConfig {
+  detailApiConfig?: IApiConfig;
+}
+
+export interface IDataSourceMixin<T = Record<string, unknown>> {
+  dataSource?: T;
+}
 
 /**
  * Template configuration interface for complex string interpolation.
@@ -204,6 +217,37 @@ export interface IHelpConfig {
   placement?: 'below' | 'tooltip' | 'popover';
 }
 
+/** Built-in masking patterns for common PII types (#51) */
+export type MaskingPattern = 'ssn' | 'email' | 'phone' | 'card' | 'custom';
+
+/** Display masking configuration for PII / sensitive data (#51) */
+export interface IMaskingConfig {
+  enabled: boolean;
+  pattern: MaskingPattern;
+  /** Custom regex + replacement for 'custom' pattern */
+  customPattern?: { match: string; replace: string };
+  /** Allow user to reveal the original value */
+  allowReveal?: boolean;
+  /** Condition that must pass for the reveal button to appear */
+  revealCondition?: Condition;
+  /** Auto-hide revealed value after N seconds */
+  revealDuration?: number;
+  /** Log reveal events for audit trail (field name + timestamp emitted via callback) */
+  auditReveal?: boolean;
+}
+
+/** Derived / computed field configuration (#35) */
+export interface IDerivedFieldConfig {
+  /** Template string using existing Template system (e.g. '{firstName} {lastName}') */
+  template?: Template;
+  /** Simple arithmetic expression (e.g. 'quantity * unitPrice') */
+  expression?: string;
+  /** Conditional value mapping */
+  conditions?: Array<{ when: Condition; value: unknown }>;
+  /** Fields to watch for recomputation (form mode) */
+  watchFields?: string[];
+}
+
 /**
  * Base field configuration - shared properties across all field types
  */
@@ -268,8 +312,14 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
    */
   dependsOn?: string | string[];
 
+  /** Display masking configuration for PII / sensitive data (#51) */
+  masking?: IMaskingConfig;
+
+  /** Derived / computed field configuration (#35) */
+  derived?: IDerivedFieldConfig;
+
   // Nested structures (for list/map types)
-  properties?: Array<any>; // Will be properly typed in specific interfaces
+  properties?: Array<any>;
   items?: {
     type: PropertyType;
     properties?: Array<any>;
@@ -445,5 +495,61 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
     type: PropertyType;
     properties?: Array<IDetailFieldConfig>;
   };
+}
+
+// ── onDataChange payload types (shared across page components) ──
+
+export interface IDetailDataChangePayload {
+  record?: Record<string, unknown>;
+  pageType?: string;
+  entityName?: string;
+  dataUpdatedAt?: string;
+}
+
+export interface IFormDataChangePayload {
+  record?: Record<string, unknown>;
+  formValues?: Record<string, unknown>;
+  pageType?: string;
+  entityName?: string;
+}
+
+export interface ITableDataChangePayload {
+  selectedRecords?: ReadonlyArray<Record<string, unknown>>;
+  selectedRowKeys?: ReadonlyArray<React.Key>;
+  filters?: Record<string, unknown>;
+  searchQuery?: string;
+  pageType?: string;
+  entityName?: string;
+}
+
+// ── Page config shared mixin ──
+
+export interface IPageConfigBase {
+  entityName?: string;
+  routeParams?: Record<string, any>;
+  sectionsConfig?: ISectionsConfig;
+  loading?: { type: 'skeleton' | 'spinner'; rows?: number };
+  errorHandling?: IErrorHandlingConfig;
+  retry?: IRetryConfig;
+}
+
+// ── Page config interfaces ──
+
+export interface IDetailsConfig extends IDetailApiConfig, IDataSourceMixin<Record<string, unknown>>, IPageConfigBase {
+  pageTitle?: Template;
+  identifiers?: string | number | Array<string | number>;
+  propertiesConfig: Array<IDetailFieldConfig>;
+  columnsConfig?: IColumnsConfig;
+  dataQuality?: IDataQualityConfig;
+}
+
+export interface IDetailsComponentProps extends IDetailsConfig {
+  propertiesConfig: Array<IDetailFieldConfig>;
+  detailApiConfig?: IApiConfig;
+  identifiers?: string | number;
+  columnsConfig?: IColumnsConfig;
+  routeParams?: Record<string, any>;
+  onDataChange?: (data: IDetailDataChangePayload) => void;
+  refreshRef?: React.RefObject<(() => Promise<void>) | null>;
 }
 

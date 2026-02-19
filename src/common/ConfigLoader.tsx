@@ -19,7 +19,7 @@ const dedupeRequest = async (url: string, loadFn: () => Promise<any>) => {
 
 export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, updateConfig } = useUi24Config();
-    const [loader, setLoader] = useState(false);
+    const [ loader, setLoader ] = useState(false);
     const { callApiMethod } = useApi();
     const { login, logout, isLoggedIn } = useAuth();
     const configLoadedRef = useRef(false);
@@ -43,7 +43,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                     updateConfig({
                         'uiConfig': {
                             ...selectConfig(config => config.uiConfig),
-                            auth: authResponse[0]
+                            auth: authResponse[ 0 ]
                         }
                     });
                     authConfigLoadedRef.current = true;
@@ -72,7 +72,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                             apiUrl: authConfig.apiConfig.apiUrl,
                             apiMethod: authConfig.apiConfig.apiMethod
                         });
-                        
+
                         if (validate.status === 200) {
                             const data = validate.data as { token?: string };
                             if (data?.token) {
@@ -90,11 +90,11 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
 
                 // Load all other configs in parallel
-                const [pagesResponse, menuResponse, dashboardResponse] = await Promise.all([
+                const [ pagesResponse, menuResponse, dashboardResponse ] = await Promise.all([
                     dedupeRequest(pageConfigUrl, () => loadConfigs(pageConfigUrl)),
                     dedupeRequest(menuConfigUrl, () => loadConfigs(menuConfigUrl)),
                     dedupeRequest(dashboard, () => loadConfigs(dashboard))
-                ]).then(responses => responses.map(r => r[0]));
+                ]).then(responses => responses.map(r => r[ 0 ]));
 
                 updateConfig({
                     'pagesConfig': {
@@ -113,14 +113,34 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         loadAppConfigs();
-    }, [isLoggedIn]); // Only depend on login state
+    }, [ isLoggedIn ]); // Only depend on login state
+
+    // Reload config when the user returns to the tab after being away (#5).
+    // Debounced: only triggers if the tab was hidden for at least 5 minutes,
+    // avoiding unnecessary refetches on quick alt-tabs.
+    const lastVisibleRef = useRef(Date.now());
+    useEffect(() => {
+        if (!isLoggedIn || !configLoadedRef.current) return;
+        const STALE_THRESHOLD = 60 * 60 * 1000; // 1 hour
+
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                lastVisibleRef.current = Date.now();
+            } else if (Date.now() - lastVisibleRef.current > STALE_THRESHOLD) {
+                configLoadedRef.current = false;
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [ isLoggedIn ]);
 
     return (
         <ConfigLoaderContext.Provider value={undefined}>
-            <Spin spinning={loader} style={{ 
-                paddingTop: '25%', 
+            <Spin spinning={loader} style={{
+                paddingTop: '25%',
                 display: 'flex',
-                justifyContent: 'center', 
+                justifyContent: 'center',
                 alignContent: 'center'
             }}>
                 {children}

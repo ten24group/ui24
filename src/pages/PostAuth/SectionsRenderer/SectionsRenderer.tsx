@@ -10,7 +10,7 @@ import { evaluateTemplateValue } from '../../../core/utils/template';
 import { RenderFromPageType, IRenderFromPageType } from '../PostAuthPage';
 import type { Template } from '../../../core/types/field-config';
 import { ITableConfig } from '../../../table/type';
-import { IDetailsConfig } from '../../../detail/Details';
+import type { IDetailsConfig } from '../../../core/types/field-config';
 import { IForm } from '../../../core/forms/formConfig';
 import { IDashboardPageConfig } from '../DashboardPage';
 import type { ICustomPageConfig } from '../CustomPage/CustomPage';
@@ -318,7 +318,7 @@ const SectionContent: React.FC<{
   if (section.pageType === 'details' && section.detailsPageConfig?.useParentData && parentData.record) {
     finalDetailsPageConfig = {
       ...finalDetailsPageConfig,
-      detailResponse: parentData.record
+      dataSource: parentData.record
     };
   }
 

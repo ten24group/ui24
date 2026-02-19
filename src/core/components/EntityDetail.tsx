@@ -14,7 +14,7 @@ export interface EntityDetailProps {
   /** Called when detail data changes */
   onDataChange?: (data: { record?: any; pageType?: string; entityName?: string; dataUpdatedAt?: string }) => void;
   /** Ref to expose refresh function to parent */
-  refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;
+  refreshRef?: React.RefObject<(() => Promise<void>) | null>;
 }
 
 /**

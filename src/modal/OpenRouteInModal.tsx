@@ -341,8 +341,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
             <ErrorBoundary
               FallbackComponent={ErrorFallback}
               onReset={() => {
-                console.log("OpenRouteInModal ErrorBoundary Reset");
-                handleClose(); // Close modal on error reset
+                handleClose();
               }}
             >
               {/* Wrap in ModalContext so child components know they're in a modal */}

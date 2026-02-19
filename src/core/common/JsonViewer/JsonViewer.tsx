@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Collapse, Typography, Space, Button, Tooltip } from 'antd';
 import { CopyOutlined, CheckOutlined, ExpandAltOutlined } from '@ant-design/icons';
 import { OpenInModal } from '../../../modal/Modal';
-import { IDetailsConfig } from '../../../detail/Details';
+import type { IDetailsConfig } from '../../types/field-config';
 import { generateJsonPreview } from '../../utils/jsonUtils';
 
 interface JsonViewerProps {
@@ -125,7 +125,7 @@ export const JsonViewer: React.FC<JsonViewerProps> = ({
       type: 'map' as const,
       column: 'data'
     } ],
-    detailResponse: { data }
+    dataSource: { data }
   }), [ data, title ]);
 
   // Compact mode: Show ONLY preview with modal button (for table rows)

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useModalDepth } from '../../modal/Modal';
 import { ComponentDataContext } from '../types/pageData';
+import { useDevToolsReport } from '../devtools/devtoolsBridge';
 
 /**
  * Page data context - combines navigation state with component data
@@ -70,7 +71,9 @@ export const PageDataProvider = ({
       modalDepth
     };
   }, [parentContext, stableLocalData, params, location.search, modalDepth, isolated]);
-  
+
+  useDevToolsReport('pageData', 'PageData', pageContext, modalDepth);
+
   return (
     <PageDataContext.Provider value={pageContext}>
       {children}
@@ -88,5 +91,13 @@ export const usePageDataContext = () => {
     throw new Error('usePageDataContext must be used within PageDataProvider');
   }
   return context;
+};
+
+/**
+ * Safe variant — returns null when outside PageDataProvider.
+ * Useful for devtools / panels rendered in portals outside the main tree.
+ */
+export const useOptionalPageDataContext = () => {
+  return useContext(PageDataContext);
 };
 

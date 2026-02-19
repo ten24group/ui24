@@ -4,13 +4,15 @@ import { BrowserRouter } from 'react-router-dom';
 import enUS from 'antd/locale/en_US';
 
 import { AppRouter, IAppRouter } from './routes/AppRouter';
-import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider, AppStateProvider, AppStaticProvider } from './core/context';
+import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider, AppStaticProvider } from './core/context';
 import { ResponseModalProvider } from './core/context/ResponseModalContext';
 import { IUi24Config } from './core/context';
 import { IConditionSystemConfig } from './core/context/types';
 import { setConditionSystemConfig } from './core/context/conditionSystemConfig';
+import { setI18nResolver } from './core/types/evaluation';
 import { QueryProvider } from './core/query/QueryProvider';
 import './core/registry/field-types'; // Register built-in field types at startup
+import { ConfigDevTools } from './core/devtools/ConfigDevTools';
 
 // Log UI24 version on load
 const UI24_VERSION = process.env.UI24_VERSION || 'unknown';
@@ -44,6 +46,9 @@ type IUI24 = {
  */
 export function configure(config: IConditionSystemConfig): void {
   setConditionSystemConfig(config);
+  if (config.i18nProvider) {
+    setI18nResolver((key) => config.i18nProvider!.translate(key));
+  }
 }
 
 const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
@@ -57,15 +62,14 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
                             <ThemeProvider>
                                 <AuthProvider>
                                     <AppStaticProvider>
-                                        <AppStateProvider>
                                             <ApiProvider>
                                                 <QueryProvider>
                                                     <ResponseModalProvider>
                                                         <AppRouter customRoutes={customRoutes} />
+                                                        <ConfigDevTools />
                                                     </ResponseModalProvider>
                                                 </QueryProvider>
                                             </ApiProvider>
-                                        </AppStateProvider>
                                     </AppStaticProvider>
                                 </AuthProvider>
                             </ThemeProvider>

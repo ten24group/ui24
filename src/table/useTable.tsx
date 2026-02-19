@@ -26,15 +26,19 @@ import { conditionEvaluator } from "../core/utils/ConditionEvaluator";
 import { getNestedValue } from "../core/utils";
 import { useNewEvaluationContext } from "../core/context/NewEvaluationContext";
 import { useRenderPipeline } from "../core/rendering";
+import { MaskedDisplay } from "../core/common/MaskedDisplay";
+import { computeDerivedValue } from "../core/hooks/useDerivedFields";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   routeParams?: Record<string, string>;
-  defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
-  fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
-  initialPageSize?: number; // Default page size from backend config
-  paginationConfig?: IPaginationConfig; // Config-driven pagination options
+  defaultFilters?: Record<string, any>;
+  fetchStrategy?: 'eager' | 'lazy';
+  initialPageSize?: number;
+  paginationConfig?: IPaginationConfig;
+  /** Pre-loaded data — when provided, skips API fetching entirely (client-side data mode) */
+  dataSource?: Array<Record<string, unknown>>;
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -256,7 +260,34 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10, paginationConfig }: IuseTable) => {
+/** Read deep-link state slices (sort, q, page) from URL on mount (#21). */
+function getDeepLinkStateFromUrl(location: ReturnType<typeof useLocation>, prefix?: string): {
+  sort?: Array<{ field: string; order: string }>;
+  search?: string;
+  page?: number;
+} {
+  const params = new URLSearchParams(location.search);
+  const key = (k: string) => prefix ? `${prefix}.${k}` : k;
+  const result: ReturnType<typeof getDeepLinkStateFromUrl> = {};
+
+  const sortParam = params.get(key('sort'));
+  if (sortParam) {
+    result.sort = sortParam.split(',').map(s => {
+      const [field, dir] = s.split(':');
+      return { field, order: dir === 'asc' ? 'ascend' : 'descend' };
+    });
+  }
+
+  const q = params.get(key('q'));
+  if (q) result.search = q;
+
+  const page = params.get(key('page'));
+  if (page && /^\d+$/.test(page)) result.page = parseInt(page, 10);
+
+  return result;
+}
+
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10, paginationConfig, dataSource: preloadedRecords }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
@@ -285,7 +316,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     }
     return { ...resolvedDefaultFilters };
   });
-  const [ searchQuery, setSearchQuery ] = React.useState<string>('');
+  // Read deep-link state from URL on mount (#21)
+  const urlDeepLinkState = React.useMemo(() => getDeepLinkStateFromUrl(location), []);
+  const [ searchQuery, setSearchQuery ] = React.useState<string>(urlDeepLinkState.search ?? '');
 
   // Determine initial mode FIRST (needed to get correct defaultSort).
   // Uses getDefaultSearchMode() to respect REACT_APP_DEFAULT_LIST_MODE env var for dual configs.
@@ -293,7 +326,14 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   // Then initialize sort based on the current mode
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>(() => {
-    // Use getDefaultSearchMode for consistent mode determination everywhere
+    if (urlDeepLinkState.sort && urlDeepLinkState.sort.length > 0) {
+      return urlDeepLinkState.sort.map((s, i) => ({
+        field: s.field,
+        columnKey: s.field,
+        order: s.order as 'ascend' | 'descend',
+        column: { dataIndex: s.field } as any,
+      }));
+    }
     const initialMode = getDefaultSearchMode(apiConfig);
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, initialMode);
     return convertDefaultSortToSorterResult(defaultSort);
@@ -340,6 +380,24 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Set to true before incrementing fetchTrigger (e.g., Reset button) so the effect can pass forceRefresh.
   const forceNextFetchRef = React.useRef(false);
 
+  const tableDataResult = useTableData({
+    apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
+    routeParams,
+    appliedFilters,
+    searchQuery,
+    sort,
+    visibleColumns,
+    facetedColumns,
+    propertiesConfig,
+    recordIdentifierKey,
+    isSearchMode,
+    fetchStrategy: currentFetchStrategy,
+    pageSize,
+    initialPage: 1,
+  });
+
+  // Client-side data mode: when preloadedRecords is provided, bypass API results
+  const isClientSideData = !!preloadedRecords;
   const {
     listRecords,
     isLoading,
@@ -352,21 +410,23 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     fetchRecords,
     pageSize: currentPageSize,
     dataUpdatedAt,
-  } = useTableData({
-    apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
-    routeParams,
-    appliedFilters,
-    searchQuery,
-    sort,
-    visibleColumns,
-    facetedColumns,
-    propertiesConfig,
-    recordIdentifierKey,
-    isSearchMode,
-    fetchStrategy: currentFetchStrategy, // Use current strategy (can be changed by user)
-    pageSize,
-    initialPage: 1,
-  });
+    error: fetchError,
+  } = isClientSideData
+    ? {
+        listRecords: preloadedRecords,
+        isLoading: false,
+        isInitialLoad: false,
+        currentPage: 1,
+        pageCursor: tableDataResult.pageCursor,
+        isLastPage: true,
+        totalRecords: preloadedRecords.length,
+        facetResults: {},
+        fetchRecords: tableDataResult.fetchRecords,
+        pageSize: tableDataResult.pageSize,
+        dataUpdatedAt: new Date().toISOString(),
+        error: null,
+      }
+    : tableDataResult;
 
   const onSearch = (value: string) => {
     setSearchQuery(value);
@@ -841,6 +901,32 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         };
       }
 
+      // Derived / computed column values (#35) — compute from record at render time
+      if (column.derived) {
+        const derivedBase = renderer;
+        const derivedConfig = column.derived;
+        renderer = (text: unknown, record: IRecord, rowIndex: number) => {
+          const rawRecord = record.__raw__ || record;
+          const derivedValue = computeDerivedValue(derivedConfig, rawRecord as Record<string, unknown>);
+          if (derivedValue !== undefined) {
+            return derivedBase ? derivedBase(derivedValue, record, rowIndex) : String(derivedValue);
+          }
+          return derivedBase ? derivedBase(text, record, rowIndex) : (text != null ? String(text) : '—');
+        };
+      }
+
+      // Data masking (#51) — wrap string cell values when masking is configured
+      if (column.masking?.enabled) {
+        const maskingBase = renderer;
+        const maskingConfig = column.masking;
+        renderer = (text: unknown, record: IRecord, rowIndex: number) => {
+          if (typeof text === 'string' && text) {
+            return <MaskedDisplay value={text} config={maskingConfig} />;
+          }
+          return maskingBase ? maskingBase(text, record, rowIndex) : (text != null ? String(text) : '—');
+        };
+      }
+
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
       return {
         ...column,
@@ -941,5 +1027,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     fetchRecords,       // Exposed to allow immediate fetch with filtersOverride (bypasses React async setState)
     dataUpdatedAt,      // Timestamp of last successful data fetch (#106)
     processField,       // Rendering pipeline (#95) — run a field through evaluate→transform→resolve→select→format
+    fetchError,          // Query error (#58) — for inline error state rendering
+    currentPage,        // Current page number (#21) — for deep link URL sync
+    sort,               // Active sort state (#21) — SorterResult[] for deep link URL sync
   };
 };

@@ -23,7 +23,8 @@
  * ==========================================
  */
 
-import { Modal as AntModal } from 'antd';
+import { Modal as AntModal, Drawer as AntDrawer } from 'antd';
+import { ChainModalContent } from './ChainModal';
 import React from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useLocation } from 'react-router-dom';
@@ -32,11 +33,11 @@ import { IApiConfig, ModalContextProvider, useApi } from '../core/context';
 import { useAppContext } from '../core/context/AppContext';
 import { IForm } from '../core/forms/formConfig';
 import { Template } from '../core/types';
-import type { ConditionalValue } from '../core/types/evaluation';
+import type { Condition, ConditionalValue } from '../core/types/evaluation';
 import { evaluateTemplateObject, getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { evaluateTemplateValue } from '../core/utils/template';
-import { IDetailsConfig } from '../detail/Details';
+import type { IDetailsConfig } from '../core/types/field-config';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { IPageType, RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
@@ -68,9 +69,31 @@ interface IConfirmModal {
    */
   content?: Template;
 }
-type IModalType = "confirm" | "list" | "form" | "custom" | "details" | "accordion" | "dashboard" | "wizard";
+type IModalType = "confirm" | "list" | "form" | "custom" | "details" | "accordion" | "dashboard" | "wizard" | "chain" | "info";
 
-type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig | IAccordionPageConfig | IDashboardPageConfig | IWizardPageConfig;
+/** Single step in a chain modal flow (#67) */
+export interface IChainStep {
+  id: string;
+  title: string;
+  type: IModalType;
+  pageConfig?: IConfirmModal | IForm | ITableConfig | IDetailsConfig | IAccordionPageConfig | IDashboardPageConfig;
+  /** Static next step ID */
+  nextStep?: string;
+  /** Conditional next step resolution */
+  conditionalNextStep?: Array<{ when: Condition; step: string }>;
+  /** API config for this specific step (optional, falls back to modal-level apiConfig) */
+  apiConfig?: IApiConfig;
+}
+
+/** Configuration for chain modal flows (#67) */
+export interface IChainConfig {
+  steps: IChainStep[];
+  showProgressBar?: boolean;
+  /** 'modal' or 'drawer' container */
+  containerType?: 'modal' | 'drawer';
+}
+
+type IModalPageConfig = IConfirmModal | IForm | ITableConfig | IDetailsConfig | IAccordionPageConfig | IDashboardPageConfig | IWizardPageConfig | IChainConfig;
 
 /**
  * Navigation configuration for modal form submissions
@@ -661,7 +684,6 @@ export const Modal = ({
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
             onReset={() => {
-              console.log("Modal (Confirm) ErrorBoundary Reset");
               onCancelCallback && onCancelCallback(); // Close modal on error reset
             }}
           >
@@ -675,6 +697,37 @@ export const Modal = ({
     )
   }
 
+
+  if (modalType === 'chain' && modalPageConfig) {
+    const chainConfig = modalPageConfig as IChainConfig;
+    const chainTitle = typeof modalTitle === 'string' ? modalTitle : undefined;
+    const chainContent = (
+      <ChainModalContent
+        chainConfig={chainConfig}
+        routeParams={routeParams as Record<string, unknown>}
+        onComplete={(values) => { onSuccessCallback?.(values); }}
+        onCancel={onCancelCallback}
+      />
+    );
+
+    if (chainConfig.containerType === 'drawer') {
+      return (
+        <ModalDepthContext.Provider value={nextDepth}>
+          <AntDrawer title={chainTitle} placement="right" width={modalWidth || 520} open onClose={onCancelCallback}>
+            {chainContent}
+          </AntDrawer>
+        </ModalDepthContext.Provider>
+      );
+    }
+
+    return (
+      <ModalDepthContext.Provider value={nextDepth}>
+        <AntModal title={chainTitle} open footer={null} width={modalWidth || 640} onCancel={onCancelCallback}>
+          {chainContent}
+        </AntModal>
+      </ModalDepthContext.Provider>
+    );
+  }
 
   if ([ "list", "form", "details", "accordion", "dashboard", "wizard", "custom" ].includes(modalType) && modalPageConfig) {
     // Extract title from modalPageConfig if it exists
@@ -710,7 +763,6 @@ export const Modal = ({
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
             onReset={() => {
-              console.log("Modal (PageType) ErrorBoundary Reset");
               onCancelCallback && onCancelCallback(); // Close modal on error reset
             }}
           >
@@ -811,7 +863,6 @@ export const Modal = ({
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
             onReset={() => {
-              console.log("Modal (Custom) ErrorBoundary Reset");
               onCancelCallback && onCancelCallback(); // Close modal on error reset
             }}
           >

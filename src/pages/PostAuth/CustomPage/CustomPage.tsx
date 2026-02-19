@@ -321,9 +321,7 @@ export const CustomPage: React.FC<CustomPageProps> = ({
           />
         </Card>
       )}
-      onReset={() => {
-        console.log(`[CustomPage] Error boundary reset for: ${config.componentKey}`);
-      }}
+      onReset={() => {}}
     >
       <CustomComponent {...componentProps} />
     </ErrorBoundary>

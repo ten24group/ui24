@@ -32,7 +32,7 @@
  * 3. Render fields in multi-column layout
  * 
  * ### With Pre-loaded Data
- * 1. Accept record data via `detailResponse` prop
+ * 1. Accept record data via `dataSource` prop
  * 2. Format data for display
  * 3. Render fields in multi-column layout
  * 
@@ -87,7 +87,7 @@
  * // With pre-loaded data (expandable rows, modals, etc.)
  * <Details
  *   propertiesConfig={[...]}
- *   detailResponse={{ teamName: 'Lakers', city: 'Los Angeles', logo: '...' }}
+ *   dataSource={{ teamName: 'Lakers', city: 'Los Angeles', logo: '...' }}
  * />
  * ```
  * 
@@ -98,9 +98,12 @@
 import { Spin, Typography } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { PageSkeleton } from '../core/common/PageSkeleton';
+import { DataLoadingState } from '../core/common/DataLoadingState';
 import { useParams } from "react-router-dom";
 import { ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../core/common';
+import { QueryErrorState } from '../core/common/ErrorFallback';
+import { MaskedDisplay } from '../core/common/MaskedDisplay';
+import { computeDerivedValue } from '../core/hooks/useDerivedFields';
 import { IApiConfig, useAppContext } from '../core/context';
 import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
@@ -112,7 +115,7 @@ import { OpenInModal } from '../modal/Modal';
 import './Details.css';
 import { detailsStyles } from './styles';
 
-import { IDetailFieldConfig, Template } from '../core/types/field-config';
+import { IDetailFieldConfig, Template, type IDetailDataChangePayload, type IDetailsConfig, type IDetailsComponentProps } from '../core/types/field-config';
 import { resolveStringOrDefault } from '../core/types/evaluation';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
@@ -122,6 +125,7 @@ import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from 
 import { useEntityDetail } from '../core/query/useEntityDetail';
 import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
 import { useRenderPipeline } from '../core/rendering';
+import { DataQualityIndicator, type IDataQualityConfig } from '../core/common/DataQualityIndicator';
 import '../core/registry/field-types'; // ensure built-in registrations run
 
 // Stable empty object to avoid re-creating {} on every render (used as default for routeParams)
@@ -208,49 +212,8 @@ const DetailsFieldWrapper: React.FC<{
   );
 };
 
-/**
- * Detail API configuration interface.
- */
-export interface IDetailApiConfig {
-  detailApiConfig?: IApiConfig;
-}
-
-/**
- * Core details configuration interface.
- */
-export interface IDetailsConfig extends IDetailApiConfig {
-  pageTitle?: Template;
-  entityName?: string;  // NEW: Entity name from backend config generation
-  identifiers?: string | number | Array<string | number>;
-  propertiesConfig: Array<IPropertiesConfig>;
-  columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, any>;
-  detailResponse?: any;  // Pre-provided response data (bypasses API call)
-  /**
-   * Additional sections to display below or alongside the main detail view.
-   * From backend: entitySchema.model.viewPageConfig.sectionsConfig
-   * 
-   * Enables multi-section detail pages with tabs or accordion UI.
-   * Sections have access to the parent record via routeParams.
-   */
-  sectionsConfig?: ISectionsConfig;
-}
-
-/**
- * Details component props with state lifting and refresh support.
- */
-export interface IDetailsComponentProps extends IDetailsConfig {
-  propertiesConfig: Array<IPropertiesConfig>;
-  detailApiConfig?: IApiConfig;
-  identifiers?: string | number;
-  columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, any>;
-  detailResponse?: any;  // Pre-provided response data (bypasses API call)
-  onDataChange?: (data: { record?: any; pageType?: string; entityName?: string; dataUpdatedAt?: string }) => void;
-  refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
-  /** Loading state configuration (#57) */
-  loading?: { type: 'skeleton' | 'spinner'; rows?: number };
-}
+// IDetailsConfig and IDetailsComponentProps are now in core/types/field-config.ts
+export type { IDetailsConfig, IDetailsComponentProps };
 
 /**
  * Main Details component for rendering read-only record details.
@@ -261,11 +224,11 @@ export interface IDetailsComponentProps extends IDetailsConfig {
  * 
  * @param props - Details configuration props
  * @param props.propertiesConfig - Field configurations from backend
- * @param props.detailApiConfig - API configuration for loading data (optional if detailResponse provided)
+ * @param props.detailApiConfig - API configuration for loading data (optional if dataSource provided)
  * @param props.identifiers - Record identifier for API fetching
  * @param props.columnsConfig - Multi-column layout configuration
  * @param props.routeParams - Route parameters for URL substitution
- * @param props.detailResponse - Pre-loaded record data (bypasses API call)
+ * @param props.dataSource - Pre-loaded record data (bypasses API call)
  * @param props.entityName - Entity name for context
  * @param props.onDataChange - Callback to lift detail state to parent
  * @param props.refreshRef - Ref to expose refresh function to parent
@@ -279,11 +242,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
   identifiers,
   columnsConfig,
   routeParams = EMPTY_ROUTE_PARAMS,
-  detailResponse: initialDetailResponse,
-  entityName,  // From backend config
-  onDataChange,  // Callback to lift state to wrapper
-  refreshRef,  // Ref to expose refresh function to wrapper
-  loading: loadingConfig,  // Loading state configuration (#57)
+  dataSource: initialDataSource,
+  entityName,
+  onDataChange,
+  refreshRef,
+  loading: loadingConfig,
+  dataQuality: dataQualityConfig,
+  errorHandling: errorHandlingConfig,
+  retry: retryConfig,
 }) => {
   // TODO(#7): Remove dynamicID fallback once all routes pass `identifiers` prop explicitly.
   // Currently, some routes use :dynamicID as the URL param and rely on this fallback.
@@ -354,80 +320,65 @@ const Details: React.FC<IDetailsComponentProps> = ({
     return initialValue;
   }, [ formatDate, formatBoolean ]);
 
-  // Derive entity name from apiUrl for React Query cache keying
-  const detailEntityName = React.useMemo(() => {
-    const url = detailApiConfig?.apiUrl || entityName || '';
-    if (entityName) return entityName;
-    const parts = url.split('/').filter(Boolean);
-    const lastPart = parts[ parts.length - 1 ] || 'unknown';
-    return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
-  }, [ detailApiConfig?.apiUrl, entityName ]);
-
   // ── Declarative data fetching via useEntityDetail ──
   const identifier = identifiers || dynamicID;
 
-  const resolvedApiUrl = useMemo(() => {
-    if (!detailApiConfig?.apiUrl) return '';
-    return substituteUrlParams(detailApiConfig.apiUrl, routeParams, identifier);
-  }, [ detailApiConfig?.apiUrl, routeParams, identifier ]);
-
-  const cacheIdentifiers = useMemo((): Record<string, string> => {
-    const ids: Record<string, string> = {};
-    if (identifier) ids.id = String(identifier);
-    if (routeParams) Object.entries(routeParams).forEach(([ k, v ]) => { ids[ k ] = String(v); });
-    return ids;
-  }, [ identifier, routeParams ]);
-
   const {
     data: fetchedData,
+    entityName: detailEntityName,
     isLoading: detailLoading,
     isFetching: detailFetching,
     error: detailError,
     refetch: refetchDetail,
   } = useEntityDetail({
-    entityName: detailEntityName,
     apiConfig: detailApiConfig || { apiUrl: '', apiMethod: 'GET' },
-    apiUrl: resolvedApiUrl,
-    identifiers: cacheIdentifiers,
-    enabled: !!detailApiConfig && !!resolvedApiUrl && !initialDetailResponse,
+    routeParams,
+    identifier,
+    entityName,
+    enabled: !!detailApiConfig && !initialDataSource,
     staleTime: 30 * 1000,
   });
 
   // Source data: pre-loaded takes priority over fetched
-  const detailResponse = initialDetailResponse || fetchedData || null;
+  const resolvedData = initialDataSource || fetchedData || null;
 
   // Detect record-not-found (404 or empty response)
   const recordNotFound = useMemo(() => {
     if (detailError && isHttpStatus(detailError, 404)) {
       return true;
     }
-    if (!initialDetailResponse && fetchedData !== undefined &&
+    if (!initialDataSource && fetchedData !== undefined &&
       fetchedData && typeof fetchedData === 'object' && Object.keys(fetchedData).length === 0) {
       return true;
     }
     return false;
-  }, [ detailError, fetchedData, initialDetailResponse ]);
+  }, [ detailError, fetchedData, initialDataSource ]);
 
   // Data is ready when pre-loaded OR hook finished loading OR 404 detected
-  const dataLoaded = !!initialDetailResponse || !detailLoading || recordNotFound;
+  const dataLoaded = !!initialDataSource || !detailLoading || recordNotFound;
 
   // Format record info: combine propertiesConfig with formatted values from source data
   const recordInfo = useMemo(() => {
-    if (!detailResponse) return propertiesConfig;
+    if (!resolvedData) return propertiesConfig;
     return propertiesConfig.map(item => {
+      // Derived / computed fields (#35) — compute value from record at render time
+      if (item.derived) {
+        const derivedValue = computeDerivedValue(item.derived, resolvedData as Record<string, unknown>);
+        return { ...item, initialValue: derivedValue };
+      }
       const propertyPath = item.column || item.name || item.id;
-      const nestedValue = getNestedValue(detailResponse, propertyPath);
+      const nestedValue = getNestedValue(resolvedData, propertyPath);
       const formattedValue = valueFormatter(item, nestedValue);
       return { ...item, initialValue: formattedValue };
     });
-  }, [ detailResponse, propertiesConfig, valueFormatter ]);
+  }, [ resolvedData, propertiesConfig, valueFormatter ]);
 
   // Track data update timestamp
   useEffect(() => {
-    if (detailResponse) {
+    if (resolvedData) {
       setDataUpdatedAt(new Date().toISOString());
     }
-  }, [ detailResponse ]);
+  }, [ resolvedData ]);
 
   // Show error toast for non-404 errors
   useEffect(() => {
@@ -446,15 +397,15 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
   // Lift detail state to wrapper (if callback provided)
   useEffect(() => {
-    if (!onDataChange || !detailResponse) return;
+    if (!onDataChange || !resolvedData) return;
 
     onDataChange({
-      record: detailResponse,
+      record: resolvedData,
       pageType: 'view',
       entityName,
       dataUpdatedAt: dataUpdatedAt || undefined,
     });
-  }, [ detailResponse, entityName, onDataChange, dataUpdatedAt ]);
+  }, [ resolvedData, entityName, onDataChange, dataUpdatedAt ]);
 
   // ── Condition evaluation for detail fields ──
   const { visibilityResults: detailVisibilities } = useEvaluatedItems(recordInfo);
@@ -477,9 +428,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
       }}
     >
       {!dataLoaded ? (
-        loadingConfig?.type === 'spinner'
-          ? <div style={{ textAlign: 'center', padding: '60px 0' }}><Spin size="large" /></div>
-          : <PageSkeleton type="detail" columns={columns.length || 2} rows={loadingConfig?.rows} />
+        <DataLoadingState type={loadingConfig?.type} pageType="detail" columns={columns.length || 2} rows={loadingConfig?.rows} />
+      ) : detailError && !recordNotFound ? (
+        <QueryErrorState
+          error={detailError}
+          onRetry={refetchDetail}
+          errorHandling={errorHandlingConfig}
+          retry={retryConfig}
+        />
       ) : recordNotFound ? (
         // Record not found — show contextual empty state
         <EmptyState
@@ -497,6 +453,16 @@ const Details: React.FC<IDetailsComponentProps> = ({
       ) : (
         // Show spinner overlay only for refresh (keeps content visible)
         <Spin spinning={detailFetching && !detailLoading}>
+          {dataQualityConfig?.enabled && dataQualityConfig.showInDetail !== false && resolvedData && (
+            <div style={{ marginBottom: 16 }}>
+              <DataQualityIndicator
+                record={resolvedData as Record<string, unknown>}
+                config={dataQualityConfig}
+                propertiesConfig={propertiesConfig}
+                mode="full"
+              />
+            </div>
+          )}
           <div style={detailsStyles.container}>
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
@@ -509,7 +475,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     const pipelineResult = processField(
                       item,
                       value,
-                      detailResponse || {},
+                      resolvedData || {},
                     );
                     const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
 
@@ -520,7 +486,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                           <RelationFieldRenderer
                             relationConfig={item.relationConfig}
                             value={value}
-                            record={detailResponse || {}}
+                            record={resolvedData || {}}
                             routeParams={routeParams}
                             label={pLabel ?? resolveStringOrDefault(item.label)}
                           />
@@ -568,15 +534,24 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                     }
 
+                    // Data masking (#51) — wrap string values when masking is configured
+                    if (item.masking?.enabled && typeof value === 'string') {
+                      return (
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                          <MaskedDisplay value={value} config={item.masking} />
+                        </DetailsFieldWrapper>
+                      );
+                    }
+
                     // Link fields
                     if (item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
-                        { ...routeParams, ...detailResponse },
+                        { ...routeParams, ...resolvedData },
                         value
                       );
 
-                      const templateContext = { ...routeParams, ...detailResponse };
+                      const templateContext = { ...routeParams, ...resolvedData };
                       const displayText = item.linkConfig.displayText
                         ? evaluateTemplate(item.linkConfig.displayText, templateContext)
                         : value;
@@ -637,7 +612,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             label={pLabel ?? resolveStringOrDefault(item.label)}
                             config={mergedConfig}
                             routeParams={routeParams}
-                            record={detailResponse || {}}
+                            record={resolvedData || {}}
                           />
                         </DetailsFieldWrapper>
                       );

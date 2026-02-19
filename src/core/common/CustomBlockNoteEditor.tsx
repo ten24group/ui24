@@ -100,7 +100,7 @@ export const CustomBlockNoteEditor: React.FC<BlockNoteEditorProps> = ({
   }, [ editor, JSON.stringify(normalizedValue) ]);
 
   if (readOnly) {
-    editor.blocksToFullHTML(normalizedValue).then((html) => {
+    editor.blocksToHTMLLossy(normalizedValue).then((html) => {
       setHtmlContent(html);
     })
   }

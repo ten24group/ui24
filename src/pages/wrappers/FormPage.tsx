@@ -3,6 +3,7 @@
  * Renders PageHeader and the existing Form component with state management.
  */
 import React, { useState, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { FormStateProvider } from '../../core/context/FormStateContext';
 import { useModalContext } from '../../core/context';
 import { useDebounce } from '../../core/hooks/useSelectiveDebounce';
@@ -20,6 +21,9 @@ interface FormPageProps extends Omit<IForm, 'onDataChange' | 'onDataRefresh'>, P
   depth?: number;
 }
 
+/** Infrastructure params that should not be treated as form field values */
+const NON_FIELD_URL_PARAMS = ['debug', 'trace', 'mock', 'f', 'redirect', 'returnUrl'];
+
 export const FormPage: React.FC<FormPageProps> = ({
   pageHeaderActions,
   pageTitle,
@@ -31,6 +35,36 @@ export const FormPage: React.FC<FormPageProps> = ({
   depth = 0,
   ...formProps
 }) => {
+  const location = useLocation();
+
+  // Pre-fill: read URL query params and merge into defaultValues (one-time on mount)
+  const { prefillValues, prefillFieldNames } = useMemo(() => {
+    const prefillConfig = formProps.prefill;
+    if (!prefillConfig?.enabled) return { prefillValues: undefined, prefillFieldNames: new Set<string>() };
+
+    const params = new URLSearchParams(location.search);
+    const values: Record<string, string> = {};
+    const names = new Set<string>();
+
+    params.forEach((value, key) => {
+      if (NON_FIELD_URL_PARAMS.includes(key)) return;
+      if (prefillConfig.autoDetect === false) return;
+      values[key] = value;
+      names.add(key);
+    });
+
+    return {
+      prefillValues: Object.keys(values).length > 0 ? values : undefined,
+      prefillFieldNames: names
+    };
+  }, [location.search, formProps.prefill]);
+
+  // Merge prefill values with any existing defaultValues
+  const mergedDefaultValues = useMemo(() => {
+    if (!prefillValues) return formProps.defaultValues;
+    return { ...(formProps.defaultValues || {}), ...prefillValues };
+  }, [formProps.defaultValues, prefillValues]);
+
   // 1. Wrapper owns state
   const [ record, setRecord ] = useState<any>(null);
   const [ formValues, setFormValues ] = useState<Record<string, any>>({});
@@ -86,9 +120,11 @@ export const FormPage: React.FC<FormPageProps> = ({
         <Card style={{ ...cardStyle, padding: 0, marginTop: 16 }}>
           <Form
             {...formProps}
-            routeParams={enhancedRouteParams}  // Override routeParams for URL substitution (must come after spread)
+            defaultValues={mergedDefaultValues}
+            routeParams={enhancedRouteParams}
             identifiers={identifiers}
             onDataChange={handleDataChange}
+            _prefillFieldNames={formProps.prefill?.lockPrefilled ? prefillFieldNames : undefined}
           />
         </Card>
         {/* Render sections if configured */}

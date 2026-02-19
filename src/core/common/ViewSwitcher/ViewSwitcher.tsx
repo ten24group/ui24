@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tooltip, Button } from 'antd';
+import { Tooltip, Button, Space } from 'antd';
 import {
   UnorderedListOutlined,
   AppstoreOutlined,
@@ -31,7 +31,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ available, active, o
   if (available.length <= 1) return null;
 
   return (
-    <Button.Group>
+    <Space.Compact>
       {available.map(view => {
         const meta = VIEW_META[view];
         if (!meta) return null;
@@ -45,6 +45,6 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ available, active, o
           </Tooltip>
         );
       })}
-    </Button.Group>
+    </Space.Compact>
   );
 };

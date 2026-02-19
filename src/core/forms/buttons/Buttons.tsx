@@ -79,7 +79,7 @@ const PreDefinedButtons: Record<IPreDefinedButtons, IFormButton> = {
 interface ICreateButtons {
     formButtons: Array<IPreDefinedButtons | IFormButton>
     loader?: boolean
-    routeParams?: Record<string, string>
+    routeParams?: Record<string, any>
     onCancelCallback?: () => void  // For modal cancel/close
     /** Text to show on submit button during throttle cooldown (e.g. "Wait 5s") */
     throttleText?: string;

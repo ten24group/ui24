@@ -27,7 +27,7 @@ import { IApiConfig, ModalContextProvider } from '../core/context';
 import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { IForm } from '../core/forms/formConfig';
 import { ITableConfig } from '../table/type';
-import { IDetailsConfig } from '../detail/Details';
+import type { IDetailsConfig } from '../core/types/field-config';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { type IWizardPageConfig } from '../core/common/FormWizard';
@@ -189,7 +189,6 @@ const DrawerContent = ({
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
       onReset={() => {
-        console.log('[Drawer] ErrorBoundary Reset');
         onClose?.();
       }}
     >

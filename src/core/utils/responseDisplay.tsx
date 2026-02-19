@@ -111,7 +111,7 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
         case 'details':
           renderProps.detailsPageConfig = {
             ...pageConfig,
-            detailResponse: extractedData, // Inject response data
+            dataSource: extractedData,
           };
           break;
 

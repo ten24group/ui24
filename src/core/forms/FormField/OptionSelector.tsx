@@ -5,13 +5,8 @@ import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
 import type { IFormField, IOptions, ITemplateConfig } from '../../types/field-config';
 import { interpolateTemplate } from '../../utils/template';
+import { deriveEntityName } from '../../utils';
 import { useInfiniteFieldOptions } from '../../query/useFieldOptions';
-
-/**
- * @deprecated Use ITemplateConfig from '../../utils/template' instead.
- * Kept for backward compatibility.
- */
-export type IAttributesTemplate = ITemplateConfig;
 
 /**
  * Configuration for API-loaded options in form field selectors.
@@ -237,14 +232,18 @@ export const OptionSelector = ({
     const isApiConfig = isFieldOptionsAPIConfig(options);
     const apiConfig = isApiConfig ? (options as IFieldOptionsAPIConfig) : null;
 
-    // Derive entity name from apiUrl for React Query cache keying
-    const optionsEntityName = useMemo(() => {
-        if (!apiConfig) return 'static';
-        const url = apiConfig.apiUrl || '';
-        const parts = url.split('/').filter(Boolean);
-        const lastPart = parts[ parts.length - 1 ] || 'unknown';
-        return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
-    }, [ apiConfig ]);
+    if (!isApiConfig && !Array.isArray(options) && typeof options === 'object' && options !== null && 'entityName' in options) {
+        console.warn(
+            `[OptionSelector] Received unresolved RelationEntityOptionConfig for entity "${(options as any).entityName}". ` +
+            `This should have been resolved to FieldOptionsAPIConfig during config generation. ` +
+            `Check that the entity's service is registered and the relation is properly configured.`
+        );
+    }
+
+    const optionsEntityName = useMemo(
+        () => apiConfig ? deriveEntityName(apiConfig.apiUrl) : 'static',
+        [ apiConfig ]
+    );
 
     // Build mapOption callback for transforming raw API records → IOptions
     const mapOption = useCallback((record: any): IOptions => {

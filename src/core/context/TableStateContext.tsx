@@ -6,6 +6,7 @@
  */
 import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode } from 'react';
+import { useDevToolsReport } from '../devtools/devtoolsBridge';
 
 export interface TableStateContextValue {
   selectedRecords: any[];
@@ -23,6 +24,8 @@ export const TableStateProvider = ({
   children: ReactNode;
   value: TableStateContextValue;
 }) => {
+  useDevToolsReport('table', 'Table', value);
+
   return (
     <TableStateContext.Provider value={value}>
       {children}

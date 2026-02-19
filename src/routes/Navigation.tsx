@@ -17,8 +17,11 @@ export const useCoreNavigator = () => {
     const { selectConfig } = useUi24Config()
     const { appURLPrefix = "" } = selectConfig((config) => config);
 
-    const prefixedNavigate = (path: string, options?: NavigateOptions) => {
-        return navigate(makePath(appURLPrefix, path), options);
+    const prefixedNavigate = (pathOrDelta: string | number, options?: NavigateOptions) => {
+        if (typeof pathOrDelta === 'number') {
+            return navigate(pathOrDelta);
+        }
+        return navigate(makePath(appURLPrefix, pathOrDelta), options);
     }
 
     return prefixedNavigate;

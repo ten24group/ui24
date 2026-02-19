@@ -41,3 +41,9 @@ export * from './CommandPalette';
 
 // View Switcher
 export * from './ViewSwitcher';
+
+// Data Quality Indicator
+export * from './DataQualityIndicator';
+
+// Masked Display (PII / sensitive data)
+export * from './MaskedDisplay';

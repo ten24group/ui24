@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppContext } from '../../core/context/AppContext';
 import { SorterResult } from 'antd/es/table/interface';
 import { ITablePropertiesConfig, ITableApiConfig } from '../type';
-import { getNestedValue } from '../../core/utils';
+import { getNestedValue, deriveEntityName, substituteUrlParams } from '../../core/utils';
 import { handleApiError } from '../../core/utils/api-error-handler';
 import { PASS_THROUGH_URL_PARAMS } from '../constants';
 import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver';
@@ -10,9 +10,6 @@ import { usePlaceholderContext } from './usePlaceholderContext';
 import { useFormat } from '../../core';
 import { useEntityList } from '../../core/query/useEntityList';
 
-const replaceUrlParams = (url: string, params: Record<string, string> = {}) => {
-  return url.replace(/:(\w+)/g, (_, param) => params[ param ] || `:${param}`);
-};
 
 const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
   if (apiMethod === "GET") {
@@ -151,17 +148,14 @@ export const useTableData = ({
       .join(',');
   }, [ sort ]);
 
-  // Derive entity name from apiUrl for React Query cache keying
-  const entityName = React.useMemo(() => {
-    const url = apiConfig.apiUrl || '';
-    const parts = url.split('/').filter(Boolean);
-    const lastPart = parts[ parts.length - 1 ] || 'unknown';
-    return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
-  }, [ apiConfig.apiUrl ]);
+  const entityName = React.useMemo(
+    () => deriveEntityName(apiConfig.apiUrl),
+    [ apiConfig.apiUrl ]
+  );
 
   // ── Reactive API URL ──
   const apiUrl = React.useMemo(
-    () => replaceUrlParams(apiConfig.apiUrl, routeParams),
+    () => substituteUrlParams(apiConfig.apiUrl, routeParams),
     [ apiConfig.apiUrl, routeParams ]
   );
 
@@ -382,5 +376,6 @@ export const useTableData = ({
     fetchRecords,
     pageSize,
     dataUpdatedAt: dataUpdatedAt ? new Date(dataUpdatedAt).toISOString() : null,
+    error,
   };
 };

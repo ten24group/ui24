@@ -29,6 +29,7 @@ import {
 import { getCondition } from './ConditionRegistry';
 import { getCustomEvaluator } from './CustomEvaluatorRegistry';
 import { NeedsAsyncError } from './NeedsAsyncError';
+import { getNestedValue } from '../utils';
 
 // Known InlineCondition field names (framework built-in)
 const KNOWN_INLINE_FIELDS = new Set([
@@ -158,7 +159,7 @@ export class ConditionEvaluator {
    */
   resolveTemplate(template: string, context: NewEvaluationContext): string {
     return template.replace(/\{([^}]+)\}/g, (match, path) => {
-      const value = this._getNestedValue(context, path.trim());
+      const value = getNestedValue(context, path.trim());
       return value !== undefined && value !== null ? String(value) : match;
     });
   }
@@ -492,7 +493,7 @@ export class ConditionEvaluator {
 
     for (const [ path, rule ] of Object.entries(rules)) {
       if (rule === undefined) continue;
-      const actualValue = this._getNestedValue(data, path);
+      const actualValue = getNestedValue(data, path);
       if (!this._matchRule(rule, actualValue, ctx)) return false;
     }
     return true;
@@ -629,10 +630,13 @@ export class ConditionEvaluator {
       }
     }
 
-    // contains (case-insensitive substring)
+    // contains — array membership OR case-insensitive substring
     if ('contains' in rule && rule.contains !== undefined) {
+      if (Array.isArray(value)) {
+        return value.includes(rule.contains);
+      }
       if (typeof value !== 'string') return false;
-      return value.toLowerCase().includes(rule.contains.toLowerCase());
+      return value.toLowerCase().includes(String(rule.contains).toLowerCase());
     }
 
     // No recognized operator → warn in dev mode, then pass (vacuous truth)
@@ -661,7 +665,7 @@ export class ConditionEvaluator {
   private _resolveRef(value: any, ctx: NewEvaluationContext): any {
     if (value && typeof value === 'object' && '$ref' in value) {
       const path = (value as TemplateRef).$ref;
-      const resolved = this._getNestedValue(ctx, path);
+      const resolved = getNestedValue(ctx, path);
       if (resolved === undefined && process.env.NODE_ENV !== 'production') {
         console.warn(`[Condition] $ref path not found: "${path}"`);
       }
@@ -670,13 +674,6 @@ export class ConditionEvaluator {
     return value;
   }
 
-  /**
-   * Get nested value from object using dot notation.
-   */
-  private _getNestedValue(obj: any, path: string): any {
-    if (!obj || !path) return undefined;
-    return path.split('.').reduce((current, key) => current?.[ key ], obj);
-  }
 
   /**
    * Debug logging for evaluations.

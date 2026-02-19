@@ -2,23 +2,22 @@ import React from "react";
 import { ICreateButtons } from "./buttons/Buttons";
 import { IFormFieldResponse } from "./FormField/FormField";
 import { IApiConfig } from "../context";
-import { IDetailApiConfig } from "../../detail/Details";
-import { ISectionsConfig } from "../../pages/PostAuth/SectionsRenderer";
+import type { IDetailApiConfig, IDataSourceMixin, IPageConfigBase } from "../types/field-config";
 import { Template } from "../types";
-import type { ConditionalValue } from "../types/evaluation";
+import type { Condition, ConditionalValue } from "../types/evaluation";
 import type { IResponseDisplayConfig } from "../../modal/Modal";
 
 interface IFormConfig {
     name?: string;
     className?: string;
-    initialValues?: any;
+    initialValues?: Record<string, unknown>;
 }
 
-interface IForm extends ICreateButtons, IDetailApiConfig {
+interface IForm extends ICreateButtons, IDetailApiConfig, IDataSourceMixin<Record<string, unknown>>, IPageConfigBase {
     formConfig?: IFormConfig;
     propertiesConfig: Array<IFormFieldResponse>;
-    onSubmit: (values: any) => void;
-    onSubmitSuccessCallback?: (response?: any) => void;
+    onSubmit: (values: Record<string, unknown>) => void;
+    onSubmitSuccessCallback?: (response?: Record<string, unknown>) => void;
     onCancelCallback?: () => void;  // For modal cancel/close
     children?: React.ReactNode;
     style?: React.CSSProperties;
@@ -56,13 +55,36 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
         showCountdown?: boolean;
     };
 
+    // ===== Review Before Save Config (#36) =====
+    /** Show a diff review modal before submitting form changes */
+    reviewBeforeSave?: {
+        enabled: boolean;
+        /** Only show review when condition passes (e.g. sensitive entities) */
+        condition?: Condition;
+        /** Which fields to show: specific list or only changed fields */
+        fields?: string[] | 'changed-only';
+        /** Fields that require explicit confirmation (highlighted in review) */
+        requireConfirmFor?: string[];
+        /** Review display format */
+        format?: 'modal' | 'drawer';
+    };
+
+    // ===== Pre-Fill Config =====
+    /** Pre-fill form fields from URL query parameters */
+    prefill?: {
+        enabled: boolean;
+        /** Auto-detect field names from URL params (default: true) */
+        autoDetect?: boolean;
+        /** Lock (disable) pre-filled fields so the user cannot change them */
+        lockPrefilled?: boolean;
+    };
+
     // ===== Other Config =====
-    defaultValues?: Record<string, any>;
+    defaultValues?: Record<string, unknown>;
     disabled?: boolean;
     buttonLoader?: boolean;
-    identifiers?: any;
+    identifiers?: string | number;
     useDynamicIdFromParams?: boolean;
-    entityName?: string;  // NEW: Entity name from backend config generation
     /**
      * Help text to display at the top of the form (below title, above fields).
      * From backend: entitySchema.model.formPageConfig.helpText
@@ -75,7 +97,8 @@ interface IForm extends ICreateButtons, IDetailApiConfig {
      * Enables multi-section form pages with tabs or accordion UI.
      * Sections have access to live formValues and record data via routeParams.
      */
-    sectionsConfig?: ISectionsConfig;
+    /** Internal: set of field names that were pre-filled from URL and should be locked (disabled) */
+    _prefillFieldNames?: Set<string>;
 }
 
 

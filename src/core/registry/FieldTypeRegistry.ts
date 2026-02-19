@@ -158,6 +158,21 @@ class FieldTypeRegistryImpl {
   }
 
   /**
+   * List all registered field types and their available render modes.
+   */
+  listAll(): Record<string, Record<string, boolean>> {
+    const result: Record<string, Record<string, boolean>> = {};
+    this.builtInTypes.forEach((reg, fieldType) => {
+      const modes: Record<string, boolean> = {};
+      if (reg.form) modes.form = true;
+      if (reg.detail) modes.detail = true;
+      if (reg.table) modes.table = true;
+      result[fieldType] = modes;
+    });
+    return result;
+  }
+
+  /**
    * Clear all registrations (for testing).
    */
   clear(): void {

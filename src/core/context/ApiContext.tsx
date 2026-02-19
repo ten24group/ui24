@@ -10,7 +10,7 @@ import { setupNewFeaturesTestMocks } from '../mocks/newFeaturesTestMocks';
 export interface IApiConfig {
     apiUrl: string;
     apiMethod: string;
-    payload?: any;
+    payload?: Record<string, unknown> | FormData | string;
     responseKey?: string;
     useSearch?: boolean;
     headers?: Record<string, string>;
@@ -413,7 +413,43 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const stableCallApiMethod = useCallback(<T,>(apiConfig: IApiConfig & { dedupe?: boolean }) => {
-        return callApiMethodImplRef.current<T>(apiConfig);
+        const promise = callApiMethodImplRef.current<T>(apiConfig);
+
+        if (process.env.NODE_ENV !== 'production') {
+            const { logActivity } = require('../devtools/devtoolsBridge');
+            const method = (apiConfig.apiMethod ?? 'GET').toUpperCase();
+            const label = `${method} ${apiConfig.apiUrl}`;
+            const startTime = Date.now();
+            const reqId = logActivity({
+                type: 'api-request',
+                label,
+                data: { method, url: apiConfig.apiUrl, payload: apiConfig.payload, headers: apiConfig.headers },
+            });
+            promise.then(
+                (response: AxiosResponse<T>) => {
+                    logActivity({
+                        type: 'api-response',
+                        label,
+                        status: response.status,
+                        duration: Date.now() - startTime,
+                        data: { status: response.status, data: response.data, headers: response.headers },
+                        requestId: reqId,
+                    });
+                },
+                (error: any) => {
+                    logActivity({
+                        type: 'api-error',
+                        label,
+                        status: error?.response?.status || 0,
+                        duration: Date.now() - startTime,
+                        data: { status: error?.response?.status, message: error?.message, data: error?.response?.data },
+                        requestId: reqId,
+                    });
+                }
+            );
+        }
+
+        return promise;
     }, []) as typeof callApiMethod;
 
     const contextValue = useMemo(() => ({ callApiMethod: stableCallApiMethod }), [stableCallApiMethod]);

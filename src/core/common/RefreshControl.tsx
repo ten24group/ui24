@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Divider, Popover, Radio, Switch, Tooltip, Typography } from 'antd';
+import { Button, Divider, Popover, Radio, Space, Switch, Tooltip, Typography } from 'antd';
 import { ReloadOutlined, ClockCircleOutlined, DownOutlined, CheckCircleFilled, WarningFilled, ThunderboltFilled } from '@ant-design/icons';
 import type { AutoRefreshInterval, UseAutoRefreshReturn } from '../hooks/useAutoRefresh';
 
@@ -294,7 +294,7 @@ export const RefreshControl: React.FC<RefreshControlProps> = ({
   // ── Split button (with auto-refresh dropdown) ──────────────────────
   return (
     <>
-      <Button.Group>
+      <Space.Compact>
         <Tooltip title={tooltipContent} mouseEnterDelay={0.4}>
           <Button
             icon={refreshIcon}
@@ -331,7 +331,7 @@ export const RefreshControl: React.FC<RefreshControlProps> = ({
             />
           </Tooltip>
         </Popover>
-      </Button.Group>
+      </Space.Compact>
       <style>{`
         @keyframes rc-pulse {
           0%, 100% { opacity: 1; }
