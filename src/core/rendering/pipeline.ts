@@ -45,12 +45,34 @@ export type PipelineFieldConfig = {
   visibility?: unknown;
   /** Condition for conditional enablement */
   enablement?: unknown;
+  /**
+   * Permission shorthand (#102). Auto-expanded by expandPermissions step to a
+   * `visibility` condition — `{ actor: { groups: { inList: [...groups] } } }` — 
+   * ANDed with any existing `visibility`. Single group or array of groups.
+   */
+  permission?: string | string[];
   /** Custom renderer key or ConditionalValue */
   renderer?: unknown;
   /** Boolean field display labels */
   booleanLabels?: { true?: unknown; false?: unknown };
   /** Conditional formatting rules */
   formatting?: unknown[];
+  /**
+   * Fallback display value when the field value is null or undefined (#35).
+   * Applied after all other transforms in the transformValue step.
+   */
+  nullValue?: string;
+  /**
+   * Derived / computed field configuration (#35).
+   * Resolved in the transformValue step using the record and evaluation context.
+   * Supports template strings ('{firstName} {lastName}'), arithmetic expressions,
+   * and condition-based value mapping.
+   */
+  derived?: {
+    template?: string;
+    expression?: string;
+    conditions?: Array<{ when: unknown; value: unknown }>;
+  };
 };
 
 /** Keys on PipelineFieldConfig that may hold ConditionalValue<string> and are resolved to strings. */
@@ -120,6 +142,7 @@ export interface FieldRenderContext {
   conditionEvaluator?: { 
     evaluateSync: (condition: unknown, ctx: Record<string, unknown>) => boolean; 
     resolveValue: (value: unknown, ctx: Record<string, unknown>) => unknown;
+    resolveTemplate?: (template: string, ctx: Record<string, unknown>) => string;
   };
   /** Evaluation context (user, record, etc.) */
   evaluationContext?: Record<string, unknown>;
@@ -178,17 +201,88 @@ export const evaluateConditions: PipelineStep = (ctx) => {
 
 /**
  * Step 2: Transform the raw value.
- * Applies format config, template interpolation, type coercion.
+ *
+ * Consolidation point for all display-value transformations:
+ *   1. Derived / computed values (#35) — template, expression, or condition-based
+ *   2. Boolean label substitution — replace true/false with configured strings
+ *   3. Null/undefined fallback — replace missing values with nullValue string
+ *
+ * Note: derived computation requires a real record (non-empty). In table context the
+ * pipeline is called at column-definition time with a null value, so derived evaluation
+ * is a no-op there; table rows use the render-callback path in useTable.tsx instead.
  */
 export const transformValue: PipelineStep = (ctx) => {
-  const { field, value } = ctx;
+  const { field, value, record, conditionEvaluator, evaluationContext } = ctx;
+
+  const rawRecord = record.__raw__ || record;
 
   let transformed = value;
 
-  // Boolean label transformation — field.booleanLabels is typed as { true?: unknown; false?: unknown }
+  // 1. Derived / computed value (#35)
+  //    Only runs when the record has actual data (not the column-definition-time null pass).
+  if (field.derived && Object.keys(rawRecord).length > 0) {
+    const { derived } = field;
+
+    if (derived.template) {
+      // Template string: '{firstName} {lastName}' — uses ConditionEvaluator.resolveTemplate
+      if (conditionEvaluator?.resolveTemplate) {
+        try {
+          const resolved = conditionEvaluator.resolveTemplate(
+            derived.template,
+            { record: rawRecord, ...evaluationContext }
+          );
+          if (resolved !== undefined) transformed = resolved;
+        } catch {
+          // fail-safe: keep original value
+        }
+      }
+    } else if (derived.expression) {
+      // Simple arithmetic: 'quantity * unitPrice'
+      try {
+        const expr = derived.expression.replace(/[a-zA-Z_]\w*(\.\w+)*/g, (match) => {
+          const parts = match.split('.');
+          let val: unknown = rawRecord;
+          for (const part of parts) {
+            if (val == null || typeof val !== 'object') return 'NaN';
+            val = (val as Record<string, unknown>)[part];
+          }
+          return typeof val === 'number' ? String(val) : 'NaN';
+        });
+        if (!/[^0-9+\-*/.()\s]/.test(expr)) {
+          const result = Function(`"use strict"; return (${expr})`)() as unknown;
+          if (typeof result === 'number' && !isNaN(result)) transformed = result;
+        }
+      } catch {
+        // fail-safe: keep original value
+      }
+    } else if (derived.conditions && conditionEvaluator) {
+      // Condition-based value mapping
+      for (const branch of derived.conditions) {
+        try {
+          const match = conditionEvaluator.evaluateSync(branch.when, {
+            ...evaluationContext,
+            record: rawRecord,
+          });
+          if (match) {
+            transformed = branch.value;
+            break;
+          }
+        } catch {
+          // fail-safe: skip branch
+        }
+      }
+    }
+  }
+
+  // 2. Boolean label transformation
   if (field.fieldType === 'boolean' && field.booleanLabels) {
     const boolVal = transformed === true || transformed === 'true' || transformed === 1;
     transformed = boolVal ? field.booleanLabels.true : field.booleanLabels.false;
+  }
+
+  // 3. Null/undefined fallback
+  if ((transformed === null || transformed === undefined) && field.nullValue !== undefined) {
+    transformed = field.nullValue;
   }
 
   ctx.transformedValue = transformed;
@@ -314,6 +408,36 @@ export const applyFormatting: PipelineStep = (ctx) => {
   return ctx;
 };
 
+/**
+ * Step 0 (runs before evaluateConditions): Expand the `permission` shorthand (#102).
+ *
+ * `permission: 'admin'` or `permission: ['admin', 'manager']` is sugar for:
+ *   `visibility: { actor: { groups: { inList: [...groups] } } }`
+ *
+ * If both `permission` AND `visibility` are set, the permission condition is
+ * ANDed with the existing visibility: `{ and: [existingVisibility, permissionCondition] }`.
+ *
+ * The expansion produces a plain condition object identical to what the existing
+ * `evaluateConditions` step already handles — no new evaluation logic needed.
+ */
+export const expandPermissions: PipelineStep = (ctx) => {
+  const { field } = ctx;
+  if (!field.permission) return ctx;
+
+  const groups = Array.isArray(field.permission) ? field.permission : [field.permission];
+  const permCondition = { actor: { groups: { inList: groups } } };
+
+  const merged: PipelineFieldConfig = { ...field };
+  if (field.visibility) {
+    merged.visibility = { and: [field.visibility, permCondition] };
+  } else {
+    merged.visibility = permCondition;
+  }
+
+  ctx.field = merged;
+  return ctx;
+};
+
 // ============================================================================
 // DEFAULT PIPELINE
 // ============================================================================
@@ -323,11 +447,12 @@ export const applyFormatting: PipelineStep = (ctx) => {
  * Consumers can customize by adding/removing/reordering steps.
  */
 export const defaultPipeline: PipelineStep[] = [
-  evaluateConditions,
-  transformValue,
-  resolveConditionalProps,
-  selectRenderer,
-  applyFormatting,
+  expandPermissions,   // Step 0: expand permission shorthand → visibility condition
+  evaluateConditions,  // Step 1: evaluate visibility + enablement conditions
+  transformValue,      // Step 2: transform the raw value
+  resolveConditionalProps, // Step 3: resolve ConditionalValue<T> on label/placeholder/etc.
+  selectRenderer,      // Step 4: load registry defaults
+  applyFormatting,     // Step 5: apply formatting rules
 ];
 
 // ============================================================================

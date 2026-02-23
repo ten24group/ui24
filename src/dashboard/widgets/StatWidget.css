@@ -1,7 +1,7 @@
 /* StatWidget styles */
 
 .stat-widget-card {
-  background: #fff;
+  background: var(--ant-color-bg-container, #fff);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   padding: 12px 20px 20px 20px;
@@ -15,7 +15,7 @@
 
 .stat-widget-header {
   font-size: 16px;
-  color: #888;
+  color: var(--ant-color-text-tertiary, #888);
   margin-top: 0;
   margin-bottom: 8px;
   display: flex;
@@ -35,18 +35,18 @@
 .stat-widget-value-row {
   font-size: 32px;
   font-weight: 700;
-  color: var(--stat-widget-value-color, #222);
+  color: var(--stat-widget-value-color, var(--ant-color-text, rgba(0, 0, 0, 0.88)));
   display: flex;
   align-items: center;
   z-index: 2;
 }
 
 .stat-widget-secondary {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   margin-top: 16px;
   padding-top: 8px;
   font-size: 15px;
-  color: #888;
+  color: var(--ant-color-text-tertiary, #888);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -79,5 +79,5 @@
 .stat-widget-trend-label {
   margin-left: 4px;
   font-size: 12px;
-  color: #888;
-} 
+  color: var(--ant-color-text-tertiary, #888);
+}

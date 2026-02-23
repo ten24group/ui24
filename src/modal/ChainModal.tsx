@@ -12,6 +12,7 @@ import { Form } from '../forms/Form';
 import { Details } from '../detail/Details';
 import { Table } from '../table/Table';
 import { ExtensionRegistry } from '../core/registry';
+import { instrument } from '../core/telemetry';
 
 const { Text } = Typography;
 
@@ -72,21 +73,37 @@ export const ChainModalContent: React.FC<ChainModalContentProps> = ({
     setAccumulatedValues(merged);
 
     const nextId = resolveNextStep(currentStep);
+    
+    instrument.event('modal.chain.step', {
+      'modal.chain.fromStep': currentStepId,
+      'modal.chain.toStep': nextId || 'complete',
+      'modal.chain.totalSteps': steps.length,
+      'span.level': 'info',
+    });
+    
     if (nextId) {
       setStepHistory(prev => [...prev, currentStepId]);
       setCurrentStepId(nextId);
     } else {
       onComplete?.(merged);
     }
-  }, [currentStep, currentStepId, accumulatedValues, resolveNextStep, onComplete]);
+  }, [currentStep, currentStepId, accumulatedValues, resolveNextStep, onComplete, steps.length]);
 
   const goBack = useCallback(() => {
     if (stepHistory.length > 0) {
       const prev = stepHistory[stepHistory.length - 1];
+      
+      instrument.event('modal.chain.step', {
+        'modal.chain.fromStep': currentStepId,
+        'modal.chain.toStep': prev,
+        'modal.chain.direction': 'back',
+        'span.level': 'info',
+      });
+      
       setStepHistory(h => h.slice(0, -1));
       setCurrentStepId(prev);
     }
-  }, [stepHistory]);
+  }, [stepHistory, currentStepId]);
 
   if (!currentStep) return null;
 

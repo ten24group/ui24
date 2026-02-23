@@ -55,6 +55,9 @@ interface IForm extends ICreateButtons, IDetailApiConfig, IDataSourceMixin<Recor
         showCountdown?: boolean;
     };
 
+    // IForm.errorHandling extends the base IErrorHandlingConfig with form-specific fields
+    // (retryDelay, showCountdown) that are defined directly on IErrorHandlingConfig (#58).
+
     // ===== Review Before Save Config (#36) =====
     /** Show a diff review modal before submitting form changes */
     reviewBeforeSave?: {
@@ -79,6 +82,69 @@ interface IForm extends ICreateButtons, IDetailApiConfig, IDataSourceMixin<Recor
         lockPrefilled?: boolean;
     };
 
+    // ===== Progressive Disclosure (#40) =====
+    /**
+     * Enable progressive disclosure — show essential fields first, with an expand toggle for advanced ones.
+     * Fields without a `tier` or with `tier: 'basic'` are always shown.
+     * Fields with `tier: 'advanced'` or `tier: 'expert'` are revealed by the toggle.
+     */
+    disclosure?: {
+        enabled: boolean;
+        /** Starting tier shown to the user (default: 'basic') */
+        defaultTier?: 'basic' | 'advanced';
+        /** Labels for the expand/collapse toggles */
+        labels?: {
+            showAdvanced?: string;   // default: "+ Show advanced fields"
+            hideAdvanced?: string;   // default: "- Hide advanced fields"
+            showExpert?: string;     // default: "+ Show expert fields"
+            hideExpert?: string;     // default: "- Hide expert fields"
+        };
+    };
+
+    // ===== Backend Response → UI State Mapping (#92) =====
+    /**
+     * After a successful form submit, map response values back into specific form fields.
+     * Useful for auto-generated fields (IDs, timestamps, computed slugs).
+     *
+     * @example
+     * onSuccess: {
+     *   updateFields: {
+     *     'recordId': 'id',          // form field 'recordId' ← response.id
+     *     'slug': 'computed.slug',   // supports dot-notation
+     *   }
+     * }
+     */
+    onSuccess?: {
+        /** Map: formFieldName → response path (dot-notation supported) */
+        updateFields?: Record<string, string>;
+    };
+
+    // ===== Record Templates (#42) =====
+    /**
+     * Pre-defined templates the user can select before filling the form.
+     * Each template specifies field values to pre-fill. A picker UI appears at the top of the form.
+     */
+    templates?: {
+        /** List of selectable templates shown in the picker */
+        items: Array<{
+            id: string;
+            /** Label shown in the picker button/dropdown */
+            label: string;
+            /** Optional description shown as tooltip or sub-label */
+            description?: string;
+            /** Icon name (from antd icons) for the picker item */
+            icon?: string;
+            /** Field values to pre-fill when this template is selected */
+            values: Record<string, unknown>;
+        }>;
+        /** Picker UI style: 'buttons' (default) renders clickable cards, 'select' renders a dropdown */
+        style?: 'buttons' | 'select';
+        /** Label shown above the template picker (default: 'Start from a template') */
+        label?: string;
+        /** Whether selecting a template clears existing form values first (default: true) */
+        replaceValues?: boolean;
+    };
+
     // ===== Other Config =====
     defaultValues?: Record<string, unknown>;
     disabled?: boolean;
@@ -99,6 +165,32 @@ interface IForm extends ICreateButtons, IDetailApiConfig, IDataSourceMixin<Recor
      */
     /** Internal: set of field names that were pre-filled from URL and should be locked (disabled) */
     _prefillFieldNames?: Set<string>;
+
+    // ===== Server-Driven Schema (#100) =====
+    /**
+     * Fetch form fields (`propertiesConfig`) dynamically from an API endpoint at runtime.
+     * The API response must include a `fields` array (or the key specified in `responseKey`).
+     * While the schema is loading, a skeleton loader is shown.
+     * The static `propertiesConfig` is used as a fallback if the API call fails.
+     *
+     * @example
+     * schemaApiConfig: {
+     *   apiUrl: '/tenants/:tenantId/custom-fields',
+     *   apiMethod: 'GET',
+     *   responseKey: 'fields',
+     * }
+     */
+    schemaApiConfig?: IApiConfig & {
+        /** Key in the API response that contains the fields array (default: 'fields') */
+        responseKey?: string;
+        /**
+         * Strategy for merging dynamic and static fields:
+         * - 'replace': use only server fields (default)
+         * - 'append': append server fields after static fields
+         * - 'prepend': prepend server fields before static fields
+         */
+        mergeStrategy?: 'replace' | 'append' | 'prepend';
+    };
 }
 
 

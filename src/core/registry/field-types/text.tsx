@@ -178,46 +178,61 @@ const TextareaTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
 export const textRegistrations: Record<string, FieldTypeRegistration> = {
   text: {
     form: TextForm, detail: TextDetail, table: TextTable,
-    defaults: { table: { ellipsis: true } },
+    defaults: {
+      form: { placeholder: 'Enter text' },
+      table: { ellipsis: true },
+    },
   },
   textarea: {
     form: TextareaForm, detail: TextareaDetail, table: TextareaTable,
-    defaults: { table: { ellipsis: true, width: 200 } },
-  },
-  password: { form: PasswordForm, detail: TextDetail },
-  email: {
-    form: EmailForm,
-    detail: TextDetail,
-    table: TextTable,
     defaults: {
-      detail: { target: '_blank' },  // mailto link in detail
-      table: { target: '_blank' },
+      form: { placeholder: 'Enter text', rows: 3 },
+      table: { ellipsis: true, width: 200 },
+    },
+  },
+  password: {
+    form: PasswordForm, detail: TextDetail,
+    defaults: { form: { placeholder: 'Enter password' } },
+  },
+  email: {
+    form: EmailForm, detail: TextDetail, table: TextTable,
+    defaults: {
+      form: { placeholder: 'name@example.com', autoComplete: 'email' },
+      detail: { target: '_blank' },
+      table: { target: '_blank', width: 200, ellipsis: true },
     },
   },
   url: {
-    form: UrlForm,
-    detail: UrlDetail,
-    table: UrlTable,
+    form: UrlForm, detail: UrlDetail, table: UrlTable,
     defaults: {
+      form: { placeholder: 'https://' },
       detail: { target: '_blank' },
-      table: { target: '_blank' },
+      table: { target: '_blank', width: 180, ellipsis: true },
     },
   },
-  phone: { form: PhoneForm, detail: PhoneDetail, table: PhoneTable },
+  phone: {
+    form: PhoneForm, detail: PhoneDetail, table: PhoneTable,
+    defaults: { table: { width: 150 } },
+  },
   hidden: { form: HiddenForm },
-  custom: { form: CustomForm, detail: TextDetail },
+  custom: {
+    form: CustomForm, detail: TextDetail,
+    defaults: { form: { placeholder: 'Enter value' } },
+  },
   link: {
-    form: LinkFormField,
-    detail: UrlDetail,
-    table: LinkTable,
+    form: LinkFormField, detail: UrlDetail, table: LinkTable,
     defaults: {
+      form: { placeholder: 'https://' },
       detail: { target: '_blank' },
-      table: { target: '_blank' },
+      table: { target: '_blank', width: 80 },
     },
   },
   longtext: {
     form: TextareaForm, detail: TextareaDetail, table: TextareaTable,
-    defaults: { table: { ellipsis: true, width: 200 } },
+    defaults: {
+      form: { placeholder: 'Enter text', rows: 4 },
+      table: { ellipsis: true, width: 200 },
+    },
   },
   code: { detail: CodeDetail },
 };

@@ -1,6 +1,6 @@
 .column-settings-container {
   padding: 8px;
-  background-color: #fff;
+  background-color: var(--ant-color-bg-elevated, #fff);
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   width: 280px;
@@ -10,7 +10,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   padding-bottom: 8px;
   margin-bottom: 8px;
 }
@@ -33,11 +33,11 @@
 
 .drag-handle {
   cursor: grab;
-  color: #999;
+  color: var(--ant-color-text-quaternary, #bfbfbf);
 }
 
 .column-settings-fetch-strategy {
   padding: 8px;
-  background-color: #fafafa;
+  background-color: var(--ant-color-bg-layout, #fafafa);
   border-radius: 4px;
-} 
+}

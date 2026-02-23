@@ -6,7 +6,8 @@
  */
 import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode } from 'react';
-import { useDevToolsReport } from '../devtools/devtoolsBridge';
+import { useDevToolsReport } from '../devtools/store/snapshot';
+import { useEntityName } from './PageStaticContext';
 
 export interface TableStateContextValue {
   selectedRecords: any[];
@@ -24,7 +25,8 @@ export const TableStateProvider = ({
   children: ReactNode;
   value: TableStateContextValue;
 }) => {
-  useDevToolsReport('table', 'Table', value);
+  const entityName = useEntityName();
+  useDevToolsReport('table', entityName ? `Table: ${entityName}` : 'Table', value);
 
   return (
     <TableStateContext.Provider value={value}>
@@ -73,4 +75,3 @@ export const useHasSearchQuery = () =>
 // Full context (use in evaluation system)
 export const useTableStateContext = () =>
   useContextSelector(TableStateContext, state => state);
-

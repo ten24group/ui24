@@ -173,7 +173,7 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
             } else {
                 // Handle button objects
                 // Check if button has 'action' field matching a predefined button
-                const action = (buttonConfig as any).action as IPreDefinedButtons | undefined;
+                const action = buttonConfig.action as IPreDefinedButtons | undefined;
                 const isCancelButton = action === 'cancel' || buttonConfig.text?.toLowerCase().includes('cancel') || buttonConfig.className?.includes('cancel');
 
                 // If action matches a predefined button, merge with predefined config

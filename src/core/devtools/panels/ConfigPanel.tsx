@@ -11,7 +11,7 @@ import {
 import { JsonViewer } from '../../common/JsonViewer/JsonViewer';
 import { useUi24Config } from '../../context/UI24Context';
 import { getConditionSystemConfig } from '../../context/conditionSystemConfig';
-import { useDevToolsStore, BridgeEntry } from '../devtoolsBridge';
+import { useDevToolsStore, BridgeEntry } from '../store/snapshot';
 
 const { Text } = Typography;
 

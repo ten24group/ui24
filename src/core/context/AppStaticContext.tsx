@@ -13,6 +13,7 @@ import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode, useMemo, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { getConditionSystemConfig } from './conditionSystemConfig';
+import { IS_DEV } from '../constants';
 
 export interface AppStaticContextValue {
   actor: {
@@ -111,7 +112,7 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
         try {
           initial[key] = provider.getContext();
         } catch (e) {
-          if (process.env.NODE_ENV !== 'production') {
+          if (IS_DEV) {
             console.warn(`[AppStaticProvider] Error initializing context provider "${key}":`, e);
           }
         }

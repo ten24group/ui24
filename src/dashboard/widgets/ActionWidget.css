@@ -1,5 +1,5 @@
 .action-widget-card {
-  background: #fff;
+  background: var(--ant-color-bg-container, #fff);
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   padding: 20px 24px;
@@ -8,7 +8,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--ant-color-border-secondary, rgba(0, 0, 0, 0.06));
 }
 
 .action-widget-header {
@@ -17,7 +17,7 @@
 
 .action-widget-title {
   font-size: 18px;
-  color: #333;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
   margin: 0 0 4px 0;
   font-weight: 600;
   letter-spacing: -0.3px;
@@ -25,7 +25,7 @@
 
 .action-widget-subtitle {
   font-size: 13px;
-  color: #666;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
   margin: 0;
   font-weight: 400;
 }
@@ -43,10 +43,10 @@
   text-decoration: none;
   color: inherit;
   display: block;
-  
+
   /* Tile styling */
-  background: linear-gradient(145deg, #fafafa 0%, #f5f5f5 100%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--ant-color-bg-layout, #fafafa);
+  border: 1px solid var(--ant-color-border-secondary, rgba(0, 0, 0, 0.06));
   border-radius: 12px;
   padding: 20px;
   position: relative;
@@ -63,15 +63,15 @@
   text-decoration: none;
   color: inherit;
   transform: translateY(-2px);
-  box-shadow: 
+  box-shadow:
     0 8px 30px rgba(var(--accent-rgb, 24, 144, 255), 0.15),
     0 4px 20px rgba(0, 0, 0, 0.1);
-  border-color: var(--accent-color, #1890ff);
-  background: linear-gradient(145deg, #ffffff 0%, #f9f9f9 100%);
+  border-color: var(--accent-color, var(--ant-color-primary, #1890ff));
+  background: var(--ant-color-bg-container, #fff);
 }
 
 .action-widget-tile:focus {
-  outline: 2px solid var(--accent-color, #1890ff);
+  outline: 2px solid var(--accent-color, var(--ant-color-primary, #1890ff));
   outline-offset: 2px;
   text-decoration: none;
   color: inherit;
@@ -93,7 +93,7 @@
 .action-widget-icon {
   font-size: 28px;
   margin-bottom: 12px;
-  color: var(--accent-color, #1890ff);
+  color: var(--accent-color, var(--ant-color-primary, #1890ff));
   transition: all 0.3s ease;
   display: flex;
   justify-content: center;
@@ -109,19 +109,19 @@
 .action-widget-label {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
   margin-bottom: 6px;
   line-height: 1.3;
   transition: color 0.3s ease;
 }
 
 .action-widget-tile:hover .action-widget-label {
-  color: var(--accent-color, #1890ff);
+  color: var(--accent-color, var(--ant-color-primary, #1890ff));
 }
 
 .action-widget-description {
   font-size: 12px;
-  color: #666;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.45));
   margin-bottom: 8px;
   line-height: 1.4;
   opacity: 0.8;
@@ -138,7 +138,7 @@
   right: 16px;
   font-size: 16px;
   font-weight: bold;
-  color: var(--accent-color, #1890ff);
+  color: var(--accent-color, var(--ant-color-primary, #1890ff));
   opacity: 0;
   transform: translateX(-5px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -160,22 +160,22 @@
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
-  
+
   .action-widget-tile {
     padding: 16px;
     min-height: 100px;
   }
-  
+
   .action-widget-icon {
     font-size: 24px;
     margin-bottom: 8px;
     height: 32px;
   }
-  
+
   .action-widget-label {
     font-size: 14px;
   }
-  
+
   .action-widget-description {
     font-size: 11px;
   }
@@ -185,4 +185,4 @@
   .action-widget-content {
     grid-template-columns: 1fr 1fr;
   }
-} 
+}

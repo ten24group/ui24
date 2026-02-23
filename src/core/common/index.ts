@@ -45,5 +45,8 @@ export * from './ViewSwitcher';
 // Data Quality Indicator
 export * from './DataQualityIndicator';
 
+// Page Alerts (#16)
+export * from './PageAlerts/PageAlerts';
+
 // Masked Display (PII / sensitive data)
 export * from './MaskedDisplay';

@@ -2,7 +2,7 @@ import React from 'react';
 import { Skeleton } from 'antd';
 
 interface PageSkeletonProps {
-  type: 'table' | 'form' | 'detail' | 'dashboard' | 'wizard';
+  type: 'table' | 'form' | 'detail' | 'dashboard' | 'wizard' | 'card-grid' | 'kanban' | 'calendar' | 'tree' | 'map';
   rows?: number;
   columns?: number;
 }
@@ -54,7 +54,7 @@ const TableSkeleton: React.FC<{ rows: number; columns: number }> = ({ rows, colu
 const FormSkeleton: React.FC<{ rows: number; columns: number }> = ({ rows, columns }) => {
   const totalFields = rows;
   const fieldElements: React.ReactNode[] = [];
-  const labelWidths = ['30%', '40%', '25%', '35%', '45%'];
+  const labelWidths = [ '30%', '40%', '25%', '35%', '45%' ];
 
   for (let i = 0; i < totalFields; i++) {
     const isTextarea = i % 5 === 3;
@@ -62,7 +62,7 @@ const FormSkeleton: React.FC<{ rows: number; columns: number }> = ({ rows, colum
     fieldElements.push(
       <div key={i} style={{ marginBottom: 28 }}>
         {/* Label */}
-        <Skeleton active title={{ width: labelWidths[i % labelWidths.length] }} paragraph={false} style={{ marginBottom: 8 }} />
+        <Skeleton active title={{ width: labelWidths[ i % labelWidths.length ] }} paragraph={false} style={{ marginBottom: 8 }} />
         {/* Input field */}
         <div style={{
           height: isTextarea ? 72 : 36,
@@ -105,18 +105,18 @@ const FormSkeleton: React.FC<{ rows: number; columns: number }> = ({ rows, colum
 const DetailSkeleton: React.FC<{ rows: number; columns: number }> = ({ rows, columns }) => {
   const totalFields = rows;
   const fieldElements: React.ReactNode[] = [];
-  const labelWidths = ['30%', '40%', '25%', '35%', '45%'];
-  const valueWidths = ['90%', '60%', '75%', '50%', '85%'];
+  const labelWidths = [ '30%', '40%', '25%', '35%', '45%' ];
+  const valueWidths = [ '90%', '60%', '75%', '50%', '85%' ];
 
   for (let i = 0; i < totalFields; i++) {
     fieldElements.push(
       <div key={i} style={{ marginBottom: 28 }}>
         {/* Label */}
-        <Skeleton active title={{ width: labelWidths[i % labelWidths.length] }} paragraph={false} style={{ marginBottom: 8 }} />
+        <Skeleton active title={{ width: labelWidths[ i % labelWidths.length ] }} paragraph={false} style={{ marginBottom: 8 }} />
         {/* Value bar (read-only appearance) */}
         <div style={{
           height: 28,
-          width: valueWidths[i % valueWidths.length],
+          width: valueWidths[ i % valueWidths.length ],
           borderRadius: 6,
           background: 'linear-gradient(90deg, #f2f2f2 25%, #e6e6e6 50%, #f2f2f2 75%)',
           backgroundSize: '200% 100%',
@@ -170,6 +170,99 @@ const WizardSkeleton: React.FC<{ rows: number }> = ({ rows }) => (
   </div>
 );
 
+/** Card grid skeleton: responsive card placeholders */
+const CardGridSkeleton: React.FC<{ rows: number; columns: number }> = ({ rows, columns }) => (
+  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 16, padding: '8px 0' }}>
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} style={{ padding: 16, borderRadius: 8, border: '1px solid #f0f0f0', background: '#fafafa' }}>
+        <div style={{
+          height: 120, borderRadius: 6, marginBottom: 12,
+          background: 'linear-gradient(90deg, #f2f2f2 25%, #e6e6e6 50%, #f2f2f2 75%)',
+          backgroundSize: '200% 100%', animation: 'ant-skeleton-loading 1.4s ease infinite',
+        }} />
+        <Skeleton active title={{ width: '70%' }} paragraph={{ rows: 2, width: [ '90%', '50%' ] }} />
+      </div>
+    ))}
+  </div>
+);
+
+/** Kanban skeleton: column-based board layout */
+const KanbanSkeleton: React.FC<{ columns: number }> = ({ columns }) => (
+  <div style={{ display: 'flex', gap: 16, padding: '8px 0', overflowX: 'auto' }}>
+    {Array.from({ length: columns }).map((_, colIdx) => (
+      <div key={colIdx} style={{ flex: '0 0 280px', background: '#fafafa', borderRadius: 8, padding: 12 }}>
+        <Skeleton active title={{ width: '50%' }} paragraph={false} style={{ marginBottom: 16 }} />
+        {Array.from({ length: 3 }).map((_, cardIdx) => (
+          <div key={cardIdx} style={{
+            padding: 12, borderRadius: 6, background: '#fff',
+            border: '1px solid #f0f0f0', marginBottom: 8,
+          }}>
+            <Skeleton active title={{ width: '80%' }} paragraph={{ rows: 1, width: [ '60%' ] }} />
+          </div>
+        ))}
+      </div>
+    ))}
+  </div>
+);
+
+/** Calendar skeleton: month grid with subtle cell placeholders */
+const CalendarSkeleton: React.FC = () => (
+  <div style={{ padding: '8px 0' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <Skeleton.Button active style={{ width: 32 }} />
+      <Skeleton.Input active style={{ width: 160, height: 28 }} />
+      <Skeleton.Button active style={{ width: 32 }} />
+    </div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={`h-${i}`} style={{ textAlign: 'center', padding: '8px 0' }}>
+          <Skeleton.Input active size="small" style={{ width: 28, height: 12 }} />
+        </div>
+      ))}
+      {Array.from({ length: 35 }).map((_, i) => (
+        <div key={i} style={{
+          height: 80, borderRadius: 4, border: '1px solid #f5f5f5', padding: 4,
+        }}>
+          <Skeleton.Input active size="small" style={{ width: 16, height: 12, marginBottom: 4 }} />
+          {i % 5 === 1 && <Skeleton.Input active size="small" style={{ width: '80%', height: 10 }} />}
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+/** Tree skeleton: indented hierarchy */
+const TreeSkeleton: React.FC<{ rows: number }> = ({ rows }) => (
+  <div style={{ padding: '8px 0' }}>
+    {Array.from({ length: rows }).map((_, i) => {
+      const indent = (i % 4 < 2) ? 0 : (i % 4 === 2 ? 24 : 48);
+      return (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', paddingLeft: indent }}>
+          {indent === 0 && <Skeleton.Avatar active size="small" shape="square" style={{ width: 14, height: 14 }} />}
+          <Skeleton.Input active size="small" style={{ width: indent === 0 ? '40%' : '30%', height: 14 }} />
+        </div>
+      );
+    })}
+  </div>
+);
+
+/** Map skeleton: large map area placeholder */
+const MapSkeleton: React.FC = () => (
+  <div style={{ padding: '8px 0' }}>
+    <div style={{
+      height: 400, borderRadius: 8,
+      background: 'linear-gradient(90deg, #f2f2f2 25%, #e6e6e6 50%, #f2f2f2 75%)',
+      backgroundSize: '200% 100%', animation: 'ant-skeleton-loading 1.4s ease infinite',
+      position: 'relative',
+    }}>
+      <div style={{ position: 'absolute', top: 12, right: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <Skeleton.Button active size="small" style={{ width: 28, height: 28 }} />
+        <Skeleton.Button active size="small" style={{ width: 28, height: 28 }} />
+      </div>
+    </div>
+  </div>
+);
+
 /**
  * Shape-aware skeleton loader that matches the layout of the actual page content.
  * Use instead of generic `<Skeleton paragraph={{ rows: N }} />`.
@@ -190,6 +283,16 @@ export const PageSkeleton: React.FC<PageSkeletonProps> = ({
       return <DashboardSkeleton columns={columns ?? 3} />;
     case 'wizard':
       return <WizardSkeleton rows={rows ?? 4} />;
+    case 'card-grid':
+      return <CardGridSkeleton rows={rows ?? 6} columns={columns ?? 3} />;
+    case 'kanban':
+      return <KanbanSkeleton columns={columns ?? 4} />;
+    case 'calendar':
+      return <CalendarSkeleton />;
+    case 'tree':
+      return <TreeSkeleton rows={rows ?? 10} />;
+    case 'map':
+      return <MapSkeleton />;
     default:
       return <Skeleton active paragraph={{ rows: rows ?? 8 }} />;
   }

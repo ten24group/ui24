@@ -71,8 +71,8 @@ const RatingForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id, coun
   <Rate allowHalf count={count} value={value} onChange={onChange} id={id} />
 );
 
-const DurationForm: React.FC<BuiltInFormFieldProps> = ({ value, onChange, id }) => (
-  <InputNumber placeholder="Duration in seconds" style={{ width: '100%' }} min={0} value={value} onChange={onChange} id={id} />
+const DurationForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, min, value, onChange, id }) => (
+  <InputNumber placeholder={placeholder ?? 'Duration (seconds)'} style={{ width: '100%' }} min={min ?? 0} value={value} onChange={onChange} id={id} />
 );
 
 const ProgressForm: React.FC<BuiltInFormFieldProps> = ({ placeholder, min, max, value, onChange, id }) => (
@@ -228,29 +228,47 @@ const TTLTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
 export const numberRegistrations: Record<string, FieldTypeRegistration> = {
   number: {
     form: NumberForm, detail: NumberDetail, table: NumberTable,
-    defaults: { table: { align: 'right' } },
+    defaults: {
+      form: { placeholder: '0' },
+      table: { align: 'right', width: 120 },
+    },
   },
   currency: {
     form: CurrencyForm, detail: CurrencyDetail, table: CurrencyTable,
     defaults: {
-      form: { currencySymbol: '$', precision: 2 },
+      form: { currencySymbol: '$', precision: 2, placeholder: '0.00', min: 0 },
+      table: { align: 'right', width: 120 },
     },
   },
   percentage: {
     form: PercentageForm, detail: PercentageDetail, table: PercentageTable,
     defaults: {
-      form: { min: 0, max: 100 },
+      form: { min: 0, max: 100, placeholder: '0' },
+      table: { align: 'right', width: 100 },
     },
   },
-  slider: { form: SliderForm, detail: SliderDetail, table: SliderTable },
+  slider: {
+    form: SliderForm, detail: SliderDetail, table: SliderTable,
+    defaults: {
+      form: { min: 0, max: 100, step: 1 },
+      table: { width: 200 },
+    },
+  },
   range: { form: RangeForm, detail: RangeDetail, table: RangeTable },
   rating: {
     form: RatingForm, detail: RatingDetail, table: RatingTable,
     defaults: {
       form: { count: 5 },
+      table: { width: 140 },
     },
   },
-  duration: { form: DurationForm, detail: DurationDetail, table: DurationTable },
+  duration: {
+    form: DurationForm, detail: DurationDetail, table: DurationTable,
+    defaults: {
+      form: { placeholder: 'Duration (seconds)', min: 0 },
+      table: { width: 130 },
+    },
+  },
   ttl: { detail: TTLDetail, table: TTLTable },
   progress: { form: ProgressForm },
 };

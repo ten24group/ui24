@@ -1,6 +1,7 @@
 import { getNestedValue } from "../utils";
 import type { Template, ITemplateConfig } from "../types/field-config";
 import { JSONPath } from 'jsonpath-plus';
+import { IS_DEV } from '../constants';
 
 /**
  * Parse a simple template string into ITemplateConfig.
@@ -51,13 +52,13 @@ function evaluateFieldPath(fieldPath: string, context: Record<string, any>): any
       const result = JSONPath({ path: fieldPath, json: context, wrap: false });
       return result;
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
+      if (IS_DEV) {
         console.warn(`[Template] JSONPath evaluation failed for '${fieldPath}':`, error);
       }
       return undefined;
     }
   }
-  
+
   // Simple dot notation
   return getNestedValue(context, fieldPath);
 }
@@ -94,20 +95,22 @@ export function interpolateTemplate(
 ): string {
   const { composite, template } = templateConfig;
   let result = template;
-  
+
   composite.forEach((fieldPath) => {
     // Escape special regex characters in the field path
     const escapedPath = fieldPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\{${escapedPath}\\}`, 'g');
     const value = evaluateFieldPath(fieldPath, context);
-    
-    if (value === undefined && process.env.NODE_ENV === 'development') {
-      console.warn(`[Template] Missing field '${fieldPath}' in context for template: ${template}`);
+
+    if (value === undefined && IS_DEV) {
+      // Intentionally silent — missing fields are expected when parent data
+      // is still loading (e.g. badge templates evaluated before API response).
+      // The template gracefully returns '' for missing fields.
     }
-    
+
     result = result.replace(regex, value !== undefined ? String(value) : '');
   });
-  
+
   return result;
 }
 
@@ -145,7 +148,7 @@ export function evaluateTemplate(
     }
     return interpolateTemplate(template, context);
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
+    if (IS_DEV) {
       console.error('[Template] Evaluation failed:', error, { template, context });
     }
     return '';
@@ -181,7 +184,7 @@ export function evaluateTemplateValue(
   if (!value) {
     return fallback;
   }
-  
+
   if (typeof value === 'string') {
     // Check if it contains template placeholders
     if (value.includes('{') && value.includes('}')) {
@@ -190,7 +193,7 @@ export function evaluateTemplateValue(
     // Static string - use as-is
     return value;
   }
-  
+
   // Complex template object
   return evaluateTemplate(value, context);
 }

@@ -18,17 +18,17 @@ export const useFormat = () => {
      * @param {string} timezone - The timezone to use for formatting (default: 'UTC').
      * @returns {string} The formatted date string, or the original value if invalid/empty.
      */
-    const formatDate = useCallback((date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
+    const formatDate = useCallback((date: string | Date | Dayjs | number | null | undefined, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string | null | undefined => {
         try {
-            // Return empty string for null, undefined, or empty values
+            // Return null/undefined/empty as-is — callers decide how to render missing data
             if (date === null || date === undefined || date === '') {
-                return date as any;
+                return date as null | undefined | '';
             }
 
             const formatString = formatConfig?.[ type ];
             const dayjsDate = dayjsCustom.tz(date, timezone);
 
-            // If invalid date, return original value (don't hide the data)
+            // If invalid date, return stringified original (don't hide the data)
             if (!dayjsDate.isValid()) {
                 console.error('[useFormat] Invalid date detected:', {
                     value: date,
@@ -37,7 +37,7 @@ export const useFormat = () => {
                     formatType: type,
                     stack: new Error().stack
                 });
-                return date as any;
+                return String(date);
             }
 
             return dayjsDate.format(formatString);
@@ -48,7 +48,7 @@ export const useFormat = () => {
                 timezone,
                 formatType: type
             });
-            return error.message;
+            return (error as Error).message;
         }
     }, [ formatConfig ]);
 
@@ -69,11 +69,11 @@ export const useFormat = () => {
      * formatBoolean(null);    // returns null (preserves missing data)
      * ```
      */
-    const formatBoolean = useCallback((value: unknown): string => {
+    const formatBoolean = useCallback((value: unknown): string | null | undefined => {
         // IMPORTANT: Treat null/undefined as "no value" (not false).
         // The Details view sometimes formats booleans even when backend omits the field,
         // and we must not render "False" for missing data (e.g., audit success is often undefined).
-        if (value === null || value === undefined) return value as any;
+        if (value === null || value === undefined) return value as null | undefined;
 
         if (typeof value === 'boolean') {
             return value ? (formatConfig?.boolean?.true || 'True') : (formatConfig?.boolean?.false || 'False');
@@ -83,16 +83,16 @@ export const useFormat = () => {
             const v = value.trim().toLowerCase();
             if (v === 'true' || v === 'yes' || v === '1') return formatConfig?.boolean?.true || 'True';
             if (v === 'false' || v === 'no' || v === '0') return formatConfig?.boolean?.false || 'False';
-            return value as any;
+            return value;
         }
 
         if (typeof value === 'number') {
             if (value === 1) return formatConfig?.boolean?.true || 'True';
             if (value === 0) return formatConfig?.boolean?.false || 'False';
-            return value as any;
+            return String(value);
         }
 
-        return value as any;
+        return String(value);
     }, [ formatConfig ]);
 
     return { formatDate, formatBoolean };

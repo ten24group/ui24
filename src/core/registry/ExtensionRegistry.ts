@@ -1,3 +1,5 @@
+import { IS_DEV } from '../constants';
+
 /**
  * @fileoverview Extension Registry - Core extensibility system for UI24
  * 
@@ -665,6 +667,17 @@ class ExtensionRegistryImpl {
   }
 
   /**
+   * Return all custom field type keys registered via overrideFieldType() or registerFieldRenderer().
+   * Used by config validation to avoid false-positive "unknown fieldType" warnings for custom types.
+   */
+  public getRegisteredFieldTypeKeys(): string[] {
+    const keys = new Set<string>();
+    this.fieldTypeOverrides.forEach((_, k) => keys.add(k.split(':')[0]));
+    this.fieldRenderers.forEach((_, k) => keys.add(k));
+    return Array.from(keys);
+  }
+
+  /**
    * Clear all registrations (for testing).
    */
   public clear(): void {
@@ -714,7 +727,7 @@ class ExtensionRegistryImpl {
   }
 
   private warnIfInitialized(method: string, key: string): void {
-    if (this.initialized && process.env.NODE_ENV === 'development') {
+    if (this.initialized && IS_DEV) {
       console.warn(
         `[ExtensionRegistry] Late ${method} call for "${key}". ` +
         'Extensions should be registered before app initialization.'
@@ -723,7 +736,7 @@ class ExtensionRegistryImpl {
   }
 
   private log(level: 'info' | 'warn' | 'error', message: string): void {
-    if (process.env.NODE_ENV === 'development' || this.debugMode) {
+    if (IS_DEV || this.debugMode) {
       console[ level ](`[ExtensionRegistry] ${message}`);
     }
   }

@@ -3,9 +3,10 @@
  * Renders PageHeader and the existing Details component with state management.
  */
 import { Card } from 'antd';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState, useEffect, useLayoutEffect } from 'react';
+import { PageAlerts } from '../../core/common/PageAlerts/PageAlerts';
 import { RefreshControl } from '../../core/common/RefreshControl';
-import { useModalContext } from '../../core/context';
+import { useModalContext, useApi } from '../../core/context';
 import { DetailStateProvider } from '../../core/context/DetailStateContext';
 import { useAutoRefresh } from '../../core/hooks';
 
@@ -13,6 +14,8 @@ import { Details } from '../../detail/Details';
 import type { IDetailsComponentProps } from '../../core/types/field-config';
 import { IPageHeader, PageHeader } from '../PostAuth/PageHeader/PageHeader';
 import { ISectionsConfig, SectionsRenderer } from '../PostAuth/SectionsRenderer';
+import { useSpan } from '../../core/telemetry';
+import { RelatedTabs } from './RelatedTabs';
 
 interface DetailPageProps extends Omit<IDetailsComponentProps, 'onDataChange' | 'refreshRef'> {
   // IDetailsComponentProps already has pageTitle and routeParams
@@ -40,9 +43,12 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   const [ record, setRecord ] = useState<any>(detailProps.dataSource || null);
   const [ isLoading, setIsLoading ] = useState<boolean>(!detailProps.dataSource);
   const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
+  const [ primaryRecord, setPrimaryRecord ] = useState<any>(null); // raw primary record for multi-source merging (#90)
 
   // 2. Ref to Details component's refresh function
   const refreshFnRef = useRef<(() => Promise<void>) | null>(null);
+
+  const { callApiMethod } = useApi(); // for secondary data sources (#90)
 
   // 3. Merge identifiers and record data into routeParams for URL substitution and template resolution
   const enhancedRouteParams = useMemo(() => ({
@@ -60,13 +66,67 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   // 5. Create onDataChange callback that updates our state
   const handleDataChange = useCallback((data: { record?: any; pageType?: string; entityName?: string; dataUpdatedAt?: string }) => {
     if (data.record !== undefined) {
-      setRecord(data.record);
-      setIsLoading(false);
+      if (detailProps.dataSources?.length) {
+        // Store primary record separately; multi-source effect will merge and call setRecord
+        setPrimaryRecord(data.record);
+      } else {
+        setRecord(data.record);
+        setIsLoading(false);
+      }
     }
     if (data.dataUpdatedAt) {
       setDataUpdatedAt(data.dataUpdatedAt);
     }
-  }, []);
+  }, [ detailProps.dataSources ]);
+
+  // Multi-source data merge (#90): when primary record loads and dataSources are configured,
+  // fetch all secondary sources in parallel and merge results into the record.
+  useEffect(() => {
+    if (!primaryRecord || !detailProps.dataSources?.length) return;
+
+    let cancelled = false;
+
+    const fetchSecondary = async () => {
+      const mergedRouteParams = {
+        ...routeParams,
+        ...(identifiers && typeof identifiers === 'string' ? { id: identifiers } : {}),
+        ...primaryRecord,
+      };
+
+      const results = await Promise.allSettled(
+        detailProps.dataSources!.map(async (source) => {
+          // Substitute :param placeholders in the apiUrl
+          const resolvedUrl = source.apiConfig.apiUrl.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) =>
+            String(mergedRouteParams[ k ] ?? `:${k}`)
+          );
+          const response = await callApiMethod<any>({ ...source.apiConfig, apiUrl: resolvedUrl });
+          const data = response?.data;
+          const value = source.responseKey ? data?.[ source.responseKey ] : data;
+          return { key: source.key, value };
+        })
+      );
+
+      if (cancelled) return;
+
+      let merged = { ...primaryRecord };
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          const { key, value } = result.value;
+          if (key) {
+            merged = { ...merged, [ key ]: value };
+          } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+            merged = { ...merged, ...value };
+          }
+        }
+      });
+
+      setRecord(merged);
+      setIsLoading(false);
+    };
+
+    fetchSecondary();
+    return () => { cancelled = true; };
+  }, [ primaryRecord, detailProps.dataSources, routeParams, identifiers, callApiMethod ]);
 
   // 6. Create refresh handler for PageHeader and auto-refresh
   const handleRefresh = useCallback(async () => {
@@ -88,6 +148,28 @@ export const DetailPage: React.FC<DetailPageProps> = ({
   // Check if we're in a modal - skip PageHeader if true (modal already has title)
   const { isInModal } = useModalContext();
 
+  // Detail load span tracking
+  const { updateSpan } = useSpan({
+    entityName: detailProps.entityName,
+    apiUrl: detailProps.detailApiConfig?.apiUrl,
+    identifiers,
+    type: 'detail.load',
+    attributes: {
+      'detail.entity': detailProps.entityName || 'Unknown',
+      'detail.identifier': typeof identifiers === 'string' ? identifiers : JSON.stringify(identifiers),
+    }
+  });
+
+  // After data loads, update span attributes
+  useEffect(() => {
+    if (record) {
+      updateSpan({
+        'detail.recordLoaded': true,
+        'detail.fieldCount': Object.keys(record).length
+      });
+    }
+  }, [ record, updateSpan ]);
+
   // 8. Single unified refresh control — replaces separate refresh button + auto-refresh + freshness.
   // Only shown when this page fetches its own data (not when data comes from parent).
   const refreshControls = useMemo(() => {
@@ -103,45 +185,71 @@ export const DetailPage: React.FC<DetailPageProps> = ({
     );
   }, [ isInModal, fetchesOwnData, handleRefresh, dataUpdatedAt, autoRefresh ]);
 
-  return (
-    <DetailStateProvider value={detailState}>
-      <div className="detail-page">
-        {/* Skip PageHeader when in modal - modal already has title/chrome */}
-        {!isInModal && (
-          <PageHeader
-            pageHeaderActions={pageHeaderActions}
-            appendActions={refreshControls}
-            pageTitle={pageTitle}
-            breadcrumbs={breadcrumbs}
-            routeParams={enhancedRouteParams}
-            onRefreshData={handleRefresh}
-          />
-        )}
-
-        {/* Render main content and sections */}
-        <SectionsRenderer
-          sectionsConfig={sectionsConfig}
-          routeParams={enhancedRouteParams}
-          parentData={{ record }}
-          depth={depth}
-          cardStyle={cardStyle}
-          isParentLoading={isLoading}
-        >
-          {/* Main content (Details) - rendered as first section if sectionsConfig exists, otherwise standalone */}
-          <Card
-            style={{ ...cardStyle, padding: 0, marginTop: sectionsConfig ? 0 : 16 }}
-            size="small"
-          >
-            <Details
-              {...detailProps}
-              routeParams={enhancedRouteParams}  // Override routeParams for to-many relations (must come after spread)
-              identifiers={identifiers}
-              onDataChange={handleDataChange}
-              refreshRef={refreshFnRef}
+  // Wrap content in span context for propagation
+  const renderContent = () => {
+    const content = (
+      <DetailStateProvider value={detailState}>
+        <div className="detail-page">
+          {/* Skip PageHeader when in modal - modal already has title/chrome */}
+          {!isInModal && (
+            <PageHeader
+              pageHeaderActions={pageHeaderActions}
+              appendActions={refreshControls}
+              pageTitle={pageTitle}
+              breadcrumbs={breadcrumbs}
+              routeParams={enhancedRouteParams}
+              onRefreshData={handleRefresh}
             />
-          </Card>
-        </SectionsRenderer>
-      </div>
-    </DetailStateProvider>
-  );
+          )}
+
+          {/* Inline contextual alerts (#16) */}
+          {detailProps.alerts && detailProps.alerts.length > 0 && (
+            <PageAlerts
+              alerts={detailProps.alerts}
+              record={record ?? undefined}
+              placement="top"
+            />
+          )}
+
+          {/* Render main content and sections */}
+          <SectionsRenderer
+            sectionsConfig={sectionsConfig}
+            routeParams={enhancedRouteParams}
+            parentData={{ record }}
+            depth={depth}
+            cardStyle={cardStyle}
+            isParentLoading={isLoading}
+          >
+            {/* Main content (Details) - rendered as first section if sectionsConfig exists, otherwise standalone */}
+            <Card
+              style={{ ...cardStyle, padding: 0, marginTop: sectionsConfig ? 0 : 16 }}
+              size="small"
+            >
+              <Details
+                {...detailProps}
+                routeParams={enhancedRouteParams}  // Override routeParams for to-many relations (must come after spread)
+                identifiers={identifiers}
+                onDataChange={handleDataChange}
+                refreshRef={refreshFnRef}
+              />
+            </Card>
+          </SectionsRenderer>
+
+          {/* Related entity tabs (#91) — rendered after the main detail card */}
+          {detailProps.relatedTabs && detailProps.relatedTabs.length > 0 && (
+            <RelatedTabs
+              tabs={detailProps.relatedTabs}
+              record={record}
+              routeParams={enhancedRouteParams}
+            />
+          )}
+        </div>
+      </DetailStateProvider>
+    );
+
+    // REMOVED: SpanContextProvider wrapping to improve performance
+    return content;
+  };
+
+  return renderContent();
 };

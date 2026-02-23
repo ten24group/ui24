@@ -157,10 +157,25 @@ const QRCodeTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
 // ============================================================================
 
 export const mediaRegistrations: Record<string, FieldTypeRegistration> = {
-  file: { form: FileForm, detail: FileDetail, table: FileTable },
-  image: { form: ImageForm, detail: ImageDetail, table: ImageTable },
-  video: { form: VideoForm, detail: VideoDetail, table: VideoTable },
-  audio: { form: AudioForm, detail: AudioDetail, table: AudioTable },
+  file: {
+    form: FileForm, detail: FileDetail, table: FileTable,
+    defaults: { table: { width: 100 } },
+  },
+  image: {
+    form: ImageForm, detail: ImageDetail, table: ImageTable,
+    defaults: { table: { width: 80 } },
+  },
+  video: {
+    form: VideoForm, detail: VideoDetail, table: VideoTable,
+    defaults: { table: { width: 80 } },
+  },
+  audio: {
+    form: AudioForm, detail: AudioDetail, table: AudioTable,
+    defaults: { table: { width: 80 } },
+  },
   avatar: { form: AvatarForm },
-  qrcode: { form: QrcodeForm, detail: QRCodeDetail, table: QRCodeTable },
+  qrcode: {
+    form: QrcodeForm, detail: QRCodeDetail, table: QRCodeTable,
+    defaults: { table: { width: 60 } },
+  },
 };

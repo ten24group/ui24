@@ -1,5 +1,5 @@
 .list-widget-card {
-  background: #fff;
+  background: var(--ant-color-bg-container, #fff);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   padding: 0;
@@ -13,7 +13,7 @@
 
 .list-widget-header {
   font-size: 16px;
-  color: #888;
+  color: var(--ant-color-text-tertiary, #888);
   margin-top: 0;
   margin-bottom: 8px;
   display: flex;

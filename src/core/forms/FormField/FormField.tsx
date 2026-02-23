@@ -290,7 +290,7 @@ const MakeFormMapItem = ({
 
     return <>
         {label && <LabelAndHelpText label={label} help={help} />}
-        <Card size="small" style={{ backgroundColor: "#8080801c" }} >
+        <Card size="small" style={{ backgroundColor: "var(--ant-color-fill-secondary, rgba(0, 0, 0, 0.06))" }} >
             <div style={formStyles.mapCardContainer}>
                 {properties?.map((property: IFormField, index: number) => (
                     <div key={property.name || index} style={formStyles.mapItemContainer}>

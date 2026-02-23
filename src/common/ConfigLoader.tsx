@@ -2,6 +2,11 @@ import React, { createContext, useRef, useState, useEffect, ReactNode } from 're
 import { useApi, useAuth, useUi24Config } from '../core/context';
 import { Spin } from 'antd';
 import { loadConfigs } from './utils';
+import { instrument } from '../core/telemetry';
+import { validatePagesConfig, setValidationIssues } from '../core/validation/configValidator';
+import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
+import { ExtensionRegistry } from '../core/registry/ExtensionRegistry';
+import { IS_DEV } from '../core/constants';
 
 const ConfigLoaderContext = createContext<undefined>(undefined);
 
@@ -64,7 +69,12 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!isLoggedIn || configLoadedRef.current || pagesConfig.length > 0) return;
             setLoader(true);
 
-            try {
+            const configSpan = instrument.begin('config.load', 'async', {
+                'config.phase': 'app',
+                'span.level': 'info',
+            });
+
+            try{
                 // Verify token if needed
                 if (authConfig) {
                     try {
@@ -96,18 +106,44 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                     dedupeRequest(dashboard, () => loadConfigs(dashboard))
                 ]).then(responses => responses.map(r => r[ 0 ]));
 
+                const mergedPagesConfig = {
+                    ...(pagesResponse ?? {}),
+                    "dashboard": dashboardResponse,
+                };
+
                 updateConfig({
-                    'pagesConfig': {
-                        ...(pagesResponse ?? {}),
-                        "dashboard": dashboardResponse
-                    },
+                    'pagesConfig': mergedPagesConfig,
                     'menuItems': menuResponse || []
                 });
+
+                // Config validation (#9): run at load time in dev, report to store
+                if (IS_DEV) {
+                    const knownFieldTypes = new Set([
+                        ...Object.keys(fieldTypeRegistry.listAll()),
+                        ...ExtensionRegistry.getRegisteredFieldTypeKeys(),
+                    ]);
+                    const issues = validatePagesConfig(mergedPagesConfig, knownFieldTypes);
+                    setValidationIssues(issues);
+                    const errors = issues.filter(i => i.severity === 'error');
+                    const warnings = issues.filter(i => i.severity === 'warning');
+                    if (errors.length > 0) {
+                        console.error(`[ui24] Config validation: ${errors.length} error(s), ${warnings.length} warning(s). Open DevTools → Warnings for details.`);
+                    } else if (warnings.length > 0) {
+                        console.warn(`[ui24] Config validation: ${warnings.length} warning(s). Open DevTools → Warnings for details.`);
+                    }
+                }
+
+                configSpan.setAttribute('config.pagesCount', Object.keys(pagesResponse ?? {}).length);
+                configSpan.setAttribute('config.menuItemsCount', (menuResponse || []).length);
+                configSpan.setAttribute('config.loaded', true);
 
                 configLoadedRef.current = true;
             } catch (error) {
                 console.error('Error loading configs:', error);
+                configSpan.setAttribute('span.level', 'error');
+                throw error;
             } finally {
+                configSpan.end();
                 setLoader(false);
             }
         }

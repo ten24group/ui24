@@ -124,7 +124,7 @@ export const ExtensionRegistryPanel: React.FC = () => {
         gap: 8,
         marginBottom: 16,
         padding: 12,
-        background: '#fafafa',
+        background: 'var(--ant-color-bg-layout, #fafafa)',
         borderRadius: 8,
       }}>
         <Statistic title="Components" value={diagnostics.componentCount} valueStyle={{ fontSize: 20 }} prefix={<AppstoreOutlined style={{ fontSize: 14 }} />} />
@@ -252,7 +252,7 @@ export const ExtensionRegistryPanel: React.FC = () => {
             children: (
               <>
                 <Input
-                  prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+                  prefix={<SearchOutlined style={{ color: 'var(--ant-color-text-quaternary, rgba(0, 0, 0, 0.25))' }} />}
                   placeholder="Filter field types..."
                   size="small"
                   allowClear

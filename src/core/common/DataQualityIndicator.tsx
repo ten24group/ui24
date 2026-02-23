@@ -47,12 +47,12 @@ function computeQuality(
   let filled = 0;
 
   for (const field of requiredFields) {
-    if (isFieldFilled(record[field])) { filled++; }
+    if (isFieldFilled(record[ field ])) { filled++; }
     else { missingRequired.push(field); }
   }
 
   for (const field of optionalFields) {
-    if (isFieldFilled(record[field])) { filled++; }
+    if (isFieldFilled(record[ field ])) { filled++; }
     else { missingOptional.push(field); }
   }
 
@@ -81,8 +81,8 @@ function getStatusIcon(percentage: number): React.ReactNode {
 interface DataQualityIndicatorProps {
   record: Record<string, unknown>;
   config: IDataQualityConfig;
-  /** Property configs from entity schema — used when autoDetect is enabled. Needs `name` and optionally `required`. */
-  propertiesConfig?: ReadonlyArray<{ name?: string; required?: boolean }>;
+  /** Property configs from entity schema — used when autoDetect is enabled. */
+  propertiesConfig?: ReadonlyArray<{ name?: string; dataIndex?: string; column?: string; id?: string; required?: boolean }>;
   /** 'full' for detail pages, 'compact' for table cells */
   mode?: 'full' | 'compact';
 }
@@ -102,25 +102,29 @@ export const DataQualityIndicator: React.FC<DataQualityIndicatorProps> = ({
     }
 
     if (config.autoDetect !== false && propertiesConfig) {
-      const withName = propertiesConfig.filter((p): p is typeof p & { name: string } => !!p.name);
+      const getFieldKey = (p: { name?: string; dataIndex?: string; column?: string; id?: string }) =>
+        p.dataIndex ?? p.column ?? p.id ?? p.name;
+      const withKey = propertiesConfig
+        .map(p => ({ ...p, _key: getFieldKey(p) }))
+        .filter((p): p is typeof p & { _key: string } => !!p._key);
       return {
-        requiredFields: withName.filter(p => p.required).map(p => p.name),
-        optionalFields: withName.filter(p => !p.required).map(p => p.name),
+        requiredFields: withKey.filter(p => p.required).map(p => p._key),
+        optionalFields: withKey.filter(p => !p.required).map(p => p._key),
       };
     }
 
     return { requiredFields: [] as string[], optionalFields: [] as string[] };
-  }, [config.requiredFields, config.optionalFields, config.autoDetect, propertiesConfig]);
+  }, [ config.requiredFields, config.optionalFields, config.autoDetect, propertiesConfig ]);
 
   const quality = useMemo(
     () => computeQuality(record, requiredFields, optionalFields),
-    [record, requiredFields, optionalFields]
+    [ record, requiredFields, optionalFields ]
   );
 
   if (quality.totalFields === 0) return null;
 
   const color = getStatusColor(quality.percentage, config.alertBelow);
-  const allMissing = [...quality.missingRequired, ...quality.missingOptional];
+  const allMissing = [ ...quality.missingRequired, ...quality.missingOptional ];
 
   if (mode === 'compact') {
     return (

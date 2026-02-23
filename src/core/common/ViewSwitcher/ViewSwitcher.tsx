@@ -6,15 +6,17 @@ import {
   ProjectOutlined,
   CalendarOutlined,
   EnvironmentOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import type { ViewType } from './types';
 
 const VIEW_META: Record<ViewType, { icon: React.ReactNode; label: string }> = {
-  'table':     { icon: <UnorderedListOutlined />, label: 'Table' },
-  'card-grid': { icon: <AppstoreOutlined />,      label: 'Card Grid' },
-  'kanban':    { icon: <ProjectOutlined />,        label: 'Kanban' },
-  'calendar':  { icon: <CalendarOutlined />,       label: 'Calendar' },
-  'map':       { icon: <EnvironmentOutlined />,    label: 'Map' },
+  'table': { icon: <UnorderedListOutlined />, label: 'Table' },
+  'card-grid': { icon: <AppstoreOutlined />, label: 'Card Grid' },
+  'kanban': { icon: <ProjectOutlined />, label: 'Kanban' },
+  'calendar': { icon: <CalendarOutlined />, label: 'Calendar' },
+  'map': { icon: <EnvironmentOutlined />, label: 'Map' },
+  'tree': { icon: <ApartmentOutlined />, label: 'Tree' },
 };
 
 interface ViewSwitcherProps {
@@ -33,7 +35,7 @@ export const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ available, active, o
   return (
     <Space.Compact>
       {available.map(view => {
-        const meta = VIEW_META[view];
+        const meta = VIEW_META[ view ];
         if (!meta) return null;
         return (
           <Tooltip key={view} title={meta.label}>

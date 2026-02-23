@@ -17,7 +17,7 @@
 .cmd-palette {
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--ant-color-bg-container, #fff);
 }
 
 /* ── Input Area ─────────────────────────────────────────────────────────── */
@@ -27,12 +27,12 @@
   align-items: center;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--ant-color-border-secondary, #f0f0f0);
 }
 
 .cmd-palette-search-icon {
   font-size: 16px;
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
   flex-shrink: 0;
 }
 
@@ -43,20 +43,20 @@
   background: transparent;
   font-size: 15px;
   font-family: inherit;
-  color: #1f1f1f;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
   padding: 0;
   min-width: 0;
 }
 
 .cmd-palette-input::placeholder {
-  color: #bfbfbf;
+  color: var(--ant-color-text-quaternary, #bfbfbf);
 }
 
 .cmd-palette-filter-badge {
   font-size: 11px;
   font-weight: 600;
-  color: #1677ff;
-  background: #e6f4ff;
+  color: var(--ant-color-primary, #1677ff);
+  background: var(--ant-color-primary-bg, #e6f4ff);
   padding: 2px 8px;
   border-radius: 4px;
   white-space: nowrap;
@@ -67,9 +67,9 @@
 
 .cmd-palette-clear {
   font-size: 11px;
-  color: #8c8c8c;
-  background: #f5f5f5;
-  border: 1px solid #e8e8e8;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
+  background: var(--ant-color-bg-layout, #f5f5f5);
+  border: 1px solid var(--ant-color-border, #e8e8e8);
   border-radius: 4px;
   padding: 2px 6px;
   cursor: pointer;
@@ -80,8 +80,8 @@
 }
 
 .cmd-palette-clear:hover {
-  background: #e8e8e8;
-  color: #595959;
+  background: var(--ant-color-fill-secondary, #e8e8e8);
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
 }
 
 /* ── Filter Hints Row ───────────────────────────────────────────────────── */
@@ -90,13 +90,13 @@
   display: flex;
   gap: 16px;
   padding: 8px 16px;
-  border-bottom: 1px solid #f5f5f5;
-  background: #fafafa;
+  border-bottom: 1px solid var(--ant-color-border-secondary, #f5f5f5);
+  background: var(--ant-color-bg-layout, #fafafa);
 }
 
 .cmd-palette-hint {
   font-size: 11px;
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -112,9 +112,9 @@
   font-size: 11px;
   font-family: inherit;
   font-weight: 600;
-  color: #595959;
-  background: #fff;
-  border: 1px solid #d9d9d9;
+  color: var(--ant-color-text-secondary, #595959);
+  background: var(--ant-color-bg-container, #fff);
+  border: 1px solid var(--ant-color-border, #d9d9d9);
   border-radius: 3px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.06);
   line-height: 1;
@@ -135,12 +135,12 @@
 }
 
 .cmd-palette-list::-webkit-scrollbar-thumb {
-  background: #d9d9d9;
+  background: var(--ant-color-border, #d9d9d9);
   border-radius: 4px;
 }
 
 .cmd-palette-list::-webkit-scrollbar-thumb:hover {
-  background: #bfbfbf;
+  background: var(--ant-color-text-quaternary, #bfbfbf);
 }
 
 /* ── Empty State ────────────────────────────────────────────────────────── */
@@ -152,20 +152,20 @@
 
 .cmd-palette-empty-icon {
   font-size: 28px;
-  color: #d9d9d9;
+  color: var(--ant-color-border, #d9d9d9);
   margin-bottom: 12px;
 }
 
 .cmd-palette-empty-title {
   font-size: 14px;
   font-weight: 500;
-  color: #595959;
+  color: var(--ant-color-text-secondary, #595959);
   margin-bottom: 6px;
 }
 
 .cmd-palette-empty-hint {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
 }
 
 .cmd-palette-empty-hint kbd {
@@ -178,9 +178,9 @@
   font-size: 10px;
   font-family: inherit;
   font-weight: 600;
-  color: #595959;
-  background: #f5f5f5;
-  border: 1px solid #d9d9d9;
+  color: var(--ant-color-text-secondary, #595959);
+  background: var(--ant-color-bg-layout, #f5f5f5);
+  border: 1px solid var(--ant-color-border, #d9d9d9);
   border-radius: 3px;
   line-height: 1;
   margin: 0 2px;
@@ -202,7 +202,7 @@
   gap: 6px;
   font-size: 11px;
   font-weight: 600;
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
   letter-spacing: 0.04em;
 }
 
@@ -210,14 +210,14 @@
   font-size: 12px;
   display: flex;
   align-items: center;
-  color: #a6a6a6;
+  color: var(--ant-color-text-quaternary, #a6a6a6);
 }
 
 .cmd-palette-group-count {
   font-size: 10px;
   font-weight: 500;
-  color: #bfbfbf;
-  background: #f5f5f5;
+  color: var(--ant-color-text-quaternary, #bfbfbf);
+  background: var(--ant-color-bg-layout, #f5f5f5);
   padding: 0 5px;
   border-radius: 8px;
   line-height: 16px;
@@ -240,12 +240,12 @@
 }
 
 .cmd-palette-item[data-selected='true'] {
-  background: #f0f5ff;
+  background: var(--ant-color-primary-bg, #f0f5ff);
 }
 
 .cmd-palette-item[data-selected='true'] .cmd-palette-item-arrow {
   opacity: 1;
-  color: #1677ff;
+  color: var(--ant-color-primary, #1677ff);
 }
 
 .cmd-palette-item:active {
@@ -260,16 +260,16 @@
   align-items: center;
   justify-content: center;
   font-size: 14px;
-  color: #595959;
-  background: #f5f5f5;
+  color: var(--ant-color-text-secondary, #595959);
+  background: var(--ant-color-bg-layout, #f5f5f5);
   border-radius: 8px;
   flex-shrink: 0;
   transition: all 0.12s ease;
 }
 
 .cmd-palette-item[data-selected='true'] .cmd-palette-item-icon {
-  background: #e6f4ff;
-  color: #1677ff;
+  background: var(--ant-color-primary-bg-hover, #e6f4ff);
+  color: var(--ant-color-primary, #1677ff);
 }
 
 /* Item: content */
@@ -284,7 +284,7 @@
 .cmd-palette-item-title {
   font-size: 13px;
   font-weight: 500;
-  color: #1f1f1f;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -292,7 +292,7 @@
 }
 
 .cmd-palette-item[data-selected='true'] .cmd-palette-item-title {
-  color: #1677ff;
+  color: var(--ant-color-primary, #1677ff);
 }
 
 .cmd-palette-item-meta {
@@ -303,7 +303,7 @@
 
 .cmd-palette-item-description {
   font-size: 11px;
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -312,7 +312,7 @@
 
 .cmd-palette-item-path {
   font-size: 10px;
-  color: #a6a6a6;
+  color: var(--ant-color-text-quaternary, #a6a6a6);
   font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -341,7 +341,7 @@
 /* Item: arrow */
 .cmd-palette-item-arrow {
   font-size: 10px;
-  color: #d9d9d9;
+  color: var(--ant-color-border, #d9d9d9);
   flex-shrink: 0;
   opacity: 0;
   transition: opacity 0.12s ease;
@@ -366,9 +366,9 @@
   font-size: 11px;
   font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
   font-weight: 500;
-  color: #595959;
-  background: #f5f5f5;
-  border: 1px solid #e8e8e8;
+  color: var(--ant-color-text-secondary, #595959);
+  background: var(--ant-color-bg-layout, #f5f5f5);
+  border: 1px solid var(--ant-color-border, #e8e8e8);
   border-radius: 4px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
   line-height: 1;
@@ -376,19 +376,19 @@
 
 .cmd-kbd-sep {
   font-size: 9px;
-  color: #bfbfbf;
+  color: var(--ant-color-text-quaternary, #bfbfbf);
   margin: 0 1px;
 }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 
 .cmd-palette-footer {
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--ant-color-border-secondary, #f0f0f0);
   padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fafafa;
+  background: var(--ant-color-bg-layout, #fafafa);
 }
 
 .cmd-palette-footer-left {
@@ -398,7 +398,7 @@
 
 .cmd-palette-footer-hint {
   font-size: 11px;
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -414,9 +414,9 @@
   font-size: 10px;
   font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
   font-weight: 500;
-  color: #595959;
-  background: #fff;
-  border: 1px solid #d9d9d9;
+  color: var(--ant-color-text-secondary, #595959);
+  background: var(--ant-color-bg-container, #fff);
+  border: 1px solid var(--ant-color-border, #d9d9d9);
   border-radius: 3px;
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
   line-height: 1;
@@ -429,7 +429,7 @@
 
 .cmd-palette-result-count {
   font-size: 11px;
-  color: #bfbfbf;
+  color: var(--ant-color-text-quaternary, #bfbfbf);
   font-variant-numeric: tabular-nums;
 }
 
@@ -437,7 +437,7 @@
 
 .cmd-palette-item-peek {
   font-size: 12px;
-  color: #bfbfbf;
+  color: var(--ant-color-text-quaternary, #bfbfbf);
   opacity: 0;
   transition: opacity 0.15s, color 0.15s;
   flex-shrink: 0;
@@ -450,5 +450,5 @@
 }
 
 .cmd-palette-item-peek:hover {
-  color: #1677ff;
+  color: var(--ant-color-primary, #1677ff);
 }

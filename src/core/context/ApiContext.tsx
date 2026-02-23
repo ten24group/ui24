@@ -6,6 +6,10 @@ import { useAppContext } from './AppContext';
 import { getMockData } from '../mock';
 import { setupOperationExecutorTestMocks } from '../mocks/operationExecutorTestMocks';
 import { setupNewFeaturesTestMocks } from '../mocks/newFeaturesTestMocks';
+import { createHttpSpan } from '../telemetry';
+import { IS_DEV } from '../constants';
+import type { Span } from '../telemetry/api';
+import { captureRequest, captureResponse } from '../devtools/store/network';
 
 export interface IApiConfig {
     apiUrl: string;
@@ -57,7 +61,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // Enable mock responses only in non-production or when explicitly enabled
     const enableMocks = selectConfig(config =>
-        config?.apiConfig?.enableMocks ?? process.env.NODE_ENV !== 'production'
+        config?.apiConfig?.enableMocks ?? IS_DEV
     );
 
     // Setup mock responses for test pages (no backend deployment needed!)
@@ -78,7 +82,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             // Skip authentication if this is a retry that's already been signed
             // (to avoid double-signing which causes AWS signature mismatches)
             if ((config as any)._isAuthenticatedRetry) {
-                console.log('[ApiContext] Skipping re-authentication for pre-signed retry:', config.url);
                 return config;
             }
 
@@ -131,14 +134,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             const shouldRetry = auth.shouldRefreshAuth(error, orig);
             const retryCount = orig._retryCount || 0;
 
-            console.log('[ApiContext] Request failed:', {
-                url: orig.url,
-                status: error.response?.status,
-                shouldRetry,
-                retryCount,
-                hasHeaders: !!orig.headers
-            });
-
             if (shouldRetry && retryCount === 0) {
                 orig._retryCount = (orig._retryCount || 0) + 1;
                 if (!refreshPromise) {
@@ -179,7 +174,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                     (signedConfig as any)._isAuthenticatedRetry = true;
                     return axiosInstance(signedConfig);
                 } catch (refreshError) {
-                    console.error('[ApiContext] Retry failed:', refreshError);
                     // On refresh failure, logout has already been called by the auth provider.
                     // The state change will trigger a redirect. We should not propagate
                     // the error further, as the original request is now irrelevant.
@@ -221,6 +215,17 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
 
     const callApiMethod = async <T,>(apiConfig: IApiConfig & { dedupe?: boolean }): Promise<AxiosResponse<T>> => {
+        // Guard: empty apiUrl would hit the base URL with no path (e.g. /v1/?count=50)
+        if (!apiConfig.apiUrl) {
+            return Promise.reject({
+                message: 'callApiMethod called with empty apiUrl — this is a framework bug',
+                response: {
+                    status: 400,
+                    data: { message: 'Missing apiUrl', errorType: 'INVALID_REQUEST' }
+                }
+            });
+        }
+
         const method = (apiConfig.apiMethod ?? 'GET').toUpperCase();
         // Only dedupe GET requests by default; opt-out by setting dedupe: false or opt-in for others by dedupe: true
         const shouldDedupe = apiConfig.dedupe !== false && (method === 'GET');
@@ -272,21 +277,66 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
             // Real request
             try {
+                // OpenTelemetry span for distributed tracing (dev only)
+                let span: Span | null = null;
+                const startTime = Date.now();
+                let networkId = '';
+
+                if (IS_DEV) {
+                    const spanResult = createHttpSpan({ method, url: apiConfig.apiUrl });
+                    span = spanResult.span;
+
+                    // Capture outgoing request in NetworkMonitor
+                    networkId = captureRequest({
+                        method,
+                        url: apiConfig.apiUrl,
+                        payload: apiConfig.payload,
+                        headers: apiConfig.headers,
+                        spanId: span?.spanContext().spanId,
+                    });
+                }
+
                 let response: AxiosResponse<T> | undefined;
-                if (method === 'GET') {
-                    response = await getMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
-                } else if (method === 'POST') {
-                    response = await postMethod(apiConfig.apiUrl, apiConfig.payload ?? {}, apiConfig.headers);
-                } else if (method === 'PUT') {
-                    response = await putMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
-                } else if (method === 'PATCH') {
-                    response = await patchMethod(apiConfig.apiUrl, apiConfig.payload ?? {}, apiConfig.headers);
-                } else if (method === 'DELETE') {
-                    response = await deleteMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
-                } else if (method === 'OPTIONS') {
-                    response = await optionsMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
-                } else if (method === 'HEAD') {
-                    response = await headMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                try {
+                    if (method === 'GET') {
+                        response = await getMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    } else if (method === 'POST') {
+                        response = await postMethod(apiConfig.apiUrl, apiConfig.payload ?? {}, apiConfig.headers);
+                    } else if (method === 'PUT') {
+                        response = await putMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    } else if (method === 'PATCH') {
+                        response = await patchMethod(apiConfig.apiUrl, apiConfig.payload ?? {}, apiConfig.headers);
+                    } else if (method === 'DELETE') {
+                        response = await deleteMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    } else if (method === 'OPTIONS') {
+                        response = await optionsMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    } else if (method === 'HEAD') {
+                        response = await headMethod(apiConfig.apiUrl, apiConfig.payload, apiConfig.headers);
+                    }
+                } catch (error: any) {
+                    const duration = Date.now() - startTime;
+                    const status = error?.response?.status || 0;
+
+                    // Record error in span
+                    if (span) {
+                        span.setAttribute('http.status_code', status);
+                        span.setAttribute('http.duration_ms', duration);
+                        span.setAttribute('span.level', 'error');
+                        span.recordException(error);
+                        span.end();
+                    }
+
+                    // Record error in NetworkMonitor
+                    if (IS_DEV && networkId) {
+                        captureResponse(networkId, {
+                            status,
+                            duration,
+                            responseBody: error?.response?.data,
+                            errorMessage: error?.message || 'Request failed',
+                        });
+                    }
+
+                    throw error;
                 }
 
                 if (!response) {
@@ -305,6 +355,30 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                             }
                         },
                     };
+                }
+
+                const duration = Date.now() - startTime;
+
+                // Record success in span
+                if (span) {
+                    const status = response.status;
+                    span.setAttribute('http.status_code', status);
+                    span.setAttribute('http.duration_ms', duration);
+                    span.setAttribute('span.level', status >= 400 ? 'error' : status >= 300 ? 'warn' : 'debug');
+                    span.end();
+                }
+
+                // Record success in NetworkMonitor
+                if (IS_DEV && networkId) {
+                    captureResponse(networkId, {
+                        status: response.status,
+                        statusText: response.statusText,
+                        duration,
+                        responseBody: response.data,
+                        responseHeaders: Object.fromEntries(
+                            Object.entries(response.headers || {}).map(([k, v]) => [k, String(v)])
+                        ),
+                    });
                 }
 
                 return response;
@@ -348,7 +422,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                                     message: errorMessage,
                                     originalMessage: error.message,
                                     code: error.code,
-                                    stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                                    stack: IS_DEV ? error.stack : undefined
                                 }
                             }
                         },
@@ -411,48 +485,12 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const callApiMethodImplRef = useRef(callApiMethod);
     callApiMethodImplRef.current = callApiMethod;
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const stableCallApiMethod = useCallback(<T,>(apiConfig: IApiConfig & { dedupe?: boolean }) => {
-        const promise = callApiMethodImplRef.current<T>(apiConfig);
-
-        if (process.env.NODE_ENV !== 'production') {
-            const { logActivity } = require('../devtools/devtoolsBridge');
-            const method = (apiConfig.apiMethod ?? 'GET').toUpperCase();
-            const label = `${method} ${apiConfig.apiUrl}`;
-            const startTime = Date.now();
-            const reqId = logActivity({
-                type: 'api-request',
-                label,
-                data: { method, url: apiConfig.apiUrl, payload: apiConfig.payload, headers: apiConfig.headers },
-            });
-            promise.then(
-                (response: AxiosResponse<T>) => {
-                    logActivity({
-                        type: 'api-response',
-                        label,
-                        status: response.status,
-                        duration: Date.now() - startTime,
-                        data: { status: response.status, data: response.data, headers: response.headers },
-                        requestId: reqId,
-                    });
-                },
-                (error: any) => {
-                    logActivity({
-                        type: 'api-error',
-                        label,
-                        status: error?.response?.status || 0,
-                        duration: Date.now() - startTime,
-                        data: { status: error?.response?.status, message: error?.message, data: error?.response?.data },
-                        requestId: reqId,
-                    });
-                }
-            );
-        }
-
-        return promise;
+        // Use the ref to get the current implementation (with fresh interceptors)
+        return callApiMethodImplRef.current<T>(apiConfig);
     }, []) as typeof callApiMethod;
 
-    const contextValue = useMemo(() => ({ callApiMethod: stableCallApiMethod }), [stableCallApiMethod]);
+    const contextValue = useMemo(() => ({ callApiMethod: stableCallApiMethod }), [ stableCallApiMethod ]);
 
     return (
         <ApiContext.Provider value={contextValue}>

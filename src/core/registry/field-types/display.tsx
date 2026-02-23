@@ -282,6 +282,49 @@ const IconTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
   return IconComp ? <IconComp style={{ fontSize: 18 }} /> : <span>{String(value)}</span>;
 };
 
+/** Detail renderer for list-type fields (#111) */
+const ListDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
+  if (!Array.isArray(value) || value.length === 0) return <span>—</span>;
+
+  // Primitive array — render as a comma-separated inline list (≤5) or bullet list (>5)
+  if (value.every(item => typeof item === 'string' || typeof item === 'number')) {
+    if (value.length <= 5) {
+      return (
+        <span>
+          {value.map((item, i) => (
+            <Tag key={i} style={{ marginBottom: 2 }}>{String(item)}</Tag>
+          ))}
+        </span>
+      );
+    }
+    return (
+      <ul style={{ margin: 0, paddingLeft: 16 }}>
+        {value.map((item, i) => (
+          <li key={i} style={{ fontSize: 13 }}>{String(item)}</li>
+        ))}
+      </ul>
+    );
+  }
+
+  // Object array — render as a compact table-like stack
+  return (
+    <div>
+      {value.map((item, i) => (
+        <div key={i} style={{ marginBottom: 4, padding: '4px 8px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 4, fontSize: 12 }}>
+          {typeof item === 'object' && item !== null
+            ? Object.entries(item as Record<string, unknown>).map(([k, v]) => (
+              <span key={k} style={{ marginRight: 8 }}>
+                <b>{k}:</b> {String(v ?? '—')}
+              </span>
+            ))
+            : String(item)
+          }
+        </div>
+      ))}
+    </div>
+  );
+};
+
 /** Table renderer for list-type fields (non-multi-select) */
 const ListTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
   if (!Array.isArray(value) || value.length === 0) return <span>—</span>;
@@ -307,13 +350,34 @@ const ListTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
 };
 
 export const displayRegistrations: Record<string, FieldTypeRegistration> = {
-  color: { form: ColorForm, detail: ColorDetail, table: ColorTable },
-  badge: { form: BadgeForm, detail: BadgeDetail, table: BadgeTable },
-  tag: { form: TagForm, detail: TagDetail, table: TagTable },
-  tags: { detail: TagDetail, table: TagTable },
-  progress: { detail: ProgressDetail, table: ProgressTable },
-  avatar: { detail: AvatarDetail, table: AvatarTable },
-  icon: { detail: IconDetail, table: IconTable },
+  color: {
+    form: ColorForm, detail: ColorDetail, table: ColorTable,
+    defaults: { table: { width: 110 } },
+  },
+  badge: {
+    form: BadgeForm, detail: BadgeDetail, table: BadgeTable,
+    defaults: { table: { width: 120 } },
+  },
+  tag: {
+    form: TagForm, detail: TagDetail, table: TagTable,
+    defaults: { table: { width: 120 } },
+  },
+  tags: {
+    detail: TagDetail, table: TagTable,
+    defaults: { table: { width: 180 } },
+  },
+  progress: {
+    detail: ProgressDetail, table: ProgressTable,
+    defaults: { table: { width: 140 } },
+  },
+  avatar: {
+    detail: AvatarDetail, table: AvatarTable,
+    defaults: { table: { width: 60 } },
+  },
+  icon: {
+    detail: IconDetail, table: IconTable,
+    defaults: { table: { width: 60 } },
+  },
   timeline: { detail: TimelineDetail },
-  list: { table: ListTable },
+  list: { detail: ListDetail, table: ListTable },
 };

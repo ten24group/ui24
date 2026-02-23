@@ -1,5 +1,5 @@
 .chart-widget-card {
-  background: #fff;
+  background: var(--ant-color-bg-container, #fff);
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   padding: 12px 20px 20px 20px;
@@ -13,7 +13,7 @@
 
 .chart-widget-header {
   font-size: 16px;
-  color: #888;
+  color: var(--ant-color-text-tertiary, #888);
   margin-top: 0;
   margin-bottom: 16px;
   display: flex;
@@ -45,11 +45,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #888;
+  color: var(--ant-color-text-tertiary, #888);
   font-size: 14px;
 }
 
 .chart-widget-error {
   width: 100%;
   padding: 16px;
-} 
+}

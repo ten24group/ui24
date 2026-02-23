@@ -2,7 +2,7 @@
  * TablePage Wrapper - Owns table state and provides TableStateContext.
  * Renders PageHeader and the existing Table component with state management.
  */
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import { TableStateProvider } from '../../core/context/TableStateContext';
 import { useModalContext } from '../../core/context';
 import { Table } from '../../table/Table';
@@ -10,6 +10,8 @@ import { ITableConfig } from '../../table/type';
 import { PageHeader, IPageHeader } from '../PostAuth/PageHeader/PageHeader';
 import { SectionsRenderer, ISectionsConfig } from '../PostAuth/SectionsRenderer';
 import { Card } from 'antd';
+import { useSpan } from '../../core/telemetry';
+import { PageAlerts } from '../../core/common/PageAlerts/PageAlerts';
 
 interface TablePageProps extends Omit<ITableConfig, 'onDataChange' | 'onDataRefresh'>, Pick<IPageHeader, 'pageHeaderActions' | 'pageTitle' | 'breadcrumbs'> {
   routeParams?: Record<string, any>;
@@ -69,39 +71,76 @@ export const TablePage: React.FC<TablePageProps> = ({
   // Check if we're in a modal - skip PageHeader if true (modal already has title)
   const { isInModal } = useModalContext();
 
-  return (
-    <TableStateProvider value={tableState}>
-      <div className="table-page">
-        {/* Skip PageHeader when in modal - modal already has title/chrome */}
-        {!isInModal && (
-          <PageHeader
-            pageHeaderActions={pageHeaderActions}
-            pageTitle={pageTitle}
-            breadcrumbs={breadcrumbs}
-            routeParams={enhancedRouteParams}
-          />
-        )}
+  // Table lifecycle span tracking
+  const apiUrl = tableProps.apiConfig && (('apiUrl' in tableProps.apiConfig)
+    ? tableProps.apiConfig.apiUrl
+    : (tableProps.apiConfig.search?.apiUrl || tableProps.apiConfig.database?.apiUrl));
 
-        {/* Table component - pass through onDataChange to capture state */}
-        <Card style={{ ...cardStyle, padding: 0, marginTop: 16 }}>  <Table
-          {...tableProps}
-          routeParams={enhancedRouteParams}
-          onDataChange={handleDataChange}
-        />
-        </Card>
+  const { updateSpan } = useSpan({
+    entityName: tableProps.entityName,
+    apiUrl,
+    type: 'table.lifecycle',
+    attributes: {
+      'table.entity': tableProps.entityName || 'Unknown',
+    }
+  });
 
-        {/* Render sections if configured */}
-        {sectionsConfig && (
-          <SectionsRenderer
-            sectionsConfig={sectionsConfig}
-            routeParams={enhancedRouteParams}
-            parentData={{ selectedRecords, filters, searchQuery }}
-            depth={depth + 1}
-            cardStyle={cardStyle}
-          />
-        )}
-      </div>
-    </TableStateProvider>
-  );
+  // Track table state changes
+  useEffect(() => {
+    updateSpan({
+      'table.filterCount': Object.keys(filters).length,
+      'table.hasSearch': !!searchQuery,
+      'table.selectedCount': selectedRecords.length
+    });
+  }, [ filters, searchQuery, selectedRecords, updateSpan ]);
+
+  // Wrap content in span context for propagation
+  const renderContent = () => {
+    const content = (
+      <TableStateProvider value={tableState}>
+        <div className="table-page">
+          {/* Skip PageHeader when in modal - modal already has title/chrome */}
+          {!isInModal && (
+            <PageHeader
+              pageHeaderActions={pageHeaderActions}
+              pageTitle={pageTitle}
+              breadcrumbs={breadcrumbs}
+              routeParams={enhancedRouteParams}
+            />
+          )}
+
+          {/* Inline contextual alerts (#16) */}
+          {tableProps.alerts && tableProps.alerts.length > 0 && (
+            <PageAlerts alerts={tableProps.alerts} placement="top" />
+          )}
+
+          {/* Table component - pass through onDataChange to capture state */}
+          <Card style={{ ...cardStyle, padding: 0, marginTop: 16 }}>
+            <Table
+              {...tableProps}
+              routeParams={enhancedRouteParams}
+              onDataChange={handleDataChange}
+            />
+          </Card>
+
+          {/* Render sections if configured */}
+          {sectionsConfig && (
+            <SectionsRenderer
+              sectionsConfig={sectionsConfig}
+              routeParams={enhancedRouteParams}
+              parentData={{ selectedRecords, filters, searchQuery }}
+              depth={depth + 1}
+              cardStyle={cardStyle}
+            />
+          )}
+        </div>
+      </TableStateProvider>
+    );
+
+    // REMOVED: SpanContextProvider wrapping to improve performance
+    return content;
+  };
+
+  return renderContent();
 };
 

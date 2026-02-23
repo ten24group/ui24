@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useUi24Config } from '../../context/UI24Context';
 import { ExtensionRegistry } from '../../registry/ExtensionRegistry';
 import type { CommandItem } from './CommandPalette';
@@ -45,7 +45,7 @@ function inferPageType(key: string, pc: Record<string, unknown>): string | undef
 /** Infer entity name from config key. */
 function inferEntityName(key: string, pc: Record<string, unknown>): string | undefined {
   if (typeof pc.entityName === 'string') return pc.entityName;
-  const prefixes = ['list-', 'create-', 'add-', 'edit-', 'update-', 'view-', 'detail-', 'details-'];
+  const prefixes = [ 'list-', 'create-', 'add-', 'edit-', 'update-', 'view-', 'detail-', 'details-' ];
   for (const prefix of prefixes) {
     if (key.toLowerCase().startsWith(prefix)) {
       return key.slice(prefix.length);
@@ -78,8 +78,12 @@ function humanize(name: string, plural = false): string {
  * Builds navigation, entity, built-in, and extension command items from config.
  */
 export function useCommandPalette(navigate: (path: string) => void) {
-  const [open, setOpen] = useState(false);
+  const [ open, setOpen ] = useState(false);
   const { config } = useUi24Config();
+
+  // Ref to always read the latest navigate without invalidating memos on every route change.
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
 
   const paletteConfig = config.commandPalette;
   const isEnabled = paletteConfig?.enabled !== false;
@@ -87,7 +91,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
   const toggle = useCallback(() => {
     if (!isEnabled) return;
     setOpen(prev => !prev);
-  }, [isEnabled]);
+  }, [ isEnabled ]);
   const close = useCallback(() => setOpen(false), []);
 
   // Global keyboard shortcut: Cmd+K / Ctrl+K
@@ -102,7 +106,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
     };
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [toggle, isEnabled, paletteConfig?.trigger]);
+  }, [ toggle, isEnabled, paletteConfig?.trigger ]);
 
   // ── Navigation items from menu config ─────────────────────────────────
   const navigationItems = useMemo<CommandItem[]>(() => {
@@ -120,10 +124,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
             title: parentLabel ? `${parentLabel} > ${label}` : label,
             description: `Go to ${label}`,
             category: 'navigation',
-            keywords: [url, label],
+            keywords: [ url, label ],
             path: url,
             onSelect: () => {
-              navigate(url);
+              navigateRef.current(url);
               close();
             },
           });
@@ -136,7 +140,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
 
     processMenu(menuItems);
     return result;
-  }, [config.menuItems, navigate, close]);
+  }, [ config.menuItems, close ]);
 
   // ── Entity items from pagesConfig ─────────────────────────────────────
   const entityItems = useMemo<CommandItem[]>(() => {
@@ -151,7 +155,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
     const seenListRoutes = new Map<string, string>();
 
     // First pass: collect list routes so edit/view commands can reference them
-    for (const [pageKey, pageConfig] of Object.entries(pagesConfig)) {
+    for (const [ pageKey, pageConfig ] of Object.entries(pagesConfig)) {
       if (!pageConfig || typeof pageConfig !== 'object') continue;
       const pc = pageConfig as Record<string, unknown>;
       const pageType = inferPageType(pageKey, pc);
@@ -162,7 +166,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
       }
     }
 
-    for (const [pageKey, pageConfig] of Object.entries(pagesConfig)) {
+    for (const [ pageKey, pageConfig ] of Object.entries(pagesConfig)) {
       if (!pageConfig || typeof pageConfig !== 'object') continue;
       const pc = pageConfig as Record<string, unknown>;
 
@@ -179,10 +183,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
           title: pageTitle || humanize(entityName, true),
           description: `View all ${humanize(entityName).toLowerCase()} records`,
           category: 'entity',
-          keywords: [entityName, pageKey, 'list', 'browse', 'table'],
+          keywords: [ entityName, pageKey, 'list', 'browse', 'table' ],
           path: route,
           onSelect: () => {
-            navigate(route);
+            navigateRef.current(route);
             close();
           },
         });
@@ -196,10 +200,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
           title: pageTitle || `Create ${humanize(entityName)}`,
           description: `Create a new ${humanize(entityName).toLowerCase()} record`,
           category: 'entity',
-          keywords: [entityName, 'create', 'new', 'add', pageKey],
+          keywords: [ entityName, 'create', 'new', 'add', pageKey ],
           path: route,
           onSelect: () => {
-            navigate(route);
+            navigateRef.current(route);
             close();
           },
         });
@@ -215,10 +219,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
             title: pageTitle || `View ${humanize(entityName)}`,
             description: `View a ${humanize(entityName).toLowerCase()} record (opens list to select)`,
             category: 'entity',
-            keywords: [entityName, 'view', 'detail', 'show', pageKey],
+            keywords: [ entityName, 'view', 'detail', 'show', pageKey ],
             path: listRoute,
             onSelect: () => {
-              navigate(listRoute);
+              navigateRef.current(listRoute);
               close();
             },
           });
@@ -235,10 +239,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
             title: pageTitle || `Edit ${humanize(entityName)}`,
             description: `Edit a ${humanize(entityName).toLowerCase()} record (opens list to select)`,
             category: 'entity',
-            keywords: [entityName, 'edit', 'update', 'modify', pageKey],
+            keywords: [ entityName, 'edit', 'update', 'modify', pageKey ],
             path: listRoute,
             onSelect: () => {
-              navigate(listRoute);
+              navigateRef.current(listRoute);
               close();
             },
           });
@@ -252,10 +256,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
           title: pageTitle || humanize(pageKey),
           description: 'Dashboard view',
           category: 'navigation',
-          keywords: [pageKey, 'dashboard'],
+          keywords: [ pageKey, 'dashboard' ],
           path: route,
           onSelect: () => {
-            navigate(route);
+            navigateRef.current(route);
             close();
           },
         });
@@ -263,7 +267,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
     }
 
     return result;
-  }, [config.pagesConfig, navigate, close]);
+  }, [ config.pagesConfig, close ]);
 
   // ── Extension commands from registry ──────────────────────────────────
   const extensionItems = useMemo<CommandItem[]>(() => {
@@ -273,14 +277,14 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: cmd.label,
       description: cmd.group ? `${cmd.group} command` : undefined,
       category: cmd.group || 'command',
-      keywords: [cmd.id, cmd.label, cmd.group || ''].filter(Boolean),
+      keywords: [ cmd.id, cmd.label, cmd.group || '' ].filter(Boolean),
       shortcut: cmd.shortcut,
       onSelect: () => {
         cmd.handler();
         close();
       },
     }));
-  }, [close]);
+  }, [ close ]);
 
   // ── Built-in power commands ───────────────────────────────────────────
   const builtInItems = useMemo<CommandItem[]>(() => {
@@ -291,10 +295,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Copy Current URL',
       description: 'Copy the current page URL to clipboard',
       category: 'action',
-      keywords: ['copy', 'url', 'link', 'clipboard', 'share'],
+      keywords: [ 'copy', 'url', 'link', 'clipboard', 'share' ],
       shortcut: 'Ctrl+L',
       onSelect: () => {
-        navigator.clipboard.writeText(window.location.href).catch(() => {});
+        navigator.clipboard.writeText(window.location.href).catch(() => { });
         close();
       },
     });
@@ -304,7 +308,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Reload Page',
       description: 'Refresh the current page',
       category: 'action',
-      keywords: ['reload', 'refresh', 'hard'],
+      keywords: [ 'reload', 'refresh', 'hard' ],
       shortcut: 'Ctrl+R',
       onSelect: () => {
         window.location.reload();
@@ -316,7 +320,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Scroll to Top',
       description: 'Jump to the top of the page',
       category: 'action',
-      keywords: ['scroll', 'top', 'beginning', 'jump'],
+      keywords: [ 'scroll', 'top', 'beginning', 'jump' ],
       onSelect: () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         close();
@@ -328,10 +332,10 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Go to Dashboard',
       description: 'Navigate to the home page',
       category: 'navigation',
-      keywords: ['home', 'dashboard', 'main', 'start'],
+      keywords: [ 'home', 'dashboard', 'main', 'start' ],
       path: '/',
       onSelect: () => {
-        navigate('/');
+        navigateRef.current('/');
         close();
       },
     });
@@ -341,13 +345,13 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Toggle Fullscreen',
       description: 'Enter or exit fullscreen mode',
       category: 'action',
-      keywords: ['fullscreen', 'maximize', 'screen', 'expand'],
+      keywords: [ 'fullscreen', 'maximize', 'screen', 'expand' ],
       shortcut: 'F11',
       onSelect: () => {
         if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
+          document.exitFullscreen().catch(() => { });
         } else {
-          document.documentElement.requestFullscreen().catch(() => {});
+          document.documentElement.requestFullscreen().catch(() => { });
         }
         close();
       },
@@ -358,7 +362,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Go Back',
       description: 'Navigate to the previous page',
       category: 'action',
-      keywords: ['back', 'previous', 'history'],
+      keywords: [ 'back', 'previous', 'history' ],
       shortcut: 'Alt+Left',
       onSelect: () => {
         window.history.back();
@@ -371,7 +375,7 @@ export function useCommandPalette(navigate: (path: string) => void) {
       title: 'Go Forward',
       description: 'Navigate to the next page',
       category: 'action',
-      keywords: ['forward', 'next', 'history'],
+      keywords: [ 'forward', 'next', 'history' ],
       shortcut: 'Alt+Right',
       onSelect: () => {
         window.history.forward();
@@ -380,28 +384,28 @@ export function useCommandPalette(navigate: (path: string) => void) {
     });
 
     return items;
-  }, [navigate, close]);
+  }, [ close ]);
 
   // ── Combine all base items ────────────────────────────────────────────
   const recentCount = paletteConfig?.recentCount ?? 5;
-  const [recentVersion, setRecentVersion] = useState(0);
+  const [ recentVersion, setRecentVersion ] = useState(0);
 
   const allBaseItems = useMemo<CommandItem[]>(
-    () => [...navigationItems, ...entityItems, ...extensionItems, ...builtInItems],
-    [navigationItems, entityItems, extensionItems, builtInItems]
+    () => [ ...navigationItems, ...entityItems, ...extensionItems, ...builtInItems ],
+    [ navigationItems, entityItems, extensionItems, builtInItems ]
   );
 
   // ── Recent items from sessionStorage ──────────────────────────────────
   const recentItems = useMemo<CommandItem[]>(() => {
     void recentVersion;
     const recentIds = getRecentIds();
-    const itemMap = new Map(allBaseItems.map(item => [item.id, item]));
+    const itemMap = new Map(allBaseItems.map(item => [ item.id, item ]));
     return recentIds
       .map(id => itemMap.get(id))
       .filter((item): item is CommandItem => !!item)
       .slice(0, recentCount)
       .map(item => ({ ...item, category: 'recent' as const }));
-  }, [allBaseItems, recentCount, recentVersion]);
+  }, [ allBaseItems, recentCount, recentVersion ]);
 
   // Wrap items to track selection as recent
   const trackAndSelect = useCallback((item: CommandItem) => {
@@ -416,8 +420,8 @@ export function useCommandPalette(navigate: (path: string) => void) {
       ...item,
       onSelect: () => trackAndSelect(item),
     }));
-    return [...recentItems, ...wrapped];
-  }, [allBaseItems, recentItems, trackAndSelect]);
+    return [ ...recentItems, ...wrapped ];
+  }, [ allBaseItems, recentItems, trackAndSelect ]);
 
   return { open, toggle, close, items, recentCount };
 }

@@ -9,6 +9,7 @@ import { resolveFilterPlaceholders } from '../../core/utils/placeholderResolver'
 import { usePlaceholderContext } from './usePlaceholderContext';
 import { useFormat } from '../../core';
 import { useEntityList } from '../../core/query/useEntityList';
+import { getTracer, SpanStatusCode, type Span } from '../../core/telemetry';
 
 
 const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
@@ -228,6 +229,40 @@ export const useTableData = ({
     staleTime: 15_000,
   });
 
+  // ── Telemetry: span per table fetch ──
+  // Tracks fetch duration from queryIsFetching=true to false using a stable ref.
+  // OTel API is a no-op when no SDK is registered (dev-only), so this is safe in prod.
+  const fetchSpanRef = React.useRef<Span | null>(null);
+  React.useEffect(() => {
+    if (queryIsFetching) {
+      if (!fetchSpanRef.current) {
+        const span = getTracer('ui24/table').startSpan('table.fetch', {
+          attributes: {
+            'entity.name': entityName,
+            'api.url': apiUrl,
+            'fetch.mode': isSearchMode ? 'search' : 'list',
+            'fetch.strategy': fetchStrategy,
+            'page.number': currentPage,
+            'page.size': pageSize,
+          },
+        });
+        fetchSpanRef.current = span;
+      }
+    } else {
+      const span = fetchSpanRef.current;
+      if (span) {
+        if (error) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: String(error) });
+          span.setAttribute('error.message', String(error));
+        } else {
+          span.setStatus({ code: SpanStatusCode.OK });
+        }
+        span.end();
+        fetchSpanRef.current = null;
+      }
+    }
+  }, [queryIsFetching, error, entityName, apiUrl, isSearchMode, fetchStrategy, currentPage, pageSize]);
+
   // ── Process records: formatting, identifiers (derived via useMemo, no setState) ──
   const listRecords = React.useMemo(() => {
     if (!rawResponse) return [];
@@ -283,20 +318,22 @@ export const useTableData = ({
   // Ensures the skeleton is visible for a minimum duration so users perceive it.
   // Cold cache (slow API): skeleton shows while fetching, disappears when data arrives.
   // Warm cache (instant data): skeleton shows for MIN_SKELETON_MS then disappears.
+  // Error case: API returns 500 — rawResponse stays null, so we must also check
+  // `error` here. Without this, hasReceivedData never flips, isInitialLoad stays
+  // true forever, and the skeleton keeps shimmering instead of the error state showing.
   const MIN_SKELETON_MS = 300;
   React.useEffect(() => {
-    if (!rawResponse || hasReceivedData) return;
+    const hasTerminated = !!rawResponse || !!error;
+    if (!hasTerminated || hasReceivedData) return;
 
     const elapsed = Date.now() - mountTimeRef.current;
     if (elapsed >= MIN_SKELETON_MS) {
-      // Enough time has passed (slow API) — show data immediately
       setHasReceivedData(true);
     } else {
-      // Data arrived too fast (warm cache) — wait for minimum display time
       const timer = setTimeout(() => setHasReceivedData(true), MIN_SKELETON_MS - elapsed);
       return () => clearTimeout(timer);
     }
-  }, [ rawResponse, hasReceivedData ]);
+  }, [ rawResponse, error, hasReceivedData ]);
 
   // ── Pagination side-effect: update cursor map from response ──
   React.useEffect(() => {

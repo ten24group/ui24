@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Tabs, Collapse, Alert, theme, Badge, ConfigProvider, Skeleton } from 'antd';
+import { Tabs, Collapse, Alert, theme, Badge, Skeleton } from 'antd';
 import type { TabsProps, CollapseProps } from 'antd';
 import { CaretRightOutlined, WarningOutlined } from '@ant-design/icons';
 import * as AntIcons from '@ant-design/icons';
@@ -24,6 +24,7 @@ import { CollapsibleSectionCard } from './CollapsibleSectionCard';
 import { substituteUrlParams, useApi } from '../../../core';
 import { useQuery } from '@tanstack/react-query';
 import { queryKeys } from '../../../core/query/queryKeys';
+import { useSectionSpan } from '../../../core/telemetry';
 
 /**
  * Badge configuration for sections.
@@ -202,22 +203,27 @@ function useSectionBadge(
     if (!badgeConfig) return { badgeText: undefined, showZero: false };
 
     // Flatten parentData if it has a 'record' property (from DetailPage)
-    // This allows templates to access fields directly: $.lineItems instead of $.record.lineItems
     const flattenedParentData = parentData.record ? parentData.record : parentData;
+
+    // Skip template evaluation when parent data hasn't loaded yet — avoids
+    // pointless evaluations against an empty context on every render.
+    const hasData = flattenedParentData && Object.keys(flattenedParentData).length > 0;
+
     const context = { ...routeParams, ...flattenedParentData };
 
     // 1. Simple Template (string or complex template)
     if (typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
+      if (!hasData) return { badgeText: undefined, showZero: true };
       const text = evaluateTemplateValue(badgeConfig as Template, context);
-      // Don't show empty badges, but show "0" by default
       return {
         badgeText: text && text.trim() !== '' ? text : undefined,
-        showZero: true  // Default to showing zero for simple templates
+        showZero: true
       };
     }
 
     // 2. Template config with showZero option
     if ('template' in badgeConfig && badgeConfig.template && !('apiEndpoint' in badgeConfig)) {
+      if (!hasData) return { badgeText: undefined, showZero: badgeConfig.showZero ?? false };
       const text = evaluateTemplateValue(badgeConfig.template, context);
       return {
         badgeText: text && text.trim() !== '' ? text : undefined,
@@ -265,6 +271,26 @@ const SectionContent: React.FC<{
   isParentLoading: boolean;
   children?: React.ReactNode;
 }> = ({ section, sectionKey, shouldLoad, routeParams, parentData, depth, isParentLoading, children }) => {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
+  const { resolveConfigRef } = useEntityConfig();
+
+  // Resolve entityConfigRef if provided (like OpenRouteInModal does)
+  const resolvedConfig = useMemo(() => {
+    if (!section.entityConfigRef) return null;
+    return resolveConfigRef(section.entityConfigRef);
+  }, [ section.entityConfigRef, resolveConfigRef ]);
+
+  // Section span - automatically managed by hook
+  useSectionSpan({
+    active: shouldLoad && sectionKey !== '__main__',
+    sectionKey,
+    label: section.label,
+    pageType: section.pageType,
+    depth
+  });
+
+  // NOW safe to do early returns - all hooks have been called
+
   // Special case: Render children for __main__ section
   if (sectionKey === '__main__' && children) {
     return <>{children}</>;
@@ -279,14 +305,6 @@ const SectionContent: React.FC<{
       </div>
     );
   }
-
-  const { resolveConfigRef } = useEntityConfig();
-
-  // Resolve entityConfigRef if provided (like OpenRouteInModal does)
-  const resolvedConfig = useMemo(() => {
-    if (!section.entityConfigRef) return null;
-    return resolveConfigRef(section.entityConfigRef);
-  }, [ section.entityConfigRef, resolveConfigRef ]);
 
   // Determine final page config (entityConfigRef takes precedence)
   let finalListPageConfig = section.listPageConfig;
@@ -349,9 +367,7 @@ const SectionContent: React.FC<{
     depth: depth + 1 // Increment depth for nested entity pages to prevent infinite section nesting
   };
 
-  return (
-    <RenderFromPageType {...pageProps} />
-  );
+  return <RenderFromPageType {...pageProps} />;
 };
 
 /**
@@ -559,24 +575,27 @@ const SectionGroupRenderer: React.FC<{
       });
     }, [ visibleSortedSections, routeParams, lazyLoad, loadedSections, parentData, depth, isParentLoading, children ]);
 
-    // Update activeKey if current active tab becomes invisible or if no tab is active
-    // This ensures we always have a valid active tab in tabs mode
+    // Derive an effective activeKey that always refers to a valid tab — prevents
+    // Antd Tabs from triggering setState during its own render when the stored
+    // activeKey no longer matches any item.
+    const effectiveActiveKey = useMemo(() => {
+      if (items.length === 0) return activeKey;
+      const exists = items.some(item => item.key === activeKey);
+      return exists ? activeKey : items[ 0 ]?.key ?? activeKey;
+    }, [ items, activeKey ]);
+
+    // Sync stored key + loaded set when the effective key diverges (tab removed, etc.)
     useEffect(() => {
-      if (renderMode === 'tabs' && items.length > 0) {
-        const currentActiveExists = items.some(item => item.key === activeKey);
-        if (!currentActiveExists || !activeKey) {
-          // Current active tab is hidden or no tab is active, switch to first visible tab
-          const firstVisibleKey = items[ 0 ]?.key;
-          if (firstVisibleKey && firstVisibleKey !== activeKey) {
-            setActiveKey(firstVisibleKey);
-            // Also mark it as loaded if lazy loading is enabled
-            if (lazyLoad) {
-              setLoadedSections(prev => new Set([ ...Array.from(prev), firstVisibleKey ]));
-            }
-          }
+      if (effectiveActiveKey !== activeKey) {
+        setActiveKey(effectiveActiveKey);
+        if (lazyLoad) {
+          setLoadedSections(prev => {
+            if (prev.has(effectiveActiveKey)) return prev;
+            return new Set([ ...Array.from(prev), effectiveActiveKey ]);
+          });
         }
       }
-    }, [ items, activeKey, renderMode, lazyLoad ]);
+    }, [ effectiveActiveKey, activeKey, lazyLoad ]);
 
     // Add subtle visual feedback for nested depth
     const nestedStyle: React.CSSProperties = depth > 0 ? {
@@ -617,51 +636,27 @@ const SectionGroupRenderer: React.FC<{
 
     // Render as Tabs - uses Ant Design's built-in motion
     if (renderMode === 'tabs') {
-      const tabsProps: TabsProps = {
-        items,
-        defaultActiveKey, // Set default for initial render
-        activeKey, // Control after initial render
-        onChange: (key) => handleChange(key),
-        destroyOnHidden: !keepMounted,
-        animated: true, // Let Ant Design handle animations
-        style: nestedStyle
-      };
-
       return (
-        <ConfigProvider
-          theme={{
-            token: {
-              motionDurationSlow: '0.4s',
-              motionDurationMid: '0.3s',
-            },
-          }}
-        >
-          <Tabs {...tabsProps} />
-        </ConfigProvider>
+        <Tabs
+          items={items}
+          activeKey={effectiveActiveKey}
+          onChange={(key) => handleChange(key)}
+          destroyInactiveTabPane={!keepMounted}
+          animated
+          style={nestedStyle}
+        />
       );
     }
 
     // Render as Accordion (Collapse) - uses Ant Design's built-in motion
-    // Don't set defaultActiveKey - let user expand items manually (lazy loading)
-    const collapseProps: CollapseProps = {
-      items,
-      onChange: (keys) => handleChange(keys),
-      expandIcon: ({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />,
-      expandIconPosition: 'end',
-      style: nestedStyle,
-    };
-
     return (
-      <ConfigProvider
-        theme={{
-          token: {
-            motionDurationSlow: '0.4s',
-            motionDurationMid: '0.3s',
-          },
-        }}
-      >
-        <Collapse {...collapseProps} />
-      </ConfigProvider>
+      <Collapse
+        items={items}
+        onChange={(keys) => handleChange(keys)}
+        expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
+        expandIconPosition="end"
+        style={nestedStyle}
+      />
     );
   };
 
@@ -927,6 +922,11 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
 
     return sorted.filter(group => {
       if (group.visibility === undefined || group.visibility === null) return true;
+
+      // Note: Visibility evaluation is NOT instrumented because:
+      // 1. It runs inside useMemo (during render) which would cause state updates during render
+      // 2. It's very fast and happens frequently
+      // 3. The ConditionEvaluator already has optional debug mode for condition evaluation
       try {
         return conditionEvaluator.evaluateSync(group.visibility as Condition, evaluationContext);
       } catch (error) {

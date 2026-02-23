@@ -1,233 +1,276 @@
 import React, { useMemo } from 'react';
-import { Collapse, Tag, Descriptions, Typography, Empty } from 'antd';
+import { Collapse, Tag, Descriptions, Typography, Empty, Alert, Button, type CollapseProps } from 'antd';
 import {
   UserOutlined,
   DesktopOutlined,
   FlagOutlined,
   TeamOutlined,
-  FileOutlined,
-  FormOutlined,
-  TableOutlined,
-  FileTextOutlined,
   CodeOutlined,
+  ExperimentOutlined,
+  RightOutlined,
 } from '@ant-design/icons';
 import { JsonViewer } from '../../common/JsonViewer/JsonViewer';
-import { useNewEvaluationContext } from '../../context/NewEvaluationContext';
-import { useAppStaticContext } from '../../context/AppStaticContext';
-import { useDevToolsStore, BridgeEntry, BridgeEntryType } from '../devtoolsBridge';
+import { useEvalContextBridge } from '../store/eval-context-bridge';
+import { useContextOverrides } from '../store/context-overrides';
+import { paddedContent, mono12, textSecondary, tagSmall, colors } from '../utils/devtoolsStyles';
 
 const { Text } = Typography;
 
-function pickBridgeEntries(store: ReadonlyMap<string, BridgeEntry>, type: BridgeEntryType): BridgeEntry[] {
-  return Array.from(store.values()).filter(e => e.type === type);
-}
+/** Pill shown next to a value when it's been overridden via the Overrides panel */
+const OverrideTag: React.FC = () => (
+  <Tag color="orange" style={{ margin: '0 0 0 4px', fontSize: 9, lineHeight: '14px', padding: '0 4px', verticalAlign: 'middle' }}>
+    override
+  </Tag>
+);
 
-export const ContextPanel: React.FC = () => {
-  const appStatic = useAppStaticContext();
-  const evalCtx = useNewEvaluationContext();
-  const store = useDevToolsStore();
+/**
+ * ContextPanel — shows the evaluation context, NOT the live bridge state.
+ *
+ * Displays: Actor, Device, Feature Flags, Tenant, Page context, and the raw
+ * evaluation context object. This is the "what conditions see" panel.
+ *
+ * Values that are being overridden via the Overrides panel are marked with an
+ * orange "override" tag so developers can tell what's real vs. mocked.
+ *
+ * Live bridge state (page configs, form values, table data) is shown in
+ * the LiveStatePanel. We intentionally do NOT duplicate that data here.
+ */
+export const ContextPanel: React.FC<{ onSwitchToOverrides?: () => void }> = ({ onSwitchToOverrides }) => {
+  // Read from the eval context bridge — this store is published by page components
+  // from inside the page tree. DevTools renders outside that tree, so direct context
+  // hooks would return null/undefined for all page-level values.
+  const evalCtx = useEvalContextBridge();
+  const overrides = useContextOverrides();
+  const overrideCount = Object.keys(overrides).length;
 
-  const pageEntries = useMemo(() => pickBridgeEntries(store, 'page'), [store]);
-  const formEntries = useMemo(() => pickBridgeEntries(store, 'form'), [store]);
-  const tableEntries = useMemo(() => pickBridgeEntries(store, 'table'), [store]);
-  const detailEntries = useMemo(() => pickBridgeEntries(store, 'detail'), [store]);
+  const actor = evalCtx?.actor;
+  const device = evalCtx?.device;
+  const featureFlags = evalCtx?.featureFlags;
+  const tenant = evalCtx?.tenant;
 
-  const actor = appStatic?.actor;
-  const device = appStatic?.device;
+  const actorGroups = useMemo(() => {
+    if (!actor) return [];
+    const groups = (actor as Record<string, unknown>).groups;
+    if (Array.isArray(groups)) return groups;
+    return [];
+  }, [actor]);
+
+  const flagEntries = useMemo(() => {
+    if (!featureFlags || typeof featureFlags !== 'object') return [];
+    return Object.entries(featureFlags as Record<string, unknown>);
+  }, [featureFlags]);
+
+  const pageContext = useMemo(() => ({
+    pageType: evalCtx?.pageType,
+    entityName: evalCtx?.entityName,
+    route: evalCtx?.route,
+    modalDepth: evalCtx?.modalDepth,
+    modal: evalCtx?.modal,
+  }), [evalCtx?.pageType, evalCtx?.entityName, evalCtx?.route, evalCtx?.modalDepth, evalCtx?.modal]);
+
+  const hasPageContext = Object.values(pageContext).some(v => v != null);
+
+  const hasData = actor || device || featureFlags || tenant;
+
+  // Determine which device fields are overridden
+  const deviceOverrideKeys = useMemo(() => new Set(
+    Object.keys(overrides).filter(k => k.startsWith('device.')).map(k => k.replace('device.', ''))
+  ), [overrides]);
+
+  const actorGroupsOverridden = overrides['actor.groups'] !== undefined;
+
+  const items: CollapseProps['items'] = [
+    // ── Actor ──
+    actor && {
+      key: 'actor',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <UserOutlined /> Actor
+          {actorGroups.length > 0 && (
+            <Tag style={tagSmall}>{actorGroups.length} group{actorGroups.length > 1 ? 's' : ''}</Tag>
+          )}
+          {actorGroupsOverridden && <Tag color="orange" style={{ ...tagSmall, margin: 0 }}>overridden</Tag>}
+        </span>
+      ),
+      children: (
+        <div>
+          <Descriptions size="small" column={2}>
+            {Object.entries(actor as Record<string, unknown>)
+              .filter(([k, v]) => k !== 'groups' && v !== undefined && v !== null)
+              .map(([key, value]) => {
+                const isOverridden = overrides[`actor.${key}`] !== undefined;
+                return (
+                  <Descriptions.Item key={key} label={<span>{key}{isOverridden && <OverrideTag />}</span>}>
+                    {typeof value === 'object' && value !== null
+                      ? <Text code style={mono12}>{JSON.stringify(value)}</Text>
+                      : <Text style={{ fontSize: 12, color: isOverridden ? colors.orange : undefined }}>{String(value)}</Text>}
+                  </Descriptions.Item>
+                );
+              })}
+          </Descriptions>
+          {actorGroups.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <Text style={{ fontSize: 11, fontWeight: 600 }}>
+                Groups:{actorGroupsOverridden && <OverrideTag />}
+              </Text>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                {actorGroups.map((g, i) => (
+                  <Tag key={i} color={actorGroupsOverridden ? 'orange' : 'blue'} style={tagSmall}>{String(g)}</Tag>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ),
+    },
+
+    // ── Page Context ──
+    {
+      key: 'page',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <CodeOutlined /> Page Context
+          {pageContext.pageType
+            ? <Tag style={tagSmall}>{String(pageContext.pageType)}</Tag>
+            : <Tag color="default" style={tagSmall}>none</Tag>}
+          {pageContext.entityName && (
+            <Tag style={{ ...tagSmall, fontFamily: 'monospace' }}>{String(pageContext.entityName)}</Tag>
+          )}
+        </span>
+      ),
+      children: hasPageContext ? (
+        <Descriptions size="small" column={2}>
+          {Object.entries(pageContext)
+            .filter(([, v]) => v != null)
+            .map(([key, value]) => (
+              <Descriptions.Item key={key} label={key}>
+                <Text style={mono12}>
+                  {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                </Text>
+              </Descriptions.Item>
+            ))}
+        </Descriptions>
+      ) : (
+        <div style={{ padding: '4px 0' }}>
+          <Text type="secondary" style={{ fontSize: 11 }}>
+            No active page context. Navigate to a form, detail, or list page to see page values here.
+          </Text>
+          <div style={{ marginTop: 6 }}>
+            <Text type="secondary" style={{ fontSize: 11, fontFamily: 'monospace' }}>
+              Available keys: <Text code style={{ fontSize: 10 }}>pageType</Text>, <Text code style={{ fontSize: 10 }}>entityName</Text>, <Text code style={{ fontSize: 10 }}>route</Text>, <Text code style={{ fontSize: 10 }}>modal</Text>
+            </Text>
+          </div>
+        </div>
+      ),
+    },
+
+    // ── Device ──
+    device && {
+      key: 'device',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <DesktopOutlined /> Device
+          {deviceOverrideKeys.size > 0 && <Tag color="orange" style={{ ...tagSmall, margin: 0 }}>overridden</Tag>}
+        </span>
+      ),
+      children: (
+        <Descriptions size="small" column={2}>
+          {Object.entries(device as Record<string, unknown>).map(([key, value]) => {
+            const isOverridden = deviceOverrideKeys.has(key);
+            return (
+              <Descriptions.Item key={key} label={<span>{key}{isOverridden && <OverrideTag />}</span>}>
+                {typeof value === 'boolean'
+                  ? <Tag color={isOverridden ? 'orange' : (value ? 'green' : 'default')} style={tagSmall}>{String(value)}</Tag>
+                  : <Text style={{ fontSize: 12, color: isOverridden ? colors.orange : undefined }}>{String(value)}</Text>}
+              </Descriptions.Item>
+            );
+          })}
+        </Descriptions>
+      ),
+    },
+
+    // ── Feature Flags ──
+    flagEntries.length > 0 && {
+      key: 'flags',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <FlagOutlined /> Feature Flags
+          <Tag style={tagSmall}>{flagEntries.length}</Tag>
+        </span>
+      ),
+      children: (
+        <Descriptions size="small" column={2} bordered>
+          {flagEntries.map(([key, value]) => {
+            const isOverridden = overrides[`featureFlags.${key}`] !== undefined;
+            return (
+              <Descriptions.Item key={key} label={<span><Text style={mono12}>{key}</Text>{isOverridden && <OverrideTag />}</span>}>
+                {typeof value === 'boolean'
+                  ? <Tag color={isOverridden ? 'orange' : (value ? 'green' : 'red')} style={tagSmall}>{String(value)}</Tag>
+                  : <Text code style={mono12}>{JSON.stringify(value)}</Text>}
+              </Descriptions.Item>
+            );
+          })}
+        </Descriptions>
+      ),
+    },
+
+    // ── Tenant ──
+    tenant && {
+      key: 'tenant',
+      label: <span><TeamOutlined style={{ marginRight: 6 }} /> Tenant</span>,
+      children: <JsonViewer data={tenant as Record<string, unknown>} maxHeight={300} />,
+    },
+
+    // ── Raw Evaluation Context ──
+    {
+      key: 'raw',
+      label: <span><CodeOutlined style={{ marginRight: 6 }} /> Raw Evaluation Context</span>,
+      children: <JsonViewer data={evalCtx as Record<string, unknown>} maxHeight={400} />,
+    },
+  ].filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  if (!hasData && !evalCtx) {
+    return (
+      <div style={{ padding: 12 }}>
+        <Empty description="No evaluation context available" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: 12 }}>
+    <div style={paddedContent}>
+      <Text style={textSecondary}>
+        Evaluation context values — this is what conditions see when evaluating visibility, enablement, etc.
+      </Text>
+
+      {/* Active overrides banner */}
+      {overrideCount > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<ExperimentOutlined />}
+          message={
+            <span>
+              <strong>{overrideCount} override{overrideCount > 1 ? 's' : ''} active</strong>
+              {' — '}
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                values marked <Tag color="orange" style={{ margin: '0 2px', fontSize: 9, padding: '0 4px' }}>override</Tag> are mocked
+              </Text>
+            </span>
+          }
+          action={onSwitchToOverrides && (
+            <Button size="small" icon={<RightOutlined />} onClick={onSwitchToOverrides}>
+              Edit
+            </Button>
+          )}
+          style={{ borderRadius: 6 }}
+        />
+      )}
+
       <Collapse
-        defaultActiveKey={['actor', 'device']}
+        defaultActiveKey={['actor', 'page']}
         size="small"
-        items={[
-          {
-            key: 'actor',
-            label: (
-              <span>
-                <UserOutlined style={{ marginRight: 6 }} />
-                Actor
-                {actor?.email && <Tag style={{ marginLeft: 8, fontSize: 11 }}>{actor.email}</Tag>}
-              </span>
-            ),
-            children: actor ? (
-              <Descriptions size="small" column={1} bordered>
-                <Descriptions.Item label="Actor ID">
-                  <Text copyable style={{ fontSize: 12 }}>{actor.actorId || '—'}</Text>
-                </Descriptions.Item>
-                <Descriptions.Item label="Username">{actor.username || '—'}</Descriptions.Item>
-                <Descriptions.Item label="Email">{actor.email || '—'}</Descriptions.Item>
-                <Descriptions.Item label="Groups">
-                  {actor.groups?.length > 0
-                    ? actor.groups.map(g => <Tag key={g} color="blue">{g}</Tag>)
-                    : <Text type="secondary">none</Text>
-                  }
-                </Descriptions.Item>
-                {actor.permissions && actor.permissions.length > 0 && (
-                  <Descriptions.Item label="Permissions">
-                    {actor.permissions.map(p => <Tag key={p}>{p}</Tag>)}
-                  </Descriptions.Item>
-                )}
-              </Descriptions>
-            ) : <Text type="secondary">Not authenticated</Text>,
-          },
-          {
-            key: 'device',
-            label: (
-              <span>
-                <DesktopOutlined style={{ marginRight: 6 }} />
-                Device
-                {device && <Tag style={{ marginLeft: 8, fontSize: 11 }}>{device.viewport}</Tag>}
-              </span>
-            ),
-            children: device ? (
-              <Descriptions size="small" column={2} bordered>
-                <Descriptions.Item label="Viewport"><Tag>{device.viewport}</Tag></Descriptions.Item>
-                <Descriptions.Item label="Desktop">{device.isDesktop ? 'Yes' : 'No'}</Descriptions.Item>
-                <Descriptions.Item label="Tablet">{device.isTablet ? 'Yes' : 'No'}</Descriptions.Item>
-                <Descriptions.Item label="Mobile">{device.isMobile ? 'Yes' : 'No'}</Descriptions.Item>
-              </Descriptions>
-            ) : <Text type="secondary">—</Text>,
-          },
-          {
-            key: 'flags',
-            label: (
-              <span>
-                <FlagOutlined style={{ marginRight: 6 }} />
-                Feature Flags
-                <Tag style={{ marginLeft: 8, fontSize: 11 }}>
-                  {Object.keys(appStatic?.featureFlags || {}).length}
-                </Tag>
-              </span>
-            ),
-            children: appStatic?.featureFlags && Object.keys(appStatic.featureFlags).length > 0 ? (
-              <Descriptions size="small" column={1} bordered>
-                {Object.entries(appStatic.featureFlags).map(([k, v]) => (
-                  <Descriptions.Item key={k} label={k}>
-                    {typeof v === 'boolean'
-                      ? <Tag color={v ? 'green' : 'default'}>{String(v)}</Tag>
-                      : <Tag>{String(v)}</Tag>
-                    }
-                  </Descriptions.Item>
-                ))}
-              </Descriptions>
-            ) : <Text type="secondary">No feature flags configured</Text>,
-          },
-          {
-            key: 'tenant',
-            label: (
-              <span>
-                <TeamOutlined style={{ marginRight: 6 }} />
-                Tenant
-                {appStatic?.tenant?.name && <Tag style={{ marginLeft: 8, fontSize: 11 }}>{appStatic.tenant.name}</Tag>}
-              </span>
-            ),
-            children: appStatic?.tenant ? (
-              <JsonViewer data={appStatic.tenant as unknown as Record<string, unknown>} defaultExpanded />
-            ) : <Text type="secondary">No tenant configured</Text>,
-          },
-          {
-            key: 'page',
-            label: (
-              <span>
-                <FileOutlined style={{ marginRight: 6 }} />
-                Page Static
-                <Tag style={{ marginLeft: 8, fontSize: 11 }}>{pageEntries.length} active</Tag>
-              </span>
-            ),
-            children: pageEntries.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {pageEntries.map(e => (
-                  <div key={e.id}>
-                    <Text strong style={{ fontSize: 12 }}>{e.label}</Text>
-                    {e.modalDepth != null && e.modalDepth > 0 && (
-                      <Tag color="volcano" style={{ marginLeft: 6, fontSize: 10 }}>modal:{e.modalDepth}</Tag>
-                    )}
-                    <JsonViewer data={e.data as Record<string, unknown>} maxHeight={300} />
-                  </div>
-                ))}
-              </div>
-            ) : <Text type="secondary">No page context active</Text>,
-          },
-          {
-            key: 'form',
-            label: (
-              <span>
-                <FormOutlined style={{ marginRight: 6 }} />
-                Form State
-                <Tag style={{ marginLeft: 8, fontSize: 11 }} color={formEntries.length > 0 ? 'blue' : 'default'}>
-                  {formEntries.length}
-                </Tag>
-              </span>
-            ),
-            children: formEntries.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {formEntries.map(e => {
-                  const d = e.data as Record<string, unknown> | null;
-                  return (
-                    <div key={e.id}>
-                      <div style={{ marginBottom: 4, display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <Text strong style={{ fontSize: 12 }}>{e.label}</Text>
-                        {d?.isDirty && <Tag color="orange" style={{ fontSize: 10 }}>dirty</Tag>}
-                        {d?.isValid === false && <Tag color="red" style={{ fontSize: 10 }}>invalid</Tag>}
-                      </div>
-                      <JsonViewer data={d as Record<string, unknown>} maxHeight={300} />
-                    </div>
-                  );
-                })}
-              </div>
-            ) : <Empty description="No active forms" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-          },
-          {
-            key: 'table',
-            label: (
-              <span>
-                <TableOutlined style={{ marginRight: 6 }} />
-                Table State
-                <Tag style={{ marginLeft: 8, fontSize: 11 }} color={tableEntries.length > 0 ? 'green' : 'default'}>
-                  {tableEntries.length}
-                </Tag>
-              </span>
-            ),
-            children: tableEntries.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {tableEntries.map(e => (
-                  <div key={e.id}>
-                    <Text strong style={{ fontSize: 12 }}>{e.label}</Text>
-                    <JsonViewer data={e.data as Record<string, unknown>} maxHeight={300} />
-                  </div>
-                ))}
-              </div>
-            ) : <Empty description="No active tables" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-          },
-          {
-            key: 'detail',
-            label: (
-              <span>
-                <FileTextOutlined style={{ marginRight: 6 }} />
-                Detail State
-                <Tag style={{ marginLeft: 8, fontSize: 11 }} color={detailEntries.length > 0 ? 'purple' : 'default'}>
-                  {detailEntries.length}
-                </Tag>
-              </span>
-            ),
-            children: detailEntries.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {detailEntries.map(e => (
-                  <div key={e.id}>
-                    <Text strong style={{ fontSize: 12 }}>{e.label}</Text>
-                    <JsonViewer data={e.data as Record<string, unknown>} maxHeight={300} />
-                  </div>
-                ))}
-              </div>
-            ) : <Empty description="No active detail views" image={Empty.PRESENTED_IMAGE_SIMPLE} />,
-          },
-          {
-            key: 'raw',
-            label: <span><CodeOutlined style={{ marginRight: 6 }} />Raw Evaluation Context</span>,
-            children: <JsonViewer data={evalCtx as unknown as Record<string, unknown>} maxHeight={500} />,
-          },
-        ]}
+        items={items}
       />
     </div>
   );

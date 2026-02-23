@@ -17,6 +17,7 @@ import { TimePeriodSelectorProps } from './widgets/TimePeriodSelector';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../core/common';
 import { ExtensionRegistry, useWidgetRenderer, type WidgetRendererProps, type RouteParams } from '../core/registry';
+import { IS_DEV } from '../core/constants';
 
 /**
  * Custom widget props configuration.
@@ -187,7 +188,7 @@ export const WidgetRenderer: React.FC<{
           );
         }
 
-        if (registration.category !== 'widget' && process.env.NODE_ENV === 'development') {
+        if (registration.category !== 'widget' && IS_DEV) {
           console.warn(
             `[WidgetRenderer] Component "${customConfig.componentKey}" is category "${registration.category}", ` +
             `expected "widget". Rendering anyway.`

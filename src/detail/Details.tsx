@@ -108,6 +108,7 @@ import { IApiConfig, useAppContext } from '../core/context';
 import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
+import { useTranslation } from '../core/hooks';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError, isHttpStatus } from '../core/utils/api-error-handler';
@@ -178,18 +179,22 @@ const DetailsFieldWrapper: React.FC<{
   resolvedLabel?: string;
   formattingStyles?: Record<string, string | number>;
   formattingClassName?: string;
-}> = ({ item, index, children, resolvedLabel, formattingStyles, formattingClassName }) => {
+  /** Raw or formatted value — used for clipboard copy when copyable is true */
+  value?: unknown;
+}> = ({ item, index, children, resolvedLabel, formattingStyles, formattingClassName, value }) => {
+  const { t } = useTranslation(); // i18n (#22)
   const help = resolveHelpConfig({
     helpText: resolveStringOrDefault(item.helpText),
     help: item.help,
   });
 
-  // When copyable, wrap the value content with Typography.Text copyable
-  // Pass explicit text to ensure the raw value is copied (not the rendered children markup)
-  const content = item.copyable && item.initialValue != null
+  // When copyable, wrap the value content with Typography.Text copyable.
+  // Only wraps for primitive values (string/number/boolean) — not complex objects.
+  const isPrimitive = value != null && value !== '' && typeof value !== 'object';
+  const content = item.copyable && isPrimitive
     ? (
       <Typography.Text
-        copyable={{ text: String(item.initialValue), tooltips: ['Copy', 'Copied'] }}
+        copyable={{ text: String(value), tooltips: ['Copy', 'Copied'] }}
         style={{ display: 'inline' }}
       >
         {children}
@@ -197,7 +202,7 @@ const DetailsFieldWrapper: React.FC<{
     )
     : children;
 
-  const displayLabel = resolvedLabel ?? resolveStringOrDefault(item.label);
+  const displayLabel = t(resolvedLabel ?? resolveStringOrDefault(item.label)); // i18n (#22)
   const containerClassName = ['details-field-container', formattingClassName].filter(Boolean).join(' ');
 
   return (
@@ -482,7 +487,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // Relation field rendering
                     if (item.relationConfig) {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <RelationFieldRenderer
                             relationConfig={item.relationConfig}
                             value={value}
@@ -519,7 +524,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                       const Renderer = CustomDetailRenderer;
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <Renderer {...customDetailProps} />
                         </DetailsFieldWrapper>
                       );
@@ -537,7 +542,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // Data masking (#51) — wrap string values when masking is configured
                     if (item.masking?.enabled && typeof value === 'string') {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <MaskedDisplay value={value} config={item.masking} />
                         </DetailsFieldWrapper>
                       );
@@ -557,7 +562,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         : value;
 
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
                             {displayText} ({value})
                           </Link>
@@ -568,7 +573,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                     // Modal fields
                     if (item.openInModal) {
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <OpenInModal
                             modalType="details"
                             primaryIndex={value}
@@ -606,7 +611,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
                       const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
                       return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <DetailRenderer
                             value={value}
                             label={pLabel ?? resolveStringOrDefault(item.label)}
@@ -620,7 +625,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     // Default fallback — smart text rendering
                     return (
-                      <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                      <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                         <div>
                           {value !== undefined && value !== null && value !== '' ? (
                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (

@@ -1,5 +1,5 @@
 .details-fixed-block {
-  background: #fafafa;
+  background: var(--ant-color-bg-layout, #fafafa);
   padding: 8px;
   height: 220px;
   overflow: auto;
@@ -15,7 +15,7 @@
   word-break: break-word;
   max-width: 100%;
   padding: 8px 0;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--ant-color-border-secondary, #f5f5f5);
 }
 
 .details-field-container:last-child {
@@ -36,7 +36,7 @@
 }
 
 .details-field-label {
-  color: #8c8c8c;
+  color: var(--ant-color-text-tertiary, #8c8c8c);
   font-weight: 500;
   margin-bottom: 4px;
   font-size: 12px;
@@ -52,14 +52,14 @@
   display: block;
   margin: 0 0 8px 0;
   border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
 }
 
 .details-link {
-  color: #1890ff;
+  color: var(--ant-color-primary, #1890ff);
   transition: color 0.2s ease;
 }
 
 .details-link:hover {
-  color: #40a9ff;
+  color: var(--ant-color-primary-hover, #40a9ff);
 }

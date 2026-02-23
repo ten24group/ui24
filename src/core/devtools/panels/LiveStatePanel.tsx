@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react';
-import { Typography, Tag, Empty, Input, Segmented, Button, Tooltip } from 'antd';
+import { Typography, Tag, Empty, Input, Segmented, Button, Tooltip, Slider } from 'antd';
 import {
   FormOutlined,
   TableOutlined,
@@ -11,20 +11,25 @@ import {
   DownOutlined,
   ExpandOutlined,
   ShrinkOutlined,
+  DiffOutlined,
+  PlusCircleOutlined,
+  MinusCircleOutlined,
+  EditOutlined,
 } from '@ant-design/icons';
 import { JsonViewer } from '../../common/JsonViewer/JsonViewer';
-import { useDevToolsStore, BridgeEntry, BridgeEntryType } from '../devtoolsBridge';
+import { useDevToolsStore, BridgeEntry, BridgeEntryType, getEntryHistory } from '../store/snapshot';
+import { jsonDiff, formatValue, type DiffEntry } from '../utils/jsonDiff';
 
 const { Text } = Typography;
 
 type TypeFilter = 'all' | BridgeEntryType;
 
 const TYPE_CONFIG: Record<BridgeEntryType, { color: string; bgColor: string; borderColor: string; icon: React.ReactNode; label: string }> = {
-  page:     { color: '#8c8c8c',  bgColor: '#fafafa',  borderColor: '#d9d9d9', icon: <AppstoreOutlined />,  label: 'Page' },
-  form:     { color: '#1677ff',  bgColor: '#e6f4ff',  borderColor: '#91caff', icon: <FormOutlined />,      label: 'Form' },
-  table:    { color: '#52c41a',  bgColor: '#f6ffed',  borderColor: '#b7eb8f', icon: <TableOutlined />,     label: 'Table' },
-  detail:   { color: '#722ed1',  bgColor: '#f9f0ff',  borderColor: '#d3adf7', icon: <FileTextOutlined />,  label: 'Detail' },
-  pageData: { color: '#fa8c16',  bgColor: '#fff7e6',  borderColor: '#ffd591', icon: <DatabaseOutlined />,  label: 'Data' },
+  page:     { color: 'var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45))',  bgColor: 'var(--ant-color-bg-layout, #fafafa)',      borderColor: 'var(--ant-color-border, #d9d9d9)',              icon: <AppstoreOutlined />,  label: 'Page' },
+  form:     { color: '#1677ff',  bgColor: 'var(--ant-color-primary-bg, #e6f4ff)',   borderColor: 'var(--ant-color-primary-border, #91caff)',    icon: <FormOutlined />,      label: 'Form' },
+  table:    { color: '#52c41a',  bgColor: 'var(--ant-color-success-bg, #f6ffed)',   borderColor: 'var(--ant-color-success-border, #b7eb8f)',    icon: <TableOutlined />,     label: 'Table' },
+  detail:   { color: '#722ed1',  bgColor: 'var(--ant-color-purple-1, #f9f0ff)',     borderColor: '#d3adf7',                                     icon: <FileTextOutlined />,  label: 'Detail' },
+  pageData: { color: '#fa8c16',  bgColor: 'var(--ant-color-warning-bg, #fff7e6)',   borderColor: 'var(--ant-color-warning-border, #ffd591)',    icon: <DatabaseOutlined />,  label: 'Data' },
 };
 
 function getSummary(entry: BridgeEntry): string {
@@ -80,11 +85,153 @@ function timeAgo(ts: number): string {
   return `${Math.floor(sec / 60)}m ago`;
 }
 
+const DIFF_TYPE_STYLE: Record<DiffEntry['type'], { color: string; bg: string; icon: React.ReactNode }> = {
+  added: { color: '#52c41a', bg: '#f6ffed', icon: <PlusCircleOutlined /> },
+  removed: { color: '#ff4d4f', bg: '#fff2f0', icon: <MinusCircleOutlined /> },
+  changed: { color: '#fa8c16', bg: '#fff7e6', icon: <EditOutlined /> },
+};
+
+const DiffView: React.FC<{ entryId: string; currentData: unknown }> = ({ entryId, currentData }) => {
+  const history = getEntryHistory(entryId);
+  if (history.length === 0) {
+    return <Text type="secondary" style={{ fontSize: 11 }}>No previous state to diff against</Text>;
+  }
+
+  const previous = history[history.length - 1];
+  const diffs = jsonDiff(previous.data, currentData);
+
+  if (diffs.length === 0) {
+    return <Text type="secondary" style={{ fontSize: 11 }}>No changes since last update</Text>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Text type="secondary" style={{ fontSize: 10, marginBottom: 4 }}>
+        {diffs.length} change{diffs.length > 1 ? 's' : ''} since {timeAgo(previous.timestamp)}
+      </Text>
+      {diffs.slice(0, 50).map((diff, i) => {
+        const style = DIFF_TYPE_STYLE[diff.type];
+        return (
+          <div key={i} style={{
+            padding: '3px 8px',
+            borderRadius: 4,
+            background: style.bg,
+            border: `1px solid ${style.color}20`,
+            fontSize: 11,
+            fontFamily: 'monospace',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6,
+          }}>
+            <span style={{ color: style.color, flexShrink: 0 }}>{style.icon}</span>
+            <span style={{ color: 'var(--ant-color-text, rgba(0, 0, 0, 0.88))', fontWeight: 500, flexShrink: 0 }}>{diff.path}</span>
+            {diff.type === 'changed' && (
+              <span style={{ color: 'var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ color: '#ff4d4f', textDecoration: 'line-through' }}>{formatValue(diff.oldValue)}</span>
+                {' → '}
+                <span style={{ color: '#52c41a' }}>{formatValue(diff.newValue)}</span>
+              </span>
+            )}
+            {diff.type === 'added' && (
+              <span style={{ color: '#52c41a' }}>{formatValue(diff.newValue)}</span>
+            )}
+            {diff.type === 'removed' && (
+              <span style={{ color: '#ff4d4f', textDecoration: 'line-through' }}>{formatValue(diff.oldValue)}</span>
+            )}
+          </div>
+        );
+      })}
+      {diffs.length > 50 && (
+        <Text type="secondary" style={{ fontSize: 10 }}>...and {diffs.length - 50} more changes</Text>
+      )}
+    </div>
+  );
+};
+
+function formatAbsoluteTime(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    + '.' + String(d.getMilliseconds()).padStart(3, '0');
+}
+
+const ExpandedEntry: React.FC<{
+  entry: BridgeEntry;
+  showDiffs: boolean;
+  cfg: typeof TYPE_CONFIG[BridgeEntryType];
+}> = ({ entry, showDiffs, cfg }) => {
+  const history = getEntryHistory(entry.id);
+  const [scrubIndex, setScrubIndex] = useState<number | null>(null);
+
+  // The "current" snapshot is always the latest. history[history.length - 1] is the PREVIOUS snapshot.
+  // scrubIndex: null = current, 0 = oldest history, history.length-1 = most recent history
+  const displayData = scrubIndex === null ? entry.data : history[scrubIndex]?.data ?? entry.data;
+  const displayTs = scrubIndex === null ? entry.timestamp : history[scrubIndex]?.timestamp ?? entry.timestamp;
+  const isScrubbing = scrubIndex !== null;
+  const totalSnapshots = history.length + 1; // history + current
+
+  return (
+    <div style={{ padding: '8px 12px 12px', borderTop: `1px solid ${cfg.borderColor}` }}>
+      {/* History scrubber (only if there is history) */}
+      {history.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45))' }}>
+              History: {totalSnapshots} snapshot{totalSnapshots > 1 ? 's' : ''}
+            </span>
+            {isScrubbing && (
+              <Tag
+                color="orange"
+                style={{ fontSize: 10, cursor: 'pointer', userSelect: 'none' }}
+                onClick={() => setScrubIndex(null)}
+              >
+                #{scrubIndex! + 1} of {history.length} — {formatAbsoluteTime(displayTs as number)} · click to return to live
+              </Tag>
+            )}
+            {!isScrubbing && (
+              <Tag color="green" style={{ fontSize: 10 }}>
+                Live · {formatAbsoluteTime(displayTs as number)}
+              </Tag>
+            )}
+          </div>
+          <Slider
+            min={0}
+            max={history.length}
+            value={scrubIndex ?? history.length}
+            onChange={(v: number) => setScrubIndex(v === history.length ? null : v)}
+            tooltip={{
+              formatter: (v) => {
+                if (v === history.length) return 'Current (live)';
+                const snap = history[v as number];
+                return snap ? formatAbsoluteTime(snap.timestamp) : String(v);
+              },
+            }}
+            marks={{
+              0: <span style={{ fontSize: 9 }}>Oldest</span>,
+              [history.length]: <span style={{ fontSize: 9 }}>Live</span>,
+            }}
+            style={{ margin: '4px 8px' }}
+          />
+        </div>
+      )}
+
+      {showDiffs && scrubIndex === null ? (
+        <DiffView entryId={entry.id} currentData={entry.data} />
+      ) : (
+        <JsonViewer
+          data={displayData as Record<string, unknown>}
+          maxHeight={400}
+        />
+      )}
+    </div>
+  );
+};
+
 export const LiveStatePanel: React.FC = () => {
   const store = useDevToolsStore();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showDiffs, setShowDiffs] = useState(false);
 
   const entries = useMemo(() => {
     const arr = Array.from(store.values());
@@ -150,10 +297,10 @@ export const LiveStatePanel: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Filters */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--ant-color-border-secondary, #f0f0f0)' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
           <Input
-            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+            prefix={<SearchOutlined style={{ color: 'var(--ant-color-text-quaternary, rgba(0, 0, 0, 0.25))' }} />}
             placeholder="Filter components..."
             size="small"
             allowClear
@@ -161,6 +308,14 @@ export const LiveStatePanel: React.FC = () => {
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1 }}
           />
+          <Tooltip title={showDiffs ? 'Hide diffs' : 'Show state diffs'}>
+            <Button
+              size="small"
+              type={showDiffs ? 'primary' : 'text'}
+              icon={<DiffOutlined />}
+              onClick={() => setShowDiffs(!showDiffs)}
+            />
+          </Tooltip>
           <Tooltip title="Expand all">
             <Button size="small" type="text" icon={<ExpandOutlined />} onClick={expandAll} disabled={filtered.length === 0} />
           </Tooltip>
@@ -219,8 +374,8 @@ export const LiveStatePanel: React.FC = () => {
                     {/* Line 1 */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {isOpen
-                        ? <DownOutlined style={{ fontSize: 9, color: '#8c8c8c', flexShrink: 0 }} />
-                        : <RightOutlined style={{ fontSize: 9, color: '#8c8c8c', flexShrink: 0 }} />
+                        ? <DownOutlined style={{ fontSize: 9, color: 'var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45))', flexShrink: 0 }} />
+                        : <RightOutlined style={{ fontSize: 9, color: 'var(--ant-color-text-tertiary, rgba(0, 0, 0, 0.45))', flexShrink: 0 }} />
                       }
                       <Tag
                         icon={cfg.icon}
@@ -257,12 +412,7 @@ export const LiveStatePanel: React.FC = () => {
 
                   {/* Expanded body */}
                   {isOpen && (
-                    <div style={{ padding: '8px 12px 12px', borderTop: `1px solid ${cfg.borderColor}` }}>
-                      <JsonViewer
-                        data={entry.data as Record<string, unknown>}
-                        maxHeight={400}
-                      />
-                    </div>
+                    <ExpandedEntry entry={entry} showDiffs={showDiffs} cfg={cfg} />
                   )}
                 </div>
               );

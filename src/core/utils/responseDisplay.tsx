@@ -88,7 +88,7 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
 
           // Extract nested responseConfig if present (for chaining)
           // In chaining, the 'responseConfig' prop IS the 'nextStep' object, which may contain 'responseConfig' for the NEXT step.
-          const nestedResponseConfig = (responseConfig as any).responseConfig;
+          const nestedResponseConfig = responseConfig?.responseConfig;
 
           renderProps.formPageConfig = {
             ...pageConfig,

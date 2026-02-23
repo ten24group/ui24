@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { ITableConfig } from '../type';
 
-type DeepLinkConfig = NonNullable<ITableConfig['deepLink']>;
-type DeepLinkSlice = NonNullable<DeepLinkConfig['include']>[number];
+type DeepLinkConfig = NonNullable<ITableConfig[ 'deepLink' ]>;
+type DeepLinkSlice = NonNullable<DeepLinkConfig[ 'include' ]>[ number ];
 
 interface DeepLinkState {
   filters?: Record<string, unknown>;
@@ -33,6 +33,9 @@ export function useDeepLink(
   const navigate = useNavigate();
   const location = useLocation();
   const isInitialMount = useRef(true);
+  // Capture the original pathname at mount time to avoid updating URL
+  // during navigation transitions (when pathname has already changed to the target page)
+  const ownPathname = useRef(location.pathname);
 
   useEffect(() => {
     if (!config?.enabled) return;
@@ -44,6 +47,9 @@ export function useDeepLink(
       return;
     }
 
+    // Don't update URL if we're navigating away (pathname changed from our page)
+    if (location.pathname !== ownPathname.current) return;
+
     const params = new URLSearchParams(location.search);
     const prefix = config.prefix;
 
@@ -52,23 +58,41 @@ export function useDeepLink(
     params.forEach((_val, key) => {
       if (prefix && key.startsWith(`${prefix}.`)) {
         keysToRemove.push(key);
-      } else if (!prefix && ['sort', 'page', 'q', 'segment'].includes(key)) {
+      } else if (!prefix && [ 'sort', 'page', 'q', 'segment' ].includes(key)) {
         keysToRemove.push(key);
       }
     });
 
-    // Also remove filter params without prefix
+    // Also remove filter params without prefix (handles both plain keys and operator-format keys)
     if (!prefix && state.filters) {
-      Object.keys(state.filters).forEach(k => keysToRemove.push(k));
+      const filterFields = Object.keys(state.filters);
+      params.forEach((_val, key) => {
+        const baseField = key.split('.')[ 0 ];
+        if (filterFields.includes(baseField) && !keysToRemove.includes(key)) {
+          keysToRemove.push(key);
+        }
+      });
     }
 
     keysToRemove.forEach(k => params.delete(k));
 
-    // Serialize filters
+    // Serialize filters using operator-format keys that getInitialFiltersFromUrl can parse back.
+    // Internal filter state is always operator format: { field: { eq: 'value' } }
     if (shouldInclude(config, 'filters') && state.filters) {
-      Object.entries(state.filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.set(prefixKey(key, prefix), String(value));
+      Object.entries(state.filters).forEach(([ field, value ]) => {
+        if (value === undefined || value === null || value === '') return;
+
+        if (typeof value === 'object' && !Array.isArray(value)) {
+          // Operator object: { eq: 'active' } → field.eq=active
+          Object.entries(value as Record<string, unknown>).forEach(([ op, opVal ]) => {
+            if (opVal === undefined || opVal === null || opVal === '') return;
+            const serialized = Array.isArray(opVal) ? JSON.stringify(opVal) : String(opVal);
+            params.set(prefixKey(`${field}.${op}`, prefix), serialized);
+          });
+        } else {
+          // Plain value (shouldn't happen in normal flow, but handle gracefully)
+          const serialized = Array.isArray(value) ? JSON.stringify(value) : String(value);
+          params.set(prefixKey(field, prefix), serialized);
         }
       });
     }
@@ -105,5 +129,5 @@ export function useDeepLink(
         { replace: true }
       );
     }
-  }, [config, state.filters, state.sort, state.page, state.search, state.segment, navigate, location.pathname]);
+  }, [ config, state.filters, state.sort, state.page, state.search, state.segment, navigate, location.pathname ]);
 }

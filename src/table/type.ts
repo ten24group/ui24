@@ -222,6 +222,11 @@ export interface ITableConfig extends IPageConfigBase {
     /** Selection type: 'checkbox' for multi-select, 'radio' for single-select */
     readonly type?: 'checkbox' | 'radio';
     readonly visibility?: Condition;  // Conditional row selection
+    /**
+     * When true, selected rows are preserved when navigating across pages (#30).
+     * Shows "N selected (across all pages)" counter when selection spans pages.
+     */
+    readonly persistAcrossPages?: boolean;
   };  // Row selection configuration (from backend tableConfig.rowSelection)
   /**
    * Expandable row configuration.
@@ -358,10 +363,10 @@ export interface ITableConfig extends IPageConfigBase {
   };
 
   /**
-   * Unified view switcher configuration.
+   * Unified view switcher configuration (#119).
    * When provided, replaces the basic `displayMode` toggle with a multi-view toolbar.
-   * Supports: table, card-grid, kanban, calendar, map.
-   * Only renders views for which implementations exist (table + card-grid currently).
+   * Supports: table, card-grid, kanban, calendar, map, tree.
+   * All views share the same data source — switching views does not refetch data.
    */
   viewSwitcher?: ViewConfig;
 
@@ -388,12 +393,97 @@ export interface ITableConfig extends IPageConfigBase {
 
   /** Data quality configuration (#65) — adds a completeness column when showInList is true */
   dataQuality?: IDataQualityConfig;
+
+  /**
+   * Virtual scrolling configuration (#29).
+   * When enabled, antd Table renders only the visible rows in the DOM.
+   * Dramatically improves performance for large datasets (hundreds to thousands of rows).
+   *
+   * Requires a fixed `scroll.y` height; rows are rendered in a virtualized container.
+   * Use this for in-memory datasets or when rendering the full page at once is acceptable.
+   *
+   * Note: Virtual scroll does not work with pagination in the traditional sense —
+   * it works best when all data is loaded at once (combine with large pageSize or no pagination).
+   *
+   * @example
+   * virtualScroll: { enabled: true, height: 600 }
+   */
+  virtualScroll?: {
+    /** Whether virtual scrolling is enabled */
+    enabled: boolean;
+    /** Visible area height in pixels. Required for virtual scroll to work. Default: 500 */
+    height?: number;
+  };
+
+  /**
+   * Summary row configuration (#27).
+   * Renders an aggregation row at the bottom of the table (antd Table `summary` prop).
+   *
+   * @example
+   * summary: {
+   *   columns: [
+   *     { dataIndex: 'amount', aggregation: 'sum', prefix: 'Total: $' },
+   *     { dataIndex: 'items', aggregation: 'count', label: 'Count' },
+   *   ]
+   * }
+   */
+  summary?: ITableSummaryConfig;
+
+  /**
+   * Drag-to-reorder row configuration (#62).
+   * When enabled, renders a drag handle column. User can reorder rows by dragging.
+   * Best suited for fully-loaded, non-paginated lists.
+   * 
+   * @example
+   * rowDrag: {
+   *   enabled: true,
+   *   onOrderChange: { apiUrl: '/items/reorder', apiMethod: 'POST' },
+   *   orderField: 'sortOrder',
+   * }
+   */
+  rowDrag?: {
+    enabled: boolean;
+    /**
+     * API config for persisting the new order after drag.
+     * Receives `{ ids: string[] }` as the request body (ordered list of record IDs).
+     */
+    onOrderChange?: IApiConfig;
+    /** Field name on the record that stores the sort order (used to display current order) */
+    orderField?: string;
+  };
 }
 
 /**
  * Conditional formatting rule for cell or row styling.
  * When the condition matches the row record, the style/className is applied.
  */
+/** Summary row column configuration — defines how each column contributes to the summary row (#27) */
+export interface ITableSummaryColumnConfig {
+  /** The column dataIndex this aggregation applies to */
+  dataIndex: string;
+  /** Aggregation function */
+  aggregation: 'sum' | 'avg' | 'min' | 'max' | 'count';
+  /** Text prefix shown before the value (e.g. 'Total: $') */
+  prefix?: string;
+  /** Text suffix shown after the value (e.g. ' items') */
+  suffix?: string;
+  /** Override label shown when aggregation is 'count' (default: count of rows) */
+  label?: string;
+  /** Number of decimal places for numeric display. Default: 2 for avg, 0 for sum/min/max/count */
+  precision?: number;
+}
+
+/** Summary row configuration — renders an aggregation footer in the table (#27) */
+export interface ITableSummaryConfig {
+  /** Columns to aggregate. Only listed columns appear in the summary row. */
+  columns: ITableSummaryColumnConfig[];
+  /**
+   * Optional label shown in the first column cell of the summary row (e.g. 'Totals').
+   * When provided, takes priority over any aggregation configured on the first column.
+   */
+  label?: string;
+}
+
 export interface IFormattingRule {
   /** Condition evaluated against row data */
   when: Condition;
@@ -602,7 +692,13 @@ export type IPageAction = {
 
   url?: string;
   icon?: string;
-  type?: 'button' | 'dropdown';
+  /**
+   * Action presentation type.
+   * - 'button': standard button (default)
+   * - 'dropdown': labeled button with dropdown arrow + items
+   * - 'more': icon-only ellipsis button — for secondary/grouped actions (#18)
+   */
+  type?: 'button' | 'dropdown' | 'more';
   items?: Array<Omit<IPageAction, 'items'>>;  // Items cannot have sub-items
 
   /** Open action in modal instead of navigating */
@@ -729,6 +825,39 @@ export type IPageAction = {
     fields?: string[];
     /** Template for text format (supports {field} placeholders) */
     template?: Template;
+  };
+
+  /**
+   * Clone / duplicate action configuration (#43).
+   * Navigates to a create form pre-filled with the current record's data,
+   * omitting identity/timestamp fields so the user is creating a new record.
+   *
+   * @example
+   * // Simple: navigate to the entity's standard create page
+   * { label: 'Clone', icon: 'copy', cloneConfig: { createUrl: '/create-template' } }
+   *
+   * @example
+   * // With field exclusions
+   * { label: 'Duplicate', icon: 'copy', cloneConfig: { createUrl: '/create-post', excludeFields: ['slug', 'publishedAt'] } }
+   *
+   * @example
+   * // Only clone specific fields
+   * { label: 'Use as Template', icon: 'template', cloneConfig: { createUrl: '/create-template', includeFields: ['title', 'body', 'tags'] } }
+   */
+  cloneConfig?: {
+    /** URL of the create form to navigate to */
+    createUrl: string;
+    /**
+     * Fields to exclude from the pre-filled values.
+     * These are merged with the default system exclusions:
+     * identifiers (e.g. 'id', 'entityId', fields ending in 'Id'),
+     * and timestamp fields ('createdAt', 'updatedAt').
+     */
+    excludeFields?: string[];
+    /**
+     * Whitelist: only pre-fill these fields (takes precedence over excludeFields).
+     */
+    includeFields?: string[];
   };
 };
 

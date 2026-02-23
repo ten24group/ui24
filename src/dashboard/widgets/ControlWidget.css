@@ -1,5 +1,5 @@
 .control-widget-card {
-  background: #fff;
+  background: var(--ant-color-bg-container, #fff);
   border-radius: 16px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   padding: 20px 24px;
@@ -13,7 +13,7 @@
 
 .control-widget-header {
   font-size: 18px;
-  color: #333;
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
   margin: 0 0 16px 0;
   font-weight: 600;
   letter-spacing: -0.3px;

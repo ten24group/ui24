@@ -19,6 +19,7 @@ import { NON_FILTER_URL_PARAMS } from "./constants";
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { getColumnRenderer, type ColumnConfig } from "../core/registry";
 import { useEvaluatedItems } from "../core/hooks/useEvaluatedItems";
+import { useTranslation } from "../core/hooks";
 import { fieldTypeRegistry } from "../core/registry/FieldTypeRegistry";
 import { Icon } from "../core/common/Icons/Icons";
 import "../core/registry/field-types"; // ensure built-in registrations run
@@ -28,6 +29,8 @@ import { useNewEvaluationContext } from "../core/context/NewEvaluationContext";
 import { useRenderPipeline } from "../core/rendering";
 import { MaskedDisplay } from "../core/common/MaskedDisplay";
 import { computeDerivedValue } from "../core/hooks/useDerivedFields";
+import { IS_DEV } from "../core/constants";
+import { instrument } from "../core/telemetry";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
@@ -297,6 +300,8 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // Evaluation context for conditional cell formatting (#26)
   const evaluationContext = useNewEvaluationContext();
 
+  const { t } = useTranslation(); // i18n (#22)
+
   // Rendering pipeline (#95) — provides processField() for unified field rendering
   const { processField } = useRenderPipeline({ renderContext: 'table', routeParams: routeParams || {} });
 
@@ -431,6 +436,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const onSearch = (value: string) => {
     setSearchQuery(value);
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.search', { 'table.searchQuery': value });
   }
 
   const toggleSearchMode = React.useCallback(() => {
@@ -455,8 +461,13 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const handleTableChange = (_pagination: unknown, _filters: unknown, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
-    setSort(newSorters.filter(s => s.order)); // Only keep sorts with an active order
+    const activeSorts = newSorters.filter(s => s.order);
+    setSort(activeSorts);
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.sort', { 
+      'table.sortCount': activeSorts.length,
+      'table.sortFields': activeSorts.map(s => s.field).join(','),
+    });
   };
 
   // Determine stable API URL for entity identification
@@ -582,15 +593,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     onFilterChange: () => setFetchTrigger(prev => prev + 1)
   });
 
-  // Wrap filter functions to trigger fetch
   const applyFilters = React.useCallback((column: string, filterOperator: string, value: string | Array<string>) => {
     _applyFilters(column, filterOperator, value);
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.filter', { 
+      'table.filterColumn': column,
+      'table.filterOperator': filterOperator,
+    });
   }, [ _applyFilters ]);
 
   const clearAllFilters = React.useCallback(() => {
     _clearAllFilters();
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.filterClear', {});
   }, [ _clearAllFilters ]);
 
   // Stabilize with useCallback - memoization dependency
@@ -704,7 +719,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         try {
           return evaluateTemplate(template as Template, record);
         } catch (e) {
-          if (process.env.NODE_ENV === 'development') {
+          if (IS_DEV) {
             console.warn(`[Table] Template evaluation failed:`, e);
           }
           return text;  // Fallback to original value
@@ -738,10 +753,17 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       }
       // Apply resolved label from pipeline (handles ConditionalValue<string> on name/title)
       if (pipelineResult.resolvedProps.label !== undefined) {
-        column = { ...column, name: pipelineResult.resolvedProps.label };
+        column = { ...column, name: t(pipelineResult.resolvedProps.label) }; // i18n (#22)
+      } else if (column.name) {
+        column = { ...column, name: t(column.name) }; // i18n (#22) — translate raw labels too
       }
 
       let renderer = column.render;
+      // Tracks table-level registry defaults for this column so they can be
+      // merged into the antd column definition (for align/width/ellipsis/etc).
+      // Only set when Priority 3 (FieldTypeRegistry) provides the renderer —
+      // custom and extension renderers don't use registry defaults.
+      let columnTableDefaults: Record<string, unknown> | undefined;
 
       // Priority 1: Relation config renderer (for related entities)
       if (column.relationConfig) {
@@ -827,6 +849,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         if (TableComponent) {
           // Merge smart defaults from registry (#98): defaults < entity config
           const tableDefaults = fieldTypeRegistry.getDefaults(effectiveFieldType, 'table');
+          columnTableDefaults = tableDefaults; // saved so the return below can spread into antd col def
           const mergedColumn = tableDefaults ? { ...tableDefaults, ...column } : column;
           renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => (
             <TableComponent value={text} record={record} column={mergedColumn} rowIndex={rowIndex} routeParams={routeParams} />
@@ -929,8 +952,12 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
       return {
+        // Registry defaults (lowest priority) — makes align/width/ellipsis from
+        // FieldTypeRegistry actually reach antd's Table column definition.
+        // Entity config always wins because it's spread after.
+        ...columnTableDefaults,
         ...column,
-        title: columnSetting?.title || column.dataIndex,
+        title: columnSetting?.title || column.name || column.dataIndex,
         render: renderer,
         fixed: columnSetting?.fixed,
         sorter: (isSearchMode && (column.isSortable === true || column.isSortable === undefined)) ? { multiple: index + 1 } : undefined,
@@ -978,7 +1005,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     // Create grouped column structures
     groupMap.forEach((childColumns, groupTitle) => {
       grouped.push({
-        title: groupTitle,
+        title: t(groupTitle), // i18n (#22)
         children: childColumns
       });
     });

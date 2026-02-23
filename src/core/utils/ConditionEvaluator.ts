@@ -30,6 +30,11 @@ import { getCondition } from './ConditionRegistry';
 import { getCustomEvaluator } from './CustomEvaluatorRegistry';
 import { NeedsAsyncError } from './NeedsAsyncError';
 import { getNestedValue } from '../utils';
+import { IS_DEV } from '../constants';
+// NOTE: getTracer is intentionally NOT imported here.
+// Creating OTel spans on every evaluateSync() call would generate hundreds
+// of spans per render cycle. Profiling uses lightweight _stats Map instead.
+// OTel spans for conditions are only created on-demand via the Profiler panel.
 
 // Known InlineCondition field names (framework built-in)
 const KNOWN_INLINE_FIELDS = new Set([
@@ -50,20 +55,53 @@ const MAX_REF_DEPTH = 20;
 const _warnedOnce = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
-  if (process.env.NODE_ENV === 'production') return;
+  if (!IS_DEV) return;
   if (_warnedOnce.has(key)) return;
   _warnedOnce.add(key);
   console.warn(message);
 }
 
+export interface ExplanationNode {
+  type: 'bool' | 'and' | 'or' | 'not' | 'ref' | 'inline' | 'rule' | 'custom_error';
+  result: boolean;
+  description: string;
+  children?: ExplanationNode[];
+  /** For 'rule' nodes */
+  path?: string;
+  contextKey?: string;
+  operator?: string;
+  expected?: unknown;
+  actual?: unknown;
+  /** For 'ref' nodes */
+  refName?: string;
+}
+
+export interface ConditionEvalStats {
+  count: number;
+  totalMs: number;
+  lastResult: boolean;
+  lastTimestamp: number;
+}
+
 export class ConditionEvaluator {
   private debug = false;
+  private _stats = new Map<string, ConditionEvalStats>();
+  private _profilingEnabled = false;
 
-  /**
-   * Enable/disable debug logging.
-   */
   enableDebug(enabled: boolean): void {
     this.debug = enabled;
+  }
+
+  enableProfiling(enabled: boolean): void {
+    this._profilingEnabled = enabled;
+  }
+
+  getEvaluationStats(): ReadonlyMap<string, ConditionEvalStats> {
+    return this._stats;
+  }
+
+  resetEvaluationStats(): void {
+    this._stats.clear();
   }
 
   // ────────────────────────────────────────────────────────────
@@ -83,19 +121,49 @@ export class ConditionEvaluator {
     if (typeof condition === 'boolean') return condition;
 
     const v = visited ?? new Set<string>();
+    const shouldProfile = this._profilingEnabled && IS_DEV;
+    const t0 = shouldProfile ? performance.now() : 0;
 
     try {
       const result = this._evaluateSync(condition, context, v);
       if (this.debug) this._logEvaluation(condition, context, result);
+
+      if (shouldProfile) {
+        const elapsed = performance.now() - t0;
+        this._recordStats(condition, result, elapsed);
+      }
+
       return result;
     } catch (error) {
       if (error instanceof NeedsAsyncError) throw error;
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.error('[Condition] Error evaluating:', error, { condition });
       }
       return false; // fail-safe
     }
   }
+
+  private _recordStats(condition: Condition, result: boolean, elapsed: number): void {
+    const key = this._conditionKey(condition);
+    const existing = this._stats.get(key);
+    if (existing) {
+      existing.count++;
+      existing.totalMs += elapsed;
+      existing.lastResult = result;
+      existing.lastTimestamp = Date.now();
+    } else {
+      this._stats.set(key, { count: 1, totalMs: elapsed, lastResult: result, lastTimestamp: Date.now() });
+    }
+  }
+
+  private _conditionKey(condition: Condition): string {
+    try {
+      return JSON.stringify(condition);
+    } catch {
+      return String(condition);
+    }
+  }
+
 
   /**
    * Asynchronous evaluation. Handles custom evaluators.
@@ -116,7 +184,7 @@ export class ConditionEvaluator {
       if (this.debug) this._logEvaluation(condition, context, result);
       return result;
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.error('[Condition] Async error evaluating:', error, { condition });
       }
       return false; // fail-safe
@@ -141,7 +209,7 @@ export class ConditionEvaluator {
         // Skip rules that need async evaluation
         if (error instanceof NeedsAsyncError) continue;
         // Other errors → skip rule
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn('[Condition] Error resolving ConditionalValue rule, skipping:', error);
         }
       }
@@ -180,7 +248,7 @@ export class ConditionEvaluator {
     if (isAndCondition(condition)) {
       const arr = condition.and;
       if (!Array.isArray(arr)) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn('[Condition] "and" must be an array, got:', typeof arr);
         }
         return false;
@@ -192,7 +260,7 @@ export class ConditionEvaluator {
     if (isOrCondition(condition)) {
       const arr = condition.or;
       if (!Array.isArray(arr)) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn('[Condition] "or" must be an array, got:', typeof arr);
         }
         return false;
@@ -235,7 +303,7 @@ export class ConditionEvaluator {
     if (isAndCondition(condition)) {
       const arr = condition.and;
       if (!Array.isArray(arr)) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn('[Condition] "and" must be an array, got:', typeof arr);
         }
         return false;
@@ -250,7 +318,7 @@ export class ConditionEvaluator {
     if (isOrCondition(condition)) {
       const arr = condition.or;
       if (!Array.isArray(arr)) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn('[Condition] "or" must be an array, got:', typeof arr);
         }
         return false;
@@ -299,14 +367,14 @@ export class ConditionEvaluator {
   ): boolean {
     // Cycle detection
     if (visited.has(name)) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] Circular ref detected: ${Array.from(visited).join(' → ')} → ${name}`);
       }
       return false;
     }
 
     if (visited.size >= MAX_REF_DEPTH) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] Max ref depth (${MAX_REF_DEPTH}) exceeded for: ${name}`);
       }
       return false;
@@ -314,7 +382,7 @@ export class ConditionEvaluator {
 
     const resolved = getCondition(name);
     if (resolved === undefined) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] ref "${name}" not registered in ConditionRegistry`);
       }
       return false;
@@ -332,14 +400,14 @@ export class ConditionEvaluator {
   ): Promise<boolean> {
     // Cycle detection
     if (visited.has(name)) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] Circular ref detected: ${Array.from(visited).join(' → ')} → ${name}`);
       }
       return false;
     }
 
     if (visited.size >= MAX_REF_DEPTH) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] Max ref depth (${MAX_REF_DEPTH}) exceeded for: ${name}`);
       }
       return false;
@@ -347,7 +415,7 @@ export class ConditionEvaluator {
 
     const resolved = getCondition(name);
     if (resolved === undefined) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] ref "${name}" not registered in ConditionRegistry`);
       }
       return false;
@@ -368,7 +436,7 @@ export class ConditionEvaluator {
   ): Promise<boolean> {
     const fn = getCustomEvaluator(name);
     if (!fn) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.warn(`[Condition] custom "${name}" not registered in CustomEvaluatorRegistry`);
       }
       return false;
@@ -378,7 +446,7 @@ export class ConditionEvaluator {
       const result = await fn(ctx);
       return Boolean(result);
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production') {
+      if (IS_DEV) {
         console.error(`[Condition] Custom evaluator "${name}" threw:`, error);
       }
       return false; // fail-safe
@@ -410,7 +478,7 @@ export class ConditionEvaluator {
 
     // featureFlags
     if (condition.featureFlags) {
-      if (process.env.NODE_ENV !== 'production' && ctx.featureFlags && Object.keys(ctx.featureFlags).length === 0) {
+      if (IS_DEV && ctx.featureFlags && Object.keys(ctx.featureFlags).length === 0) {
         warnOnce(
           'unconfigured:featureFlags',
           '[Condition] A condition references "featureFlags" but the context has no flags. ' +
@@ -428,7 +496,7 @@ export class ConditionEvaluator {
 
     // tenant
     if (condition.tenant) {
-      if (process.env.NODE_ENV !== 'production' && !ctx.tenant) {
+      if (IS_DEV && !ctx.tenant) {
         warnOnce(
           'unconfigured:tenant',
           '[Condition] A condition references "tenant" but the context has no tenant data. ' +
@@ -575,7 +643,7 @@ export class ConditionEvaluator {
     // between (inclusive) — resolve $ref for min/max values
     if ('between' in rule && rule.between !== undefined) {
       if (!Array.isArray(rule.between) || rule.between.length < 2) {
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn('[Condition] "between" requires an array of [min, max], got:', rule.between);
         }
         return false;
@@ -623,7 +691,7 @@ export class ConditionEvaluator {
       try {
         return new RegExp(rule.pattern).test(value);
       } catch {
-        if (process.env.NODE_ENV !== 'production') {
+        if (IS_DEV) {
           console.warn(`[Condition] Invalid regex pattern: "${rule.pattern}"`);
         }
         return false;
@@ -640,7 +708,7 @@ export class ConditionEvaluator {
     }
 
     // No recognized operator → warn in dev mode, then pass (vacuous truth)
-    if (process.env.NODE_ENV !== 'production') {
+    if (IS_DEV) {
       const ruleKeys = Object.keys(rule);
       const unknownOps = ruleKeys.filter(k => !KNOWN_OPERATORS.has(k));
       if (unknownOps.length > 0) {
@@ -666,7 +734,7 @@ export class ConditionEvaluator {
     if (value && typeof value === 'object' && '$ref' in value) {
       const path = (value as TemplateRef).$ref;
       const resolved = getNestedValue(ctx, path);
-      if (resolved === undefined && process.env.NODE_ENV !== 'production') {
+      if (resolved === undefined && IS_DEV) {
         console.warn(`[Condition] $ref path not found: "${path}"`);
       }
       return resolved;
@@ -674,6 +742,209 @@ export class ConditionEvaluator {
     return value;
   }
 
+
+  // ────────────────────────────────────────────────────────────
+  // EXPLANATION (DevTools)
+  // ────────────────────────────────────────────────────────────
+
+  /**
+   * Evaluate a condition and return a detailed explanation tree.
+   * Only used by the DevTools Condition Playground. Do NOT call in hot paths.
+   */
+  explainSync(
+    condition: Condition | undefined,
+    context: NewEvaluationContext,
+  ): ExplanationNode {
+    if (condition === undefined || condition === null) {
+      return { type: 'bool', result: true, description: 'No condition — passes by default' };
+    }
+    if (typeof condition === 'boolean') {
+      return { type: 'bool', result: condition, description: `Literal ${condition}` };
+    }
+    try {
+      return this._explainSync(condition, context, new Set<string>());
+    } catch (err) {
+      if (err instanceof NeedsAsyncError) {
+        return {
+          type: 'custom_error',
+          result: false,
+          description: `Custom evaluator "${err.evaluatorName}" requires async — cannot explain synchronously`,
+        };
+      }
+      return {
+        type: 'custom_error',
+        result: false,
+        description: `Error: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+  }
+
+  private _explainSync(
+    condition: Condition,
+    ctx: NewEvaluationContext,
+    visited: Set<string>,
+  ): ExplanationNode {
+    if (typeof condition === 'boolean') {
+      return { type: 'bool', result: condition, description: `Literal ${condition}` };
+    }
+
+    // and
+    if (isAndCondition(condition)) {
+      const arr = Array.isArray(condition.and) ? condition.and : [];
+      const children = arr.map((c: Condition) => this._explainSync(c, ctx, visited));
+      const result = children.every(c => c.result);
+      return {
+        type: 'and',
+        result,
+        description: `AND — all ${arr.length} must pass`,
+        children,
+      };
+    }
+
+    // or
+    if (isOrCondition(condition)) {
+      const arr = Array.isArray(condition.or) ? condition.or : [];
+      const children = arr.map((c: Condition) => this._explainSync(c, ctx, visited));
+      const result = children.some(c => c.result);
+      return {
+        type: 'or',
+        result,
+        description: `OR — at least one of ${arr.length} must pass`,
+        children,
+      };
+    }
+
+    // not
+    if (isNotCondition(condition)) {
+      const child = this._explainSync(condition.not, ctx, visited);
+      return {
+        type: 'not',
+        result: !child.result,
+        description: 'NOT — inverts the result',
+        children: [child],
+      };
+    }
+
+    // ref
+    if (isRefCondition(condition)) {
+      const name = condition.ref;
+      if (visited.has(name) || visited.size >= MAX_REF_DEPTH) {
+        return { type: 'ref', result: false, description: `ref "${name}" — circular or too deep`, refName: name };
+      }
+      const resolved = getCondition(name);
+      if (!resolved) {
+        return { type: 'ref', result: false, description: `ref "${name}" — NOT REGISTERED`, refName: name };
+      }
+      const newVisited = new Set(visited);
+      newVisited.add(name);
+      const child = this._explainSync(resolved, ctx, newVisited);
+      return {
+        type: 'ref',
+        result: child.result,
+        description: `ref "${name}"`,
+        refName: name,
+        children: [child],
+      };
+    }
+
+    // custom — can't explain sync
+    if (isCustomCondition(condition)) {
+      return {
+        type: 'custom_error',
+        result: false,
+        description: `custom("${condition.custom}") — requires async evaluation`,
+      };
+    }
+
+    // InlineCondition — break down per field and per rule
+    return this._explainInline(condition as InlineCondition, ctx);
+  }
+
+  private _explainInline(condition: InlineCondition, ctx: NewEvaluationContext): ExplanationNode {
+    const children: ExplanationNode[] = [];
+
+    const SECTION_DATA: Record<string, unknown> = {
+      actor: ctx.actor,
+      record: ctx.record,
+      formValues: ctx.formValues,
+      featureFlags: ctx.featureFlags,
+      device: ctx.device,
+      tenant: ctx.tenant,
+      queryParams: ctx.queryParams,
+      context: {
+        pageType: ctx.pageType,
+        modalDepth: ctx.modalDepth,
+        entityName: ctx.entityName,
+        route: ctx.route,
+        modal: ctx.modal,
+      },
+    };
+
+    const keysToCheck = Object.keys(condition).filter(
+      k => !['and', 'or', 'not', 'ref', 'custom'].includes(k)
+    );
+
+    for (const key of keysToCheck) {
+      const rules = condition[key as keyof InlineCondition] as Record<string, EvaluationRule> | undefined;
+      if (!rules || typeof rules !== 'object') continue;
+
+      const data = SECTION_DATA[key] !== undefined ? SECTION_DATA[key] : (ctx as Record<string, unknown>)[key];
+      const ruleNodes = this._explainRules(rules, data, ctx, key);
+      const sectionPass = ruleNodes.every(n => n.result);
+
+      children.push({
+        type: 'inline',
+        result: sectionPass,
+        description: `"${key}" section`,
+        children: ruleNodes,
+      });
+    }
+
+    const result = children.every(n => n.result);
+    if (children.length === 0) {
+      return { type: 'inline', result: true, description: 'Empty inline condition — passes' };
+    }
+    return {
+      type: 'inline',
+      result,
+      description: `Inline condition (${children.length} section${children.length > 1 ? 's' : ''})`,
+      children,
+    };
+  }
+
+  private _explainRules(
+    rules: Record<string, EvaluationRule>,
+    data: unknown,
+    ctx: NewEvaluationContext,
+    contextKey: string,
+  ): ExplanationNode[] {
+    return Object.entries(rules).map(([path, rule]) => {
+      const actual = getNestedValue(data, path);
+      let result = false;
+      let operator = '';
+      let expected: unknown;
+
+      try {
+        result = this._matchRule(rule, actual, ctx);
+        const entries = Object.entries(rule as Record<string, unknown>);
+        if (entries.length > 0) {
+          [operator, expected] = entries[0];
+          expected = this._resolveRef(expected, ctx);
+        }
+      } catch {}
+
+      return {
+        type: 'rule' as const,
+        result,
+        description: `${contextKey}.${path} ${operator} ${JSON.stringify(expected)}`,
+        path: `${contextKey}.${path}`,
+        contextKey,
+        operator,
+        expected,
+        actual,
+      };
+    });
+  }
 
   /**
    * Debug logging for evaluations.

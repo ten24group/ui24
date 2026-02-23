@@ -2,7 +2,7 @@ import React, { createContext, useContext, useMemo, ReactNode } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { useModalDepth } from '../../modal/Modal';
 import { ComponentDataContext } from '../types/pageData';
-import { useDevToolsReport } from '../devtools/devtoolsBridge';
+import { useDevToolsReport } from '../devtools/store/snapshot';
 
 /**
  * Page data context - combines navigation state with component data

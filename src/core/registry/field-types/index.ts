@@ -15,6 +15,7 @@ import { mediaRegistrations } from './media';
 import { richContentRegistrations } from './rich-content';
 import { displayRegistrations } from './display';
 import { embedRegistrations } from './embed';
+import { sparklineRegistrations } from './sparkline';
 
 export function registerBuiltInFieldTypes(): void {
   if (fieldTypeRegistry.isInitialized()) return;
@@ -28,6 +29,7 @@ export function registerBuiltInFieldTypes(): void {
   fieldTypeRegistry.registerAll(richContentRegistrations);
   fieldTypeRegistry.registerAll(displayRegistrations);
   fieldTypeRegistry.registerAll(embedRegistrations);
+  fieldTypeRegistry.registerAll(sparklineRegistrations);
 
   fieldTypeRegistry.markInitialized();
 }

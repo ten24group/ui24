@@ -255,6 +255,78 @@ export function renderSingleAction({
     return drawerTrigger;
   }
 
+  // Pattern: Clone / duplicate action (#43)
+  if (action.cloneConfig) {
+    const { cloneConfig } = action;
+    const handleClone = () => {
+      if (isDisabled || !record) return;
+
+      // Fields to always strip — identity, DynamoDB keys, timestamps
+      const ALWAYS_EXCLUDE = new Set([
+        'id', 'createdAt', 'updatedAt', 'pk', 'sk',
+        'gsi1pk', 'gsi1sk', 'gsi2pk', 'gsi2sk', 'gsi3pk', 'gsi3sk', 'gsi4pk', 'gsi4sk',
+        ...(cloneConfig.excludeFields ?? []),
+      ]);
+
+      // Any field whose key ends in 'Id' (teamId, userId, …) is also auto-excluded
+      // unless the caller explicitly whitelisted it via includeFields.
+      const isExcluded = (key: string): boolean =>
+        ALWAYS_EXCLUDE.has(key) || (key.endsWith('Id') && key !== 'id');
+
+      const raw: Record<string, unknown> = (record.__raw__ || record) as Record<string, unknown>;
+
+      let prefill: Record<string, unknown>;
+      if (cloneConfig.includeFields?.length) {
+        // Whitelist mode — only the specified fields, skipping null/undefined
+        prefill = Object.fromEntries(
+          cloneConfig.includeFields
+            .filter(k => raw[k] !== undefined && raw[k] !== null)
+            .map(k => [k, raw[k]])
+        );
+      } else {
+        // Auto mode — keep all primitive-valued fields that aren't excluded
+        prefill = Object.fromEntries(
+          Object.entries(raw).filter(([k, v]) =>
+            v !== undefined && v !== null &&
+            !isExcluded(k) &&
+            typeof v !== 'object' // skip nested maps/lists — not safely URL-encodable
+          )
+        );
+      }
+
+      // Encode prefill as individual URL query params so FormPage.tsx can read them.
+      // FormPage reads URLSearchParams directly when `prefill.enabled: true` is configured
+      // on the target form; each param key becomes a field default value.
+      const createUrl = substituteUrlParams(cloneConfig.createUrl, record, primaryIndex);
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(prefill)) {
+        params.set(k, String(v));
+      }
+      const qs = params.toString();
+      const sep = createUrl.includes('?') ? '&' : '?';
+      onNavigate?.(`${createUrl}${qs ? sep + qs : ''}`);
+    };
+
+    if (isDropdownItem) {
+      return {
+        key,
+        label: evaluatedLabel,
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
+        onClick: handleClone,
+      } as MenuItem;
+    }
+
+    if (isTableRowAction) {
+      return wrapWithTooltip(
+        <a href="#" onClick={(e) => { e.preventDefault(); handleClone(); }}>
+          <Icon iconName={action.icon || 'copy'} />
+        </a>
+      );
+    }
+
+    return wrapWithTooltip(renderPageHeaderButton(handleClone));
+  }
+
   // Pattern: Clipboard copy action (#60)
   if (action.copyConfig) {
     const copyConfig = action.copyConfig;

@@ -27,7 +27,7 @@ export const addActionUI = (propertiesConfig: Array<ITablePropertiesConfig>, get
             <span style={{ cursor: 'help' }}>{item.name}</span>
           </Tooltip>
         ) : item.name,
-        dataIndex: item.composite?.fields?.[0] || item.dataIndex,
+        dataIndex: item.composite?.fields?.[ 0 ] || item.dataIndex,
         key: item.dataIndex,
         name: item.name,  // Preserve name for RelationFieldRenderer label
         fieldType: item.fieldType,
@@ -173,20 +173,17 @@ const ListPageActionInner = React.memo(({
   const visible = useCondition(item.visibility, extraCtx);
   const enabled = useCondition(item.enablement, extraCtx);
   const evaluationContext = useNewEvaluationContext();
-  // Resolve disabledMessage template (e.g., 'Contact {record.owner} to edit')
   const disabledMessage = resolveDisabledMessage(item.disabledMessage, evaluationContext, { record: rawRecord }) || '';
 
-  // Don't render if not visible
-  if (!visible) return null;
-
-  // Check if this is a dropdown action
   const actionType = item.type || (item.items && item.items.length > 0 ? 'dropdown' : 'button');
   const isDisabled = !enabled;
 
-  // Evaluate visibility and enablement for dropdown items (batch)
+  // All hooks must be called before any early return (Rules of Hooks)
   const dropdownItems = actionType === 'dropdown' && item.items ? item.items : [];
   const { visibilityResults: ddVisResults, getItemProps: getDDProps } =
     useEvaluatedItems(dropdownItems, { additionalContext: extraCtx });
+
+  if (!visible) return null;
 
   if (actionType === 'dropdown' && dropdownItems.length > 0) {
     const menuItems: MenuProps[ 'items' ] = dropdownItems

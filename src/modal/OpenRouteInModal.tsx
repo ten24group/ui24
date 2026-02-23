@@ -36,6 +36,7 @@ import { evaluateTemplateValue } from '../core/utils/template';
 import type { Template } from '../core/types';
 import { useCoreNavigator } from '../routes/Navigation';
 import { useModalDepth, ModalDepthContext } from './Modal';
+import { useModalInstrumentation, useModalContentSpan } from '../core/telemetry';
 
 export interface OpenRouteInModalProps {
   /** 
@@ -203,13 +204,22 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   const currentDepth = useModalDepth();
   const nextDepth = currentDepth + 1;
 
+  // Instrumented modal callbacks
+  const instrumented = useModalInstrumentation({
+    modalType: 'route',
+    attributes: {
+      'modal.route': url || 'configRef',
+      'modal.depth': currentDepth
+    }
+  });
+
   // Resolution strategy:
   // 1. If modalConfigRef provided, use it (supports overrideConfig for defaultFilters, hideFields, etc.)
   // 2. Otherwise, fall back to URL resolution (backward compatible)
   const { resolveConfigRef } = useEntityConfig();
 
   // Resolve via modalConfigRef (preferred - supports overrideConfig)
-  const resolvedFromRef = React.useMemo(() => {
+  const resolvedFromRef = React.useMemo<IEntityConfigReference | null>(() => {
     if (!modalConfigRef) return null;
     return resolveConfigRef(modalConfigRef);
   }, [ modalConfigRef, resolveConfigRef ]);
@@ -241,9 +251,32 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
     }
   }, [ location.pathname, open ]);
 
+  // Extract entity name and page type for instrumentation
+  const extractEntityName = () => {
+    return (pageConfig)?.formPageConfig?.entityName ||
+      (pageConfig)?.listPageConfig?.entityName ||
+      (pageConfig)?.detailsPageConfig?.entityName ||
+      (pageConfig)?.pageTitle ||
+      'Unknown';
+  };
+
+  const extractPageType = () => {
+    return (pageConfig)?.pageType || 'unknown';
+  };
+
+  // Modal content span (active while modal is open) - managed automatically
+  useModalContentSpan({
+    active: open && found,
+    entityName: extractEntityName(),
+    pageType: extractPageType(),
+    depth: nextDepth
+  });
+
   // Handle opening with debounce and loading state
   const handleOpen = () => {
     if (opening || open) return; // Prevent duplicate opens
+
+    instrumented.onOpen();
 
     if (!shouldOpenInModal) {
       // Navigate instead of opening modal (responsive behavior)
@@ -275,6 +308,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
 
   const handleClose = () => {
     setOpen(false);
+    instrumented.onClose();
   };
 
   const handleSuccess = (response?: any) => {

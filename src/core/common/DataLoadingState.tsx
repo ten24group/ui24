@@ -4,7 +4,7 @@ import { PageSkeleton } from './PageSkeleton';
 
 interface DataLoadingStateProps {
   type?: 'skeleton' | 'spinner';
-  pageType: 'form' | 'detail' | 'table';
+  pageType: 'form' | 'detail' | 'table' | 'card-grid' | 'kanban' | 'calendar' | 'tree' | 'map';
   rows?: number;
   columns?: number;
 }

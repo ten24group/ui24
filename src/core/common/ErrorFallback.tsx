@@ -4,6 +4,8 @@ import { ReloadOutlined, WarningOutlined } from '@ant-design/icons';
 import type { FallbackProps } from 'react-error-boundary';
 import type { Template } from '../types';
 import { getErrorStatus } from '../utils/api-error-handler';
+import { IS_DEV } from '../constants';
+import { instrument } from '../telemetry';
 
 const { Text, Paragraph } = Typography;
 
@@ -15,6 +17,17 @@ export interface IErrorHandlingConfig {
   fallback?: 'message' | 'reduced-view' | 'custom';
   /** Extension registry key for custom fallback component */
   fallbackKey?: string;
+  /**
+   * Seconds to wait before re-enabling the submit button after a failed form submission (#58).
+   * During the delay the button shows "Retry in Xs" (when `showCountdown` is true).
+   * Omit or set to 0 to disable this behaviour.
+   */
+  retryDelay?: number;
+  /**
+   * Show "Retry in Xs" countdown on the submit button during the retry delay.
+   * @default true
+   */
+  showCountdown?: boolean;
 }
 
 /** Configuration for retry behavior */
@@ -56,15 +69,12 @@ function resolveErrorMessage(error: unknown, config?: IErrorHandlingConfig): str
 export const ErrorFallback: React.FC<FallbackProps> = ({ error, resetErrorBoundary }) => {
   const message = toErrorMessage(error);
 
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      const { logActivity } = require('../devtools/devtoolsBridge');
-      logActivity({
-        type: 'error',
-        label: message,
-        data: { message, stack: error instanceof Error ? error.stack : undefined },
-      });
-    } catch { /* noop */ }
+  if (IS_DEV) {
+    instrument.event('error.boundary', {
+      'error.message': message,
+      'error.type': error instanceof Error ? error.name : 'Error',
+      'span.level': 'error',
+    });
   }
 
   return (

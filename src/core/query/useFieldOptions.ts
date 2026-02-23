@@ -108,7 +108,7 @@ export function useFieldOptions({
         ? { deps: dependencyFilters }
         : {}),
     }),
-    [entityName, fieldName, apiConfig.apiUrl, apiConfig.filters, search, cursor, dependencyFilters]
+    [ entityName, fieldName, apiConfig.apiUrl, apiConfig.filters, search, cursor, dependencyFilters ]
   );
 
   // ── Stable queryFn ──
@@ -140,30 +140,34 @@ export function useFieldOptions({
     throw response;
   }, []);
 
+  // Guard: never fire if apiUrl is empty — prevents broken requests from
+  // misconfigured fields or render cycles where config hasn't settled yet.
+  const queryEnabled = enabled && !!apiConfig.apiUrl;
+
   const query: UseQueryResult<Record<string, any>> = useQuery({
     queryKey,
     queryFn,
-    enabled,
+    enabled: queryEnabled,
     staleTime,
   });
 
   const invalidate = useCallback(
     () => queryClient.invalidateQueries({ queryKey }),
-    [queryClient, queryKey]
+    [ queryClient, queryKey ]
   );
 
   const invalidateAll = useCallback(
     () => queryClient.invalidateQueries({
       queryKey: queryKeys.entity(entityName).allFieldOptions(),
     }),
-    [queryClient, entityName]
+    [ queryClient, entityName ]
   );
 
   const data = useMemo((): any[] | undefined => {
     if (!query.data) return undefined;
-    const result = query.data[apiConfig.responseKey];
+    const result = query.data[ apiConfig.responseKey ];
     return Array.isArray(result) ? result : undefined;
-  }, [query.data, apiConfig.responseKey]);
+  }, [ query.data, apiConfig.responseKey ]);
 
   const nextCursor = query.data?.cursor || undefined;
   const hasMore = !!nextCursor;
@@ -192,7 +196,7 @@ export interface UseInfiniteFieldOptionsOptions {
   /** Field name for cache key */
   fieldName: string;
   /** API configuration (same as useFieldOptions) */
-  apiConfig: UseFieldOptionsOptions['apiConfig'];
+  apiConfig: UseFieldOptionsOptions[ 'apiConfig' ];
   /** Dependency filters from cascading selects */
   dependencyFilters?: Record<string, unknown>;
   /** Whether the query is enabled */
@@ -254,10 +258,10 @@ export function useInfiniteFieldOptions({
   mapOption,
   searchDebounce = 500,
 }: UseInfiniteFieldOptionsOptions): UseInfiniteFieldOptionsResult {
-  const [cursor, setCursor] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [accumulatedRaw, setAccumulatedRaw] = useState<any[]>([]);
+  const [ cursor, setCursor ] = useState('');
+  const [ searchTerm, setSearchTerm ] = useState('');
+  const [ debouncedSearch, setDebouncedSearch ] = useState('');
+  const [ accumulatedRaw, setAccumulatedRaw ] = useState<any[]>([]);
   const isLoadingMoreRef = useRef(false);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -286,23 +290,23 @@ export function useInfiniteFieldOptions({
     if (!data) return;
 
     if (isLoadingMoreRef.current) {
-      setAccumulatedRaw(prev => [...prev, ...data]);
+      setAccumulatedRaw(prev => [ ...prev, ...data ]);
       isLoadingMoreRef.current = false;
     } else {
       setAccumulatedRaw(data);
     }
-  }, [data]);
+  }, [ data ]);
 
   // ── Map, deduplicate, sort ──
   const options = useMemo((): IOptions[] => {
     const mapped: IOptions[] = mapOption
       ? accumulatedRaw
-          .filter((r): r is Record<string, any> => typeof r === 'object' && r !== null)
-          .map(mapOption)
+        .filter((r): r is Record<string, any> => typeof r === 'object' && r !== null)
+        .map(mapOption)
       : accumulatedRaw.filter(
-          (opt): opt is IOptions =>
-            typeof opt === 'object' && opt !== null && 'label' in opt && 'value' in opt,
-        );
+        (opt): opt is IOptions =>
+          typeof opt === 'object' && opt !== null && 'label' in opt && 'value' in opt,
+      );
 
     // Deduplicate by value
     const uniqueMap = new Map<string | number, IOptions>();
@@ -314,7 +318,7 @@ export function useInfiniteFieldOptions({
       const labelB = String(b.label || b.value || '').toLowerCase();
       return labelA.localeCompare(labelB);
     });
-  }, [accumulatedRaw, mapOption]);
+  }, [ accumulatedRaw, mapOption ]);
 
   // ── Load more (next page) ──
   const loadMore = useCallback(() => {
@@ -322,7 +326,7 @@ export function useInfiniteFieldOptions({
       isLoadingMoreRef.current = true;
       setCursor(nextCursor);
     }
-  }, [nextCursor, pageHasMore, isFetching]);
+  }, [ nextCursor, pageHasMore, isFetching ]);
 
   // ── Debounced search ──
   const search = useCallback((term: string) => {
@@ -337,7 +341,7 @@ export function useInfiniteFieldOptions({
       setDebouncedSearch(term);
       setCursor('');
     }, searchDebounce);
-  }, [searchDebounce]);
+  }, [ searchDebounce ]);
 
   // ── Reset all internal state ──
   const reset = useCallback(() => {
@@ -348,13 +352,34 @@ export function useInfiniteFieldOptions({
     setAccumulatedRaw([]);
   }, []);
 
-  // ── Reset when dependency filters change (cascading selects) ──
+  // ── Reset when dependency filters ACTUALLY change (cascading selects) ──
+  //
+  // Uses a ref to track the last-seen depFilterKey value. This correctly
+  // handles two problematic cases without a hasMounted flag:
+  //
+  // 1. Initial mount: prevRef starts as undefined → skip, just record the key.
+  //
+  // 2. React Strict Mode double-invoke: Strict Mode re-runs all effects with
+  //    the SAME deps. After the first invocation prevRef = depFilterKey, so the
+  //    second invocation sees no change and also skips — no spurious reset().
+  //
+  // 3. Real filter change (cascading select): new depFilterKey ≠ prevRef → reset().
+  //
+  // Without this guard, when a modal re-opens React Query returns cached data
+  // immediately. The [data] effect populates accumulatedRaw, then this effect
+  // fires (as it always does on mount), calls reset(), and wipes the options —
+  // leaving the dropdown empty even though the cache is warm.
   const depFilterKey = dependencyFilters ? JSON.stringify(dependencyFilters) : '';
+  const prevDepFilterKeyRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    // Skip the initial mount — only reset on actual changes
+    if (prevDepFilterKeyRef.current === undefined || prevDepFilterKeyRef.current === depFilterKey) {
+      prevDepFilterKeyRef.current = depFilterKey;
+      return;
+    }
+    prevDepFilterKeyRef.current = depFilterKey;
     reset();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depFilterKey]);
+  }, [ depFilterKey ]);
 
   // ── Cleanup debounce timer ──
   useEffect(() => {
@@ -369,7 +394,7 @@ export function useInfiniteFieldOptions({
   const invalidateAll = useCallback(async () => {
     await baseInvalidateAll();
     reset();
-  }, [baseInvalidateAll, reset]);
+  }, [ baseInvalidateAll, reset ]);
 
   return {
     options,

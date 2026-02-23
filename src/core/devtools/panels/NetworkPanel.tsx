@@ -1,385 +1,401 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { Typography, Tag, Empty, Input, Button, Segmented, Tabs, Tooltip, Statistic } from 'antd';
+import React, { useState, useMemo, useCallback } from 'react';
+import { Typography, Tag, Empty, Input, Button, Tooltip, Badge, Descriptions, Tabs } from 'antd';
 import {
   SearchOutlined,
   DeleteOutlined,
-  RightOutlined,
-  DownOutlined,
-  ClockCircleOutlined,
+  ApiOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   LoadingOutlined,
-  VerticalAlignTopOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import { JsonViewer } from '../../common/JsonViewer/JsonViewer';
-import { useActivityLog, clearActivityLog, ActivityEvent } from '../devtoolsBridge';
+import { useNetworkStore, clearNetworkEntries, type NetworkEntry, type NetworkStatus } from '../store/network';
+import { devtoolsNavigate } from '../store/devtools-navigation';
+import { filterBar, mono12, colors } from '../utils/devtoolsStyles';
 
 const { Text } = Typography;
 
-type MethodFilter = 'all' | 'GET' | 'POST' | 'PUT' | 'DELETE';
-type StatusFilter = 'all' | 'success' | 'error' | 'pending';
+type MethodFilter = 'all' | 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+type StatusFilter = 'all' | 'pending' | 'success' | 'error';
 
 const METHOD_COLORS: Record<string, string> = {
-  GET: '#1677ff',
-  POST: '#52c41a',
-  PUT: '#fa8c16',
-  PATCH: '#fa8c16',
-  DELETE: '#ff4d4f',
+  GET:     '#52c41a',
+  POST:    '#1677ff',
+  PUT:     '#fa8c16',
+  PATCH:   '#13c2c2',
+  DELETE:  '#f5222d',
+  OPTIONS: '#8c8c8c',
+  HEAD:    '#8c8c8c',
 };
 
+function statusIcon(ns: NetworkStatus, httpStatus?: number) {
+  if (ns === 'pending') return <LoadingOutlined style={{ color: '#1677ff' }} />;
+  if (ns === 'error' || (httpStatus != null && httpStatus >= 400)) {
+    return <CloseCircleOutlined style={{ color: '#f5222d' }} />;
+  }
+  return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+}
+
+function statusColor(ns: NetworkStatus, httpStatus?: number): string {
+  if (ns === 'pending') return '#1677ff';
+  if (ns === 'error' || (httpStatus != null && httpStatus >= 400)) return '#f5222d';
+  if (httpStatus != null && httpStatus >= 300) return '#fa8c16';
+  return '#52c41a';
+}
+
 function formatDuration(ms?: number): string {
-  if (ms == null) return '—';
-  if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
+  if (ms === undefined) return '…';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  return `${(ms / 1000).toFixed(2)}s`;
 }
 
-function durationColor(ms?: number): string {
-  if (ms == null) return '#d9d9d9';
-  if (ms < 200) return '#52c41a';
-  if (ms < 500) return '#73d13d';
-  if (ms < 1000) return '#faad14';
-  return '#ff4d4f';
-}
-
-function formatTime(ts: number): string {
+function formatTimestamp(ts: number): string {
   const d = new Date(ts);
-  return d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleTimeString('en-US', { hour12: false }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
 }
 
-interface ApiPair {
-  request: ActivityEvent;
-  response?: ActivityEvent;
+function safeCleanHeaders(h?: Record<string, string>): Record<string, string> {
+  if (!h) return {};
+  const safe: Record<string, string> = {};
+  for (const [k, v] of Object.entries(h)) {
+    const kl = k.toLowerCase();
+    // Redact auth headers in display
+    if (kl === 'authorization' || kl === 'x-api-key') {
+      safe[k] = '[redacted]';
+    } else {
+      safe[k] = v;
+    }
+  }
+  return safe;
 }
 
-function getStatus(pair: ApiPair): StatusFilter {
-  if (!pair.response) return 'pending';
-  return pair.response.type === 'api-error' ? 'error' : 'success';
-}
+// ── Entry Detail Pane ──────────────────────────────────────────
 
-export const NetworkPanel: React.FC = () => {
-  const log = useActivityLog();
+const EntryDetail: React.FC<{ entry: NetworkEntry; onClose: () => void }> = ({ entry, onClose }) => {
+  const reqHeaders = safeCleanHeaders(entry.requestHeaders);
+  const resHeaders = safeCleanHeaders(entry.responseHeaders);
+
+  return (
+    <div style={{
+      width: 440,
+      minWidth: 320,
+      borderLeft: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      background: 'var(--ant-color-bg-container, #fff)',
+      flexShrink: 0,
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '8px 12px',
+        borderBottom: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        background: 'var(--ant-color-bg-layout, #fafafa)',
+      }}>
+        <Tag color={METHOD_COLORS[entry.method] || '#8c8c8c'} style={{ margin: 0, fontSize: 11, fontFamily: 'monospace' }}>
+          {entry.method}
+        </Tag>
+        <Text style={{ fontSize: 11, ...mono12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {entry.endpoint}
+        </Text>
+        {entry.status && (
+          <Tag color={statusColor(entry.networkStatus, entry.status)} style={{ margin: 0, fontSize: 11 }}>
+            {entry.status}
+          </Tag>
+        )}
+        <Button type="text" size="small" onClick={onClose} style={{ padding: 0, fontSize: 14, lineHeight: 1 }}>×</Button>
+      </div>
+
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* Meta */}
+        <div style={{ padding: '6px 12px', borderBottom: '1px solid #f5f5f5' }}>
+          <Descriptions size="small" column={2} style={{ fontSize: 11 }}>
+            <Descriptions.Item label="Time">{formatTimestamp(entry.timestamp)}</Descriptions.Item>
+            <Descriptions.Item label="Duration">{formatDuration(entry.duration)}</Descriptions.Item>
+            <Descriptions.Item label="URL" span={2}>
+              <Text copyable style={mono12}>{entry.url}</Text>
+            </Descriptions.Item>
+            {entry.spanId && (
+              <Descriptions.Item label="Trace" span={2}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Text style={{ ...mono12, color: '#722ed1', fontSize: 10 }}>{entry.spanId.slice(0, 16)}…</Text>
+                  <Button
+                    size="small"
+                    type="link"
+                    icon={<LinkOutlined />}
+                    style={{ padding: 0, fontSize: 11, height: 'auto' }}
+                    onClick={() => devtoolsNavigate('debug', 'traces', { spanId: entry.spanId })}
+                  >
+                    View in Traces
+                  </Button>
+                </div>
+              </Descriptions.Item>
+            )}
+          </Descriptions>
+        </div>
+
+        {/* Tabs: Request / Response */}
+        <Tabs
+          size="small"
+          style={{ padding: '0 4px' }}
+          tabBarStyle={{ marginBottom: 0, paddingLeft: 8 }}
+          items={[
+            {
+              key: 'request',
+              label: 'Request',
+              children: (
+                <div style={{ padding: '8px 12px' }}>
+                  {Object.keys(reqHeaders).length > 0 && (
+                    <>
+                      <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Headers</Text>
+                      <JsonViewer data={reqHeaders} maxHeight={120} />
+                    </>
+                  )}
+                  {entry.requestPayload !== undefined && (
+                    <>
+                      <Text strong style={{ fontSize: 11, display: 'block', marginTop: 8, marginBottom: 4 }}>Payload</Text>
+                      <JsonViewer data={entry.requestPayload} maxHeight={200} />
+                    </>
+                  )}
+                  {!entry.requestPayload && Object.keys(reqHeaders).length === 0 && (
+                    <Text type="secondary" style={{ fontSize: 11 }}>No request payload</Text>
+                  )}
+                </div>
+              ),
+            },
+            {
+              key: 'response',
+              label: (
+                <span>
+                  Response
+                  {entry.status && (
+                    <Tag
+                      color={statusColor(entry.networkStatus, entry.status)}
+                      style={{ marginLeft: 4, fontSize: 10, lineHeight: '14px', padding: '0 4px' }}
+                    >
+                      {entry.status}
+                    </Tag>
+                  )}
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '8px 12px' }}>
+                  {entry.networkStatus === 'pending' && (
+                    <Text type="secondary" style={{ fontSize: 11 }}>Waiting for response…</Text>
+                  )}
+                  {entry.errorMessage && (
+                    <div style={{ marginBottom: 8, padding: '6px 8px', background: 'var(--ant-color-error-bg, #fff2f0)', border: '1px solid var(--ant-color-error-border, #ffccc7)', borderRadius: 4, fontSize: 11, color: '#cf1322' }}>
+                      {entry.errorMessage}
+                    </div>
+                  )}
+                  {Object.keys(resHeaders).length > 0 && (
+                    <>
+                      <Text strong style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Headers</Text>
+                      <JsonViewer data={resHeaders} maxHeight={100} />
+                    </>
+                  )}
+                  {entry.responseBody !== undefined && (
+                    <>
+                      <Text strong style={{ fontSize: 11, display: 'block', marginTop: 8, marginBottom: 4 }}>Body</Text>
+                      <JsonViewer data={entry.responseBody} maxHeight={280} />
+                    </>
+                  )}
+                </div>
+              ),
+            },
+          ]}
+        />
+      </div>
+    </div>
+  );
+};
+
+// ── Main Panel ─────────────────────────────────────────────────
+
+export const NetworkPanel: React.FC<{ highlightNetworkId?: string }> = ({ highlightNetworkId }) => {
+  const entries = useNetworkStore();
   const [search, setSearch] = useState('');
   const [methodFilter, setMethodFilter] = useState<MethodFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(highlightNetworkId ?? null);
 
-  const pairs = useMemo((): ApiPair[] => {
-    const requests = log.filter(e => e.type === 'api-request');
-    return requests.map(req => {
-      const resp = log.find(e => (e.type === 'api-response' || e.type === 'api-error') && e.requestId === req.id);
-      return { request: req, response: resp };
-    }).reverse();
-  }, [log]);
+  // When a highlight comes in from cross-panel navigation, auto-select it
+  React.useEffect(() => {
+    if (highlightNetworkId) setSelectedId(highlightNetworkId);
+  }, [highlightNetworkId]);
+
+  const reversed = useMemo(() => [...entries].reverse(), [entries]);
 
   const filtered = useMemo(() => {
-    let result = pairs;
-    if (methodFilter !== 'all') {
-      result = result.filter(p => {
-        const d = p.request.data as Record<string, unknown> | undefined;
-        return d?.method === methodFilter;
-      });
-    }
+    let result = reversed;
+    if (methodFilter !== 'all') result = result.filter(e => e.method === methodFilter);
     if (statusFilter !== 'all') {
-      result = result.filter(p => getStatus(p) === statusFilter);
+      if (statusFilter === 'pending') result = result.filter(e => e.networkStatus === 'pending');
+      else if (statusFilter === 'success') result = result.filter(e => e.networkStatus === 'success');
+      else if (statusFilter === 'error') result = result.filter(e => e.networkStatus === 'error' || (e.status != null && e.status >= 400));
     }
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter(p => p.request.label.toLowerCase().includes(q));
+      result = result.filter(e => e.endpoint.toLowerCase().includes(q) || e.url.toLowerCase().includes(q));
     }
     return result;
-  }, [pairs, methodFilter, statusFilter, search]);
+  }, [reversed, methodFilter, statusFilter, search]);
 
-  // Summary stats
-  const stats = useMemo(() => {
-    const total = pairs.length;
-    const errors = pairs.filter(p => p.response?.type === 'api-error').length;
-    const completed = pairs.filter(p => p.response?.duration != null);
-    const avgDuration = completed.length > 0
-      ? Math.round(completed.reduce((s, p) => s + (p.response!.duration || 0), 0) / completed.length)
-      : 0;
-    const pending = pairs.filter(p => !p.response).length;
-    return { total, errors, avgDuration, pending };
-  }, [pairs]);
+  const selectedEntry = useMemo(() => entries.find(e => e.id === selectedId) ?? null, [entries, selectedId]);
 
-  const toggle = useCallback((id: string) => {
-    setExpanded(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const handleClear = useCallback(() => {
+    clearNetworkEntries();
+    setSelectedId(null);
   }, []);
 
-  const collapseAll = useCallback(() => setExpanded(new Set()), []);
+  const counts = useMemo(() => {
+    let pending = 0, errors = 0;
+    for (const e of entries) {
+      if (e.networkStatus === 'pending') pending++;
+      else if (e.networkStatus === 'error' || (e.status != null && e.status >= 400)) errors++;
+    }
+    return { total: entries.length, pending, errors };
+  }, [entries]);
+
+  const methods = useMemo(() => {
+    const m = new Set<string>();
+    for (const e of entries) m.add(e.method);
+    return Array.from(m);
+  }, [entries]);
+
+  if (entries.length === 0) {
+    return (
+      <Empty
+        image={<ApiOutlined style={{ fontSize: 36, color: '#d9d9d9' }} />}
+        description={<span style={{ fontSize: 12 }}>No requests captured yet. Make an API call to see it here.</span>}
+        style={{ padding: 32 }}
+      />
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Summary stats */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 8,
-        padding: '10px 12px',
-        background: '#fafafa',
-        borderBottom: '1px solid #f0f0f0',
-      }}>
-        <Statistic title="Total" value={stats.total} valueStyle={{ fontSize: 18 }} />
-        <Statistic
-          title="Errors"
-          value={stats.errors}
-          valueStyle={{ fontSize: 18, color: stats.errors > 0 ? '#ff4d4f' : undefined }}
-          prefix={stats.errors > 0 ? <CloseCircleOutlined style={{ fontSize: 13 }} /> : undefined}
+      {/* Toolbar */}
+      <div style={{ ...filterBar, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Input
+          prefix={<SearchOutlined style={{ color: colors.textLight }} />}
+          placeholder="Filter by endpoint…"
+          size="small"
+          allowClear
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ flex: 1 }}
         />
-        <Statistic
-          title="Avg Time"
-          value={stats.total > 0 ? formatDuration(stats.avgDuration) : '—'}
-          valueStyle={{ fontSize: 18, color: durationColor(stats.avgDuration) }}
-        />
-        <Statistic
-          title="Pending"
-          value={stats.pending}
-          valueStyle={{ fontSize: 18, color: stats.pending > 0 ? '#1677ff' : undefined }}
-          prefix={stats.pending > 0 ? <LoadingOutlined style={{ fontSize: 13 }} /> : undefined}
-        />
+        {/* Method filter pills */}
+        {(['all', ...methods] as const).map(m => (
+          <Tag
+            key={m}
+            color={m === 'all' ? (methodFilter === 'all' ? '#1677ff' : undefined) : (methodFilter === m ? METHOD_COLORS[m] : undefined)}
+            onClick={() => setMethodFilter(m as MethodFilter)}
+            style={{ cursor: 'pointer', margin: 0, userSelect: 'none', fontSize: 11 }}
+          >
+            {m === 'all' ? `All (${entries.length})` : m}
+          </Tag>
+        ))}
+        {counts.errors > 0 && (
+          <Badge count={counts.errors} size="small">
+            <Tag
+              color={statusFilter === 'error' ? '#f5222d' : undefined}
+              onClick={() => setStatusFilter(p => p === 'error' ? 'all' : 'error')}
+              style={{ cursor: 'pointer', margin: 0, fontSize: 11 }}
+            >
+              Errors
+            </Tag>
+          </Badge>
+        )}
+        {counts.pending > 0 && (
+          <Tag color="processing" style={{ margin: 0, fontSize: 11 }}>
+            {counts.pending} pending
+          </Tag>
+        )}
+        <Tooltip title="Clear all">
+          <Button size="small" icon={<DeleteOutlined />} onClick={handleClear} />
+        </Tooltip>
       </div>
 
-      {/* Filters */}
-      <div style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-          <Input
-            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
-            placeholder="Filter by URL..."
-            size="small"
-            allowClear
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1 }}
-          />
-          {expanded.size > 0 && (
-            <Tooltip title="Collapse all">
-              <Button size="small" type="text" icon={<VerticalAlignTopOutlined />} onClick={collapseAll} />
-            </Tooltip>
-          )}
-          <Button size="small" icon={<DeleteOutlined />} onClick={clearActivityLog}>Clear</Button>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Segmented
-            size="small"
-            value={methodFilter}
-            onChange={val => setMethodFilter(val as MethodFilter)}
-            options={['all', 'GET', 'POST', 'PUT', 'DELETE']}
-          />
-          <Segmented
-            size="small"
-            value={statusFilter}
-            onChange={val => setStatusFilter(val as StatusFilter)}
-            options={[
-              { label: 'All', value: 'all' },
-              { label: 'OK', value: 'success' },
-              { label: 'Error', value: 'error' },
-              { label: 'Pending', value: 'pending' },
-            ]}
-          />
-          <Text type="secondary" style={{ fontSize: 11, marginLeft: 'auto' }}>
-            {filtered.length}/{pairs.length}
-          </Text>
-        </div>
-      </div>
-
-      {/* Request list */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
-        {filtered.length === 0 ? (
-          <Empty
-            description={search || methodFilter !== 'all' || statusFilter !== 'all' ? 'No matching requests' : 'No API requests captured yet'}
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            style={{ marginTop: 32 }}
-          />
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {filtered.map(pair => {
-              const reqData = pair.request.data as Record<string, unknown> | undefined;
-              const method = String(reqData?.method || '?');
-              const url = String(reqData?.url || '');
-              const isError = pair.response?.type === 'api-error';
-              const isPending = !pair.response;
-              const status = pair.response?.status;
-              const duration = pair.response?.duration;
-              const isOpen = expanded.has(pair.request.id);
-
+      {/* Main content: list + optional detail pane */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Entry list */}
+        <div style={{ flex: 1, overflow: 'auto' }}>
+          {filtered.length === 0 ? (
+            <Empty description="No matching requests" image={Empty.PRESENTED_IMAGE_SIMPLE} style={{ padding: 24 }} />
+          ) : (
+            filtered.map(entry => {
+              const isSelected = selectedId === entry.id;
+              const isErr = entry.networkStatus === 'error' || (entry.status != null && entry.status >= 400);
               return (
                 <div
-                  key={pair.request.id}
+                  key={entry.id}
+                  onClick={() => setSelectedId(isSelected ? null : entry.id)}
                   style={{
-                    border: '1px solid',
-                    borderColor: isError ? '#ffccc7' : isOpen ? '#d9d9d9' : '#f0f0f0',
-                    borderRadius: 6,
-                    overflow: 'hidden',
-                    background: isError ? '#fff2f0' : undefined,
+                    padding: '6px 12px',
+                    borderBottom: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
+                    cursor: 'pointer',
+                    background: isSelected ? 'var(--ant-color-primary-bg, #f0f5ff)' : isErr ? 'var(--ant-color-error-bg, #fff2f0)' : 'transparent',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
                   }}
                 >
-                  {/* Row header */}
-                  <div
-                    onClick={() => toggle(pair.request.id)}
-                    style={{
-                      padding: '6px 10px',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      background: isOpen ? '#fafafa' : undefined,
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 8,
-                    }}
+                  {/* Status icon */}
+                  <span style={{ fontSize: 12, width: 14, flexShrink: 0 }}>
+                    {statusIcon(entry.networkStatus, entry.status)}
+                  </span>
+
+                  {/* Method badge */}
+                  <Tag
+                    color={METHOD_COLORS[entry.method] || '#8c8c8c'}
+                    style={{ margin: 0, fontSize: 10, fontFamily: 'monospace', padding: '0 4px', lineHeight: '16px', flexShrink: 0 }}
                   >
-                    {isOpen
-                      ? <DownOutlined style={{ fontSize: 9, color: '#8c8c8c', flexShrink: 0 }} />
-                      : <RightOutlined style={{ fontSize: 9, color: '#8c8c8c', flexShrink: 0 }} />
-                    }
+                    {entry.method}
+                  </Tag>
 
-                    {/* Method badge */}
-                    <span style={{
-                      fontFamily: 'monospace',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      color: METHOD_COLORS[method] || '#8c8c8c',
-                      width: 42,
-                      flexShrink: 0,
-                    }}>
-                      {method}
-                    </span>
-
-                    {/* URL */}
-                    <Text style={{
-                      fontSize: 12,
-                      fontFamily: 'monospace',
+                  {/* Endpoint */}
+                  <Text
+                    style={{
+                      ...mono12,
+                      flex: 1,
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      flex: 1,
-                      minWidth: 0,
-                    }}>
-                      {url}
-                    </Text>
+                      color: isErr ? '#cf1322' : undefined,
+                    }}
+                  >
+                    {entry.endpoint}
+                  </Text>
 
-                    {/* Status + Duration + Time */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                      {/* Status indicator */}
-                      {isPending ? (
-                        <LoadingOutlined style={{ fontSize: 12, color: '#1677ff' }} />
-                      ) : isError ? (
-                        <Tag color="red" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>{status || 'ERR'}</Tag>
-                      ) : (
-                        <Tag color="green" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>{status}</Tag>
-                      )}
-
-                      {/* Duration with color coding */}
-                      <Tooltip title={duration != null ? `${duration}ms` : 'Pending...'}>
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: durationColor(duration),
-                          fontFamily: 'monospace',
-                          minWidth: 48,
-                          textAlign: 'right',
-                        }}>
-                          {formatDuration(duration)}
-                        </span>
-                      </Tooltip>
-
-                      {/* Timing bar */}
-                      {duration != null && (
-                        <div style={{
-                          width: 40,
-                          height: 4,
-                          background: '#f0f0f0',
-                          borderRadius: 2,
-                          overflow: 'hidden',
-                          flexShrink: 0,
-                        }}>
-                          <div style={{
-                            width: `${Math.min(100, (duration / 2000) * 100)}%`,
-                            height: '100%',
-                            background: durationColor(duration),
-                            borderRadius: 2,
-                            transition: 'width 0.3s ease',
-                          }} />
-                        </div>
-                      )}
-
-                      <Text type="secondary" style={{ fontSize: 10, fontFamily: 'monospace' }}>
-                        {formatTime(pair.request.timestamp)}
+                  {/* Right side: status code + duration + time */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                    {entry.status && (
+                      <Text style={{ fontSize: 11, color: statusColor(entry.networkStatus, entry.status), fontWeight: 600, fontFamily: 'monospace' }}>
+                        {entry.status}
                       </Text>
-                    </div>
+                    )}
+                    <Text type="secondary" style={{ fontSize: 10, fontFamily: 'monospace', minWidth: 44, textAlign: 'right' }}>
+                      {formatDuration(entry.duration)}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 10, minWidth: 72 }}>
+                      {formatTimestamp(entry.timestamp)}
+                    </Text>
                   </div>
-
-                  {/* Expanded detail */}
-                  {isOpen && (
-                    <div style={{ borderTop: '1px solid #f0f0f0' }}>
-                      <Tabs
-                        size="small"
-                        tabBarStyle={{ paddingLeft: 12, marginBottom: 0 }}
-                        items={[
-                          {
-                            key: 'request',
-                            label: 'Request',
-                            children: (
-                              <div style={{ padding: '8px 12px 12px' }}>
-                                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 11 }}>
-                                  <Text type="secondary">Method: <Text strong>{method}</Text></Text>
-                                  <Text type="secondary">URL: <Text copyable style={{ fontSize: 11 }}>{url}</Text></Text>
-                                </div>
-                                {reqData?.payload != null && (
-                                  <>
-                                    <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}>Payload</Text>
-                                    <JsonViewer data={reqData.payload as Record<string, unknown>} maxHeight={200} />
-                                  </>
-                                )}
-                                {reqData?.headers != null && (
-                                  <>
-                                    <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 8, marginBottom: 4 }}>Headers</Text>
-                                    <JsonViewer data={reqData.headers as Record<string, unknown>} maxHeight={150} />
-                                  </>
-                                )}
-                                {!reqData?.payload && !reqData?.headers && (
-                                  <Text type="secondary" style={{ fontSize: 12 }}>No request payload</Text>
-                                )}
-                              </div>
-                            ),
-                          },
-                          {
-                            key: 'response',
-                            label: (
-                              <span>
-                                Response
-                                {isError && <CloseCircleOutlined style={{ marginLeft: 4, color: '#ff4d4f', fontSize: 11 }} />}
-                                {!isPending && !isError && <CheckCircleOutlined style={{ marginLeft: 4, color: '#52c41a', fontSize: 11 }} />}
-                              </span>
-                            ),
-                            children: pair.response ? (
-                              <div style={{ padding: '8px 12px 12px' }}>
-                                <div style={{ display: 'flex', gap: 12, marginBottom: 8, fontSize: 11 }}>
-                                  <Text type="secondary">
-                                    Status: <Tag color={isError ? 'red' : 'green'} style={{ margin: 0, fontSize: 10 }}>{pair.response.status}</Tag>
-                                  </Text>
-                                  <Text type="secondary">
-                                    Duration: <Text strong style={{ color: durationColor(duration) }}>{formatDuration(duration)}</Text>
-                                  </Text>
-                                </div>
-                                <JsonViewer data={(pair.response.data || {}) as Record<string, unknown>} maxHeight={300} />
-                              </div>
-                            ) : (
-                              <div style={{ padding: 16, textAlign: 'center' }}>
-                                <LoadingOutlined style={{ fontSize: 20, color: '#1677ff' }} />
-                                <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>Waiting for response...</Text>
-                              </div>
-                            ),
-                          },
-                        ]}
-                      />
-                    </div>
-                  )}
                 </div>
               );
-            })}
-          </div>
+            })
+          )}
+        </div>
+
+        {/* Detail pane */}
+        {selectedEntry && (
+          <EntryDetail entry={selectedEntry} onClose={() => setSelectedId(null)} />
         )}
       </div>
     </div>

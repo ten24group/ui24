@@ -27,7 +27,7 @@ import { substituteUrlParams } from '../utils';
 import { ApiErrorHandlerResult, handleApiError, getErrorStatus } from '../utils/api-error-handler';
 import { evaluateTemplateValue } from '../utils/template';
 import { IRedirectOptions, navigateToUrl } from '../utils/link-utils';
-import { invalidateEntityCacheFromUrl } from '../query/useEntityMutation';
+import { invalidateEntityCacheFromUrl, invalidateEntityCacheByName } from '../query/useEntityMutation';
 import { conditionEvaluator } from '../utils/ConditionEvaluator';
 
 // ============================================================================
@@ -91,6 +91,16 @@ export interface OperationConfig {
     showCountdown?: boolean;
   };
 
+  /**
+   * Invalidate additional entity caches on success, beyond the one auto-detected from apiUrl.
+   * Use when a mutation affects data from other entities that may be shown on screen.
+   *
+   * @example
+   * // After creating a post, also refresh the feed and stats entities
+   * invalidateRelated: ['feed', 'teamStats']
+   */
+  invalidateRelated?: string[];
+
   // ===== Advanced =====
   transformResponse?: (data: any) => any;
   abortSignal?: AbortSignal;
@@ -99,6 +109,28 @@ export interface OperationConfig {
     delayMs?: number;
     backoff?: 'linear' | 'exponential';
     retryableStatuses?: number[];
+  };
+
+  /**
+   * Backend Response → UI State Mapping (#92).
+   * After a successful API call, map response data back into form fields.
+   *
+   * @example
+   * // After creating a record, auto-fill the generated ID and timestamp
+   * onSuccess: {
+   *   updateFields: {
+   *     'recordId': 'id',            // form field 'recordId' ← response.id
+   *     'createdAt': 'createdAt',    // form field 'createdAt' ← response.createdAt
+   *     'slug': 'computed.slug',     // supports dot-notation for nested response paths
+   *   }
+   * }
+   */
+  onSuccess?: {
+    /**
+     * Map form field names to response paths.
+     * Key: form field name. Value: dot-notation path into the API response.
+     */
+    updateFields?: Record<string, string>;
   };
 }
 
@@ -109,6 +141,11 @@ export interface OperationCallbacks {
   onClose?: () => void;
   onRefresh?: () => void;
   onChain?: (data: any, config: IResponseDisplayConfig) => void;
+  /**
+   * Called when `config.onSuccess.updateFields` is configured (#92).
+   * Receives a resolved map of `{ formField: resolvedValue }` to patch into the form.
+   */
+  onFieldUpdate?: (fields: Record<string, unknown>) => void;
 }
 
 export interface OperationExecutorDeps {
@@ -230,8 +267,13 @@ export class OperationExecutor {
       effectiveConfig = { ...config, ...conditionalOverrides };
     }
 
-    // Invalidate React Query cache for the affected entity
+    // Invalidate React Query cache for the affected entity (auto-derived from apiUrl)
     invalidateEntityCacheFromUrl(config.apiConfig.apiUrl);
+
+    // Invalidate additional explicitly-specified related entities
+    if (config.invalidateRelated?.length) {
+      config.invalidateRelated.forEach(name => invalidateEntityCacheByName(name));
+    }
 
     // 1. Response Modal / Chaining (Priority 1)
     // Check for response modal config OR dynamic chaining config
@@ -306,6 +348,30 @@ export class OperationExecutor {
     // 4. Parent Refresh (Priority 3)
     if (effectiveConfig.refreshParentOnSuccess) {
       callbacks.onRefresh?.();
+    }
+
+    // 4b. Backend Response → UI State Mapping (#92)
+    // Resolve dot-notation paths from response data into a flat field→value map
+    if (effectiveConfig.onSuccess?.updateFields && callbacks.onFieldUpdate) {
+      const resolvedFields: Record<string, unknown> = {};
+      for (const [ formField, responsePath ] of Object.entries(effectiveConfig.onSuccess.updateFields)) {
+        const parts = responsePath.split('.');
+        let val: unknown = data;
+        for (const part of parts) {
+          if (val != null && typeof val === 'object' && part in (val as Record<string, unknown>)) {
+            val = (val as Record<string, unknown>)[ part ];
+          } else {
+            val = undefined;
+            break;
+          }
+        }
+        if (val !== undefined) {
+          resolvedFields[ formField ] = val;
+        }
+      }
+      if (Object.keys(resolvedFields).length > 0) {
+        callbacks.onFieldUpdate(resolvedFields);
+      }
     }
 
     // 5. Standard Callback + Close
@@ -439,7 +505,7 @@ export class OperationExecutor {
     context: any,
     defaultMessage: string
   ): void {
-    const notifConfig = config.notification?.[level];
+    const notifConfig = config.notification?.[ level ];
 
     // If notification config exists with explicit type/description, use the rich notify
     if (notifConfig && (notifConfig.type === 'notification' || notifConfig.description)) {

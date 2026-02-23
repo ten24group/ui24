@@ -47,6 +47,7 @@ import { getDefaultModalWidth } from './modalUtils';
 import { useOperationExecutor } from '../core/services/OperationExecutor';
 import { type IWizardPageConfig } from '../core/common/FormWizard';
 import { useThrottleCountdown } from '../core/hooks/useThrottleCountdown';
+import { useModalInstrumentation } from '../core/telemetry';
 
 // Simple modal depth tracking for stack effect
 export const ModalDepthContext = React.createContext(0);
@@ -252,6 +253,18 @@ export interface IModalConfig {
    * @example modalTitle: { composite: ['teamName', 'city'], template: 'Edit {teamName} ({city})' }
    */
   modalTitle?: Template;
+
+  /**
+   * Render the modal content inside a right-side drawer instead of a centred
+   * overlay.  Only applies to `modalType: 'form'`.  All other types continue
+   * to use the centred modal container regardless of this setting.
+   *
+   * Primarily used by the `#44 quickCreate` feature
+   * (`quickCreate: { openIn: 'drawer' }`).
+   *
+   * @default 'modal'
+   */
+  containerType?: 'modal' | 'drawer';
 }
 
 /**
@@ -369,7 +382,8 @@ export const Modal = ({
   routeParams = {},
   identifiers,
   modalWidth,
-  modalTitle
+  modalTitle,
+  containerType = 'modal',
 }: IModalConfig) => {
 
   const { notifyError, notifySuccess } = useAppContext()
@@ -746,6 +760,112 @@ export const Modal = ({
     // Get default values from query if inverseMapping is enabled
     const defaultValuesFromQuery = getDefaultValuesFromQuery();
 
+    // Shared inner content — same for both modal and drawer containers
+    const modalInnerContent = (
+      <ErrorBoundary
+        FallbackComponent={ErrorFallback}
+        onReset={() => {
+          onCancelCallback && onCancelCallback(); // Close modal on error reset
+        }}
+      >
+        {/* Wrap in ModalContext so child components know they're in a modal */}
+        <ModalContextProvider>
+          <RenderFromPageType
+            cardStyle={{ marginTop: "2%" }}
+            pageType={modalType as IPageType}
+            listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
+            formPageConfig={
+              modalType === "form" ? {
+                ...(modalPageConfig as IForm),
+                // Form uses OperationExecutor internally - pass all response handling config
+                onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
+                onCancelCallback: onCancelCallback,
+                // Set apiConfig to undefined if navigateTo is specified (navigation-only mode)
+                apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
+                // Pre-populate form from context and query params
+                defaultValues: {
+                  ...(initialValues ? evaluateTemplateObject(initialValues, routeParams) : {}),
+                  ...defaultValuesFromQuery,
+                  ...(modalPageConfig as IForm).defaultValues
+                },
+                useDynamicIdFromParams: false,
+                routeParams,
+                // Pass all response handling config for OperationExecutor
+                submitSuccessRedirect,
+                submitSuccessRedirectOptions,
+                responseConfig,
+                dynamicConfigKey,
+                refreshParentOnSuccess: onSuccessCallback ? true : undefined, // Auto-enable if callback provided
+                successMessage,
+                errorMessage,
+                skipSuccessToast,
+                skipErrorToast,
+                closeModalOnError,
+                ...(notification && { notification }),
+                ...(throttle && { throttle }),
+              } as any : undefined
+            }
+            detailsPageConfig={
+              modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
+            }
+            accordionsPageConfig={
+              modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
+            }
+            wizardPageConfig={
+              modalType === "wizard" ? {
+                ...(modalPageConfig as IWizardPageConfig),
+                onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
+                onCancelCallback: onCancelCallback,
+                // Pass route params for any dynamic field loading
+                routeParams,
+                // Pass all response handling config for OperationExecutor (same as forms)
+                submitSuccessRedirect,
+                submitSuccessRedirectOptions,
+                responseConfig,
+                dynamicConfigKey,
+                refreshParentOnSuccess: onSuccessCallback ? true : undefined,
+                successMessage,
+                errorMessage,
+                skipSuccessToast,
+                skipErrorToast,
+                closeModalOnError,
+                ...(notification && { notification }),
+                ...(throttle && { throttle }),
+              } as any : undefined
+            }
+            dashboardPageConfig={
+              modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
+            }
+            customPageConfig={
+              modalType === "custom" && modalPageConfig && 'componentKey' in modalPageConfig
+                ? modalPageConfig as any
+                : undefined
+            }
+            identifiers={identifiers}
+            routeParams={routeParams}
+          />
+        </ModalContextProvider>
+      </ErrorBoundary>
+    );
+
+    // Drawer container (used when containerType === 'drawer', e.g. quickCreate.openIn = 'drawer')
+    if (containerType === 'drawer') {
+      return (
+        <ModalDepthContext.Provider value={nextDepth}>
+          <AntDrawer
+            title={effectiveTitle}
+            open={true}
+            onClose={onCancelCallback}
+            width={effectiveWidth || 600}
+            placement="right"
+            styles={{ body: { padding: 0 } }}
+          >
+            {modalInnerContent}
+          </AntDrawer>
+        </ModalDepthContext.Provider>
+      );
+    }
+
     return (
       <ModalDepthContext.Provider value={nextDepth}>
         <AntModal
@@ -760,90 +880,7 @@ export const Modal = ({
             body: { padding: 0 }
           }}
         >
-          <ErrorBoundary
-            FallbackComponent={ErrorFallback}
-            onReset={() => {
-              onCancelCallback && onCancelCallback(); // Close modal on error reset
-            }}
-          >
-            {/* Wrap in ModalContext so child components know they're in a modal */}
-            <ModalContextProvider>
-              <RenderFromPageType
-                cardStyle={{ marginTop: "2%" }}
-                pageType={modalType as IPageType}
-                listPageConfig={modalType === "list" ? modalPageConfig as ITableConfig : undefined}
-                formPageConfig={
-                  modalType === "form" ? {
-                    ...(modalPageConfig as IForm),
-                    // Form uses OperationExecutor internally - pass all response handling config
-                    onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
-                    onCancelCallback: onCancelCallback,
-                    // Set apiConfig to undefined if navigateTo is specified (navigation-only mode)
-                    apiConfig: navigateTo ? undefined : (modalPageConfig as IForm).apiConfig,
-                    // Pre-populate form from context and query params
-                    defaultValues: {
-                      ...(initialValues ? evaluateTemplateObject(initialValues, routeParams) : {}),
-                      ...defaultValuesFromQuery,
-                      ...(modalPageConfig as IForm).defaultValues
-                    },
-                    useDynamicIdFromParams: false,
-                    routeParams,
-                    // Pass all response handling config for OperationExecutor
-                    submitSuccessRedirect,
-                    submitSuccessRedirectOptions,
-                    responseConfig,
-                    dynamicConfigKey,
-                    refreshParentOnSuccess: onSuccessCallback ? true : undefined, // Auto-enable if callback provided
-                    successMessage,
-                    errorMessage,
-                    skipSuccessToast,
-                    skipErrorToast,
-                    closeModalOnError,
-                    ...(notification && { notification }),
-                    ...(throttle && { throttle }),
-                  } as any : undefined
-                }
-                detailsPageConfig={
-                  modalType === "details" ? modalPageConfig as IDetailsConfig : undefined
-                }
-                accordionsPageConfig={
-                  modalType === "accordion" ? modalPageConfig as IAccordionPageConfig : undefined
-                }
-                wizardPageConfig={
-                  modalType === "wizard" ? {
-                    ...(modalPageConfig as IWizardPageConfig),
-                    onSubmitSuccessCallback: navigateTo ? handleNavigationSubmit : onSuccessCallback,
-                    onCancelCallback: onCancelCallback,
-                    // Pass route params for any dynamic field loading
-                    routeParams,
-                    // Pass all response handling config for OperationExecutor (same as forms)
-                    submitSuccessRedirect,
-                    submitSuccessRedirectOptions,
-                    responseConfig,
-                    dynamicConfigKey,
-                    refreshParentOnSuccess: onSuccessCallback ? true : undefined,
-                    successMessage,
-                    errorMessage,
-                    skipSuccessToast,
-                    skipErrorToast,
-                    closeModalOnError,
-                    ...(notification && { notification }),
-                    ...(throttle && { throttle }),
-                  } as any : undefined
-                }
-                dashboardPageConfig={
-                  modalType === "dashboard" ? modalPageConfig as IDashboardPageConfig : undefined
-                }
-                customPageConfig={
-                  modalType === "custom" && modalPageConfig && 'componentKey' in modalPageConfig
-                    ? modalPageConfig as any
-                    : undefined
-                }
-                identifiers={identifiers}
-                routeParams={routeParams}
-              />
-            </ModalContextProvider>
-          </ErrorBoundary>
+          {modalInnerContent}
         </AntModal>
 
         {/* ✅ NO response modal rendering - handled globally by ResponseModalContext */}
@@ -1029,34 +1066,38 @@ export const OpenInModal = ({ ...props }: IOpenInModal) => {
 
   const [ open, setOpen ] = React.useState(false)
 
+  // Instrumented callbacks using the new hook
+  const instrumented = useModalInstrumentation({
+    modalType: 'action',
+    onOpen: props.onOpenCallback,
+    onCancel: props.onCancelCallback,
+    onConfirm: props.onConfirmCallback,
+    onSuccess: props.onSuccessCallback,
+    attributes: {
+      'modal.hasApiConfig': !!props.apiConfig
+    }
+  });
+
   const onCancelCallback = () => {
     setOpen(false)
-    if (props.onCancelCallback) {
-      props.onCancelCallback()
-    }
+    instrumented.onCancel()
   }
 
   const onConfirmCallback = () => {
     setOpen(false)
-    if (props.onConfirmCallback) {
-      props.onConfirmCallback()
-    }
+    instrumented.onConfirm()
   }
 
   const onSuccessCallback = (response) => {
     setOpen(false)
-    if (props.onSuccessCallback) {
-      props.onSuccessCallback(response)
-    }
+    instrumented.onSuccess(response)
   }
 
   return <>
     <Link
       onClick={() => {
         setOpen(true);
-        if (props.onOpenCallback) {
-          props.onOpenCallback()
-        }
+        instrumented.onOpen();
       }}
       className="OpenInModal">
       {Array.isArray(props.children) ? props.children[ 0 ] : props.children}

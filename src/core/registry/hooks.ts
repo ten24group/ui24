@@ -193,6 +193,7 @@ export function getWidgetRenderer(
 import { useMemo } from 'react';
 import { useResolverContext } from './useResolverContext';
 import { useResolve } from '../hooks/useResolve';
+import type { ConditionalValue } from '../types';
 
 /**
  * Resolve a conditional renderer name and look up the component from the registry.
@@ -220,7 +221,7 @@ export function useFieldRendererWithConditions(
   resolvedRenderer: string | undefined;
 } {
   // Resolve conditional renderer name (supports ConditionalValue<string> or plain string)
-  const resolvedRenderer = useResolve<string>(fieldConfig.renderer as any);
+  const resolvedRenderer = useResolve<string>(fieldConfig.renderer as string | ConditionalValue<string> | undefined);
 
   const resolverContext = useResolverContext({
     fieldName: fieldConfig.name || fieldConfig.column || fieldConfig.dataIndex,

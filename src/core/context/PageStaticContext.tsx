@@ -8,11 +8,11 @@ import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import { useModalDepth } from '../../modal/Modal';
-import { useDevToolsReport } from '../devtools/devtoolsBridge';
+import { useDevToolsReport } from '../devtools/store/snapshot';
 
 export interface PageStaticContextValue {
   // NOTE: keep this aligned with PostAuthPage supported page types.
-  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom' | 'wizard';
+  pageType?: 'list' | 'details' | 'form' | 'accordion' | 'dashboard' | 'system' | 'custom' | 'wizard' | 'kanban' | 'tree' | 'calendar' | 'map';
   entityName?: string;
   config: unknown; // Full page config from entities.json
   route: {

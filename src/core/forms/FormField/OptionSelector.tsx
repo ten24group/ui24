@@ -3,7 +3,7 @@ import { Select as AntSelect, Radio, Checkbox, Divider, Space, Button } from 'an
 import { PlusOutlined } from '@ant-design/icons';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
-import type { IFormField, IOptions, ITemplateConfig } from '../../types/field-config';
+import type { IFormField, IOptions, ITemplateConfig, IQuickCreateConfig } from '../../types/field-config';
 import { interpolateTemplate } from '../../utils/template';
 import { deriveEntityName } from '../../utils';
 import { useInfiniteFieldOptions } from '../../query/useFieldOptions';
@@ -104,6 +104,7 @@ export type IFieldOptionsAPIConfig = {
      */
     searchDebounce?: number;
 }
+
 export function isFieldOptionsAPIConfig(obj: any): obj is IFieldOptionsAPIConfig {
     return (
         obj &&
@@ -129,6 +130,14 @@ interface IOptionSelector {
     placeholder?: string;
     /** Additional filters from parent field dependencies (e.g., country → state cascading) */
     dependencyFilters?: Record<string, unknown>;
+    /**
+     * Quick-create UX enhancement (#44). Requires `addNewOptionConfig` to be set.
+     * When `enabled`, shows a contextual "+ Create '[term]'" button inside the dropdown
+     * whenever the search term returns no results. Opens the entity's full create form
+     * (from `addNewOptionConfig`) pre-filled with the search term via `prefillField`.
+     * No manual field definitions — the entity's own form handles everything.
+     */
+    quickCreate?: IQuickCreateConfig;
 }
 
 /**
@@ -220,6 +229,7 @@ export const OptionSelector = ({
     fieldType, 
     addNewOption, 
     addNewOptionConfig,
+    quickCreate,
     onOptionChange, 
     value,
     placeholder,
@@ -228,6 +238,9 @@ export const OptionSelector = ({
 
     const { resolveConfigRef } = useEntityConfig();
     const [ open, setOpen ] = useState(false);
+    // Tracks what the user has typed in the search box — used for the contextual
+    // "+ Create '[term]'" quick-create UX when no results are found.
+    const [ searchTerm, setSearchTerm ] = useState('');
 
     const isApiConfig = isFieldOptionsAPIConfig(options);
     const apiConfig = isApiConfig ? (options as IFieldOptionsAPIConfig) : null;
@@ -308,8 +321,10 @@ export const OptionSelector = ({
     /**
      * Handle search: delegates to the hook's debounced search for remote,
      * or Ant Design's filterOption for frontend search.
+     * Also tracks the raw search term locally for the quick-create UX.
      */
     const handleSearch = useCallback((value: string) => {
+        setSearchTerm(value);
         if (hasRemoteSearch) {
             search(value);
         }
@@ -370,11 +385,51 @@ export const OptionSelector = ({
     const hasAddNewOption = !!(addNewOptionConfig || addNewOption);
 
     /**
-     * Custom dropdown render with "Load More" button and "Add New" button
+     * Stable resolved modal config for the "Add Record" / quick-create flow.
+     * Memoised separately so it doesn't recompute on every keystroke.
+     */
+    const addNewModalConfig = useMemo(
+        () => getAddNewModalConfig(),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [ addNewOptionConfig, addNewOption, resolveConfigRef ]
+    );
+
+    /**
+     * Modal config for the contextual quick-create button (#44).
+     * Derived from `addNewModalConfig` with:
+     *   - `initialValues` pre-filled with the current search term
+     *   - `containerType` set to 'drawer' when `quickCreate.openIn === 'drawer'`
+     *
+     * Null when quick-create is not active (no search term, no base config, not enabled).
+     */
+    const quickCreateModalConfig = useMemo((): IModalConfig | null => {
+        if (!quickCreate?.enabled || !searchTerm.trim() || !addNewModalConfig) return null;
+
+        // Determine which entity field to pre-fill.
+        // Prefer explicit `prefillField`; fall back to the label mapping field.
+        const labelField =
+            typeof apiConfig?.optionMapping?.label === 'string'
+                ? apiConfig.optionMapping.label
+                : undefined;
+        const prefillField = quickCreate.prefillField ?? labelField;
+
+        return {
+            ...addNewModalConfig,
+            ...(prefillField
+                ? { initialValues: { [prefillField]: searchTerm.trim() } }
+                : {}),
+            ...(quickCreate.openIn === 'drawer'
+                ? { containerType: 'drawer' as const }
+                : {}),
+        };
+    }, [ quickCreate, searchTerm, addNewModalConfig, apiConfig?.optionMapping ]);
+
+    /**
+     * Custom dropdown render with "Load More" and "Add Record" footer.
+     * The contextual quick-create button is rendered via `notFoundContent`
+     * so it appears inline where the "No results" message would normally be.
      */
     const customDropdownRender = useCallback((menu: React.ReactElement) => {
-        const modalConfig = getAddNewModalConfig();
-
         return (
             <>
                 {menu}
@@ -394,15 +449,15 @@ export const OptionSelector = ({
                     </>
                 )}
 
-                {/* Add New Record button */}
-                {hasAddNewOption && modalConfig && (
+                {/* Always-visible "Add Record" button — opens the entity's create form */}
+                {hasAddNewOption && addNewModalConfig && (
                     <>
                         <Divider style={{ margin: '8px 0' }} />
                         <Space style={{ padding: '0 8px 4px' }}>
                             <OpenInModal
                                 onOpenCallback={() => setOpen(false)}
                                 onSuccessCallback={() => invalidateAll()}
-                                {...modalConfig}
+                                {...addNewModalConfig}
                                 useDynamicIdFromParams={false}
                             >
                                 <PlusOutlined /> Add Record
@@ -412,7 +467,35 @@ export const OptionSelector = ({
                 )}
             </>
         );
-    }, [ canLoadMore, hasMore, loading, loadMore, hasAddNewOption, getAddNewModalConfig, invalidateAll ]);
+    }, [ canLoadMore, hasMore, loading, loadMore, hasAddNewOption, addNewModalConfig, invalidateAll ]);
+
+    /**
+     * "No results" content for the dropdown.
+     * When quick-create is active and the user has typed a search term,
+     * replaces the plain "No options found" text with a contextual
+     * "+ Create '[term]'" button that opens the entity's create form
+     * pre-filled with the search term.
+     */
+    const notFoundContent = useMemo(() => {
+        if (loading) return 'Loading...';
+        if (quickCreate?.enabled && searchTerm.trim() && quickCreateModalConfig) {
+            return (
+                <div style={{ padding: '8px', textAlign: 'center' }}>
+                    <OpenInModal
+                        onOpenCallback={() => setOpen(false)}
+                        onSuccessCallback={() => { setSearchTerm(''); invalidateAll(); }}
+                        {...quickCreateModalConfig}
+                        useDynamicIdFromParams={false}
+                    >
+                        <Button type="dashed" size="small" icon={<PlusOutlined />}>
+                            Create &ldquo;{searchTerm.trim()}&rdquo;
+                        </Button>
+                    </OpenInModal>
+                </div>
+            );
+        }
+        return 'No options found';
+    }, [ loading, quickCreate?.enabled, searchTerm, quickCreateModalConfig, invalidateAll ]);
 
     return <>
         {fieldType === "checkbox" && (
@@ -438,12 +521,15 @@ export const OptionSelector = ({
                 showSearch
                 filterOption={filterOption}
                 onSearch={handleSearch}
-                onOpenChange={(visible) => setOpen(visible)} 
+                onOpenChange={(visible) => {
+                    setOpen(visible);
+                    if (!visible) setSearchTerm('');
+                }} 
                 open={open} 
                 options={fieldOptions}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
-                onChange={(value) => onOptionChange?.(value)}
-                notFoundContent={loading ? 'Loading...' : 'No options found'}
+                onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
+                notFoundContent={notFoundContent}
                 placeholder={placeholder || (hasRemoteSearch ? 'Type to search...' : 'Select an option')}
                 style={{ minWidth: 200, width: '100%' }}
                 popupMatchSelectWidth={false}
@@ -457,13 +543,16 @@ export const OptionSelector = ({
                 showSearch
                 filterOption={filterOption}
                 onSearch={handleSearch}
-                onOpenChange={(visible) => setOpen(visible)} 
+                onOpenChange={(visible) => {
+                    setOpen(visible);
+                    if (!visible) setSearchTerm('');
+                }} 
                 open={open} 
                 options={fieldOptions}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
-                onChange={(value) => onOptionChange?.(value)}
+                onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
                 mode='multiple'
-                notFoundContent={loading ? 'Loading...' : 'No options found'}
+                notFoundContent={notFoundContent}
                 placeholder={placeholder || (hasRemoteSearch ? 'Type to search...' : 'Select options')}
                 style={{ minWidth: 200, width: '100%' }}
                 popupMatchSelectWidth={false}
