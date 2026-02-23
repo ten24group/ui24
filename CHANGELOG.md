@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.11](https://github.com/ten24group/ui24/compare/v1.1.0-beta.10...v1.1.0-beta.11) (2026-02-23)
+
+
+### Features
+
+* Enhance UI24 with new features and improvements ([19fdc66](https://github.com/ten24group/ui24/commit/19fdc66c556b8ec635941c0d75e65116f431563f))
+* Phase 2 implementation — Quick Wins ([#55](https://github.com/ten24group/ui24/issues/55), [#59](https://github.com/ten24group/ui24/issues/59), [#103](https://github.com/ten24group/ui24/issues/103)) + UI enhancements ([2d36e0d](https://github.com/ten24group/ui24/commit/2d36e0d6d5ff0684fd6fbc425e51951882e16aa0))
+* Phase 3 implementation — 16 features, gap closures, and codebase polish ([7d5620f](https://github.com/ten24group/ui24/commit/7d5620fb9e147634cfa5153c42df002c05444463)), closes [#3](https://github.com/ten24group/ui24/issues/3) [#26](https://github.com/ten24group/ui24/issues/26) [#28](https://github.com/ten24group/ui24/issues/28) [#32](https://github.com/ten24group/ui24/issues/32) [#54](https://github.com/ten24group/ui24/issues/54) [#57](https://github.com/ten24group/ui24/issues/57) [#60](https://github.com/ten24group/ui24/issues/60) [#61](https://github.com/ten24group/ui24/issues/61) [#63](https://github.com/ten24group/ui24/issues/63) [#64](https://github.com/ten24group/ui24/issues/64) [#66](https://github.com/ten24group/ui24/issues/66) [#86](https://github.com/ten24group/ui24/issues/86) [#110](https://github.com/ten24group/ui24/issues/110) [#113](https://github.com/ten24group/ui24/issues/113) [#119](https://github.com/ten24group/ui24/issues/119) [#41](https://github.com/ten24group/ui24/issues/41) [#61](https://github.com/ten24group/ui24/issues/61) [#98](https://github.com/ten24group/ui24/issues/98) [#66](https://github.com/ten24group/ui24/issues/66) [#63](https://github.com/ten24group/ui24/issues/63)
+* Phase 4 — navigation perf, view layouts, devtools overhaul, telemetry ([f60ab90](https://github.com/ten24group/ui24/commit/f60ab90642b1c4dcda38e2988197208f0d93b8e4)), closes [#91](https://github.com/ten24group/ui24/issues/91) [#16](https://github.com/ten24group/ui24/issues/16)
+
 ## [1.1.0-beta.10](https://github.com/ten24group/ui24/compare/v1.1.0-beta.9...v1.1.0-beta.10) (2026-02-23)
 
 ## [1.1.0-beta.9](https://github.com/ten24group/ui24/compare/v1.1.0-beta.8...v1.1.0-beta.9) (2026-02-16)
