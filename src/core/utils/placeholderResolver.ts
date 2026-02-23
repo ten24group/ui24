@@ -11,6 +11,7 @@
 
 import dayjs from 'dayjs';
 import quarterOfYear from 'dayjs/plugin/quarterOfYear';
+import { getNestedValue } from '../utils';
 
 // Initialize dayjs plugins
 dayjs.extend(quarterOfYear);
@@ -44,23 +45,6 @@ export interface PlaceholderContext {
   
   /** Current date/time */
   now?: Date;
-}
-
-/**
- * Get nested value from object using dot notation
- */
-function getNestedValue(obj: any, path: string): any {
-  if (!obj || !path) return undefined;
-  
-  const keys = path.split('.');
-  let result = obj;
-  
-  for (const key of keys) {
-    if (result === null || result === undefined) return undefined;
-    result = result[key];
-  }
-  
-  return result;
 }
 
 /**

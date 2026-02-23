@@ -53,9 +53,7 @@ export const useResolveRoute = (
     const normalizedPathname = resolvedPathname.startsWith('/') ? resolvedPathname : `/${resolvedPathname}`;
     
     // Try to match against all registered page configs
-    for (const [key, config] of Object.entries(pagesConfig)) {
-      const page = config as any;
-      
+    for (const [key, page] of Object.entries(pagesConfig)) {
       // Strategy 1: Match against routePattern
       if (page.routePattern) {
         // Split routePattern to remove query params if any

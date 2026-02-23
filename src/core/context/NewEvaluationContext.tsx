@@ -12,13 +12,16 @@
  * Reference: CONDITION_SYSTEM_DESIGN.md Section 4.4
  */
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { NewEvaluationContext } from '../types/evaluation';
+import { publishEvalContext } from '../devtools/store/eval-context-bridge';
+import { IS_DEV } from '../constants';
 import { useAppStaticContext } from './AppStaticContext';
 import { usePageStaticContext } from './PageStaticContext';
 import { useFormRecord, useFormValues, useFormIsDirty, useFormIsValid } from './FormStateContext';
 import { useTableStateContext } from './TableStateContext';
 import { useDetailStateContext } from './DetailStateContext';
+import { useContextOverrides } from '../devtools/store/context-overrides';
 
 /**
  * Safe JSON.stringify that handles circular references without throwing.
@@ -78,14 +81,17 @@ export function useNewEvaluationContext(): NewEvaluationContext {
   const tableState = useTableStateContext();
   const detailState = useDetailStateContext();
 
+  // DevTools context overrides (dev-only, empty object in production)
+  const overrides = useContextOverrides();
+
   // Stabilize formValues — Ant Design's form.getFieldsValue() returns a new
   // object on every render even when values haven't changed.
   const stableFormValues = useStableValue(formValues);
 
   const hasFormContext = formRecord !== undefined || (stableFormValues && Object.keys(stableFormValues).length > 0);
 
-  return useMemo((): NewEvaluationContext => {
-    return {
+  const context = useMemo((): NewEvaluationContext => {
+    const base: NewEvaluationContext = {
       // Tier 1: App static
       actor: appStatic?.actor ?? { actorId: '', groups: [] },
       featureFlags: appStatic?.featureFlags ?? {},
@@ -129,5 +135,43 @@ export function useNewEvaluationContext(): NewEvaluationContext {
       // App-defined context providers (merged from AppStaticContext)
       ...(appStatic?.appContext),
     };
-  }, [ appStatic, pageStatic, formRecord, stableFormValues, formIsDirty, formIsValid, hasFormContext, tableState, detailState ]);
+
+    // Apply DevTools context overrides (dev-only)
+    if (overrides && Object.keys(overrides).length > 0) {
+      for (const [path, value] of Object.entries(overrides)) {
+        applyNestedOverride(base, path, value);
+      }
+    }
+
+    return base;
+  }, [ appStatic, pageStatic, formRecord, stableFormValues, formIsDirty, formIsValid, hasFormContext, tableState, detailState, overrides ]);
+
+  // Publish to the DevTools bridge only when called from inside the page tree
+  // (pageStatic !== null means PageStaticProvider is in the ancestor tree).
+  // This prevents DevTools panels (outside the tree) from overwriting the
+  // page context with empty/null values when they also call this hook.
+  useEffect(() => {
+    if (IS_DEV && pageStatic !== null) {
+      publishEvalContext(context);
+    }
+  }, [context, pageStatic]);
+
+  return context;
+}
+
+/**
+ * Apply a dotted-path override to a nested object.
+ * e.g., applyNestedOverride(obj, 'actor.groups', ['admin']) sets obj.actor.groups = ['admin']
+ */
+function applyNestedOverride(obj: Record<string, any>, path: string, value: unknown): void {
+  const parts = path.split('.');
+  let current = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i];
+    if (current[key] == null || typeof current[key] !== 'object') {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  current[parts[parts.length - 1]] = value;
 }

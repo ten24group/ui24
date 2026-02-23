@@ -52,6 +52,12 @@ export interface UseEvaluatedItemsOptions {
   disabledMessageKey?: string;
   /** Additional context merged into evaluation context */
   additionalContext?: Record<string, unknown>;
+  /**
+   * Entity name for auto-permission inference (#102).
+   * When set, actions with `action: 'create'` or `navigateTo` containing '/create'
+   * automatically get `permission: '${entityName}:create'` if no explicit permission is set.
+   */
+  entityName?: string;
 }
 
 /**
@@ -72,11 +78,29 @@ export function useEvaluatedItems<T>(
     enablementKey = 'enablement',
     disabledMessageKey = 'disabledMessage',
     additionalContext,
+    entityName,
   } = options ?? {};
 
-  // Extract conditions from items
+  // Extract conditions from items, expanding `permission` shorthand (#102)
   const visibilityConditions = useMemo(
-    () => items.map(item => getItemValue<Condition>(item, visibilityKey)),
+    () => items.map(item => {
+      const explicit = getItemValue<Condition>(item, visibilityKey);
+      let permission = getItemValue<string>(item, 'permission');
+
+      // Auto-permission for create actions (#102)
+      if (!permission && entityName) {
+        const action = getItemValue<string>(item, 'action');
+        const navigateTo = getItemValue<string>(item, 'navigateTo');
+        if (action === 'create' || (navigateTo && navigateTo.includes('/create'))) {
+          permission = `${entityName}:create`;
+        }
+      }
+
+      if (!permission) return explicit;
+      const permCondition: Condition = { actor: { permissions: { [permission]: { eq: true } } } };
+      if (!explicit) return permCondition;
+      return { and: [explicit, permCondition] };
+    }),
     [items, visibilityKey]
   );
 

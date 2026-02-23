@@ -1,20 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Select as AntSelect, Radio, Checkbox, Divider, Space, Button } from 'antd';
-import { useApi } from '../../context';
 import { PlusOutlined } from '@ant-design/icons';
-import type { InputRef } from 'antd';
 import { OpenInModal, IModalConfig } from '../../../modal/Modal';
 import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
-import type { IFormField, ITemplateConfig } from '../../types/field-config';
-import { handleApiError } from '../../utils/api-error-handler';
-import { useAppContext } from '../../context/AppContext';
-import { interpolateTemplate, parseSimpleTemplate } from '../../utils/template';
-
-/**
- * @deprecated Use ITemplateConfig from '../../utils/template' instead.
- * Kept for backward compatibility.
- */
-export type IAttributesTemplate = ITemplateConfig;
+import type { IFormField, IOptions, ITemplateConfig, IQuickCreateConfig } from '../../types/field-config';
+import { interpolateTemplate } from '../../utils/template';
+import { deriveEntityName } from '../../utils';
+import { useInfiniteFieldOptions } from '../../query/useFieldOptions';
 
 /**
  * Configuration for API-loaded options in form field selectors.
@@ -112,6 +104,7 @@ export type IFieldOptionsAPIConfig = {
      */
     searchDebounce?: number;
 }
+
 export function isFieldOptionsAPIConfig(obj: any): obj is IFieldOptionsAPIConfig {
     return (
         obj &&
@@ -122,10 +115,8 @@ export function isFieldOptionsAPIConfig(obj: any): obj is IFieldOptionsAPIConfig
     );
 }
 
-export interface IOptions {
-    label: string;
-    value: string | number;
-}
+// IOptions is re-exported from field-config.ts for consumers that import from here
+export type { IOptions } from '../../types/field-config';
 
 export type IFieldOptions = Array<IOptions> | IFieldOptionsAPIConfig;
 
@@ -137,6 +128,16 @@ interface IOptionSelector {
     addNewOptionConfig?: IEntityConfigReference, // NEW: Entity config reference
     value?: string,
     placeholder?: string;
+    /** Additional filters from parent field dependencies (e.g., country → state cascading) */
+    dependencyFilters?: Record<string, unknown>;
+    /**
+     * Quick-create UX enhancement (#44). Requires `addNewOptionConfig` to be set.
+     * When `enabled`, shows a contextual "+ Create '[term]'" button inside the dropdown
+     * whenever the search term returns no results. Opens the entity's full create form
+     * (from `addNewOptionConfig`) pre-filled with the search term via `prefillField`.
+     * No manual field definitions — the entity's own form handles everything.
+     */
+    quickCreate?: IQuickCreateConfig;
 }
 
 /**
@@ -228,220 +229,130 @@ export const OptionSelector = ({
     fieldType, 
     addNewOption, 
     addNewOptionConfig,
+    quickCreate,
     onOptionChange, 
     value,
-    placeholder
+    placeholder,
+    dependencyFilters,
 }: IOptionSelector) => {
 
-    const { callApiMethod } = useApi()
-    const { resolveConfigRef } = useEntityConfig()
-    const { notifyError } = useAppContext()
+    const { resolveConfigRef } = useEntityConfig();
     const [ open, setOpen ] = useState(false);
-    const [ loading, setLoading ] = useState<boolean>(false);
-    
-    // Options state
-    const [ fieldOptions, setFieldOptions ] = useState<Array<IOptions>>(Array.isArray(options) ? options : []);
-    const [ cursor, setCursor ] = useState<string>('');
-    const [ hasMore, setHasMore ] = useState<boolean>(false);
-    
-    // Search state
-    const [ searchTerm, setSearchTerm ] = useState<string>('');
-    const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-    /**
-     * Fetch options from API - follows fw24 patterns
-     * @param config - API configuration
-     * @param search - Search term for remote search
-     * @param loadMore - Whether to append (load more) or replace options
-     */
-    const fetchFieldOptions = async (
-        config: IFieldOptionsAPIConfig, 
-        search: string = '',
-        loadMore: boolean = false
-    ): Promise<void> => {
-        setLoading(true);
-        try {
-            const count = config.count || 50;
-            const payload: Record<string, any> = { ...(config.filters || {}) };
-            
-            // fw24 patterns:
-            // - cursor: for pagination (like DynamoDB)
-            // - count: number of records
-            // - search: search query
-            if (loadMore && cursor) {
-                payload.cursor = cursor;
-            }
-            payload.count = count;
-            
-            if (config.disableSearch !== true && search) {
-                payload.search = search;
-            }
-            
-            const response = await callApiMethod({ 
-                apiUrl: config.apiUrl,
-                apiMethod: config.apiMethod,
-                payload
-            });
+    // Tracks what the user has typed in the search box — used for the contextual
+    // "+ Create '[term]'" quick-create UX when no results are found.
+    const [ searchTerm, setSearchTerm ] = useState('');
 
-            if (response.status === 200) {
-                const rawOptions = response.data[config.responseKey] as Array<any>;
-                
-                // Format options
-                let formattedOptions: Array<IOptions>;
-                if (!config.optionMapping) {
-                    formattedOptions = rawOptions;
-                } else {
-                    formattedOptions = rawOptions.map((option) => ({
-                        label: typeof config.optionMapping.label === 'string'
-                            ? option[config.optionMapping.label]
-                            : interpolateTemplate(config.optionMapping.label, option),
-                        value: typeof config.optionMapping.value === 'string'
-                            ? option[config.optionMapping.value]
-                            : interpolateTemplate(config.optionMapping.value, option),
-                    }));
-                }
+    const isApiConfig = isFieldOptionsAPIConfig(options);
+    const apiConfig = isApiConfig ? (options as IFieldOptionsAPIConfig) : null;
 
-                // Update state
-                let updatedOptions: Array<IOptions>;
-                if (loadMore) {
-                    // Merge with existing options
-                    const combined = [...fieldOptions, ...formattedOptions];
-                    
-                    // Deduplicate by value (use Map to keep last occurrence)
-                    const uniqueMap = new Map<string | number, IOptions>();
-                    combined.forEach(opt => uniqueMap.set(opt.value, opt));
-                    updatedOptions = Array.from(uniqueMap.values());
-                } else {
-                    updatedOptions = formattedOptions;
-                }
-                
-                // Sort all options by label (with safety checks)
-                updatedOptions.sort((a, b) => {
-                    const labelA = String(a.label || a.value || '').toLowerCase();
-                    const labelB = String(b.label || b.value || '').toLowerCase();
-                    return labelA.localeCompare(labelB);
-                });
-                
-                setFieldOptions(updatedOptions);
-                
-                // Check for more data (fw24 cursor pattern)
-                const nextCursor = (response.data as any)?.cursor;
-                setCursor(nextCursor || '');
-                setHasMore(!!nextCursor);
-            } else if (response.status >= 400) {
-                const errorResult = handleApiError(response, 'Failed to load options');
-                notifyError(errorResult.errorMessage);
-            }
-        } catch (error: any) {
-            const errorResult = handleApiError(error, 'Failed to load options');
-            notifyError(errorResult.errorMessage);
-        } finally {
-            setLoading(false);
-        }
+    if (!isApiConfig && !Array.isArray(options) && typeof options === 'object' && options !== null && 'entityName' in options) {
+        console.warn(
+            `[OptionSelector] Received unresolved RelationEntityOptionConfig for entity "${(options as any).entityName}". ` +
+            `This should have been resolved to FieldOptionsAPIConfig during config generation. ` +
+            `Check that the entity's service is registered and the relation is properly configured.`
+        );
     }
 
-    /**
-     * Initial fetch of options
-     */
-    const fetchOptions = async () => {
-        if (![ 'select', 'multi-select', 'checkbox', 'radio' ].includes(fieldType.toLowerCase())) {
-            return;
+    const optionsEntityName = useMemo(
+        () => apiConfig ? deriveEntityName(apiConfig.apiUrl) : 'static',
+        [ apiConfig ]
+    );
+
+    // Build mapOption callback for transforming raw API records → IOptions
+    const mapOption = useCallback((record: any): IOptions => {
+        if (!apiConfig?.optionMapping) {
+            // Assume record already has label/value
+            return record as IOptions;
         }
-        
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            setCursor('');
-            setSearchTerm('');
-            await fetchFieldOptions(options, '', false);
-        }
-    }
-    
+        const { label: labelMapping, value: valueMapping } = apiConfig.optionMapping;
+        return {
+            label: typeof labelMapping === 'string'
+                ? String(record[labelMapping] ?? '')
+                : interpolateTemplate(labelMapping, record),
+            value: typeof valueMapping === 'string'
+                ? record[valueMapping] ?? ''
+                : interpolateTemplate(valueMapping, record),
+        };
+    }, [ apiConfig?.optionMapping ]);
+
+    // Hook config for useFieldOptions — only meaningful when apiConfig exists
+    const hookApiConfig = useMemo(() => {
+        if (!apiConfig) return { apiMethod: 'GET' as const, apiUrl: '', responseKey: 'data' };
+        return {
+            apiMethod: apiConfig.apiMethod,
+            apiUrl: apiConfig.apiUrl,
+            responseKey: apiConfig.responseKey,
+            filters: apiConfig.filters,
+            count: apiConfig.count,
+            disableSearch: apiConfig.disableSearch,
+        };
+    }, [ apiConfig ]);
+
+    const isSelectLike = [ 'select', 'multi-select', 'checkbox', 'radio' ].includes(fieldType.toLowerCase());
+
+    const {
+        options: apiOptions,
+        hasMore,
+        isLoading,
+        isFetching,
+        loadMore,
+        search,
+        invalidateAll,
+    } = useInfiniteFieldOptions({
+        entityName: optionsEntityName,
+        fieldName: typeof apiConfig?.optionMapping?.value === 'string' ? apiConfig.optionMapping.value : '',
+        apiConfig: hookApiConfig,
+        dependencyFilters,
+        enabled: isApiConfig && isSelectLike,
+        mapOption: apiConfig?.optionMapping ? mapOption : undefined,
+        searchDebounce: apiConfig?.searchDebounce || 500,
+    });
+
+    // Final options: API-loaded (from hook) or static (from props)
+    const fieldOptions = isApiConfig ? apiOptions : (Array.isArray(options) ? options : []);
+    const loading = isLoading || isFetching;
+
+    // Check if API config has remote search enabled
+    const hasRemoteSearch = isApiConfig && apiConfig?.disableSearch !== true;
+
+    // Check if load more is enabled
+    const canLoadMore = isApiConfig && apiConfig?.disableLoadMore !== true;
+
     /**
-     * Handle search with debouncing for remote search
+     * Handle search: delegates to the hook's debounced search for remote,
+     * or Ant Design's filterOption for frontend search.
+     * Also tracks the raw search term locally for the quick-create UX.
      */
-    const handleSearch = (value: string) => {
+    const handleSearch = useCallback((value: string) => {
         setSearchTerm(value);
-        
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            const config = options as IFieldOptionsAPIConfig;
-            
-            // Remote search (debounced)
-            if (config.disableSearch !== true) {
-                // Clear previous timeout
-                if (searchTimeoutRef.current) {
-                    clearTimeout(searchTimeoutRef.current);
-                }
-                
-                // Set new timeout
-                const debounceMs = config.searchDebounce || 500;
-                searchTimeoutRef.current = setTimeout(async () => {
-                    setCursor('');
-                    await fetchFieldOptions(config, value, false);
-                }, debounceMs);
-            }
-            // Frontend search is handled by Ant Design's filterOption
+        if (hasRemoteSearch) {
+            search(value);
         }
-    }
-    
-    /**
-     * Load more options (fw24 cursor-based pagination)
-     */
-    const handleLoadMore = async () => {
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            const config = options as IFieldOptionsAPIConfig;
-            
-            if (config.disableLoadMore !== true && hasMore && !loading && cursor) {
-                await fetchFieldOptions(config, searchTerm, true);
-            }
-        }
-    }
-    
+        // Frontend search is handled by Ant Design's filterOption
+    }, [ hasRemoteSearch, search ]);
+
     /**
      * Frontend filter function for when remote search is not enabled
      */
-    const filterOption = (input: string, option?: IOptions) => {
+    const filterOption = useCallback((input: string, option?: IOptions) => {
         if (!option) return false;
-        
-        // If remote search is enabled, don't filter on frontend
-        if (typeof options === 'object' && isFieldOptionsAPIConfig(options)) {
-            const config = options as IFieldOptionsAPIConfig;
-            if (config.disableSearch !== true) {
-                return true; // Remote search handles filtering
-            }
-        }
-        
-        // Frontend filtering
-        const label = option.label?.toLowerCase() || '';
-        const value = String(option.value || '').toLowerCase();
-        const searchTerm = input.toLowerCase();
-        
-        return label.includes(searchTerm) || value.includes(searchTerm);
-    }
-    
-    /**
-     * Cleanup timeout on unmount
-     */
-    useEffect(() => {
-        return () => {
-            if (searchTimeoutRef.current) {
-                clearTimeout(searchTimeoutRef.current);
-            }
-        };
-    }, []);
 
-    /**
-     * Fetch options when component mounts or options config changes
-     */
-    useEffect(() => {
-        fetchOptions();
-    }, [ options ])
+        // If remote search is enabled, don't filter on frontend (backend handles it)
+        if (hasRemoteSearch) return true;
+
+        const label = option.label?.toLowerCase() || '';
+        const val = String(option.value || '').toLowerCase();
+        const term = input.toLowerCase();
+        return label.includes(term) || val.includes(term);
+    }, [ hasRemoteSearch ]);
 
     /**
      * Get modal config for "Add New Option" feature
      */
-    const getAddNewModalConfig = (): IModalConfig | null => {
+    const getAddNewModalConfig = useCallback((): IModalConfig | null => {
         if (addNewOptionConfig) {
-            // NEW: Resolve entity config reference
             const resolvedConfig = resolveConfigRef(addNewOptionConfig);
-            
+
             if (!resolvedConfig) {
                 console.warn(
                     `[OptionSelector] Failed to resolve config for addNewOption:`,
@@ -449,7 +360,7 @@ export const OptionSelector = ({
                 );
                 return null;
             }
-            
+
             if (!resolvedConfig.formPageConfig) {
                 console.warn(
                     `[OptionSelector] Resolved config missing formPageConfig:`,
@@ -458,42 +369,71 @@ export const OptionSelector = ({
                 );
                 return null;
             }
-            
+
             return {
                 modalType: 'form',
                 modalPageConfig: resolvedConfig.formPageConfig
             };
         } else if (addNewOption) {
-            // OLD: Use legacy IModalConfig directly (backward compatibility)
             return addNewOption;
         }
-        
+
         return null;
-    }
+    }, [ addNewOptionConfig, addNewOption, resolveConfigRef ]);
 
     // Check if add new option should be enabled
     const hasAddNewOption = !!(addNewOptionConfig || addNewOption);
-    
-    // Check if API config has remote search enabled
-    const hasRemoteSearch = typeof options === 'object' && 
-                            isFieldOptionsAPIConfig(options) && 
-                            options.disableSearch !== true;
-    
-    // Check if load more is enabled
-    const canLoadMore = typeof options === 'object' && 
-                        isFieldOptionsAPIConfig(options) && 
-                        options.disableLoadMore !== true;
-    
+
     /**
-     * Custom dropdown render with "Load More" button and "Add New" button
+     * Stable resolved modal config for the "Add Record" / quick-create flow.
+     * Memoised separately so it doesn't recompute on every keystroke.
      */
-    const customDropdownRender = (menu: React.ReactElement) => {
-        const modalConfig = getAddNewModalConfig();
-        
+    const addNewModalConfig = useMemo(
+        () => getAddNewModalConfig(),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [ addNewOptionConfig, addNewOption, resolveConfigRef ]
+    );
+
+    /**
+     * Modal config for the contextual quick-create button (#44).
+     * Derived from `addNewModalConfig` with:
+     *   - `initialValues` pre-filled with the current search term
+     *   - `containerType` set to 'drawer' when `quickCreate.openIn === 'drawer'`
+     *
+     * Null when quick-create is not active (no search term, no base config, not enabled).
+     */
+    const quickCreateModalConfig = useMemo((): IModalConfig | null => {
+        if (!quickCreate?.enabled || !searchTerm.trim() || !addNewModalConfig) return null;
+
+        // Determine which entity field to pre-fill.
+        // Prefer explicit `prefillField`; fall back to the label mapping field.
+        const labelField =
+            typeof apiConfig?.optionMapping?.label === 'string'
+                ? apiConfig.optionMapping.label
+                : undefined;
+        const prefillField = quickCreate.prefillField ?? labelField;
+
+        return {
+            ...addNewModalConfig,
+            ...(prefillField
+                ? { initialValues: { [prefillField]: searchTerm.trim() } }
+                : {}),
+            ...(quickCreate.openIn === 'drawer'
+                ? { containerType: 'drawer' as const }
+                : {}),
+        };
+    }, [ quickCreate, searchTerm, addNewModalConfig, apiConfig?.optionMapping ]);
+
+    /**
+     * Custom dropdown render with "Load More" and "Add Record" footer.
+     * The contextual quick-create button is rendered via `notFoundContent`
+     * so it appears inline where the "No results" message would normally be.
+     */
+    const customDropdownRender = useCallback((menu: React.ReactElement) => {
         return (
             <>
                 {menu}
-                
+
                 {/* Load More button for cursor-based pagination */}
                 {canLoadMore && hasMore && (
                     <>
@@ -501,23 +441,23 @@ export const OptionSelector = ({
                         <Button
                             type="link"
                             loading={loading}
-                            onClick={handleLoadMore}
+                            onClick={loadMore}
                             style={{ width: '100%', textAlign: 'center' }}
                         >
                             Load More
                         </Button>
                     </>
                 )}
-                
-                {/* Add New Record button */}
-                {hasAddNewOption && modalConfig && (
+
+                {/* Always-visible "Add Record" button — opens the entity's create form */}
+                {hasAddNewOption && addNewModalConfig && (
                     <>
                         <Divider style={{ margin: '8px 0' }} />
                         <Space style={{ padding: '0 8px 4px' }}>
                             <OpenInModal
                                 onOpenCallback={() => setOpen(false)}
-                                onSuccessCallback={() => { fetchOptions() }}
-                                {...modalConfig}
+                                onSuccessCallback={() => invalidateAll()}
+                                {...addNewModalConfig}
                                 useDynamicIdFromParams={false}
                             >
                                 <PlusOutlined /> Add Record
@@ -527,20 +467,50 @@ export const OptionSelector = ({
                 )}
             </>
         );
-    };
+    }, [ canLoadMore, hasMore, loading, loadMore, hasAddNewOption, addNewModalConfig, invalidateAll ]);
+
+    /**
+     * "No results" content for the dropdown.
+     * When quick-create is active and the user has typed a search term,
+     * replaces the plain "No options found" text with a contextual
+     * "+ Create '[term]'" button that opens the entity's create form
+     * pre-filled with the search term.
+     */
+    const notFoundContent = useMemo(() => {
+        if (loading) return 'Loading...';
+        if (quickCreate?.enabled && searchTerm.trim() && quickCreateModalConfig) {
+            return (
+                <div style={{ padding: '8px', textAlign: 'center' }}>
+                    <OpenInModal
+                        onOpenCallback={() => setOpen(false)}
+                        onSuccessCallback={() => { setSearchTerm(''); invalidateAll(); }}
+                        {...quickCreateModalConfig}
+                        useDynamicIdFromParams={false}
+                    >
+                        <Button type="dashed" size="small" icon={<PlusOutlined />}>
+                            Create &ldquo;{searchTerm.trim()}&rdquo;
+                        </Button>
+                    </OpenInModal>
+                </div>
+            );
+        }
+        return 'No options found';
+    }, [ loading, quickCreate?.enabled, searchTerm, quickCreateModalConfig, invalidateAll ]);
 
     return <>
         {fieldType === "checkbox" && (
             <Checkbox.Group 
                 value={[ value ]} 
                 options={fieldOptions} 
+                onChange={(checkedValues) => onOptionChange?.(checkedValues)}
             />
         )}
         
         {fieldType === "radio" && (
             <Radio.Group 
-                value={[ value ]} 
+                value={value} 
                 options={fieldOptions} 
+                onChange={(e) => onOptionChange?.(e.target.value)}
             />
         )}
         
@@ -551,12 +521,15 @@ export const OptionSelector = ({
                 showSearch
                 filterOption={filterOption}
                 onSearch={handleSearch}
-                onOpenChange={(visible) => setOpen(visible)} 
+                onOpenChange={(visible) => {
+                    setOpen(visible);
+                    if (!visible) setSearchTerm('');
+                }} 
                 open={open} 
                 options={fieldOptions}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
-                onChange={(value) => onOptionChange?.(value)}
-                notFoundContent={loading ? 'Loading...' : 'No options found'}
+                onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
+                notFoundContent={notFoundContent}
                 placeholder={placeholder || (hasRemoteSearch ? 'Type to search...' : 'Select an option')}
                 style={{ minWidth: 200, width: '100%' }}
                 popupMatchSelectWidth={false}
@@ -570,13 +543,16 @@ export const OptionSelector = ({
                 showSearch
                 filterOption={filterOption}
                 onSearch={handleSearch}
-                onOpenChange={(visible) => setOpen(visible)} 
+                onOpenChange={(visible) => {
+                    setOpen(visible);
+                    if (!visible) setSearchTerm('');
+                }} 
                 open={open} 
                 options={fieldOptions}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
-                onChange={(value) => onOptionChange?.(value)}
+                onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
                 mode='multiple'
-                notFoundContent={loading ? 'Loading...' : 'No options found'}
+                notFoundContent={notFoundContent}
                 placeholder={placeholder || (hasRemoteSearch ? 'Type to search...' : 'Select options')}
                 style={{ minWidth: 200, width: '100%' }}
                 popupMatchSelectWidth={false}

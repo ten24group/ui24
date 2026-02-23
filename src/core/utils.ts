@@ -98,6 +98,19 @@ export const truncateText = (text: string, maxLength: number = 100): string => {
 };
 
 /**
+ * Derive an entity name from an API URL for cache keying.
+ * Extracts the last non-parameter path segment (e.g., '/api/teams/:teamId' -> 'teams').
+ * Returns `entityName` directly if provided.
+ */
+export const deriveEntityName = (apiUrl?: string, entityName?: string): string => {
+  if (entityName) return entityName;
+  const url = apiUrl || '';
+  const parts = url.split('/').filter(Boolean);
+  const lastPart = parts[ parts.length - 1 ] || 'unknown';
+  return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
+};
+
+/**
  * Helper function to get nested property value using dot notation
  * @param obj - The object to search in
  * @param path - The dot-notation path (e.g., "stats.totalNbTasks")
@@ -168,6 +181,55 @@ export const substituteUrlParams = (
   }
 
   return url;
+};
+
+/**
+ * Extract placeholder parameter names from a URL pattern.
+ * Companion to substituteUrlParams — uses the same placeholder syntax.
+ *
+ * @example
+ * extractUrlParamNames('/admin/socialaccount/:id/health')        // ['id']
+ * extractUrlParamNames('/admin/:teamId/posts/:postId')           // ['teamId', 'postId']
+ * extractUrlParamNames('/api/:entityName?status=:status')        // ['entityName', 'status']
+ * extractUrlParamNames('/admin/:indexInfo.uid')                  // ['indexInfo.uid']
+ */
+export const extractUrlParamNames = (urlPattern: string): string[] => {
+  const names: string[] = [];
+  const re = /(^|[/=]):([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z0-9_]+)*)/g;
+  let match;
+  while ((match = re.exec(urlPattern)) !== null) {
+    names.push(match[ 2 ]);
+  }
+  return names;
+};
+
+/**
+ * Build a stable cache-key object from only the identifier and params referenced in a URL pattern.
+ * Prevents query-key instability when routeParams contains extra data (e.g., record fields merged
+ * by DetailPage for template resolution) that would otherwise change the TanStack Query key on
+ * every fetch response and cause an infinite refetch loop.
+ */
+export const buildCacheIdentifiers = (
+  urlPattern: string | undefined,
+  routeParams: Record<string, any>,
+  identifier?: string | number
+): Record<string, string> => {
+  const ids: Record<string, string> = {};
+  if (identifier) ids.id = String(identifier);
+
+  if (urlPattern && routeParams) {
+    for (const paramName of extractUrlParamNames(urlPattern)) {
+      let value = routeParams[ paramName ];
+      if (value === undefined && paramName.includes('.')) {
+        value = getNestedValue(routeParams, paramName);
+      }
+      if (value !== undefined && typeof value !== 'object') {
+        ids[ paramName ] = String(value);
+      }
+    }
+  }
+
+  return ids;
 };
 
 export const formatKey = (key: string): string => {

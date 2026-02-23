@@ -1,13 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useLayoutEffect } from 'react';
 import { PageHeader, IPageHeader } from './PageHeader/PageHeader';
 import { IForm } from '../../core/forms/formConfig';
 import "./PostAuthPage.css";
 import { FormPage } from '../wrappers/FormPage';
 import { TablePage } from '../wrappers/TablePage';
 import { DetailPage } from '../wrappers/DetailPage';
+import { KanbanPage, IKanbanPageConfig } from '../wrappers/KanbanPage';
+import { TreePage, ITreePageConfig } from '../wrappers/TreePage';
+import { CalendarPage, ICalendarPageConfig } from '../wrappers/CalendarPage';
+import { MapPage, IMapPageConfig } from '../wrappers/MapPage';
 import { Accordion } from './Accordion/Accordion';
 import { ITableConfig } from '../../table/type';
-import { IDetailsConfig } from '../../detail/Details';
+import type { IDetailsConfig } from '../../core/types/field-config';
 import { DashboardPage, IDashboardPageConfig } from './DashboardPage';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../../core/common';
@@ -26,6 +30,7 @@ import {
 import { Alert } from 'antd';
 import { useResolve } from '../../core/hooks/useResolve';
 import type { Condition } from '../../core/types/evaluation';
+import { usePageSpan } from '../../core/telemetry';
 
 export type IPageType = PageStaticContextValue[ 'pageType' ];
 
@@ -51,6 +56,14 @@ export interface IRenderFromPageType extends IPageHeader {
   customPageConfig?: ICustomPageConfig;
   /** Wizard page configuration (when pageType='wizard') */
   wizardPageConfig?: IWizardPageConfig;
+  /** Kanban board configuration (when pageType='kanban') */
+  kanbanPageConfig?: IKanbanPageConfig;
+  /** Hierarchical tree configuration (when pageType='tree') */
+  treePageConfig?: ITreePageConfig;
+  /** Calendar / event view configuration (when pageType='calendar') */
+  calendarPageConfig?: ICalendarPageConfig;
+  /** Map / geo view configuration (when pageType='map') */
+  mapPageConfig?: IMapPageConfig;
   /** Current nesting depth (for recursive sections) */
   depth?: number;
   /** Condition for conditional visibility of this page/section/accordion panel */
@@ -87,6 +100,55 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuth
   // Only render PageHeader here for accordion/dashboard/custom pages.
   const shouldRenderPageHeaderHere = props.pageType === 'accordion' || props.pageType === 'dashboard' || props.pageType === 'custom';
 
+  // Compute page span metadata
+  const entityName = props.formPageConfig?.entityName ||
+    props.listPageConfig?.entityName ||
+    props.detailsPageConfig?.entityName;
+  const pageType = props.pageType || 'custom';
+  const entityLabel = entityName || 'Unknown';
+  const pageTypeLabel = pageType === 'list' ? 'List' :
+                       pageType === 'details' ? 'Detail' :
+                       pageType === 'form' ? 'Form' :
+                       pageType === 'dashboard' ? 'Dashboard' :
+                       'Page';
+
+  // Page mount span - automatically managed by hook with Strict Mode handling
+  usePageSpan({
+    pageKey: `${pageType}|${entityName || 'none'}`,
+    spanName: `Page: ${entityLabel} ${pageTypeLabel}`,
+    attributes: {
+      'page.type': pageType,
+      'page.entity': entityLabel,
+    }
+  });
+
+  // Wrap content in span context for propagation
+  const renderContent = () => {
+    const content = (
+      <div style={{ paddingTop: "1%" }}>
+        <div className="PostAuthContainer">
+          {/* Only render PageHeader for pages that don't have wrappers */}
+          {shouldRenderPageHeaderHere && (CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />)}
+
+          <div className="PageContent">
+            {children && children}
+            {!children && (
+              <ErrorBoundary
+                FallbackComponent={ErrorFallback}
+                onReset={() => { }}
+              >
+                <RenderFromPageType {...props} />
+              </ErrorBoundary>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+
+    // REMOVED: SpanContextProvider wrapping to improve performance
+    return content;
+  };
+
   return (
     <PageStaticProvider
       pageType={props.pageType || 'custom'}
@@ -95,45 +157,15 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuth
     >
       {/* PageDataProvider kept for backward compatibility with Accordion/Dashboard */}
       <PageDataProvider localData={{}}>
-        <div style={{ paddingTop: "1%" }}>
-          <div className="PostAuthContainer">
-            {/* Only render PageHeader for pages that don't have wrappers */}
-            {shouldRenderPageHeaderHere && (CustomPageHeader ? CustomPageHeader : <PageHeader {...props} />)}
-
-            <div className="PageContent">
-              {children && children}
-              {!children && (
-                <ErrorBoundary
-                  FallbackComponent={ErrorFallback}
-                  onReset={() => {
-                    console.log("PostAuthPage ErrorBoundary Reset");
-                  }}
-                >
-                  <RenderFromPageType {...props} />
-                </ErrorBoundary>
-              )}
-            </div>
-          </div>
-        </div>
+        {renderContent()}
       </PageDataProvider>
     </PageStaticProvider>
   );
 }
 
-interface IRenderFromPageTypeProps extends IRenderFromPageType {
-  pageType?: IPageType;
-  cardStyle?: React.CSSProperties;
-  accordionsPageConfig?: Readonly<{ [ key: string ]: IRenderFromPageType }>;
-  formPageConfig?: IForm;
-  listPageConfig?: ITableConfig;
-  detailsPageConfig?: IDetailsConfig;
-  identifiers?: string | number;
-  routeParams?: IRouteParams;
-  dashboardPageConfig?: IDashboardPageConfig;
-  customPageConfig?: ICustomPageConfig;
-  wizardPageConfig?: IWizardPageConfig;
-  depth?: number;
-}
+// IRenderFromPageTypeProps extends the public interface — no extra props needed
+// since kanban/tree/calendar/map configs are now on IRenderFromPageType.
+type IRenderFromPageTypeProps = IRenderFromPageType;
 
 /**
  * Determine the overridable page type from the current page type.
@@ -179,6 +211,10 @@ export const RenderFromPageType = ({
   dashboardPageConfig,
   customPageConfig,
   wizardPageConfig,
+  kanbanPageConfig,
+  treePageConfig,
+  calendarPageConfig,
+  mapPageConfig,
   depth = 0,
   // PageHeader props from parent
   pageHeaderActions,
@@ -274,9 +310,7 @@ export const RenderFromPageType = ({
     return (
       <ErrorBoundary
         FallbackComponent={ErrorFallback}
-        onReset={() => {
-          console.log(`[RenderFromPageType] Entity override error boundary reset: ${entityName}`);
-        }}
+        onReset={() => { }}
       >
         <Component {...props} />
       </ErrorBoundary>
@@ -289,9 +323,7 @@ export const RenderFromPageType = ({
     return (
       <ErrorBoundary
         FallbackComponent={ErrorFallback}
-        onReset={() => {
-          console.log(`[RenderFromPageType] Extension page error boundary reset: ${resolvedPageType}`);
-        }}
+        onReset={() => { }}
       >
         <Component {...props} />
       </ErrorBoundary>
@@ -369,6 +401,50 @@ export const RenderFromPageType = ({
         />
       );
     }
+    case "kanban": return kanbanPageConfig ? (
+      <KanbanPage
+        {...kanbanPageConfig}
+        routeParams={routeParams}
+        cardStyle={cardStyle}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        key={`kanban-${stableKey}`}
+      />
+    ) : <Alert type="error" message="kanbanPageConfig is required for pageType='kanban'" />;
+    case "tree": return treePageConfig ? (
+      <TreePage
+        {...treePageConfig}
+        routeParams={routeParams}
+        cardStyle={cardStyle}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        key={`tree-${stableKey}`}
+      />
+    ) : <Alert type="error" message="treePageConfig is required for pageType='tree'" />;
+    case "calendar": return calendarPageConfig ? (
+      <CalendarPage
+        {...calendarPageConfig}
+        routeParams={routeParams}
+        cardStyle={cardStyle}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        key={`calendar-${stableKey}`}
+      />
+    ) : <Alert type="error" message="calendarPageConfig is required for pageType='calendar'" />;
+    case "map": return mapPageConfig ? (
+      <MapPage
+        {...mapPageConfig}
+        routeParams={routeParams}
+        cardStyle={cardStyle}
+        pageHeaderActions={pageHeaderActions}
+        pageTitle={pageTitle}
+        breadcrumbs={breadcrumbs}
+        key={`map-${stableKey}`}
+      />
+    ) : <Alert type="error" message="mapPageConfig is required for pageType='map'" />;
     default: return <>Invalid Page Type: {resolvedPageType}</>;
   }
 }

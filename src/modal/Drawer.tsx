@@ -27,11 +27,12 @@ import { IApiConfig, ModalContextProvider } from '../core/context';
 import { RenderFromPageType, IPageType } from '../pages/PostAuth/PostAuthPage';
 import { IForm } from '../core/forms/formConfig';
 import { ITableConfig } from '../table/type';
-import { IDetailsConfig } from '../detail/Details';
+import type { IDetailsConfig } from '../core/types/field-config';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { type IWizardPageConfig } from '../core/common/FormWizard';
 import { Template } from '../core/types';
+import type { ConditionalValue } from '../core/types/evaluation';
 import { evaluateTemplateValue } from '../core/utils/template';
 import { Link } from '../core/common';
 import { INavigateToConfig, IResponseDisplayConfig } from './Modal';
@@ -86,7 +87,8 @@ export interface IActionDrawerConfig extends IDrawerConfig {
 
   /** EITHER: Make API call */
   apiConfig?: IApiConfig;
-  submitSuccessRedirect?: string;
+  /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
+  submitSuccessRedirect?: string | ConditionalValue<string>;
   submitSuccessRedirectOptions?: {
     replace?: boolean;
     state?: unknown;
@@ -187,7 +189,6 @@ const DrawerContent = ({
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
       onReset={() => {
-        console.log('[Drawer] ErrorBoundary Reset');
         onClose?.();
       }}
     >

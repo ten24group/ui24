@@ -213,14 +213,35 @@ export function isConditionalValue<T>(value: T | ConditionalValue<T>): value is 
  * that may be a ConditionalValue. For proper condition-based resolution,
  * use `useResolve` or `useResolveBatch` hooks at the parent component level.
  */
+/**
+ * Optional i18n resolver injected at startup by configure().
+ * Avoids circular dependencies — set via setI18nResolver().
+ */
+let _i18nResolver: ((key: string) => string) | undefined;
+
+export function setI18nResolver(resolver: (key: string) => string): void {
+  _i18nResolver = resolver;
+}
+
 export function resolveStringOrDefault(
   value: string | ConditionalValue<string> | undefined | null,
   fallback: string = ''
 ): string {
   if (value === null || value === undefined) return fallback;
-  if (typeof value === 'string') return value;
-  if (isConditionalValue<string>(value)) return value.default;
-  return fallback;
+  let resolved: string;
+  if (typeof value === 'string') {
+    resolved = value;
+  } else if (isConditionalValue<string>(value)) {
+    resolved = value.default;
+  } else {
+    return fallback;
+  }
+  // i18n resolution (#22): resolve 'i18n:' prefixed strings via the global provider
+  if (resolved.startsWith('i18n:')) {
+    const key = resolved.slice(5);
+    return _i18nResolver ? _i18nResolver(key) : key;
+  }
+  return resolved;
 }
 
 /**

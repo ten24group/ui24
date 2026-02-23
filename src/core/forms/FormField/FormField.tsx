@@ -1,17 +1,16 @@
 import React from 'react';
-import { Button, Card, Form, Input, DatePicker, TimePicker, Typography, Switch, InputNumber, Slider, Badge, Tag, Progress, Avatar, Rate, Tooltip } from 'antd';
+import { Button, Card, Form, Input, Tooltip } from 'antd';
 import { CloseOutlined } from '@ant-design/icons';
-import { OptionSelector, IOptions } from './OptionSelector';
 import { useUi24Config } from '../../context';
-import { CustomColorPicker } from '../../common/CustomColorPicker';
-import { FileUploader, CustomBlockNoteEditor } from '../../common/';
-import { CodeEditor } from '../../common/CodeEditor';
-import { MarkdownPreview } from '../../common/MarkdownPreview';
-import { HelpText, LabelAndHelpText } from './components';
+import { resolveHelpConfig, HelpText, HelpIcon, LabelAndHelpText } from './components';
 import { formStyles } from './styles';
-import { IFormField, IFormFieldResponse, IPreDefinedValidations, IOptions as IFieldOptions } from '../../types/field-config';
+import { IFormField, IFormFieldResponse, IPreDefinedValidations } from '../../types/field-config';
 import { useFieldRenderer, type FormFieldConfig } from '../../registry';
 import { resolveStringOrDefault } from '../../types/evaluation';
+import { fieldTypeRegistry } from '../../registry/FieldTypeRegistry';
+import { useRenderPipeline } from '../../rendering';
+import '../../registry/field-types'; // ensure built-in registrations run
+import type { BuiltInFormFieldProps } from '../../registry/field-types/types';
 
 /**
  * Internal form field props type where ConditionalValue fields have been resolved to strings.
@@ -25,40 +24,6 @@ type ResolvedFormField = Omit<IFormField, 'label' | 'placeholder' | 'helpText' |
     renderer?: string;
 };
 
-const { TextArea } = Input;
-const { Text } = Typography;
-
-/**
- * Wrapper component for CodeEditor to properly integrate with Ant Design Form.Item
- * 
- * Form.Item expects child components to accept `value` and `onChange` props.
- * This wrapper ensures the string value from CodeEditor is properly passed to Form.Item.
- */
-interface CodeEditorFormControlProps {
-    value?: string;
-    onChange?: (value: string) => void;
-    language?: 'json' | 'html' | 'javascript' | 'handlebars' | 'text' | 'markdown';
-    height?: number;
-    readOnly?: boolean;
-    darkTheme?: boolean;
-    placeholder?: string;
-    lineNumbers?: boolean;
-    validateJson?: boolean;
-}
-
-const CodeEditorFormControl: React.FC<CodeEditorFormControlProps> = ({
-    value,
-    onChange,
-    ...restProps
-}) => {
-    return (
-        <CodeEditor
-            value={value || ''}
-            onChange={onChange}
-            {...restProps}
-        />
-    );
-};
 
 const MakeFormItem = ({
     fieldType = "text",
@@ -74,10 +39,67 @@ const MakeFormItem = ({
     initialValue,
     setFormValue,
     addNewOption,
+    defaultValue: _defaultValue, // extract to prevent leaking into Form.Item children (antd warns about defaultValue on controlled fields)
+    dependsOn,
     ...restFormItemProps
 }: ResolvedFormField) => {
 
     const { selectConfig } = useUi24Config();
+
+    // #3 Field dependency resolution: watch fields listed in `dependsOn`
+    // and build `dependencyFilters` passed to OptionSelector for cascading selects
+    const form = Form.useFormInstance();
+
+    // Rendering pipeline (#95) — unified renderer selection + smart defaults + formatting
+    // Pass actual form values as the record context so formatting conditions can evaluate
+    const { processField } = useRenderPipeline({ renderContext: 'form' });
+    const formValues = form?.getFieldsValue(true) || {};
+    const fieldConfig = { fieldType, name, label, placeholder, helpText, ...restFormItemProps };
+    const pipelineResult = processField(fieldConfig, initialValue, formValues);
+    const dependencyFilters = React.useMemo(() => {
+        if (!dependsOn || !form) return undefined;
+        const deps = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
+        const filters: Record<string, unknown> = {};
+        let hasValue = false;
+        for (const dep of deps) {
+            const val = form.getFieldValue(dep);
+            if (val !== undefined && val !== null && val !== '') {
+                filters[dep] = val;
+                hasValue = true;
+            }
+        }
+        return hasValue ? filters : undefined;
+    }, [dependsOn, form]);
+
+    // Force re-render when dependency fields change by watching all form values
+    // (antd's Form.useWatch with no specific field watches all values)
+    const watchedDeps = Form.useWatch(
+        dependsOn
+            ? (values: Record<string, unknown>) => {
+                const deps = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
+                return deps.map(d => values?.[d]);
+              }
+            : () => null,
+        form
+    );
+
+    // Clear this field's value when parent dependency value changes (#3)
+    const prevDepsRef = React.useRef<unknown[] | null>(null);
+    React.useEffect(() => {
+        if (!dependsOn || !form || !watchedDeps) return;
+        // Skip first render (don't clear on mount)
+        if (prevDepsRef.current === null) {
+            prevDepsRef.current = watchedDeps;
+            return;
+        }
+        // Check if any dependency value actually changed
+        const changed = watchedDeps.some((v: unknown, i: number) => v !== prevDepsRef.current?.[i]);
+        if (changed) {
+            form.setFieldValue(name, undefined);
+            prevDepsRef.current = watchedDeps;
+        }
+    }, [watchedDeps, dependsOn, form, name]);
+
     const formatConfig = selectConfig(config => config.formatConfig);
     const { Component: CustomFieldRenderer, props: customFieldProps } = useFieldRenderer('' + (fieldType || ''), 'form', {
         fieldName: name,
@@ -90,200 +112,83 @@ const MakeFormItem = ({
         config: { ...restFormItemProps, name, fieldType, label } as Readonly<FormFieldConfig>
     });
 
+    // Normalize legacy helpText into unified IHelpConfig
+    const help = resolveHelpConfig({ helpText, help: restFormItemProps.help });
+
+    // Build label with optional help icon for tooltip/popover placement
+    const labelWithHelp = help?.placement && help.placement !== 'below'
+        ? <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}<HelpIcon help={help} /></span>
+        : label;
+
+    // Apply formatting metadata from pipeline (#95/#26)
+    const { _formattingStyles, _formattingClassName, _registryDefaults } = pipelineResult.resolvedProps;
+
     if (CustomFieldRenderer && customFieldProps) {
-        return <>
+        const customContent = <>
             <Form.Item
                 name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
                 rules={validationRules}
-                label={label}
+                label={labelWithHelp}
                 style={style}
                 valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
             >
                 <CustomFieldRenderer {...customFieldProps} />
             </Form.Item>
-            <HelpText helpText={helpText} />
+            <HelpText help={help} />
         </>;
+        // Apply formatting if present
+        if (_formattingStyles || _formattingClassName) {
+            return <div style={_formattingStyles} className={_formattingClassName}>{customContent}</div>;
+        }
+        return customContent;
     }
 
-    // Built-in field types
-    return <>
+    // Built-in field types — lookup from registry (properly typed)
+    const BuiltInRenderer = fieldTypeRegistry.get(fieldType || 'text', 'form');
+
+    // Merge smart defaults from pipeline (#95/#98): defaults < entity config < explicit props
+    const smartDefaults = _registryDefaults ?? fieldTypeRegistry.getDefaults(fieldType || 'text', 'form');
+
+    const builtInProps: BuiltInFormFieldProps = {
+        ...(smartDefaults || {}),
+        fieldType,
+        name,
+        placeholder,
+        prefixIcon,
+        initialValue,
+        options,
+        addNewOption,
+        setFormValue,
+        formatConfig,
+        label,
+        helpText,
+        ...restFormItemProps,
+        dependencyFilters,
+    };
+
+    const formItemContent = <>
         <Form.Item
             name={namePrefixPath?.length ? [ ...namePrefixPath, name ] : name}
             rules={validationRules}
-            label={label}
+            label={labelWithHelp}
             style={style}
             valuePropName={[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) ? "checked" : "value"}
         >
-
-            {fieldType === "text" && <Input type={fieldType || "text"} prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "textarea" && <TextArea placeholder={placeholder} />}
-            {fieldType === "password" && <Input.Password type={fieldType || "password"} prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "email" && <Input type={fieldType || "email"} prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "url" && <Input type="url" prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "phone" && <Input type="tel" prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "number" && <Input type="number" prefix={prefixIcon} placeholder={placeholder} />}
-            {fieldType === "currency" && <InputNumber
-                prefix={restFormItemProps.currencySymbol || '$'}
-                placeholder={placeholder}
-                style={{ width: '100%' }}
-                precision={restFormItemProps.precision || 2}
-            />}
-            {fieldType === "percentage" && <InputNumber
-                min={restFormItemProps.min || 0}
-                max={restFormItemProps.max || 100}
-                formatter={(value) => `${value}%`}
-                parser={(value) => {
-                    const parsed = value?.replace('%', '');
-                    return parsed ? Number(parsed) : 0;
-                }}
-                placeholder={placeholder}
-                style={{ width: '100%' }}
-            />}
-            {fieldType === "slider" && <Slider
-                min={restFormItemProps.min || 0}
-                max={restFormItemProps.max || 100}
-                step={restFormItemProps.step || 1}
-                marks={restFormItemProps.marks}
-                vertical={restFormItemProps.vertical}
-            />}
-            {fieldType === "duration" && <InputNumber
-                placeholder="Duration in seconds"
-                style={{ width: '100%' }}
-                min={0}
-            />}
-            {fieldType === "autocomplete" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} onOptionChange={(newSelections) => {
-                setFormValue && setFormValue({ name, value: newSelections })
-            }} />}
-
-            {fieldType === "checkbox" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
-            {fieldType === "radio" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} />}
-            {fieldType === "select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} addNewOptionConfig={restFormItemProps.addNewOptionConfig} onOptionChange={(newSelections) => {
-                setFormValue && setFormValue({ name, value: newSelections })
-            }} />}
-            {fieldType === "multi-select" && <OptionSelector value={initialValue} fieldType={fieldType} options={options} addNewOption={addNewOption} addNewOptionConfig={restFormItemProps.addNewOptionConfig} onOptionChange={(newSelections) => {
-                setFormValue && setFormValue({ name, value: newSelections })
-            }} />}
-
-            {fieldType === 'color' && <CustomColorPicker format="hex" showText />}
-            {fieldType === 'range' && <Input type="range" placeholder={placeholder} />}
-            {fieldType === 'hidden' && <Input type="hidden" />}
-            {fieldType === 'custom' && <Input placeholder={placeholder} />}
-            {fieldType === 'rating' && <Rate allowHalf />}
-
-            {/* New field types */}
-            {fieldType === 'badge' && <Input placeholder={placeholder} addonAfter={<Badge status={restFormItemProps.status || 'default'} />} />}
-            {fieldType === 'tag' && <Input placeholder={placeholder} />}
-            {fieldType === 'tags' && <OptionSelector
-                value={initialValue}
-                fieldType="multi-select"
-                options={options}
-                onOptionChange={(newSelections) => {
-                    setFormValue && setFormValue({ name, value: newSelections })
-                }}
-            />}
-            {fieldType === 'progress' && <InputNumber
-                min={restFormItemProps.min || 0}
-                max={restFormItemProps.max || 100}
-                formatter={(value) => `${value}%`}
-                parser={(value) => {
-                    const parsed = value?.replace('%', '');
-                    return parsed ? Number(parsed) : 0;
-                }}
-                placeholder={placeholder}
-                style={{ width: '100%' }}
-            />}
-            {fieldType === 'avatar' && <FileUploader
-                accept="image/*"
-                listType="picture-card"
-                withImageCrop={true}
-                fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'avatar-'}
-                getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
-            />}
-            {fieldType === 'icon' && <OptionSelector
-                value={initialValue}
-                fieldType="select"
-                options={options}
-                placeholder="Select icon"
-            />}
-            {fieldType === 'link' && <Input type="url" prefix={prefixIcon} placeholder={placeholder || "Enter URL"} />}
-            {fieldType === 'video' && <FileUploader
-                accept={restFormItemProps.accept ?? 'video/*'}
-                listType="picture-card"
-                fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'video-'}
-                getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
-            />}
-            {fieldType === 'audio' && <FileUploader
-                accept={restFormItemProps.accept ?? 'audio/*'}
-                listType="text"
-                fileNamePrefix={restFormItemProps.fileNamePrefix ?? 'audio-'}
-                getSignedUploadUrlAPIConfig={restFormItemProps.getSignedUploadUrlAPIConfig}
-            />}
-            {fieldType === 'qrcode' && <Input placeholder={placeholder || "Enter value for QR code"} />}
-
-            {fieldType === "date" && <DatePicker format={formatConfig.date} />}
-            {fieldType === "datetime" && <DatePicker format={formatConfig.datetime} showTime />}
-            {fieldType === "time" && <TimePicker format={formatConfig.time} />}
-
-            {fieldType === "file" &&
-                <FileUploader
-                    accept={restFormItemProps[ 'accept' ] ?? undefined}
-                    listType={(restFormItemProps[ 'listType' ] as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
-                    // config for the default image uploader
-                    fileNamePrefix={restFormItemProps[ 'fileNamePrefix' ] ?? undefined}
-                    getSignedUploadUrlAPIConfig={restFormItemProps[ 'getSignedUploadUrlAPIConfig' ] ?? undefined}
-                />
+            {BuiltInRenderer
+                ? <BuiltInRenderer {...builtInProps} />
+                : <Input type="text" prefix={prefixIcon} placeholder={placeholder} />
             }
-
-            {fieldType === "image" &&
-                <FileUploader
-                    accept={restFormItemProps[ 'accept' ] ?? 'image/*'}
-                    listType={(restFormItemProps[ 'listType' ] as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
-                    withImageCrop={restFormItemProps[ 'withImageCrop' ] ?? true}
-
-                    // config for the default image uploader
-                    fileNamePrefix={restFormItemProps[ 'fileNamePrefix' ] ?? undefined}
-                    getSignedUploadUrlAPIConfig={restFormItemProps[ 'getSignedUploadUrlAPIConfig' ] ?? undefined}
-                />
-            }
-
-            {[ 'boolean', 'toggle', 'switch' ].includes(fieldType.toLocaleLowerCase()) && <Switch />}
-
-            {[ 'rich-text', 'wysiwyg' ].includes(fieldType.toLocaleLowerCase()) &&
-                <CustomBlockNoteEditor
-
-                    theme={restFormItemProps[ 'theme' ] ?? undefined}
-                    readOnly={restFormItemProps[ 'readOnly' ] ?? undefined}
-
-                    // config for the default image uploader
-                    fileNamePrefix={restFormItemProps[ 'fileNamePrefix' ] ?? undefined}
-                    getSignedUploadUrlAPIConfig={restFormItemProps[ 'getSignedUploadUrlAPIConfig' ] ?? undefined}
-
-                    // custom uploader function
-                    uploadFile={restFormItemProps[ 'uploadFile' ] ?? undefined}
-                />
-            }
-
-            {fieldType.toLocaleLowerCase() === 'markdown' && restFormItemProps[ 'readOnly' ] ? (
-                // Markdown in read-only mode: show preview
-                <MarkdownPreview />
-            ) : [ 'code', 'markdown', 'json' ].includes(fieldType.toLocaleLowerCase()) ? (
-                // Code/Markdown/JSON in edit mode: show editor
-                <CodeEditorFormControl
-                    language={fieldType.toLocaleLowerCase() === 'code' ? (restFormItemProps[ 'codeLanguage' ] || 'text') : fieldType.toLocaleLowerCase() as 'json' | 'markdown'}
-                    height={restFormItemProps[ 'height' ] ?? 300}
-                    readOnly={restFormItemProps[ 'readOnly' ] ?? false}
-                    darkTheme={restFormItemProps[ 'darkTheme' ] ?? false}
-                    placeholder={placeholder}
-                    lineNumbers={restFormItemProps[ 'lineNumbers' ] ?? true}
-                    validateJson={restFormItemProps[ 'validateJson' ] ?? true}
-                />
-            ) : null}
         </Form.Item>
-        <HelpText helpText={helpText} />
-    </>
+        <HelpText help={help} />
+    </>;
+
+    // Wrap with formatting styles/className if pipeline produced them
+    if (_formattingStyles || _formattingClassName) {
+        return <div style={_formattingStyles} className={_formattingClassName}>{formItemContent}</div>;
+    }
+
+    return formItemContent;
 }
-
-
 
 const MakeFormListItem = ({
     name,
@@ -294,9 +199,11 @@ const MakeFormListItem = ({
     items,
     setFormValue,
     helpText,
+    help: helpProp,
 }: ResolvedFormField) => {
     const parentFieldName = name;
     const fieldName = namePrefixPath?.length ? [ ...namePrefixPath, name ] : name;
+    const help = resolveHelpConfig({ helpText, help: helpProp });
 
     // Convert Form.List rules to Form.Item compatible validator
     // Form.List rules expect { validator } format, but Form.Item needs standard rules
@@ -317,7 +224,7 @@ const MakeFormListItem = ({
 
     // For complex list items (list of objects), use the card-based approach
     return <>
-        {label && <LabelAndHelpText label={label} helpText={helpText} />}
+        {label && <LabelAndHelpText label={label} help={help} />}
         {/* Wrap Form.List in Form.Item for proper validation display */}
         <Form.Item
             name={fieldName}
@@ -337,7 +244,7 @@ const MakeFormListItem = ({
                                 {/* for complex list items (list of objects) */}
                                 {items.properties && items.properties.length > 0 &&
                                     items.properties.map((property: any) => {
-                                        return <RenderFormField {...property} namePrefixPath={[ field.name ]}
+                                        return <RenderFormField key={property.name || property.column} {...property} namePrefixPath={[ field.name ]}
                                             setFormValue={({ name, value }) => {
                                                 setFormValue({ name: parentFieldName, value: { [ name ]: value }, index: field.name })
                                             }}
@@ -376,12 +283,14 @@ const MakeFormMapItem = ({
     properties,
     setFormValue,
     helpText,
+    help: helpProp,
 }: ResolvedFormField) => {
     const parentFieldName = name;
+    const help = resolveHelpConfig({ helpText, help: helpProp });
 
     return <>
-        {label && <LabelAndHelpText label={label} helpText={helpText} />}
-        <Card size="small" style={{ backgroundColor: "#8080801c" }} >
+        {label && <LabelAndHelpText label={label} help={help} />}
+        <Card size="small" style={{ backgroundColor: "var(--ant-color-fill-secondary, rgba(0, 0, 0, 0.06))" }} >
             <div style={formStyles.mapCardContainer}>
                 {properties?.map((property: IFormField, index: number) => (
                     <div key={property.name || index} style={formStyles.mapItemContainer}>

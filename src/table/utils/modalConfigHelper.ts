@@ -2,7 +2,7 @@
  * Helper utilities for creating modal configurations in table renderers
  */
 
-import { IDetailsConfig } from "../../detail/Details";
+import type { IDetailsConfig } from "../../core/types/field-config";
 import { ITablePropertiesConfig } from "../type";
 import { PropertyType, FieldType } from "../../core/types/field-types";
 
@@ -31,7 +31,7 @@ export const createModalConfig = (
       ...(type && { type }),
       column: dataKey
     }],
-    detailResponse: { [dataKey]: text }
+    dataSource: { [dataKey]: text }
   };
 };
 

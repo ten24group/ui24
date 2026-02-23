@@ -6,6 +6,8 @@
  */
 import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode } from 'react';
+import { useDevToolsReport } from '../devtools/store/snapshot';
+import { useEntityName } from './PageStaticContext';
 
 export interface DetailStateContextValue {
   record: any | null;
@@ -21,6 +23,9 @@ export const DetailStateProvider = ({
   children: ReactNode;
   value: DetailStateContextValue;
 }) => {
+  const entityName = useEntityName();
+  useDevToolsReport('detail', entityName ? `Detail: ${entityName}` : 'Detail', value);
+
   return (
     <DetailStateContext.Provider value={value}>
       {children}
@@ -44,4 +49,3 @@ export const useDetailRecordField = (fieldName: string) =>
 // Full context (use in evaluation system)
 export const useDetailStateContext = () =>
   useContextSelector(DetailStateContext, state => state);
-

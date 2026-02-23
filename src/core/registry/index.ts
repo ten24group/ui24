@@ -2,9 +2,15 @@
  * Extension Registry Module
  * 
  * Central extensibility system for UI24.
+ * 
+ * Resolution order for field renderers:
+ * 1. ExtensionRegistry — custom renderers (explicit, conditional, entity-field, field-type override, custom)
+ * 2. FieldTypeRegistry — built-in renderers (registered from field-types/ files at startup)
+ * 3. Consumer fallback (e.g. default text input)
  */
 
 export { ExtensionRegistry } from './ExtensionRegistry';
+export { fieldTypeRegistry, type FieldTypeRegistration } from './FieldTypeRegistry';
 export { useResolverContext, buildResolverContext } from './useResolverContext';
 export type { UseResolverContextOptions } from './useResolverContext';
 
@@ -75,3 +81,13 @@ export type {
   RegistrationInfo,
   RegistrationCategory,
 } from './types';
+
+// Built-in field type registry types
+export type {
+  BuiltInFormFieldProps,
+  BuiltInDetailFieldProps,
+  BuiltInTableFieldProps,
+} from './field-types/types';
+
+// Ensure built-in registrations run on import
+export { registerBuiltInFieldTypes } from './field-types';

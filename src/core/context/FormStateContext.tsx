@@ -6,6 +6,8 @@
  */
 import { createContext, useContextSelector } from 'use-context-selector';
 import React, { ReactNode } from 'react';
+import { useDevToolsReport } from '../devtools/store/snapshot';
+import { useEntityName } from './PageStaticContext';
 
 export interface FormStateContextValue {
   record: any | null;
@@ -24,6 +26,9 @@ export const FormStateProvider = ({
   children: ReactNode;
   value: FormStateContextValue;
 }) => {
+  const entityName = useEntityName();
+  useDevToolsReport('form', entityName ? `Form: ${entityName}` : 'Form', value);
+
   return (
     <FormStateContext.Provider value={value}>
       {children}
@@ -62,4 +67,3 @@ export const useFormFieldError = (fieldName: string) =>
 // Full context (use in evaluation system)
 export const useFormStateContext = () =>
   useContextSelector(FormStateContext, state => state);
-

@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { Tabs, Collapse, Alert, theme, Badge, ConfigProvider, Skeleton } from 'antd';
-import type { TabsProps, CollapseProps, CardProps } from 'antd';
+import { Tabs, Collapse, Alert, theme, Badge, Skeleton } from 'antd';
+import type { TabsProps, CollapseProps } from 'antd';
 import { CaretRightOutlined, WarningOutlined } from '@ant-design/icons';
 import * as AntIcons from '@ant-design/icons';
 import { useLocation } from 'react-router-dom';
@@ -10,9 +10,10 @@ import { evaluateTemplateValue } from '../../../core/utils/template';
 import { RenderFromPageType, IRenderFromPageType } from '../PostAuthPage';
 import type { Template } from '../../../core/types/field-config';
 import { ITableConfig } from '../../../table/type';
-import { IDetailsConfig } from '../../../detail/Details';
+import type { IDetailsConfig } from '../../../core/types/field-config';
 import { IForm } from '../../../core/forms/formConfig';
 import { IDashboardPageConfig } from '../DashboardPage';
+import type { ICustomPageConfig } from '../CustomPage/CustomPage';
 import { useEntityConfig } from '../../../core/hooks';
 import type { Condition } from '../../../core/types/evaluation';
 import type { IEntityConfigReference } from '../../../core/hooks/useEntityConfig';
@@ -21,6 +22,9 @@ import { NeedsAsyncError } from '../../../core/utils/NeedsAsyncError';
 import { useNewEvaluationContext } from '../../../core/context/NewEvaluationContext';
 import { CollapsibleSectionCard } from './CollapsibleSectionCard';
 import { substituteUrlParams, useApi } from '../../../core';
+import { useQuery } from '@tanstack/react-query';
+import { queryKeys } from '../../../core/query/queryKeys';
+import { useSectionSpan } from '../../../core/telemetry';
 
 /**
  * Badge configuration for sections.
@@ -50,7 +54,7 @@ export type SectionBadgeConfig =
 
 /**
  * Section configuration interface
- * Defines a single section that can render any page type (list, details, form, dashboard)
+ * Defines a single section that can render any page type (list, details, form, dashboard, custom)
  */
 export interface ISectionConfig {
   readonly label: Template;
@@ -58,13 +62,25 @@ export interface ISectionConfig {
   readonly badge?: SectionBadgeConfig | ReadonlyArray<SectionBadgeConfig> | Array<SectionBadgeConfig>;
   readonly visibility?: Condition;
   readonly sortOrder?: number;
-  readonly pageType: 'list' | 'details' | 'form' | 'dashboard';
+  readonly pageType: 'list' | 'details' | 'form' | 'dashboard' | 'custom';
   readonly listPageConfig?: ITableConfig;
   readonly detailsPageConfig?: IDetailsConfig & {
     readonly useParentData?: boolean;
   };
   readonly formPageConfig?: IForm;
   readonly dashboardPageConfig?: IDashboardPageConfig;
+
+  /**
+   * Custom page configuration (when pageType='custom').
+   * Uses ExtensionRegistry to render a registered component.
+   * 
+   * @example
+   * customPageConfig: {
+   *   componentKey: 'SocialDistributionStatus',
+   *   componentProps: { postId: ':postId' }
+   * }
+   */
+  readonly customPageConfig?: ICustomPageConfig;
 
   /** 
    * Reference to existing entity config (recommended - avoids duplication)
@@ -130,8 +146,13 @@ export interface ISectionsConfig {
 }
 
 /**
- * Hook to handle badge value extraction
- * Supports Template (with JSONPath) and API fetching
+ * Hook to handle badge value extraction.
+ * Supports Template (with JSONPath) and API fetching via useQuery.
+ *
+ * API-based badges use TanStack Query's declarative `useQuery` hook (not
+ * imperative `queryClient.fetchQuery`) so the badge automatically re-fetches
+ * when the query becomes stale, and the loading/error states are managed by
+ * the query cache rather than manual `useState`.
  */
 function useSectionBadge(
   badgeConfig: SectionBadgeConfig | undefined,
@@ -139,67 +160,70 @@ function useSectionBadge(
   routeParams: Record<string, any>
 ): { badgeText: string | number | undefined; loading: boolean; showZero: boolean } {
   const { callApiMethod } = useApi();
-  const [ apiFetchedValue, setApiFetchedValue ] = useState<number | undefined>(undefined);
-  const [ loading, setLoading ] = useState(false);
 
-  useEffect(() => {
-    if (!badgeConfig || typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
-      // Template type - no API fetch needed
-      return;
-    }
+  // Store callApiMethod in a ref so the queryFn always uses the latest instance
+  // without destabilising the query key
+  const callApiMethodRef = useRef(callApiMethod);
+  callApiMethodRef.current = callApiMethod;
 
-    if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
-      // API fetch
-      let cancelled = false;
-      setLoading(true);
+  // Determine if this badge config requires an API call
+  const isApiConfig = !!badgeConfig
+    && typeof badgeConfig === 'object'
+    && !('composite' in badgeConfig)
+    && 'apiEndpoint' in badgeConfig
+    && !!badgeConfig.apiEndpoint;
 
-      const fetchCount = async () => {
-        try {
-          const url = substituteUrlParams(badgeConfig.apiEndpoint, routeParams);
-          const response = await callApiMethod<any>({ apiUrl: url, apiMethod: 'GET' });
-          if (cancelled) return;
+  // Pre-resolve the URL so it can be used as part of the query key
+  const resolvedApiUrl = useMemo(() => {
+    if (!isApiConfig || typeof badgeConfig !== 'object' || !('apiEndpoint' in badgeConfig)) return '';
+    return substituteUrlParams(badgeConfig.apiEndpoint, routeParams);
+  }, [ isApiConfig, badgeConfig, routeParams ]);
 
-          const responseData = response.data as Record<string, any>;
-          const responseKey = badgeConfig.responseKey || 'count';
+  // ── Declarative API fetch via useQuery ──
+  const { data: apiResponseData, isLoading: apiLoading } = useQuery({
+    queryKey: queryKeys.sections(`badge:${resolvedApiUrl}`),
+    queryFn: async () => {
+      const response = await callApiMethodRef.current<Record<string, unknown>>({ apiUrl: resolvedApiUrl, apiMethod: 'GET' });
+      return response.data;
+    },
+    enabled: isApiConfig && !!resolvedApiUrl,
+    staleTime: 60 * 1000, // 1min — badges don't need to be real-time
+  });
 
-          // Use evaluateTemplateValue to handle JSONPath in responseKey
-          const countValue = evaluateTemplateValue(`{${responseKey}}`, responseData);
-          const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
-
-          setApiFetchedValue(typeof numValue === 'number' && !isNaN(numValue) ? numValue : undefined);
-        } catch (error) {
-          console.warn('[useSectionBadge] API fetch failed:', error);
-          if (!cancelled) setApiFetchedValue(undefined);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-      };
-
-      fetchCount();
-      return () => { cancelled = true; };
-    }
-  }, [ badgeConfig, routeParams, callApiMethod ]);
+  // Extract the numeric value from the API response
+  const apiFetchedValue = useMemo<number | undefined>(() => {
+    if (!isApiConfig || !apiResponseData || typeof badgeConfig !== 'object' || !('apiEndpoint' in badgeConfig)) return undefined;
+    const responseKey = badgeConfig.responseKey || 'count';
+    const countValue = evaluateTemplateValue(`{${responseKey}}`, apiResponseData as Record<string, any>);
+    const numValue = typeof countValue === 'string' ? parseFloat(countValue) : countValue;
+    return typeof numValue === 'number' && !isNaN(numValue) ? numValue : undefined;
+  }, [ isApiConfig, apiResponseData, badgeConfig ]);
 
   const result = useMemo(() => {
     if (!badgeConfig) return { badgeText: undefined, showZero: false };
 
     // Flatten parentData if it has a 'record' property (from DetailPage)
-    // This allows templates to access fields directly: $.lineItems instead of $.record.lineItems
     const flattenedParentData = parentData.record ? parentData.record : parentData;
+
+    // Skip template evaluation when parent data hasn't loaded yet — avoids
+    // pointless evaluations against an empty context on every render.
+    const hasData = flattenedParentData && Object.keys(flattenedParentData).length > 0;
+
     const context = { ...routeParams, ...flattenedParentData };
 
     // 1. Simple Template (string or complex template)
     if (typeof badgeConfig === 'string' || (typeof badgeConfig === 'object' && 'composite' in badgeConfig)) {
+      if (!hasData) return { badgeText: undefined, showZero: true };
       const text = evaluateTemplateValue(badgeConfig as Template, context);
-      // Don't show empty badges, but show "0" by default
       return {
         badgeText: text && text.trim() !== '' ? text : undefined,
-        showZero: true  // Default to showing zero for simple templates
+        showZero: true
       };
     }
 
     // 2. Template config with showZero option
-    if ('template' in badgeConfig && badgeConfig.template) {
+    if ('template' in badgeConfig && badgeConfig.template && !('apiEndpoint' in badgeConfig)) {
+      if (!hasData) return { badgeText: undefined, showZero: badgeConfig.showZero ?? false };
       const text = evaluateTemplateValue(badgeConfig.template, context);
       return {
         badgeText: text && text.trim() !== '' ? text : undefined,
@@ -209,7 +233,7 @@ function useSectionBadge(
 
     // 3. API fetched value
     if ('apiEndpoint' in badgeConfig && badgeConfig.apiEndpoint) {
-      if (loading) return { badgeText: undefined, showZero: false };
+      if (apiLoading) return { badgeText: undefined, showZero: false };
       if (apiFetchedValue === undefined || (apiFetchedValue === 0 && !badgeConfig.showZero)) {
         return { badgeText: undefined, showZero: badgeConfig.showZero ?? false };
       }
@@ -229,9 +253,9 @@ function useSectionBadge(
     }
 
     return { badgeText: undefined, showZero: false };
-  }, [ badgeConfig, parentData, routeParams, apiFetchedValue, loading ]);
+  }, [ badgeConfig, parentData, routeParams, apiFetchedValue, apiLoading ]);
 
-  return { ...result, loading };
+  return { ...result, loading: apiLoading };
 }
 
 /**
@@ -247,6 +271,26 @@ const SectionContent: React.FC<{
   isParentLoading: boolean;
   children?: React.ReactNode;
 }> = ({ section, sectionKey, shouldLoad, routeParams, parentData, depth, isParentLoading, children }) => {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
+  const { resolveConfigRef } = useEntityConfig();
+
+  // Resolve entityConfigRef if provided (like OpenRouteInModal does)
+  const resolvedConfig = useMemo(() => {
+    if (!section.entityConfigRef) return null;
+    return resolveConfigRef(section.entityConfigRef);
+  }, [ section.entityConfigRef, resolveConfigRef ]);
+
+  // Section span - automatically managed by hook
+  useSectionSpan({
+    active: shouldLoad && sectionKey !== '__main__',
+    sectionKey,
+    label: section.label,
+    pageType: section.pageType,
+    depth
+  });
+
+  // NOW safe to do early returns - all hooks have been called
+
   // Special case: Render children for __main__ section
   if (sectionKey === '__main__' && children) {
     return <>{children}</>;
@@ -261,14 +305,6 @@ const SectionContent: React.FC<{
       </div>
     );
   }
-
-  const { resolveConfigRef } = useEntityConfig();
-
-  // Resolve entityConfigRef if provided (like OpenRouteInModal does)
-  const resolvedConfig = useMemo(() => {
-    if (!section.entityConfigRef) return null;
-    return resolveConfigRef(section.entityConfigRef);
-  }, [ section.entityConfigRef, resolveConfigRef ]);
 
   // Determine final page config (entityConfigRef takes precedence)
   let finalListPageConfig = section.listPageConfig;
@@ -300,7 +336,7 @@ const SectionContent: React.FC<{
   if (section.pageType === 'details' && section.detailsPageConfig?.useParentData && parentData.record) {
     finalDetailsPageConfig = {
       ...finalDetailsPageConfig,
-      detailResponse: parentData.record
+      dataSource: parentData.record
     };
   }
 
@@ -327,12 +363,11 @@ const SectionContent: React.FC<{
     detailsPageConfig: finalDetailsPageConfig,
     formPageConfig: finalFormPageConfig,
     dashboardPageConfig: finalDashboardPageConfig,
+    customPageConfig: section.customPageConfig,
     depth: depth + 1 // Increment depth for nested entity pages to prevent infinite section nesting
   };
 
-  return (
-    <RenderFromPageType {...pageProps} />
-  );
+  return <RenderFromPageType {...pageProps} />;
 };
 
 /**
@@ -354,8 +389,6 @@ const SectionLabelWithBadge: React.FC<{
       if (IconComponent) {
         iconNode = React.createElement(IconComponent);
       }
-    } else if (React.isValidElement(section.icon)) {
-      iconNode = section.icon;
     }
   }
 
@@ -542,24 +575,27 @@ const SectionGroupRenderer: React.FC<{
       });
     }, [ visibleSortedSections, routeParams, lazyLoad, loadedSections, parentData, depth, isParentLoading, children ]);
 
-    // Update activeKey if current active tab becomes invisible or if no tab is active
-    // This ensures we always have a valid active tab in tabs mode
+    // Derive an effective activeKey that always refers to a valid tab — prevents
+    // Antd Tabs from triggering setState during its own render when the stored
+    // activeKey no longer matches any item.
+    const effectiveActiveKey = useMemo(() => {
+      if (items.length === 0) return activeKey;
+      const exists = items.some(item => item.key === activeKey);
+      return exists ? activeKey : items[ 0 ]?.key ?? activeKey;
+    }, [ items, activeKey ]);
+
+    // Sync stored key + loaded set when the effective key diverges (tab removed, etc.)
     useEffect(() => {
-      if (renderMode === 'tabs' && items.length > 0) {
-        const currentActiveExists = items.some(item => item.key === activeKey);
-        if (!currentActiveExists || !activeKey) {
-          // Current active tab is hidden or no tab is active, switch to first visible tab
-          const firstVisibleKey = items[ 0 ]?.key;
-          if (firstVisibleKey && firstVisibleKey !== activeKey) {
-            setActiveKey(firstVisibleKey);
-            // Also mark it as loaded if lazy loading is enabled
-            if (lazyLoad) {
-              setLoadedSections(prev => new Set([ ...Array.from(prev), firstVisibleKey ]));
-            }
-          }
+      if (effectiveActiveKey !== activeKey) {
+        setActiveKey(effectiveActiveKey);
+        if (lazyLoad) {
+          setLoadedSections(prev => {
+            if (prev.has(effectiveActiveKey)) return prev;
+            return new Set([ ...Array.from(prev), effectiveActiveKey ]);
+          });
         }
       }
-    }, [ items, activeKey, renderMode, lazyLoad ]);
+    }, [ effectiveActiveKey, activeKey, lazyLoad ]);
 
     // Add subtle visual feedback for nested depth
     const nestedStyle: React.CSSProperties = depth > 0 ? {
@@ -600,51 +636,27 @@ const SectionGroupRenderer: React.FC<{
 
     // Render as Tabs - uses Ant Design's built-in motion
     if (renderMode === 'tabs') {
-      const tabsProps: TabsProps = {
-        items,
-        defaultActiveKey, // Set default for initial render
-        activeKey, // Control after initial render
-        onChange: (key) => handleChange(key),
-        destroyOnHidden: !keepMounted,
-        animated: true, // Let Ant Design handle animations
-        style: nestedStyle
-      };
-
       return (
-        <ConfigProvider
-          theme={{
-            token: {
-              motionDurationSlow: '0.4s',
-              motionDurationMid: '0.3s',
-            },
-          }}
-        >
-          <Tabs {...tabsProps} />
-        </ConfigProvider>
+        <Tabs
+          items={items}
+          activeKey={effectiveActiveKey}
+          onChange={(key) => handleChange(key)}
+          destroyInactiveTabPane={!keepMounted}
+          animated
+          style={nestedStyle}
+        />
       );
     }
 
     // Render as Accordion (Collapse) - uses Ant Design's built-in motion
-    // Don't set defaultActiveKey - let user expand items manually (lazy loading)
-    const collapseProps: CollapseProps = {
-      items,
-      onChange: (keys) => handleChange(keys),
-      expandIcon: ({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />,
-      expandIconPosition: 'end',
-      style: nestedStyle,
-    };
-
     return (
-      <ConfigProvider
-        theme={{
-          token: {
-            motionDurationSlow: '0.4s',
-            motionDurationMid: '0.3s',
-          },
-        }}
-      >
-        <Collapse {...collapseProps} />
-      </ConfigProvider>
+      <Collapse
+        items={items}
+        onChange={(keys) => handleChange(keys)}
+        expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}
+        expandIconPosition="end"
+        style={nestedStyle}
+      />
     );
   };
 
@@ -910,6 +922,11 @@ export const SectionsRenderer: React.FC<ISectionsRendererProps> = ({
 
     return sorted.filter(group => {
       if (group.visibility === undefined || group.visibility === null) return true;
+
+      // Note: Visibility evaluation is NOT instrumented because:
+      // 1. It runs inside useMemo (during render) which would cause state updates during render
+      // 2. It's very fast and happens frequently
+      // 3. The ConditionEvaluator already has optional debug mode for condition evaluation
       try {
         return conditionEvaluator.evaluateSync(group.visibility as Condition, evaluationContext);
       } catch (error) {

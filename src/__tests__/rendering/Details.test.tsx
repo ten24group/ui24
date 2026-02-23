@@ -3,7 +3,7 @@
  * Integration tests for the Details component rendering.
  * 
  * Tests that field configurations produce the correct DOM output when
- * given pre-loaded data (detailResponse). This bypasses the API layer
+ * given pre-loaded data (dataSource). This bypasses the API layer
  * and focuses purely on the config → DOM rendering pipeline.
  * 
  * Verifies:
@@ -13,7 +13,7 @@
  * - Numeric fields render correctly (including zero)
  * - Field labels render correctly
  * - Visibility conditions hide/show fields
- * - detailResponse bypasses API calls
+ * - dataSource bypasses API calls
  * - onDataChange callback fires with record data
  */
 
@@ -117,7 +117,7 @@ function TestWrapper({ children }: { children: React.ReactNode }) {
 // ============================================================================
 
 describe('Details - field rendering from config', () => {
-  it('renders text field values from detailResponse', async () => {
+  it('renders text field values from dataSource', async () => {
     render(
       <TestWrapper>
         <Details
@@ -125,7 +125,7 @@ describe('Details - field rendering from config', () => {
             { name: 'teamName', label: 'Team Name', column: 'teamName', fieldType: 'text' },
             { name: 'city', label: 'City', column: 'city', fieldType: 'text' },
           ]}
-          detailResponse={{ teamName: 'Lakers', city: 'Los Angeles' }}
+          dataSource={{ teamName: 'Lakers', city: 'Los Angeles' }}
         />
       </TestWrapper>
     );
@@ -145,7 +145,7 @@ describe('Details - field rendering from config', () => {
           propertiesConfig={[
             { name: 'teamName', label: 'Team Name', column: 'teamName', fieldType: 'text' },
           ]}
-          detailResponse={{ teamName: 'Lakers' }}
+          dataSource={{ teamName: 'Lakers' }}
         />
       </TestWrapper>
     );
@@ -162,7 +162,7 @@ describe('Details - field rendering from config', () => {
           propertiesConfig={[
             { name: 'isActive', label: 'Active', column: 'isActive', fieldType: 'boolean' },
           ]}
-          detailResponse={{ isActive: true }}
+          dataSource={{ isActive: true }}
         />
       </TestWrapper>
     );
@@ -172,7 +172,7 @@ describe('Details - field rendering from config', () => {
     });
   });
 
-  it('renders all configured fields from detailResponse', async () => {
+  it('renders all configured fields from dataSource', async () => {
     const fields = [
       { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
       { name: 'email', label: 'Email', column: 'email', fieldType: 'text' },
@@ -183,7 +183,7 @@ describe('Details - field rendering from config', () => {
       <TestWrapper>
         <Details
           propertiesConfig={fields}
-          detailResponse={{ name: 'John', email: 'john@test.com', phone: '555-1234' }}
+          dataSource={{ name: 'John', email: 'john@test.com', phone: '555-1234' }}
         />
       </TestWrapper>
     );
@@ -203,7 +203,7 @@ describe('Details - field rendering from config', () => {
             { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
             { name: 'description', label: 'Description', column: 'description', fieldType: 'text' },
           ]}
-          detailResponse={{ name: 'Test', description: null }}
+          dataSource={{ name: 'Test', description: null }}
         />
       </TestWrapper>
     );
@@ -225,7 +225,7 @@ describe('Details - field rendering from config', () => {
             { name: 'score', label: 'Score', column: 'score', fieldType: 'number' },
             { name: 'count', label: 'Count', column: 'count', fieldType: 'text' },
           ]}
-          detailResponse={{ score: 42, count: 0 }}
+          dataSource={{ score: 42, count: 0 }}
         />
       </TestWrapper>
     );
@@ -250,7 +250,7 @@ describe('Details - visibility conditions', () => {
             { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
             { name: 'secret', label: 'Secret', column: 'secret', fieldType: 'text', visibility: false },
           ]}
-          detailResponse={{ name: 'Visible', secret: 'Hidden Value' }}
+          dataSource={{ name: 'Visible', secret: 'Hidden Value' }}
         />
       </TestWrapper>
     );
@@ -271,7 +271,7 @@ describe('Details - visibility conditions', () => {
           propertiesConfig={[
             { name: 'name', label: 'Name', column: 'name', fieldType: 'text', visibility: true },
           ]}
-          detailResponse={{ name: 'Visible' }}
+          dataSource={{ name: 'Visible' }}
         />
       </TestWrapper>
     );
@@ -283,11 +283,11 @@ describe('Details - visibility conditions', () => {
 });
 
 // ============================================================================
-// PRE-LOADED DATA (detailResponse)
+// PRE-LOADED DATA (dataSource)
 // ============================================================================
 
-describe('Details - detailResponse handling', () => {
-  it('uses detailResponse and does not call API', async () => {
+describe('Details - dataSource handling', () => {
+  it('uses dataSource and does not call API', async () => {
     const mockCallApi = jest.fn();
     jest.spyOn(require('../../core/context/ApiContext'), 'useApi').mockReturnValue({
       callApiMethod: mockCallApi,
@@ -299,7 +299,7 @@ describe('Details - detailResponse handling', () => {
           propertiesConfig={[
             { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
           ]}
-          detailResponse={{ name: 'Pre-loaded Data' }}
+          dataSource={{ name: 'Pre-loaded Data' }}
         />
       </TestWrapper>
     );
@@ -308,11 +308,11 @@ describe('Details - detailResponse handling', () => {
       expect(screen.getByText('Pre-loaded Data')).toBeInTheDocument();
     });
 
-    // API should not be called when detailResponse is provided
+    // API should not be called when dataSource is provided
     expect(mockCallApi).not.toHaveBeenCalled();
   });
 
-  it('calls onDataChange with record when detailResponse is provided', async () => {
+  it('calls onDataChange with record when dataSource is provided', async () => {
     const onDataChange = jest.fn();
 
     render(
@@ -321,7 +321,7 @@ describe('Details - detailResponse handling', () => {
           propertiesConfig={[
             { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
           ]}
-          detailResponse={{ name: 'Test Team', id: '123' }}
+          dataSource={{ name: 'Test Team', id: '123' }}
           onDataChange={onDataChange}
         />
       </TestWrapper>

@@ -8,6 +8,8 @@ import { OpenInDrawer } from "../../modal/Drawer";
 import { IPageAction } from "../../table/type";
 import { substituteUrlParams } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
+import { isExternalUrl, resolveAnchorProps } from "../utils/link-utils";
+import { executeCopyToClipboard } from "../utils/copyUtils";
 
 export type MenuItem = Required<MenuProps>[ 'items' ][ number ];
 
@@ -22,8 +24,10 @@ interface RenderActionOptions {
   routeParams?: Record<string, string>;
   primaryIndex?: string;
   record?: Record<string, any>;
+  /** Selected records for bulk actions (copy, etc.) */
+  selectedRecords?: ReadonlyArray<Record<string, any>>;
   onSuccessCallback?: (response?: any) => void;
-  onNavigate?: (url: string) => void;
+  onNavigate?: (urlOrDelta: string | number) => void;
 }
 
 /**
@@ -34,7 +38,10 @@ interface RenderActionOptions {
  * 1. Inline modal config: { openInModal: true, modalConfig: {...} }
  * 2. Route resolution: { openInModal: true, url: "/view-user/:id" }
  */
-export const renderSingleAction = ({
+export function renderSingleAction(opts: RenderActionOptions & { isDropdownItem: true }): MenuItem | null;
+export function renderSingleAction(opts: RenderActionOptions & { isDropdownItem?: false }): React.ReactNode | null;
+export function renderSingleAction(opts: RenderActionOptions): React.ReactNode | MenuItem | null;
+export function renderSingleAction({
   action,
   key,
   isDropdownItem = false,
@@ -45,9 +52,10 @@ export const renderSingleAction = ({
   routeParams = {},
   primaryIndex,
   record,
+  selectedRecords,
   onSuccessCallback,
   onNavigate
-}: RenderActionOptions): React.ReactNode | MenuItem | null => {
+}: RenderActionOptions): React.ReactNode | MenuItem | null {
   // Check if action should be hidden in modal context
   if (isInModal && action.hideInModal) {
     return null;
@@ -72,6 +80,12 @@ export const renderSingleAction = ({
     return <Tooltip title={evaluatedTooltip}><span style={{ display: 'inline-block' }}>{content}</span></Tooltip>;
   };
 
+  const renderPageHeaderButton = (onClick?: () => void) => (
+    <Button type="primary" disabled={isDisabled} onClick={onClick}>
+      {action.icon && <><Icon iconName={action.icon} />{' '}</>}{evaluatedLabel}
+    </Button>
+  );
+
   // Pattern 1: Modal with inline config
   if (action.openInModal && action.modalConfig) {
     // Merge record data with routeParams for template resolution (initialValues)
@@ -91,12 +105,11 @@ export const renderSingleAction = ({
       >
         {wrapWithTooltip(
           isDropdownItem ? (
-            // For dropdown items, don't include icon in label - MenuItem handles it separately
             evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "delete"} />
           ) : (
-            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenInModal>
@@ -133,12 +146,11 @@ export const renderSingleAction = ({
       >
         {wrapWithTooltip(
           isDropdownItem ? (
-            // For dropdown items, don't include icon in label - MenuItem handles it separately
             evaluatedLabel
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "eye"} />
           ) : (
-            <Button type="primary">{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenRouteInModal>
@@ -184,7 +196,7 @@ export const renderSingleAction = ({
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "edit"} />
           ) : (
-            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenInDrawer>
@@ -227,7 +239,7 @@ export const renderSingleAction = ({
           ) : isTableRowAction ? (
             <Icon iconName={action.icon || "eye"} />
           ) : (
-            <Button type="primary" disabled={isDisabled}>{evaluatedLabel}</Button>
+            renderPageHeaderButton()
           )
         )}
       </OpenRouteInDrawer>
@@ -243,28 +255,138 @@ export const renderSingleAction = ({
     return drawerTrigger;
   }
 
-  // Pattern 3: Regular navigation
-  let url = action.url || '';
+  // Pattern: Clone / duplicate action (#43)
+  if (action.cloneConfig) {
+    const { cloneConfig } = action;
+    const handleClone = () => {
+      if (isDisabled || !record) return;
 
-  // Use the existing substituteUrlParams utility properly
-  if (record) {
-    // For table rows: use record data as routeParams and primaryIndex as fallback
-    url = substituteUrlParams(url, record, primaryIndex);
-  } else {
-    // For page headers: use routeParams as is
-    url = substituteUrlParams(url, routeParams);
+      // Fields to always strip — identity, DynamoDB keys, timestamps
+      const ALWAYS_EXCLUDE = new Set([
+        'id', 'createdAt', 'updatedAt', 'pk', 'sk',
+        'gsi1pk', 'gsi1sk', 'gsi2pk', 'gsi2sk', 'gsi3pk', 'gsi3sk', 'gsi4pk', 'gsi4sk',
+        ...(cloneConfig.excludeFields ?? []),
+      ]);
+
+      // Any field whose key ends in 'Id' (teamId, userId, …) is also auto-excluded
+      // unless the caller explicitly whitelisted it via includeFields.
+      const isExcluded = (key: string): boolean =>
+        ALWAYS_EXCLUDE.has(key) || (key.endsWith('Id') && key !== 'id');
+
+      const raw: Record<string, unknown> = (record.__raw__ || record) as Record<string, unknown>;
+
+      let prefill: Record<string, unknown>;
+      if (cloneConfig.includeFields?.length) {
+        // Whitelist mode — only the specified fields, skipping null/undefined
+        prefill = Object.fromEntries(
+          cloneConfig.includeFields
+            .filter(k => raw[k] !== undefined && raw[k] !== null)
+            .map(k => [k, raw[k]])
+        );
+      } else {
+        // Auto mode — keep all primitive-valued fields that aren't excluded
+        prefill = Object.fromEntries(
+          Object.entries(raw).filter(([k, v]) =>
+            v !== undefined && v !== null &&
+            !isExcluded(k) &&
+            typeof v !== 'object' // skip nested maps/lists — not safely URL-encodable
+          )
+        );
+      }
+
+      // Encode prefill as individual URL query params so FormPage.tsx can read them.
+      // FormPage reads URLSearchParams directly when `prefill.enabled: true` is configured
+      // on the target form; each param key becomes a field default value.
+      const createUrl = substituteUrlParams(cloneConfig.createUrl, record, primaryIndex);
+      const params = new URLSearchParams();
+      for (const [k, v] of Object.entries(prefill)) {
+        params.set(k, String(v));
+      }
+      const qs = params.toString();
+      const sep = createUrl.includes('?') ? '&' : '?';
+      onNavigate?.(`${createUrl}${qs ? sep + qs : ''}`);
+    };
+
+    if (isDropdownItem) {
+      return {
+        key,
+        label: evaluatedLabel,
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
+        onClick: handleClone,
+      } as MenuItem;
+    }
+
+    if (isTableRowAction) {
+      return wrapWithTooltip(
+        <a href="#" onClick={(e) => { e.preventDefault(); handleClone(); }}>
+          <Icon iconName={action.icon || 'copy'} />
+        </a>
+      );
+    }
+
+    return wrapWithTooltip(renderPageHeaderButton(handleClone));
   }
 
-  // Check if this is an external URL (starts with http:// or https://)
-  const isExternalUrl = /^https?:\/\//i.test(url);
-  const target = action.target || (isExternalUrl ? '_blank' : undefined);
+  // Pattern: Clipboard copy action (#60)
+  if (action.copyConfig) {
+    const copyConfig = action.copyConfig;
+    const handleCopy = () => {
+      if (isDisabled) return;
+      const records = selectedRecords && selectedRecords.length > 0
+        ? selectedRecords
+        : record ? [ record ] : [];
+      if (records.length === 0) return;
+      executeCopyToClipboard(records, copyConfig);
+    };
 
-  // Helper to handle navigation - external URLs open in new tab if target is _blank
+    if (isDropdownItem) {
+      return {
+        key,
+        label: evaluatedLabel,
+        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
+        onClick: handleCopy
+      } as MenuItem;
+    }
+
+    if (isTableRowAction) {
+      return wrapWithTooltip(
+        <a href="#" onClick={(e) => { e.preventDefault(); handleCopy(); }}>
+          <Icon iconName={action.icon || 'copy'} />
+        </a>
+      );
+    }
+
+    return wrapWithTooltip(
+      renderPageHeaderButton(handleCopy)
+    );
+  }
+
+  // Pattern 3: Regular navigation
+  const rawUrl = action.url || '';
+  const isBackAction = rawUrl === '__back__';
+
+  let url = rawUrl;
+  if (!isBackAction) {
+    // Use the existing substituteUrlParams utility properly
+    if (record) {
+      // For table rows: use record data as routeParams and primaryIndex as fallback
+      url = substituteUrlParams(url, record, primaryIndex);
+    } else {
+      // For page headers: use routeParams as is
+      url = substituteUrlParams(url, routeParams);
+    }
+  }
+
+  const external = !isBackAction && isExternalUrl(url);
+  const { target, rel } = resolveAnchorProps(action.target, url);
+
   const handleNavigation = (e?: React.MouseEvent) => {
     if (isDisabled) return;
     if (e) e.preventDefault();
 
-    if (target === '_blank' || isExternalUrl) {
+    if (isBackAction) {
+      onNavigate?.(-1);
+    } else if (target === '_blank' || external) {
       window.open(url, target || '_blank', 'noopener,noreferrer');
     } else {
       onNavigate?.(url);
@@ -286,7 +408,7 @@ export const renderSingleAction = ({
       <a
         href={isDisabled ? undefined : url}
         target={target}
-        rel={target === '_blank' ? 'noopener noreferrer' : undefined}
+        rel={rel}
         onClick={handleNavigation}
       >
         <Icon iconName={action.icon} />
@@ -294,16 +416,9 @@ export const renderSingleAction = ({
     );
   }
 
-  // For page headers, return Button
+  // For page headers, return Button with optional icon
   return wrapWithTooltip(
-    <Button
-      key={key}
-      type="primary"
-      disabled={isDisabled}
-      onClick={() => handleNavigation()}
-    >
-      {evaluatedLabel}
-    </Button>
+    renderPageHeaderButton(() => handleNavigation())
   );
-};
+}
 

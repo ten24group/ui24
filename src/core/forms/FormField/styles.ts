@@ -1,10 +1,10 @@
 // Shared styles for form components
 export const formStyles = {
-  // Card styles (deprecated - use sparingly)
+  // Card styles
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: 'var(--ant-color-bg-container, #fff)',
     borderRadius: 8,
-    border: '1px solid #f0f0f0',
+    border: '1px solid var(--ant-color-border-secondary, #f0f0f0)',
   },
 
   // Column styles - clean, minimal
@@ -43,12 +43,12 @@ export const formStyles = {
   labelContainer: {
     marginBottom: 8,
     padding: 8,
-    borderBottom: '1px dashed #2c2c2c',
+    borderBottom: '1px dashed var(--ant-color-border, #2c2c2c)',
   },
 
-  // Map item container
+  // Map item container — subtle fill that works in both light and dark
   mapItemContainer: {
-    backgroundColor: '#fafafa',
+    backgroundColor: 'var(--ant-color-fill-quaternary, rgba(0, 0, 0, 0.02))',
     padding: 8,
   },
 
@@ -64,7 +64,7 @@ export const formStyles = {
     display: 'flex',
     rowGap: 8,
     padding: 8,
-    backgroundColor: '#fafafa',
+    backgroundColor: 'var(--ant-color-fill-quaternary, rgba(0, 0, 0, 0.02))',
     flexDirection: 'column' as const,
   },
 };

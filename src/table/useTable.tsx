@@ -1,16 +1,15 @@
-import React, { useEffect, useLayoutEffect } from "react";
+import React, { useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig } from "./type";
-import { IApiConfig } from "../core/context";
-import { Pagination as AntPagination, Badge, Tag, Progress, Avatar, Rate } from "antd";
+import { ITablePropertiesConfig, ITableApiConfig, IDualTableApiConfig, SortConfig, IPaginationConfig, IRecord } from "./type";
+import { Badge, Typography } from "antd";
 import type { SorterResult } from 'antd/es/table/interface';
 
 import { addActionUI } from "./Actions/addActionUI";
 import { addFilterUI } from "./Filters/addFilterUI";
-import { usePagination } from "./Pagination/usePagination";
+import { useCursorPagination, OffsetPagination } from "./Pagination/usePagination";
 import { useAppliedFilters } from "./AppliedFilters/useAppliedFilters";
 import { useAppliedSorts } from "./AppliedFilters/useAppliedSorts";
-import { FilterFilled, PlayCircleOutlined, AudioOutlined, QrcodeOutlined } from "@ant-design/icons";
+import { FilterFilled } from "@ant-design/icons";
 import { useTableData } from "./hooks/useTableData";
 import { evaluateTemplate } from "../core/utils/template";
 import { Template } from "../core/types";
@@ -18,23 +17,31 @@ import { RelationFieldRenderer } from "./renderers/RelationFieldRenderer";
 import { resolveFilterPlaceholders } from "../core/utils/placeholderResolver";
 import { NON_FILTER_URL_PARAMS } from "./constants";
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
-import { Button } from "antd";
-import { EyeOutlined, FileTextOutlined, OrderedListOutlined } from '@ant-design/icons';
-import { OpenInModal } from "../modal/Modal";
-import { generateJsonPreview } from "../core/utils/jsonUtils";
-import { createModalConfig } from "./utils/modalConfigHelper";
-import * as Icons from '@ant-design/icons';
-import { formatDuration, formatTTL, DurationUnit, TTLUnit, DurationFormat, TTLFormat } from "../core/utils/duration";
 import { getColumnRenderer, type ColumnConfig } from "../core/registry";
 import { useEvaluatedItems } from "../core/hooks/useEvaluatedItems";
+import { useTranslation } from "../core/hooks";
+import { fieldTypeRegistry } from "../core/registry/FieldTypeRegistry";
+import { Icon } from "../core/common/Icons/Icons";
+import "../core/registry/field-types"; // ensure built-in registrations run
+import { conditionEvaluator } from "../core/utils/ConditionEvaluator";
+import { getNestedValue } from "../core/utils";
+import { useNewEvaluationContext } from "../core/context/NewEvaluationContext";
+import { useRenderPipeline } from "../core/rendering";
+import { MaskedDisplay } from "../core/common/MaskedDisplay";
+import { computeDerivedValue } from "../core/hooks/useDerivedFields";
+import { IS_DEV } from "../core/constants";
+import { instrument } from "../core/telemetry";
 
 interface IuseTable {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   routeParams?: Record<string, string>;
-  defaultFilters?: Record<string, any>; // Pre-applied filters (supports placeholders like ":teamId")
-  fetchStrategy?: 'eager' | 'lazy'; // Controls whether to fetch all columns (eager) or only visible columns (lazy)
-  initialPageSize?: number; // Default page size from backend config
+  defaultFilters?: Record<string, any>;
+  fetchStrategy?: 'eager' | 'lazy';
+  initialPageSize?: number;
+  paginationConfig?: IPaginationConfig;
+  /** Pre-loaded data — when provided, skips API fetching entirely (client-side data mode) */
+  dataSource?: Array<Record<string, unknown>>;
 }
 
 // Utility functions to handle both single and dual API configurations
@@ -51,6 +58,20 @@ const getCurrentApiConfig = (apiConfig: ITableApiConfig | IDualTableApiConfig, i
 
 const canToggleSearchMode = (apiConfig: ITableApiConfig | IDualTableApiConfig): boolean => {
   return isDualApiConfig(apiConfig);
+};
+
+/**
+ * Determine the default search/database mode for a given API config.
+ * Respects REACT_APP_DEFAULT_LIST_MODE env var for dual configs.
+ * Single-config entities use their `useSearch` flag.
+ *
+ * Used on both initial mount AND reset to ensure consistent behavior.
+ */
+const getDefaultSearchMode = (apiConfig: ITableApiConfig | IDualTableApiConfig): boolean => {
+  if (isDualApiConfig(apiConfig)) {
+    return process.env.REACT_APP_DEFAULT_LIST_MODE !== 'database';
+  }
+  return (apiConfig as ITableApiConfig).useSearch || false;
 };
 
 /**
@@ -148,7 +169,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
 
         Object.entries(parsed).forEach(([ key, value ]) => {
           // Skip non-filter params (infrastructure)
-          if (NON_FILTER_URL_PARAMS.includes(key as any)) {
+          if (NON_FILTER_URL_PARAMS.includes(key)) {
             return;
           }
 
@@ -201,7 +222,7 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
 
   queryParams.forEach((value, key) => {
     // Skip non-filter params (infrastructure like page, cursor, etc.)
-    if (NON_FILTER_URL_PARAMS.includes(key as any)) {
+    if (NON_FILTER_URL_PARAMS.includes(key)) {
       return;
     }
 
@@ -242,12 +263,47 @@ const getInitialFiltersFromUrl = (location: ReturnType<typeof useLocation>): Rec
   return filters;
 };
 
-export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10 }: IuseTable) => {
+/** Read deep-link state slices (sort, q, page) from URL on mount (#21). */
+function getDeepLinkStateFromUrl(location: ReturnType<typeof useLocation>, prefix?: string): {
+  sort?: Array<{ field: string; order: string }>;
+  search?: string;
+  page?: number;
+} {
+  const params = new URLSearchParams(location.search);
+  const key = (k: string) => prefix ? `${prefix}.${k}` : k;
+  const result: ReturnType<typeof getDeepLinkStateFromUrl> = {};
+
+  const sortParam = params.get(key('sort'));
+  if (sortParam) {
+    result.sort = sortParam.split(',').map(s => {
+      const [field, dir] = s.split(':');
+      return { field, order: dir === 'asc' ? 'ascend' : 'descend' };
+    });
+  }
+
+  const q = params.get(key('q'));
+  if (q) result.search = q;
+
+  const page = params.get(key('page'));
+  if (page && /^\d+$/.test(page)) result.page = parseInt(page, 10);
+
+  return result;
+}
+
+export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaultFilters = {}, fetchStrategy = 'eager', initialPageSize = 10, paginationConfig, dataSource: preloadedRecords }: IuseTable) => {
   const recordIdentifierKey = '__recordIdentifierKey__';
   const location = useLocation();
 
   // Build placeholder context once for resolving dynamic filter values
   const placeholderContext = usePlaceholderContext(routeParams);
+
+  // Evaluation context for conditional cell formatting (#26)
+  const evaluationContext = useNewEvaluationContext();
+
+  const { t } = useTranslation(); // i18n (#22)
+
+  // Rendering pipeline (#95) — provides processField() for unified field rendering
+  const { processField } = useRenderPipeline({ renderContext: 'table', routeParams: routeParams || {} });
 
   // NOTE: registry resolution is handled via getColumnRenderer() (non-hook, safe for loops)
 
@@ -256,29 +312,34 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return resolveFilterPlaceholders(defaultFilters, placeholderContext);
   }, [ defaultFilters, placeholderContext ]);
 
-  // Initialize appliedFilters with layered merge (lowest to highest priority):
-  // 1. resolvedDefaultFilters (prop defaults + segment defaults)
-  // 2. URL filters (one-time read for deep linking)
+  // Initialize appliedFilters from defaults + URL deep-link params (one-time on mount).
+  // URL filters take precedence over defaults when present.
   const [ appliedFilters, setAppliedFilters ] = React.useState<Record<string, any>>(() => {
     const urlFilters = getInitialFiltersFromUrl(location);
-
-    // URL filters take precedence (deep link behavior)
-    return { ...resolvedDefaultFilters, ...urlFilters };
-  });
-  const [ searchQuery, setSearchQuery ] = React.useState<string>('');
-
-  // Determine initial mode FIRST (needed to get correct defaultSort)
-  const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => {
-    if (isDualApiConfig(apiConfig)) {
-      return true; // Default to search mode for dual config
+    if (Object.keys(urlFilters).length > 0) {
+      return { ...resolvedDefaultFilters, ...urlFilters };
     }
-    return apiConfig.useSearch || false;
+    return { ...resolvedDefaultFilters };
   });
+  // Read deep-link state from URL on mount (#21)
+  const urlDeepLinkState = React.useMemo(() => getDeepLinkStateFromUrl(location), []);
+  const [ searchQuery, setSearchQuery ] = React.useState<string>(urlDeepLinkState.search ?? '');
+
+  // Determine initial mode FIRST (needed to get correct defaultSort).
+  // Uses getDefaultSearchMode() to respect REACT_APP_DEFAULT_LIST_MODE env var for dual configs.
+  const [ isSearchMode, setIsSearchMode ] = React.useState<boolean>(() => getDefaultSearchMode(apiConfig));
 
   // Then initialize sort based on the current mode
   const [ sort, setSort ] = React.useState<SorterResult<any>[]>(() => {
-    // Determine initial mode to get correct defaultSort
-    const initialMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
+    if (urlDeepLinkState.sort && urlDeepLinkState.sort.length > 0) {
+      return urlDeepLinkState.sort.map((s, i) => ({
+        field: s.field,
+        columnKey: s.field,
+        order: s.order as 'ascend' | 'descend',
+        column: { dataIndex: s.field } as any,
+      }));
+    }
+    const initialMode = getDefaultSearchMode(apiConfig);
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, initialMode);
     return convertDefaultSortToSorterResult(defaultSort);
   });
@@ -320,18 +381,11 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // This ensures tables load data immediately after initialization (with merged defaults + URL filters)
   const [ fetchTrigger, setFetchTrigger ] = React.useState(1);
 
-  const {
-    listRecords,
-    isLoading,
-    isInitialLoad,
-    currentPage,
-    pageCursor,
-    isLastPage,
-    totalRecords,
-    facetResults,
-    fetchRecords,
-    pageSize: currentPageSize
-  } = useTableData({
+  // Ref to signal that the next fetchTrigger-driven fetch should bypass the React Query cache.
+  // Set to true before incrementing fetchTrigger (e.g., Reset button) so the effect can pass forceRefresh.
+  const forceNextFetchRef = React.useRef(false);
+
+  const tableDataResult = useTableData({
     apiConfig: getCurrentApiConfig(apiConfig, isSearchMode),
     routeParams,
     appliedFilters,
@@ -342,24 +396,59 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     propertiesConfig,
     recordIdentifierKey,
     isSearchMode,
-    fetchStrategy: currentFetchStrategy, // Use current strategy (can be changed by user)
+    fetchStrategy: currentFetchStrategy,
     pageSize,
+    initialPage: 1,
   });
+
+  // Client-side data mode: when preloadedRecords is provided, bypass API results
+  const isClientSideData = !!preloadedRecords;
+  const {
+    listRecords,
+    isLoading,
+    isInitialLoad,
+    currentPage,
+    pageCursor,
+    isLastPage,
+    totalRecords,
+    facetResults,
+    fetchRecords,
+    pageSize: currentPageSize,
+    dataUpdatedAt,
+    error: fetchError,
+  } = isClientSideData
+    ? {
+        listRecords: preloadedRecords,
+        isLoading: false,
+        isInitialLoad: false,
+        currentPage: 1,
+        pageCursor: tableDataResult.pageCursor,
+        isLastPage: true,
+        totalRecords: preloadedRecords.length,
+        facetResults: {},
+        fetchRecords: tableDataResult.fetchRecords,
+        pageSize: tableDataResult.pageSize,
+        dataUpdatedAt: new Date().toISOString(),
+        error: null,
+      }
+    : tableDataResult;
 
   const onSearch = (value: string) => {
     setSearchQuery(value);
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.search', { 'table.searchQuery': value });
   }
 
   const toggleSearchMode = React.useCallback(() => {
     if (canToggleSearchMode(apiConfig)) {
-      setIsSearchMode(prev => {
-        const newMode = !prev;
-        // Reset sort to defaultSort for the new mode
-        const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
-        setSort(convertDefaultSortToSorterResult(defaultSort));
-        return newMode;
-      });
+      // Compute the new mode outside the updater so setSort can be called separately
+      // (updater functions should be pure — no side effects like calling other setState)
+      setIsSearchMode(prev => !prev);
+      // Use the current value to derive what the new mode will be after the toggle
+      // React batches these setState calls, so isSearchMode still has the old value here
+      const newMode = !isSearchMode;
+      const defaultSort = getDefaultSortFromApiConfig(apiConfig, newMode);
+      setSort(convertDefaultSortToSorterResult(defaultSort));
       setSearchQuery('');
       // Reset to defaultFilters (preserves pre-applied filters like relation defaults)
       setAppliedFilters(resolvedDefaultFilters);
@@ -368,12 +457,17 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       // - If no segments, Table.tsx useEffect on isSearchMode triggers fetch
       // This prevents double fetching
     }
-  }, [ apiConfig, resolvedDefaultFilters ]);
+  }, [ apiConfig, resolvedDefaultFilters, isSearchMode ]);
 
-  const handleTableChange = (_: any, __: any, sorter: SorterResult<any> | SorterResult<any>[]) => {
+  const handleTableChange = (_pagination: unknown, _filters: unknown, sorter: SorterResult<any> | SorterResult<any>[]) => {
     const newSorters = Array.isArray(sorter) ? sorter : [ sorter ];
-    setSort(newSorters.filter(s => s.order)); // Only keep sorts with an active order
+    const activeSorts = newSorters.filter(s => s.order);
+    setSort(activeSorts);
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.sort', { 
+      'table.sortCount': activeSorts.length,
+      'table.sortFields': activeSorts.map(s => s.field).join(','),
+    });
   };
 
   // Determine stable API URL for entity identification
@@ -443,7 +537,9 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   // fetchTrigger starts at 1, so this triggers the initial fetch on mount
   // Subsequent increments trigger refetch (from filters, search, sort, etc.)
   React.useEffect(() => {
-    fetchRecords(1);
+    const shouldForce = forceNextFetchRef.current;
+    forceNextFetchRef.current = false;
+    fetchRecords(1, undefined, shouldForce ? { forceRefresh: true } : undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ fetchTrigger ]); // Depend on fetchTrigger, not appliedFilters (avoids circular updates)
 
@@ -465,20 +561,37 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setAppliedFilters(resolvedDefaultFilters);
     setSearchQuery('');
 
-    // Reset to initial mode
-    const resetMode = isDualApiConfig(apiConfig) ? true : (apiConfig.useSearch || false);
+    // Reset to the env-configured default mode (respects REACT_APP_DEFAULT_LIST_MODE).
+    // Previously this hardcoded `true` for dual configs, which wrongly forced search mode
+    // even when the env var specified 'database' as the default.
+    const resetMode = getDefaultSearchMode(apiConfig);
     setIsSearchMode(resetMode);
 
     // Reset sort to defaultSort for the reset mode
     const defaultSort = getDefaultSortFromApiConfig(apiConfig, resetMode);
     setSort(convertDefaultSortToSorterResult(defaultSort));
 
-    fetchRecords(1, "");
-  }, [ fetchRecords, apiConfig, resolvedDefaultFilters ]);
+    // Use fetchTrigger instead of calling fetchRecords directly.
+    // Direct calls would use stale closure values (old filters/sort/search/mode).
+    // fetchTrigger defers the fetch to the next render where fetchRecords has the correct state.
+    forceNextFetchRef.current = true;
+    setFetchTrigger(prev => prev + 1);
+  }, [ apiConfig, resolvedDefaultFilters ]);
+
+  // Refs for handleReload stability — reading page/cursor from refs makes handleReload's
+  // identity depend only on fetchRecords (which is already stable). Without refs,
+  // handleReload changes on every pagination (pageCursor updates), propagating
+  // unnecessary re-renders to RefreshControl, useAutoRefresh, bulk actions, etc.
+  // Note: currentPageRef is also used by the persistence section below.
+  const currentPageRef = React.useRef(currentPage);
+  currentPageRef.current = currentPage;
+  const pageCursorRef = React.useRef(pageCursor);
+  pageCursorRef.current = pageCursor;
 
   const handleReload = React.useCallback(() => {
-    fetchRecords(currentPage, pageCursor[ currentPage ]);
-  }, [ fetchRecords, currentPage, pageCursor ]);
+    const page = currentPageRef.current;
+    fetchRecords(page, pageCursorRef.current[ page ], { forceRefresh: true });
+  }, [ fetchRecords ]);
 
   const getColumnNameByKey = (dataIndex: string) => {
     return propertiesConfig.find((column) => column.dataIndex === dataIndex)?.name;
@@ -492,15 +605,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     onFilterChange: () => setFetchTrigger(prev => prev + 1)
   });
 
-  // Wrap filter functions to trigger fetch
   const applyFilters = React.useCallback((column: string, filterOperator: string, value: string | Array<string>) => {
     _applyFilters(column, filterOperator, value);
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.filter', { 
+      'table.filterColumn': column,
+      'table.filterOperator': filterOperator,
+    });
   }, [ _applyFilters ]);
 
   const clearAllFilters = React.useCallback(() => {
     _clearAllFilters();
     setFetchTrigger(prev => prev + 1);
+    instrument.event('table.filterClear', {});
   }, [ _clearAllFilters ]);
 
   // Stabilize with useCallback - memoization dependency
@@ -535,32 +652,26 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setFetchTrigger(prev => prev + 1); // Trigger refetch via useEffect with updated pageSize
   }, []);
 
-  //Pagination
-  const { Pagination: CursorPagination } = usePagination({
+  // Pagination — both modes use shared components from Pagination/usePagination.tsx
+  const { Pagination: CursorPagination } = useCursorPagination({
     pageCursor,
     getRecords: fetchRecords,
     currentPage,
     isLastPage,
     pageSize,
-    onPageSizeChange: handlePageSizeChange
+    onPageSizeChange: handlePageSizeChange,
+    currentPageRecordCount: listRecords.length,
+    paginationConfig,
   });
 
-  const NumericalPagination = () => (
-    <AntPagination
-      current={currentPage}
-      total={totalRecords}
+  const NumericalPaginationElement = (
+    <OffsetPagination
+      currentPage={currentPage}
+      totalRecords={totalRecords}
       pageSize={currentPageSize}
-      onChange={(page, newPageSize) => {
-        if (newPageSize !== currentPageSize) {
-          handlePageSizeChange(newPageSize);
-        } else {
-          fetchRecords(page);
-        }
-      }}
-      onShowSizeChange={(_, size) => handlePageSizeChange(size)}
-      showSizeChanger
-      showTotal={(total, range) => `${range[ 0 ]}-${range[ 1 ]} of ${total}`}
-      pageSizeOptions={[ '10', '20', '50', '100' ]}
+      onPageChange={fetchRecords}
+      onPageSizeChange={handlePageSizeChange}
+      paginationConfig={paginationConfig}
     />
   );
 
@@ -569,7 +680,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
   const selectableColumns = React.useMemo(() => conditionVisibleProperties.filter(p => !p.isIdentifier), [ conditionVisibleProperties ]);
 
-  const handleColumnSettingsChange = (newSettings) => {
+  const handleColumnSettingsChange = (newSettings: typeof columnSettings) => {
     setColumnSettings(newSettings);
     setVisibleColumns(newSettings.filter(c => c.visible).map(c => c.key));
   };
@@ -620,7 +731,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         try {
           return evaluateTemplate(template as Template, record);
         } catch (e) {
-          if (process.env.NODE_ENV === 'development') {
+          if (IS_DEV) {
             console.warn(`[Table] Template evaluation failed:`, e);
           }
           return text;  // Fallback to original value
@@ -631,362 +742,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return rendererCache.current.get(cacheKey)!;
   }, []);
 
-  // Field type renderers - create once
-  const colorRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    const colorValue = typeof text === 'string' ? text : '';
-    if (!colorValue) return <span>—</span>;
-    return (
-      <>
-        <svg width="12" height="12" style={{ verticalAlign: 'middle' }}>
-          <rect width="12" height="12" fill={colorValue} strokeWidth={1} stroke="rgb(0,0,0)" />
-        </svg>
-        <span style={{ marginLeft: 8 }}> {colorValue}</span>
-      </>
-    );
-  }, []);
-
-  const imageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    const imageUrl = typeof text === 'string' ? text : '';
-    if (!imageUrl) return <span>—</span>;
-    return (
-      <img
-        src={imageUrl}
-        alt="Preview"
-        style={{
-          width: '40px',
-          height: '40px',
-          objectFit: 'cover',
-          borderRadius: '4px',
-          cursor: 'pointer'
-        }}
-        onClick={() => window.open(imageUrl, '_blank')}
-      />
-    );
-  }, []);
-
-  const fileRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    const fileUrl = typeof text === 'string' ? text : '';
-    if (!fileUrl) return <span>—</span>;
-    return (
-      <a href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>
-        Download
-      </a>
-    );
-  }, []);
-
-  // Complex field renderers with modal support using existing OpenInModal component
-  const jsonRenderer = (
-    text: unknown,
-    record: Record<string, unknown>,
-    columnName: string,
-    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
-  ): React.ReactNode => {
-    if (!text || (typeof text === 'object' && Object.keys(text).length === 0)) {
-      return <span>—</span>;
-    }
-
-    // Use shared utility for consistent preview generation (Table uses shorter strings for compact display)
-    const previewLabel = generateJsonPreview(text, { maxStringLength: 20, maxKeys: 2 });
-    const detailsConfig = createModalConfig('json', text, fieldConfig, 'map');
-
-    return (
-      <OpenInModal
-        modalType="details"
-        modalTitle={columnName}
-        modalWidth={800}
-        modalPageConfig={detailsConfig}
-      >
-        <Button
-          size="small"
-          icon={<FileTextOutlined />}
-          type="link"
-          style={{
-            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-            fontSize: '12px'
-          }}
-        >
-          {previewLabel}
-        </Button>
-      </OpenInModal>
-    );
-  };
-
-  const listRenderer = (
-    text: unknown,
-    record: Record<string, unknown>,
-    columnName: string,
-    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
-  ): React.ReactNode => {
-    if (!Array.isArray(text) || text.length === 0) return <span>—</span>;
-
-    // Simple string/number array - show inline if short
-    if (text.every(item => typeof item === 'string' || typeof item === 'number')) {
-      if (text.length === 1) return <span>{String(text[ 0 ])}</span>;
-      if (text.length <= 3) return <span>{text.join(', ')}</span>;
-    }
-
-    // Complex array - show in modal
-    const detailsConfig = createModalConfig(undefined, text, fieldConfig, 'list');
-
-    return (
-      <OpenInModal
-        modalType="details"
-        modalTitle={columnName}
-        modalWidth={800}
-        modalPageConfig={detailsConfig}
-      >
-        <Button
-          size="small"
-          icon={<OrderedListOutlined />}
-          type="link"
-        >
-          View ({text.length})
-        </Button>
-      </OpenInModal>
-    );
-  };
-
-  // Shared utility: Generate preview text with ellipsis for text-heavy content
-  // Supports: BlockNote blocks (wysiwyg/rich-text), plain strings (code/markdown/textarea)
-  const generateContentPreview = React.useCallback((content: unknown, maxLength: number = 32): string => {
-    if (!content) return '';
-
-    try {
-      // BlockNote blocks (rich-text/wysiwyg) - structured array format
-      if (Array.isArray(content)) {
-        const extractTextFromBlock = (block: any): string => {
-          let text = '';
-          if (block.content && Array.isArray(block.content)) {
-            text += block.content.map((item: any) => item.text || '').join('');
-          }
-          if (block.children && Array.isArray(block.children)) {
-            text += ' ' + block.children.map(extractTextFromBlock).filter(Boolean).join(' ');
-          }
-          return text;
-        };
-
-        const plainText = content.map(extractTextFromBlock).filter(Boolean).join(' ').trim();
-        return plainText ? (plainText.length > maxLength ? plainText.substring(0, maxLength) + '...' : plainText) : '';
-      }
-
-      // Plain strings (code, markdown, textarea, longtext)
-      if (typeof content === 'string') {
-        const cleaned = content.trim();
-        return cleaned ? (cleaned.length > maxLength ? cleaned.substring(0, maxLength) + '...' : cleaned) : '';
-      }
-
-      return '';
-    } catch {
-      return '';
-    }
-  }, []);
-
-  const richTextRenderer = (
-    text: unknown,
-    record: Record<string, unknown>,
-    columnName: string,
-    fieldConfig: Pick<ITablePropertiesConfig, 'dataIndex'>
-  ): React.ReactNode => {
-    if (!text) return <span>—</span>;
-
-    const preview = generateContentPreview(text);
-    const detailsConfig = createModalConfig('rich-text', text, fieldConfig);
-
-    return (
-      <OpenInModal
-        modalType="details"
-        modalTitle={columnName}
-        modalWidth={900}
-        modalPageConfig={detailsConfig}
-      >
-        <Button
-          size="small"
-          icon={<EyeOutlined />}
-          type="link"
-        >
-          {preview || 'View Content'}
-        </Button>
-      </OpenInModal>
-    );
-  };
-
-  const numberRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const num = typeof text === 'number' ? text : parseFloat(String(text));
-    return isNaN(num) ? <span>—</span> : <span>{num.toLocaleString()}</span>;
-  }, []);
-
-  const rangeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    return <span>{String(text)}%</span>;
-  }, []);
-
-  const ratingRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const rating = typeof text === 'number' ? text : parseFloat(String(text));
-    if (isNaN(rating)) return <span>—</span>;
-    return <Rate disabled value={rating} style={{ fontSize: 14 }} />;
-  }, []);
-
-  // NEW field type renderers
-  const urlRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    const url = String(text);
-    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>{url.length > 30 ? url.substring(0, 30) + '...' : url}</a>;
-  }, []);
-
-  const phoneRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return <a href={`tel:${text}`} style={{ color: '#1677ff' }}>{String(text)}</a>;
-  }, []);
-
-  const currencyRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const num = typeof text === 'number' ? text : parseFloat(String(text));
-    if (isNaN(num)) return <span>—</span>;
-    return <span>${num.toFixed(2)}</span>;
-  }, []);
-
-  const percentageRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    return <span>{Number(text)}%</span>;
-  }, []);
-
-  const sliderRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    return <span>{String(text)}</span>;
-  }, []);
-
-  // Duration renderer - uses shared formatDuration utility with unit and format support
-  const createDurationRenderer = React.useCallback((
-    unit: DurationUnit = 'seconds',
-    format: DurationFormat = 'auto'
-  ) => {
-    return (text: unknown): React.ReactNode => <span>{formatDuration(text, unit, format)}</span>;
-  }, []);
-
-  // TTL renderer - displays time remaining until expiration with auto-refresh support
-  const createTTLRenderer = React.useCallback((
-    unit: TTLUnit = 'seconds',
-    format: TTLFormat = 'auto',
-    autoRefresh?: number
-  ) => {
-    return (text: unknown): React.ReactNode => {
-      const TTLCell = () => {
-        const [ ttlValue, setTtlValue ] = React.useState(() => formatTTL(text, unit, format));
-        const isExpired = ttlValue === 'expired';
-
-        // Auto-refresh support
-        React.useEffect(() => {
-          if (!autoRefresh || autoRefresh <= 0 || isExpired) {
-            return;
-          }
-
-          const interval = setInterval(() => {
-            const newValue = formatTTL(text, unit, format);
-            setTtlValue(newValue);
-          }, autoRefresh * 1000);
-
-          return () => clearInterval(interval);
-        }, [ autoRefresh, isExpired ]);
-
-        return (
-          <span style={{
-            color: isExpired ? '#ff4d4f' : undefined,
-            fontWeight: isExpired ? 500 : undefined
-          }}>
-            {ttlValue}
-          </span>
-        );
-      };
-
-      return <TTLCell />;
-    };
-  }, []);
-
-  const badgeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return <Badge status="default" text={String(text)} />;
-  }, []);
-
-  const tagRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    if (Array.isArray(text)) {
-      return (
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {text.map((tag: any, i: number) => (
-            <Tag key={i}>{String(tag)}</Tag>
-          ))}
-        </div>
-      );
-    }
-    return <Tag>{String(text)}</Tag>;
-  }, []);
-
-  const progressRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (text === null || text === undefined) return <span>—</span>;
-    const value = typeof text === 'number' ? text : parseFloat(String(text));
-    if (isNaN(value)) return <span>—</span>;
-    return <Progress percent={value} size="small" style={{ width: 120 }} />;
-  }, []);
-
-  const avatarRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return <Avatar src={String(text)} size="small" />;
-  }, []);
-
-  const iconRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    const IconComponent = (Icons as any)[ String(text) ];
-    return IconComponent ? <IconComponent style={{ fontSize: 18 }} /> : <span>{String(text)}</span>;
-  }, []);
-
-  const linkRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    const url = String(text);
-    return <a href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#1677ff' }}>Link</a>;
-  }, []);
-
-  const videoRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return (
-      <Button
-        size="small"
-        icon={<PlayCircleOutlined />}
-        type="link"
-        onClick={() => window.open(String(text), '_blank')}
-      >
-        Video
-      </Button>
-    );
-  }, []);
-
-  const audioRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return (
-      <Button
-        size="small"
-        icon={<AudioOutlined />}
-        type="link"
-        onClick={() => window.open(String(text), '_blank')}
-      >
-        Audio
-      </Button>
-    );
-  }, []);
-
-  const qrcodeRenderer = React.useMemo(() => (text: unknown): React.ReactNode => {
-    if (!text) return <span>—</span>;
-    return (
-      <Button
-        size="small"
-        icon={<QrcodeOutlined />}
-        type="link"
-      >
-        QR
-      </Button>
-    );
-  }, []);
+  // All field type renderers are now in the FieldTypeRegistry (field-types/ files).
 
   const columns = addFilterUI(
     addActionUI(conditionVisibleProperties, handleReload, routeParams),
@@ -1001,7 +757,25 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     .map((column, index) => {
       if (column.key === 'action') return column;
 
+      // Run rendering pipeline for this column (#95)
+      // Uses processField to evaluate visibility, resolve conditional labels, and apply formatting metadata
+      const pipelineResult = processField(column, null, {}, index);
+      if (!pipelineResult.isVisible) {
+        return { ...column, hidden: true }; // Mark hidden, filtered below
+      }
+      // Apply resolved label from pipeline (handles ConditionalValue<string> on name/title)
+      if (pipelineResult.resolvedProps.label !== undefined) {
+        column = { ...column, name: t(pipelineResult.resolvedProps.label) }; // i18n (#22)
+      } else if (column.name) {
+        column = { ...column, name: t(column.name) }; // i18n (#22) — translate raw labels too
+      }
+
       let renderer = column.render;
+      // Tracks table-level registry defaults for this column so they can be
+      // merged into the antd column definition (for align/width/ellipsis/etc).
+      // Only set when Priority 3 (FieldTypeRegistry) provides the renderer —
+      // custom and extension renderers don't use registry defaults.
+      let columnTableDefaults: Record<string, unknown> | undefined;
 
       // Priority 1: Relation config renderer (for related entities)
       if (column.relationConfig) {
@@ -1014,6 +788,37 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
             label={column.name}
           />
         );
+      }
+      // Priority 1.5: Composite column renderer (multi-field columns)
+      else if (column.composite) {
+        const { fields, template: compositeTemplate, layout = 'stacked' } = column.composite;
+        renderer = (_value: any, record: Record<string, unknown>) => {
+          if (compositeTemplate) {
+            return <span>{evaluateTemplate(compositeTemplate, record)}</span>;
+          }
+          const values = fields.map(f => getNestedValue(record, f)).filter(v => v != null);
+          if (values.length === 0) return <span>—</span>;
+          if (layout === 'inline') {
+            return (
+              <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                {values.map((v, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && <span style={{ color: '#d9d9d9' }}>·</span>}
+                    <span>{String(v)}</span>
+                  </React.Fragment>
+                ))}
+              </span>
+            );
+          }
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, lineHeight: 1.4 }}>
+              <span style={{ fontWeight: 500 }}>{String(values[ 0 ])}</span>
+              {values.slice(1).map((v, i) => (
+                <span key={i} style={{ fontSize: '0.85em', color: '#8c8c8c' }}>{String(v)}</span>
+              ))}
+            </div>
+          );
+        };
       }
       // Priority 2: Template renderer (for composite values)
       else if (column.template) {
@@ -1041,161 +846,130 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
           };
         }
       }
-      // Priority 3: Field type specific renderers (built-in)
-      if (!renderer && column.fieldType) {
-        const fieldType = column.fieldType.toLowerCase();
-        const columnName = column.name || column.title || column.dataIndex;
+      // Priority 3: Field type specific renderers (built-in via FieldTypeRegistry)
+      if (!renderer && (column.fieldType || column.type)) {
+        // Map structural types to fieldType for registry lookup
+        let effectiveFieldType = (column.fieldType || '').toLowerCase();
+        if (column.type === 'map' && !fieldTypeRegistry.get(effectiveFieldType, 'table')) {
+          effectiveFieldType = 'json';
+        }
+        if (column.type === 'list' && effectiveFieldType !== 'multi-select') {
+          effectiveFieldType = 'list';
+        }
 
-        // Image fields
-        if (fieldType === 'image') {
-          renderer = imageRenderer;
+        const TableComponent = fieldTypeRegistry.get(effectiveFieldType, 'table');
+        if (TableComponent) {
+          // Merge smart defaults from registry (#98): defaults < entity config
+          const tableDefaults = fieldTypeRegistry.getDefaults(effectiveFieldType, 'table');
+          columnTableDefaults = tableDefaults; // saved so the return below can spread into antd col def
+          const mergedColumn = tableDefaults ? { ...tableDefaults, ...column } : column;
+          renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => (
+            <TableComponent value={text} record={record} column={mergedColumn} rowIndex={rowIndex} routeParams={routeParams} />
+          );
         }
-        // File fields
-        else if (fieldType === 'file') {
-          renderer = fileRenderer;
-        }
-        // Color fields
-        else if (fieldType === 'color') {
-          renderer = colorRenderer;
-        }
-        // JSON/Map fields - modal-based
-        else if (fieldType === 'json' || column.type === 'map') {
-          renderer = (text: unknown, record: Record<string, unknown>) =>
-            jsonRenderer(text, record, columnName, column);
-        }
-        // List/Array fields (but not multi-select which is already formatted as string) - modal-based
-        else if (column.type === 'list' && fieldType !== 'multi-select') {
-          renderer = (text: unknown, record: Record<string, unknown>) =>
-            listRenderer(text, record, columnName, column);
-        }
-        // Rich text fields - modal-based
-        else if (fieldType === 'rich-text' || fieldType === 'wysiwyg') {
-          renderer = (text: unknown, record: Record<string, unknown>) =>
-            richTextRenderer(text, record, columnName, column);
-        }
-        // Textarea, code, markdown - show preview with modal for full content
-        else if (fieldType === 'textarea' || fieldType === 'code' || fieldType === 'markdown' || fieldType === 'longtext') {
-          renderer = (text: unknown, record: Record<string, unknown>): React.ReactNode => {
-            if (!text) return <span>—</span>;
+      }
 
-            const preview = generateContentPreview(text);
-            if (!preview) return <span>—</span>;
-
-            // If content is short, show inline
-            if (typeof text === 'string' && text.length < 50) {
-              return <span>{text}</span>;
+      // Wrap renderer with conditional cell formatting (#26)
+      if (column.formatting && column.formatting.length > 0 && renderer) {
+        type BadgeStatus = 'success' | 'processing' | 'error' | 'warning' | 'default';
+        const baseRenderer = renderer;
+        const formattingRules = column.formatting;
+        renderer = (text: unknown, record: IRecord, rowIndex: number) => {
+          const rawRecord = record.__raw__ || record;
+          let cellStyle: React.CSSProperties = {};
+          let cellClassName = '';
+          let matchedBadge: { status: BadgeStatus } | undefined;
+          let matchedIcon: { name: string; color?: string } | undefined;
+          for (const rule of formattingRules) {
+            try {
+              const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+              if (match) {
+                if (rule.style) Object.assign(cellStyle, rule.style);
+                if (rule.className) cellClassName += (cellClassName ? ' ' : '') + rule.className;
+                if (rule.badge && !matchedBadge) matchedBadge = rule.badge;
+                if (rule.icon && !matchedIcon) matchedIcon = rule.icon;
+              }
+            } catch {
+              // Fail-safe: skip rule on evaluation error
             }
+          }
+          let content = baseRenderer(text, record, rowIndex);
+          const hasStyleOrClass = Object.keys(cellStyle).length > 0 || cellClassName;
+          if (hasStyleOrClass) {
+            content = <span style={cellStyle} className={cellClassName || undefined}>{content}</span>;
+          }
+          if (matchedIcon) {
+            content = <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon iconName={matchedIcon.name} />{content}
+            </span>;
+          }
+          if (matchedBadge) {
+            content = <Badge status={matchedBadge.status} text={content} />;
+          }
+          return content;
+        };
+      }
 
-            // Show preview button with modal for longer content
-            const detailsConfig = createModalConfig(column.fieldType, text, column);
+      // Wrap with copyable (#60) when config says so — works for ALL columns including plain text
+      if (column.copyable) {
+        const copyableBase = renderer;
+        const isComposite = !!column.composite;
+        const isJson = column.fieldType === 'json' || column.type === 'map';
+        renderer = (text: unknown, record: Record<string, unknown>, rowIndex: number) => {
+          const content = copyableBase ? copyableBase(text, record, rowIndex) : (text != null ? String(text) : '—');
+          // Compute clipboard text based on column type
+          let clipboardText: string;
+          if (isComposite && column.composite) {
+            const vals = column.composite.fields.map(f => getNestedValue(record, f)).filter(v => v != null);
+            clipboardText = vals.map(String).join(' ');
+          } else if (isJson || (text && typeof text === 'object')) {
+            clipboardText = JSON.stringify(text, null, 2);
+          } else {
+            clipboardText = text != null ? String(text) : '';
+          }
+          if (!clipboardText) return content;
+          return (
+            <Typography.Text copyable={{ text: clipboardText, tooltips: [ 'Copy', 'Copied' ] }} style={{ display: 'inline' }}>
+              {content}
+            </Typography.Text>
+          );
+        };
+      }
 
-            return (
-              <OpenInModal
-                modalType="details"
-                modalTitle={columnName}
-                modalWidth={800}
-                modalPageConfig={detailsConfig}
-              >
-                <Button
-                  size="small"
-                  icon={<FileTextOutlined />}
-                  type="link"
-                >
-                  {preview}
-                </Button>
-              </OpenInModal>
-            );
-          };
-        }
-        // Number fields
-        else if (fieldType === 'number') {
-          renderer = numberRenderer;
-        }
-        // Range fields
-        else if (fieldType === 'range') {
-          renderer = rangeRenderer;
-        }
-        // Rating fields
-        else if (fieldType === 'rating') {
-          renderer = ratingRenderer;
-        }
-        // URL fields
-        else if (fieldType === 'url') {
-          renderer = urlRenderer;
-        }
-        // Phone fields
-        else if (fieldType === 'phone') {
-          renderer = phoneRenderer;
-        }
-        // Currency fields
-        else if (fieldType === 'currency') {
-          renderer = currencyRenderer;
-        }
-        // Percentage fields
-        else if (fieldType === 'percentage') {
-          renderer = percentageRenderer;
-        }
-        // Slider fields
-        else if (fieldType === 'slider') {
-          renderer = sliderRenderer;
-        }
-        // Duration fields - use durationUnit and format from column config
-        else if (fieldType === 'duration') {
-          renderer = createDurationRenderer(
-            column.durationUnit || 'seconds',
-            column.durationFormat || 'auto'
-          );
-        }
-        // TTL fields - displays time remaining until expiration with auto-refresh
-        else if (fieldType === 'ttl') {
-          renderer = createTTLRenderer(
-            column.ttlUnit || 'seconds',
-            column.ttlFormat || 'auto',
-            column.ttlAutoRefresh
-          );
-        }
-        // Badge fields
-        else if (fieldType === 'badge') {
-          renderer = badgeRenderer;
-        }
-        // Tag fields
-        else if (fieldType === 'tag' || fieldType === 'tags') {
-          renderer = tagRenderer;
-        }
-        // Progress fields
-        else if (fieldType === 'progress') {
-          renderer = progressRenderer;
-        }
-        // Avatar fields
-        else if (fieldType === 'avatar') {
-          renderer = avatarRenderer;
-        }
-        // Icon fields
-        else if (fieldType === 'icon') {
-          renderer = iconRenderer;
-        }
-        // Link fields
-        else if (fieldType === 'link') {
-          renderer = linkRenderer;
-        }
-        // Video fields
-        else if (fieldType === 'video') {
-          renderer = videoRenderer;
-        }
-        // Audio fields
-        else if (fieldType === 'audio') {
-          renderer = audioRenderer;
-        }
-        // QR Code fields
-        else if (fieldType === 'qrcode') {
-          renderer = qrcodeRenderer;
-        }
+      // Derived / computed column values (#35) — compute from record at render time
+      if (column.derived) {
+        const derivedBase = renderer;
+        const derivedConfig = column.derived;
+        renderer = (text: unknown, record: IRecord, rowIndex: number) => {
+          const rawRecord = record.__raw__ || record;
+          const derivedValue = computeDerivedValue(derivedConfig, rawRecord as Record<string, unknown>);
+          if (derivedValue !== undefined) {
+            return derivedBase ? derivedBase(derivedValue, record, rowIndex) : String(derivedValue);
+          }
+          return derivedBase ? derivedBase(text, record, rowIndex) : (text != null ? String(text) : '—');
+        };
+      }
+
+      // Data masking (#51) — wrap string cell values when masking is configured
+      if (column.masking?.enabled) {
+        const maskingBase = renderer;
+        const maskingConfig = column.masking;
+        renderer = (text: unknown, record: IRecord, rowIndex: number) => {
+          if (typeof text === 'string' && text) {
+            return <MaskedDisplay value={text} config={maskingConfig} />;
+          }
+          return maskingBase ? maskingBase(text, record, rowIndex) : (text != null ? String(text) : '—');
+        };
       }
 
       const columnSetting = columnSettings.find(s => s.key === column.dataIndex);
       return {
+        // Registry defaults (lowest priority) — makes align/width/ellipsis from
+        // FieldTypeRegistry actually reach antd's Table column definition.
+        // Entity config always wins because it's spread after.
+        ...columnTableDefaults,
         ...column,
-        title: columnSetting?.title || column.dataIndex,
+        title: columnSetting?.title || column.name || column.dataIndex,
         render: renderer,
         fixed: columnSetting?.fixed,
         sorter: (isSearchMode && (column.isSortable === true || column.isSortable === undefined)) ? { multiple: index + 1 } : undefined,
@@ -1203,6 +977,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         filterIcon: <FilterFilled style={{ color: !!appliedFilters[ column.dataIndex ] ? "#1677ff" : undefined }} />,
       };
     })
+    .filter(c => !c.hidden) // Remove pipeline-hidden columns (#95)
     .filter(c => c.key === 'action' || columnSettings.find(s => s.key === c.dataIndex)?.visible)
     .sort((a, b) => {
       const aIndex = columnSettings.findIndex(s => s.key === a.dataIndex);
@@ -1223,9 +998,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       return columns;
     }
 
-    const grouped: any[] = [];
+    type Column = (typeof columns)[ number ];
+    const grouped: Array<Column | { title: string; children: Column[] }> = [];
     const groupedFieldSet = new Set<string>();
-    const groupMap = new Map<string, any[]>();
+    const groupMap = new Map<string, Column[]>();
 
     // Group columns by groupTitle
     columns.forEach(col => {
@@ -1241,7 +1017,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     // Create grouped column structures
     groupMap.forEach((childColumns, groupTitle) => {
       grouped.push({
-        title: groupTitle,
+        title: t(groupTitle), // i18n (#22)
         children: childColumns
       });
     });
@@ -1254,13 +1030,14 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     return [ ...grouped, ...ungroupedColumns ];
   }, [ columns ]);
 
+
   return {
     recordIdentifierKey,
     columns: finalColumns,
     listRecords,
     isLoading,
     isInitialLoad,
-    Pagination: isSearchMode ? <NumericalPagination /> : CursorPagination,
+    Pagination: isSearchMode ? NumericalPaginationElement : CursorPagination,
     DisplayAppliedFilters,
     onSearch,
     handleTableChange,
@@ -1287,5 +1064,10 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     setAppliedFilters,  // Exposed for FilterSegments to update filters
     setFetchTrigger,    // Exposed to trigger refetch after state updates
     fetchRecords,       // Exposed to allow immediate fetch with filtersOverride (bypasses React async setState)
+    dataUpdatedAt,      // Timestamp of last successful data fetch (#106)
+    processField,       // Rendering pipeline (#95) — run a field through evaluate→transform→resolve→select→format
+    fetchError,          // Query error (#58) — for inline error state rendering
+    currentPage,        // Current page number (#21) — for deep link URL sync
+    sort,               // Active sort state (#21) — SorterResult[] for deep link URL sync
   };
 };

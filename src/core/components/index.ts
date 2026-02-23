@@ -1,6 +1,8 @@
-/**
- * Core components exports
- */
+export { EntityTable } from './EntityTable';
+export type { EntityTableProps } from './EntityTable';
 
-// Auto Refresh
-export { AutoRefreshSelector } from './AutoRefreshSelector';
+export { EntityForm } from './EntityForm';
+export type { EntityFormProps } from './EntityForm';
+
+export { EntityDetail } from './EntityDetail';
+export type { EntityDetailProps } from './EntityDetail';

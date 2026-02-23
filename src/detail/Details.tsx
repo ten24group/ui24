@@ -32,7 +32,7 @@
  * 3. Render fields in multi-column layout
  * 
  * ### With Pre-loaded Data
- * 1. Accept record data via `detailResponse` prop
+ * 1. Accept record data via `dataSource` prop
  * 2. Format data for display
  * 3. Render fields in multi-column layout
  * 
@@ -87,7 +87,7 @@
  * // With pre-loaded data (expandable rows, modals, etc.)
  * <Details
  *   propertiesConfig={[...]}
- *   detailResponse={{ teamName: 'Lakers', city: 'Los Angeles', logo: '...' }}
+ *   dataSource={{ teamName: 'Lakers', city: 'Los Angeles', logo: '...' }}
  * />
  * ```
  * 
@@ -95,77 +95,130 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Descriptions, DescriptionsProps, List, Skeleton, Spin, Badge, Tag, Progress, Avatar, Slider, Timeline } from 'antd';
-import dayjs from 'dayjs';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Spin, Typography } from 'antd';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
+import { DataLoadingState } from '../core/common/DataLoadingState';
 import { useParams } from "react-router-dom";
-import { CustomBlockNoteEditor, CustomColorPicker, ErrorFallback, JsonDescription, JsonField, Link, MarkdownPreview } from '../core/common';
-import { IApiConfig, useApi, useAppContext } from '../core/context';
-import { HelpText } from '../core/forms/FormField/components';
+import { ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../core/common';
+import { QueryErrorState } from '../core/common/ErrorFallback';
+import { MaskedDisplay } from '../core/common/MaskedDisplay';
+import { computeDerivedValue } from '../core/hooks/useDerivedFields';
+import { IApiConfig, useAppContext } from '../core/context';
+import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
+import { useTranslation } from '../core/hooks';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
-import { handleApiError } from '../core/utils/api-error-handler';
+import { handleApiError, isHttpStatus } from '../core/utils/api-error-handler';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';
 import { detailsStyles } from './styles';
-import { QRCode } from 'antd';
-import * as Icons from '@ant-design/icons';
 
-import { IDetailFieldConfig, Template } from '../core/types/field-config';
+import { IDetailFieldConfig, Template, type IDetailDataChangePayload, type IDetailsConfig, type IDetailsComponentProps } from '../core/types/field-config';
 import { resolveStringOrDefault } from '../core/types/evaluation';
 import { ISectionsConfig } from '../pages/PostAuth/SectionsRenderer';
 import { RelationFieldRenderer } from '../table/renderers/RelationFieldRenderer';
-import { formatDuration, formatTTL } from '../core/utils/duration';
+import { useCoreNavigator } from '../routes/Navigation';
 import { evaluateTemplate } from '../core/utils/template';
 import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from '../core/registry';
+import { useEntityDetail } from '../core/query/useEntityDetail';
+import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
+import { useRenderPipeline } from '../core/rendering';
+import { DataQualityIndicator, type IDataQualityConfig } from '../core/common/DataQualityIndicator';
+import '../core/registry/field-types'; // ensure built-in registrations run
+
+// Stable empty object to avoid re-creating {} on every render (used as default for routeParams)
+const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
 
 /**
- * Detail API configuration interface.
+ * Recursively deserialize JSON strings embedded in values.
+ * Handles nested strings that may contain JSON (e.g., DynamoDB metadata
+ * stored as serialized JSON strings within a map field).
+ *
+ * Pure function — no component dependencies, safe at module scope.
  */
-export interface IDetailApiConfig {
-  detailApiConfig?: IApiConfig;
-}
+const deserializeJsonStrings = (value: unknown): unknown => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return deserializeJsonStrings(parsed);
+      } catch {
+        return value;
+      }
+    }
+    return value;
+  } else if (Array.isArray(value)) {
+    return value.map(item => deserializeJsonStrings(item));
+  } else if (value && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [ key, val ] of Object.entries(value)) {
+      result[ key ] = deserializeJsonStrings(val);
+    }
+    return result;
+  }
+  return value;
+};
 
 /**
- * Core details configuration interface.
+ * Reusable wrapper for each field in the detail view.
+ * Renders the label (with optional help icon), help text, and children content.
+ * Eliminates the repeated container/label/help pattern across all field branches.
  */
-export interface IDetailsConfig extends IDetailApiConfig {
-  pageTitle?: Template;
-  entityName?: string;  // NEW: Entity name from backend config generation
-  identifiers?: string | number | Array<string | number>;
-  propertiesConfig: Array<IPropertiesConfig>;
-  columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, any>;
-  detailResponse?: any;  // Pre-provided response data (bypasses API call)
-  /**
-   * Additional sections to display below or alongside the main detail view.
-   * From backend: entitySchema.model.viewPageConfig.sectionsConfig
-   * 
-   * Enables multi-section detail pages with tabs or accordion UI.
-   * Sections have access to the parent record via routeParams.
-   */
-  sectionsConfig?: ISectionsConfig;
-}
+const DetailsFieldWrapper: React.FC<{
+  item: IPropertiesConfig;
+  index: number;
+  children: React.ReactNode;
+  resolvedLabel?: string;
+  formattingStyles?: Record<string, string | number>;
+  formattingClassName?: string;
+  /** Raw or formatted value — used for clipboard copy when copyable is true */
+  value?: unknown;
+}> = ({ item, index, children, resolvedLabel, formattingStyles, formattingClassName, value }) => {
+  const { t } = useTranslation(); // i18n (#22)
+  const help = resolveHelpConfig({
+    helpText: resolveStringOrDefault(item.helpText),
+    help: item.help,
+  });
 
-/**
- * Details component props with state lifting and refresh support.
- */
-export interface IDetailsComponentProps extends IDetailsConfig {
-  propertiesConfig: Array<IPropertiesConfig>;
-  detailApiConfig?: IApiConfig;
-  identifiers?: string | number;
-  columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, any>;
-  detailResponse?: any;  // Pre-provided response data (bypasses API call)
-  onDataChange?: (data: { record?: any; pageType?: string; entityName?: string }) => void;
-  refreshRef?: React.MutableRefObject<(() => Promise<void>) | null>;  // Ref to expose refresh function
-}
+  // When copyable, wrap the value content with Typography.Text copyable.
+  // Only wraps for primitive values (string/number/boolean) — not complex objects.
+  const isPrimitive = value != null && value !== '' && typeof value !== 'object';
+  const content = item.copyable && isPrimitive
+    ? (
+      <Typography.Text
+        copyable={{ text: String(value), tooltips: ['Copy', 'Copied'] }}
+        style={{ display: 'inline' }}
+      >
+        {children}
+      </Typography.Text>
+    )
+    : children;
+
+  const displayLabel = t(resolvedLabel ?? resolveStringOrDefault(item.label)); // i18n (#22)
+  const containerClassName = ['details-field-container', formattingClassName].filter(Boolean).join(' ');
+
+  return (
+    <div key={index} className={containerClassName} style={formattingStyles}>
+      <div className="details-field-label">
+        {displayLabel}
+        <HelpIcon help={help} />
+      </div>
+      <HelpText help={help} />
+      {content}
+    </div>
+  );
+};
+
+// IDetailsConfig and IDetailsComponentProps are now in core/types/field-config.ts
+export type { IDetailsConfig, IDetailsComponentProps };
 
 /**
  * Main Details component for rendering read-only record details.
@@ -176,11 +229,11 @@ export interface IDetailsComponentProps extends IDetailsConfig {
  * 
  * @param props - Details configuration props
  * @param props.propertiesConfig - Field configurations from backend
- * @param props.detailApiConfig - API configuration for loading data (optional if detailResponse provided)
+ * @param props.detailApiConfig - API configuration for loading data (optional if dataSource provided)
  * @param props.identifiers - Record identifier for API fetching
  * @param props.columnsConfig - Multi-column layout configuration
  * @param props.routeParams - Route parameters for URL substitution
- * @param props.detailResponse - Pre-loaded record data (bypasses API call)
+ * @param props.dataSource - Pre-loaded record data (bypasses API call)
  * @param props.entityName - Entity name for context
  * @param props.onDataChange - Callback to lift detail state to parent
  * @param props.refreshRef - Ref to expose refresh function to parent
@@ -193,65 +246,31 @@ const Details: React.FC<IDetailsComponentProps> = ({
   detailApiConfig,
   identifiers,
   columnsConfig,
-  routeParams = {},
-  detailResponse: initialDetailResponse,
-  entityName,  // From backend config
-  onDataChange,  // Callback to lift state to wrapper
-  refreshRef,  // Ref to expose refresh function to wrapper
+  routeParams = EMPTY_ROUTE_PARAMS,
+  dataSource: initialDataSource,
+  entityName,
+  onDataChange,
+  refreshRef,
+  loading: loadingConfig,
+  dataQuality: dataQualityConfig,
+  errorHandling: errorHandlingConfig,
+  retry: retryConfig,
 }) => {
-  const [ recordInfo, setRecordInfo ] = useState<IPropertiesConfig[]>(propertiesConfig)
-  const [ detailResponse, setDetailResponse ] = useState<any>(initialDetailResponse || null)
-  // TODO: remove the dynamic-id option from here and use the identifiers prop instead
+  // TODO(#7): Remove dynamicID fallback once all routes pass `identifiers` prop explicitly.
+  // Currently, some routes use :dynamicID as the URL param and rely on this fallback.
+  // Requires backend config generation to consistently set `identifiers` on detail pages.
   const { dynamicID } = useParams()
   const { notifyError } = useAppContext();
-  const { callApiMethod } = useApi();
-  const [ dataLoaded, setDataLoaded ] = useState(false);
-  const [ isRefreshing, setIsRefreshing ] = useState(false);  // Separate loading state for refresh
+  const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
   const { resolveConfigRef } = useEntityConfig();
   const { formatDate, formatBoolean } = useFormat();
+  const coreNavigate = useCoreNavigator();
+
+  // Rendering pipeline (#95) — provides processField() for unified label resolution, formatting metadata
+  const { processField } = useRenderPipeline({ renderContext: 'detail', routeParams: routeParams || {} });
   // NOTE: registry resolution is handled via getFieldRenderer() (non-hook, safe for loops)
 
-  // Lift detail state to wrapper (if callback provided)
-  useEffect(() => {
-    if (!onDataChange || !detailResponse) return;
-
-    onDataChange({
-      record: detailResponse,
-      pageType: 'view',
-      entityName
-    });
-  }, [ detailResponse, entityName, onDataChange ]);
-
-  // Utility function to recursively deserialize JSON strings
-  const deserializeJsonStrings = (value: any): any => {
-    if (typeof value === 'string') {
-      // Check if the string looks like JSON
-      const trimmed = value.trim();
-      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-        (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-        try {
-          const parsed = JSON.parse(trimmed);
-          // Recursively deserialize nested strings
-          return deserializeJsonStrings(parsed);
-        } catch {
-          // If parsing fails, return the original string
-          return value;
-        }
-      }
-      return value;
-    } else if (Array.isArray(value)) {
-      return value.map(item => deserializeJsonStrings(item));
-    } else if (value && typeof value === 'object') {
-      const result: any = {};
-      for (const [ key, val ] of Object.entries(value)) {
-        result[ key ] = deserializeJsonStrings(val);
-      }
-      return result;
-    }
-    return value;
-  };
-
-  const valueFormatter = (item: IPropertiesConfig, itemData: any) => {
+  const valueFormatter = useCallback((item: IPropertiesConfig, itemData: any) => {
     let initialValue = itemData;
 
     // First, try to deserialize any JSON strings
@@ -261,13 +280,18 @@ const Details: React.FC<IDetailsComponentProps> = ({
     // JsonDescription will handle depth detection and rendering automatically
     if (item?.type === "map" && Array.isArray(item.properties) && item.properties.length > 0) {
       initialValue = item.properties.reduce((acc, prop: IPropertiesConfig) => {
-        //! Fixme: this conflicts with antd's column prop for ui column size.. need better handling
+        // TODO(#7): `prop.column` is overloaded — it's the data access key AND the antd
+        // Descriptions column layout prop. Needs a dedicated `dataKey` field in IDetailFieldConfig
+        // to disambiguate. Part of the Type Safety initiative.
         acc[ prop.column ] = valueFormatter(prop, itemData?.[ prop.column ]);
         return acc;
       }, {});
 
     } else if (item?.type === "list") {
-      initialValue = itemData?.map(it => valueFormatter(item.items as any, it)) ?? [];
+      // item.items is { type, properties } — a structural subset of IDetailFieldConfig.
+      // Cast is safe because valueFormatter only reads type/properties/items/fieldType
+      // from the first argument, and the missing fields simply don't trigger format branches.
+      initialValue = itemData?.map((it: unknown) => valueFormatter(item.items as IDetailFieldConfig, it)) ?? [];
     } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
       // Skip formatting if value is null/undefined/empty
       if (initialValue == null || initialValue === '') {
@@ -291,172 +315,102 @@ const Details: React.FC<IDetailsComponentProps> = ({
       // Auto-detect boolean values even if fieldType is missing
       // This makes the UI more resilient to missing fieldType configurations
       initialValue = formatBoolean(itemData);
-    } else if (item?.fieldType === 'number') {
-      // format number values
+    } else if (item?.fieldType === 'number' || item?.fieldType === 'range' || item?.fieldType === 'rating') {
+      // Coerce numeric field types to actual numbers
       initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-    } else if (item?.fieldType === 'color') {
-      // format color values - keep as is for display
-      initialValue = initialValue;
-    } else if (item?.fieldType === 'range') {
-      // format range values
-      initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-    } else if (item?.fieldType === 'rating') {
-      // format rating values
-      initialValue = typeof initialValue === 'number' ? initialValue : parseFloat(initialValue) || 0;
-    } else if ([ 'code', 'markdown', 'json' ].includes(item?.fieldType)) {
-      // format code/markdown/json values - keep as is for display
-      initialValue = initialValue;
-    } else if ([ 'rich-text', 'wysiwyg' ].includes(item?.fieldType)) {
-      // format rich text values - keep as is for display
-      initialValue = initialValue;
-    } else if ([ 'file', 'image' ].includes(item?.fieldType)) {
-      // format file/image values - keep as is for display
-      initialValue = initialValue;
-    } else if ([ 'hidden', 'custom' ].includes(item?.fieldType)) {
-      // format hidden/custom values - keep as is for display
-      initialValue = initialValue;
     }
+    // All other field types (color, code, markdown, json, rich-text, wysiwyg,
+    // file, image, hidden, custom) pass through unchanged — no formatting needed.
 
     return initialValue;
-  }
+  }, [ formatDate, formatBoolean ]);
 
-  // Standard data fetch function (can be called on mount or on-demand)
-  const fetchRecordInfo = React.useCallback(async (showLoader = true) => {
-    if (showLoader) {
-      setIsRefreshing(true);
+  // ── Declarative data fetching via useEntityDetail ──
+  const identifier = identifiers || dynamicID;
+
+  const {
+    data: fetchedData,
+    entityName: detailEntityName,
+    isLoading: detailLoading,
+    isFetching: detailFetching,
+    error: detailError,
+    refetch: refetchDetail,
+  } = useEntityDetail({
+    apiConfig: detailApiConfig || { apiUrl: '', apiMethod: 'GET' },
+    routeParams,
+    identifier,
+    entityName,
+    enabled: !!detailApiConfig && !initialDataSource,
+    staleTime: 30 * 1000,
+  });
+
+  // Source data: pre-loaded takes priority over fetched
+  const resolvedData = initialDataSource || fetchedData || null;
+
+  // Detect record-not-found (404 or empty response)
+  const recordNotFound = useMemo(() => {
+    if (detailError && isHttpStatus(detailError, 404)) {
+      return true;
     }
+    if (!initialDataSource && fetchedData !== undefined &&
+      fetchedData && typeof fetchedData === 'object' && Object.keys(fetchedData).length === 0) {
+      return true;
+    }
+    return false;
+  }, [ detailError, fetchedData, initialDataSource ]);
 
-    const identifier = identifiers || dynamicID;
-    let apiUrl = detailApiConfig?.apiUrl;
+  // Data is ready when pre-loaded OR hook finished loading OR 404 detected
+  const dataLoaded = !!initialDataSource || !detailLoading || recordNotFound;
 
-    if (!apiUrl) return;
-
-    // Use the clean utility function for URL parameter substitution
-    apiUrl = substituteUrlParams(apiUrl, routeParams, identifier);
-
-    try {
-      const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
-
-      if (response.status >= 200 && response.status < 300) {
-        const fetchedDetailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
-        setDetailResponse(fetchedDetailResponse)
-
-        const formatted = recordInfo.map(item => {
-          const propertyPath = item.column || item.name || item.id;
-          const nestedValue = getNestedValue(fetchedDetailResponse, propertyPath);
-          const formattedValue = valueFormatter(item, nestedValue);
-          return { ...item, initialValue: formattedValue }
-        });
-
-        setRecordInfo(formatted)
-      } else if (response.status >= 400 && response.status < 600) {
-        const errorResult = handleApiError(response, 'Failed to load details');
-        notifyError(errorResult.formattedErrors.join('\n'));
+  // Format record info: combine propertiesConfig with formatted values from source data
+  const recordInfo = useMemo(() => {
+    if (!resolvedData) return propertiesConfig;
+    return propertiesConfig.map(item => {
+      // Derived / computed fields (#35) — compute value from record at render time
+      if (item.derived) {
+        const derivedValue = computeDerivedValue(item.derived, resolvedData as Record<string, unknown>);
+        return { ...item, initialValue: derivedValue };
       }
+      const propertyPath = item.column || item.name || item.id;
+      const nestedValue = getNestedValue(resolvedData, propertyPath);
+      const formattedValue = valueFormatter(item, nestedValue);
+      return { ...item, initialValue: formattedValue };
+    });
+  }, [ resolvedData, propertiesConfig, valueFormatter ]);
 
-      setDataLoaded(true);
-      setIsRefreshing(false);
-
-    } catch (error: any) {
-      const errorResult = handleApiError(error, 'Failed to load details');
-      notifyError(errorResult.formattedErrors.join('\n'));
-      setDataLoaded(true);
-      setIsRefreshing(false);
+  // Track data update timestamp
+  useEffect(() => {
+    if (resolvedData) {
+      setDataUpdatedAt(new Date().toISOString());
     }
-  }, [ identifiers, dynamicID, detailApiConfig, routeParams, callApiMethod, recordInfo, notifyError ]);
+  }, [ resolvedData ]);
+
+  // Show error toast for non-404 errors
+  useEffect(() => {
+    if (!detailError) return;
+    if (isHttpStatus(detailError, 404)) return;
+    const errorResult = handleApiError(detailError, 'Failed to load details');
+    notifyError(errorResult.formattedErrors.join('\n'));
+  }, [ detailError, notifyError ]);
 
   // Expose refresh function to parent wrapper via ref
   useEffect(() => {
     if (refreshRef) {
-      refreshRef.current = fetchRecordInfo;
+      refreshRef.current = async () => { await refetchDetail(); };
     }
-  }, [ fetchRecordInfo, refreshRef ]);
+  }, [ refetchDetail, refreshRef ]);
 
-  // Initial load
+  // Lift detail state to wrapper (if callback provided)
   useEffect(() => {
-    // If we have pre-provided detail response, format it immediately
-    if (initialDetailResponse) {
-      const formatted = recordInfo.map(item => {
-        const propertyPath = item.column || item.name || item.id;
-        const nestedValue = getNestedValue(initialDetailResponse, propertyPath);
-        const formattedValue = valueFormatter(item, nestedValue);
-        return { ...item, initialValue: formattedValue }
-      });
+    if (!onDataChange || !resolvedData) return;
 
-      setRecordInfo(formatted);
-      setDataLoaded(true);
-    } else if (detailApiConfig) {
-      // Otherwise, fetch from API
-      fetchRecordInfo(false);  // Don't show refresh loader on initial load
-    }
-  }, [])  // Only on mount
-
-  interface IDescriptionCardOptions {
-    name: string;
-    layout: DescriptionsProps[ 'layout' ];
-    data: Array<{ label: string; value: string | number | boolean | null } | IPropertiesConfig>;
-  }
-
-  const makeDescriptionCard = (options: IDescriptionCardOptions) => {
-    const { name, data, layout } = options;
-    return <>
-      <Descriptions
-        title={name}
-        layout={layout}
-        items={
-
-          data.filter(item => !('hidden' in item) || !item.hidden)
-            .map((item: IPropertiesConfig, index: number) => {
-
-              if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
-                return {
-                  key: index,
-                  label: resolveStringOrDefault(item.label),
-                  children: <CustomBlockNoteEditor value={item.initialValue as any} readOnly={true} />
-                }
-              }
-
-              if (item.fieldType === 'image') {
-                return {
-                  key: index,
-                  label: resolveStringOrDefault(item.label),
-                  children: <img src={item.initialValue} alt={resolveStringOrDefault(item.label)} style={{ width: '100px', height: '100px' }} />
-                }
-              }
-
-              if (item.type === 'list' && item.fieldType !== 'multi-select') {
-
-                return {
-                  key: index,
-                  label: resolveStringOrDefault(item.label),
-                  children: <List
-                    itemLayout="horizontal"
-                    dataSource={item.initialValue as unknown as any[]}
-                    renderItem={(item, index) => (
-                      <List.Item>
-                        {/* <pre>
-                              <code>
-                                  {JSON.stringify(item, null, 2)}
-                              </code>
-                          </pre> */}
-
-                        {makeDescriptionCard({ name: resolveStringOrDefault(item.label, 'Item') + " - " + index, layout: 'vertical', data: item })}
-                      </List.Item>
-                    )}
-                  />
-                }
-              }
-
-              return {
-                key: index,
-                label: resolveStringOrDefault(item.label),
-                children: item.initialValue
-              }
-
-            })} />
-
-    </>
-  }
+    onDataChange({
+      record: resolvedData,
+      pageType: 'view',
+      entityName,
+      dataUpdatedAt: dataUpdatedAt || undefined,
+    });
+  }, [ resolvedData, entityName, onDataChange, dataUpdatedAt ]);
 
   // ── Condition evaluation for detail fields ──
   const { visibilityResults: detailVisibilities } = useEvaluatedItems(recordInfo);
@@ -464,7 +418,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
   // Determine columns to render — filter by condition + static hidden
   const items = recordInfo.filter((item, idx) => {
     // If there's a visibility condition, use its result
-    if (item.visibility !== undefined) return detailVisibilities[idx];
+    if (item.visibility !== undefined) return detailVisibilities[ idx ];
     // Otherwise, use legacy static hidden check
     return !item.hidden;
   });
@@ -472,59 +426,80 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
   return (
     <ErrorBoundary
-      FallbackComponent={({
-        error,
-        resetErrorBoundary,
-      }) => (
-        <ErrorFallback
-          error={new Error(`Error loading details: ${error.message}`)}
-          resetErrorBoundary={resetErrorBoundary}
-        />
-      )}
+      FallbackComponent={ErrorFallback}
       onReset={() => {
-        console.log("Details ErrorBoundary Reset");
-        // Potentially re-fetch data here if appropriate
+        // Re-fetch data on error boundary reset
+        refetchDetail();
       }}
     >
       {!dataLoaded ? (
-        // Show skeleton loader on initial load for instant page transition
-        <div style={detailsStyles.container}>
-          {columns.map((_, colIdx) => (
-            <div key={colIdx} style={detailsStyles.column}>
-              <Skeleton active paragraph={{ rows: 8 }} />
-            </div>
-          ))}
-        </div>
+        <DataLoadingState type={loadingConfig?.type} pageType="detail" columns={columns.length || 2} rows={loadingConfig?.rows} />
+      ) : detailError && !recordNotFound ? (
+        <QueryErrorState
+          error={detailError}
+          onRetry={refetchDetail}
+          errorHandling={errorHandlingConfig}
+          retry={retryConfig}
+        />
+      ) : recordNotFound ? (
+        // Record not found — show contextual empty state
+        <EmptyState
+          variant="noData"
+          entityName={detailEntityName}
+          config={{
+            noData: {
+              title: `${detailEntityName || 'Record'} not found`,
+              description: 'The record you are looking for may have been deleted or does not exist.',
+              action: { label: 'Go Back', url: '..' }
+            }
+          }}
+          onNavigate={coreNavigate}
+        />
       ) : (
         // Show spinner overlay only for refresh (keeps content visible)
-        <Spin spinning={isRefreshing}>
+        <Spin spinning={detailFetching && !detailLoading}>
+          {dataQualityConfig?.enabled && dataQualityConfig.showInDetail !== false && resolvedData && (
+            <div style={{ marginBottom: 16 }}>
+              <DataQualityIndicator
+                record={resolvedData as Record<string, unknown>}
+                config={dataQualityConfig}
+                propertiesConfig={propertiesConfig}
+                mode="full"
+              />
+            </div>
+          )}
           <div style={detailsStyles.container}>
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
                 {columnItems
                   .filter((item) => !item.hidden)
                   .map((item: IPropertiesConfig, index: number) => {
-                    // Render each field as before
                     const value = item.initialValue;
 
-                    // Relation field rendering using shared RelationFieldRenderer
+                    // Run rendering pipeline (#95) for resolved label, formatting metadata
+                    const pipelineResult = processField(
+                      item,
+                      value,
+                      resolvedData || {},
+                    );
+                    const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
+
+                    // Relation field rendering
                     if (item.relationConfig) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <RelationFieldRenderer
                             relationConfig={item.relationConfig}
                             value={value}
-                            record={detailResponse || {}}
+                            record={resolvedData || {}}
                             routeParams={routeParams}
-                            label={resolveStringOrDefault(item.label)}
+                            label={pLabel ?? resolveStringOrDefault(item.label)}
                           />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // Check for custom renderer from ExtensionRegistry
+                    // Custom renderer from ExtensionRegistry
                     const CustomDetailRenderer = getFieldRenderer(
                       '' + (item.fieldType || ''),
                       'detail',
@@ -542,679 +517,119 @@ const Details: React.FC<IDetailsComponentProps> = ({
                         {
                           fieldName: item.name || item.column || '',
                           value,
-                          label: resolveStringOrDefault(item.label),
-                          config: item as DetailFieldConfig,
+                          label: pLabel ?? resolveStringOrDefault(item.label),
+                          config: item,
                           routeParams
                         }
                       );
-                      // Cast to DetailFieldRendererProps since we know context is 'detail'
-                      const Renderer = CustomDetailRenderer as React.ComponentType<typeof customDetailProps>;
+                      const Renderer = CustomDetailRenderer;
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <Renderer {...customDetailProps} />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // Only show "—" for null/undefined, not for falsy values like 0, false, "", [], {}
+                    // Null/undefined → em dash
                     if (value === null || value === undefined) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
                           <span>—</span>
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // If linkConfig exists, treat as link (isLink is optional/redundant)
+                    // Data masking (#51) — wrap string values when masking is configured
+                    if (item.masking?.enabled && typeof value === 'string') {
+                      return (
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                          <MaskedDisplay value={value} config={item.masking} />
+                        </DetailsFieldWrapper>
+                      );
+                    }
+
+                    // Link fields
                     if (item.linkConfig) {
                       const linkUrl = substituteUrlParams(
                         item.linkConfig.routePattern,
-                        { ...routeParams, ...detailResponse },
+                        { ...routeParams, ...resolvedData },
                         value
                       );
 
-                      // Evaluate template in displayText if it's a Template type
-                      // Context includes routeParams and full record data for placeholder resolution
-                      const templateContext = { ...routeParams, ...detailResponse };
+                      const templateContext = { ...routeParams, ...resolvedData };
                       const displayText = item.linkConfig.displayText
-                        ? (typeof item.linkConfig.displayText === 'string'
-                          ? evaluateTemplate(item.linkConfig.displayText, templateContext)
-                          : evaluateTemplate(item.linkConfig.displayText, templateContext))
+                        ? evaluateTemplate(item.linkConfig.displayText, templateContext)
                         : value;
 
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Link url={linkUrl} className="details-link">
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                          <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
                             {displayText} ({value})
                           </Link>
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
+                    // Modal fields
                     if (item.openInModal) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                           <OpenInModal
                             modalType="details"
                             primaryIndex={value}
                             modalPageConfig={{
-                              pageTitle: resolveStringOrDefault(item.label),
-                              propertiesConfig: [ { ...item, label: resolveStringOrDefault(item.label) } ],
+                              pageTitle: pLabel ?? resolveStringOrDefault(item.label),
+                              propertiesConfig: [ { ...item, label: pLabel ?? resolveStringOrDefault(item.label) } ],
                             }}
                           >
                             {value}
                           </OpenInModal>
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // ============================================================================
-                    // Smart Complex Data Rendering - All complex types handled by JsonField
-                    // ============================================================================
-
-                    // Check WYSIWYG fields FIRST before complex data check
-                    // WYSIWYG content is stored as JSON objects, so must be checked before isComplexData
-                    if ([ 'rich-text', 'wysiwyg' ].includes(item.fieldType)) {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div className="details-fixed-block">
-                            <CustomBlockNoteEditor value={value as any} readOnly={true} />
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Handle complex data (JSON, maps, lists, objects)
-                    // Excludes multi-select and WYSIWYG fields which are handled separately
-                    // 
-                    // JsonField provides interactive JSON viewing with:
-                    // - Toggle between Description (formatted table) and JSON (raw) views
-                    // - Copy to clipboard button
-                    // - Smart depth-based rendering in both modes
-                    // Works for: fieldType: 'json', type: 'map', type: 'list', and generic objects
-                    // Example: syncMetadata with toggle to switch between views + copy button
-
+                    // Complex data (json, map, list, objects)
                     const isComplexData =
-                      item.type === 'list' ||
-                      item.type === 'map' ||
-                      (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
-                      (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0);
+                      !['rich-text', 'wysiwyg', 'multi-select', 'timeline'].includes(item.fieldType) && (
+                        item.type === 'list' ||
+                        item.type === 'map' ||
+                        (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
+                        (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+                      );
 
-                    if (isComplexData && item.fieldType !== 'multi-select') {
+                    if (isComplexData) {
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <JsonField data={value} title={resolveStringOrDefault(item.label)} maxDepth={2} />
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'markdown') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div className="details-fixed-block">
-                            <MarkdownPreview value={value} />
-                          </div>
-                        </div>
-                      );
-                    }
-                    if ([ 'textarea', 'code' ].includes(item.fieldType)) {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div className="details-fixed-block">
-                            <JsonDescription data={value} />
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'image') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <img src={value} alt={resolveStringOrDefault(item.label)} className="details-image" />
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'color') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <CustomColorPicker value={value} disabled />
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'number') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>
-                            {Number(value)}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'range') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>
-                            {`${value}%`}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'rating') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>
-                            {`${value}/5`}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (item.fieldType === 'file') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a href={value} target="_blank" rel="noopener noreferrer">
-                            Download File
-                          </a>
-                        </div>
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                          <JsonField data={value} title={pLabel ?? resolveStringOrDefault(item.label)} maxDepth={2} />
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // URL field
-                    if (item.fieldType === 'url') {
+                    // Registry-based detail renderer — use pipeline defaults, lookup component directly
+                    const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
+                    if (DetailRenderer) {
+                      const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
+                      const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
                       return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a href={value} target="_blank" rel="noopener noreferrer">
-                            {value}
-                          </a>
-                        </div>
-                      );
-                    }
-
-                    // Phone field
-                    if (item.fieldType === 'phone') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a href={`tel:${value}`}>{value}</a>
-                        </div>
-                      );
-                    }
-
-                    // Currency field
-                    if (item.fieldType === 'currency') {
-                      const formatted = new Intl.NumberFormat('en-US', {
-                        style: 'currency',
-                        currency: item.currencySymbol || 'USD',
-                      }).format(Number(value) || 0);
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>{formatted}</div>
-                        </div>
-                      );
-                    }
-
-                    // Percentage field
-                    if (item.fieldType === 'percentage') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>{Number(value)}%</div>
-                        </div>
-                      );
-                    }
-
-                    // Slider field (display as value with slider visual)
-                    if (item.fieldType === 'slider') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <Slider
-                              value={Number(value)}
-                              disabled
-                              style={{ flex: 1 }}
-                              min={item.min}
-                              max={item.max}
-                            />
-                            <span>{value}</span>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Duration field - uses durationUnit and format from field config
-                    if (item.fieldType === 'duration') {
-                      const durationValue = formatDuration(
-                        value,
-                        item.durationUnit || 'seconds',
-                        item.durationFormat || 'auto'
-                      );
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div>{durationValue}</div>
-                        </div>
-                      );
-                    }
-
-                    // TTL field - displays time remaining until expiration with auto-refresh support
-                    if (item.fieldType === 'ttl') {
-                      const TTLRenderer = () => {
-                        const [ ttlValue, setTtlValue ] = React.useState(() =>
-                          formatTTL(value, item.ttlUnit || 'seconds', item.ttlFormat || 'auto')
-                        );
-                        const isExpired = ttlValue === 'expired';
-
-                        // Auto-refresh support
-                        const refreshInterval = item.ttlAutoRefresh;
-                        React.useEffect(() => {
-                          if (!refreshInterval || refreshInterval <= 0 || isExpired) {
-                            return;
-                          }
-
-                          const interval = setInterval(() => {
-                            const newValue = formatTTL(value, item.ttlUnit || 'seconds', item.ttlFormat || 'auto');
-                            setTtlValue(newValue);
-                          }, refreshInterval * 1000);
-
-                          return () => clearInterval(interval);
-                        }, [ refreshInterval, isExpired ]);
-
-                        return (
-                          <div style={{
-                            color: isExpired ? '#ff4d4f' : undefined,
-                            fontWeight: isExpired ? 500 : undefined
-                          }}>
-                            {ttlValue}
-                          </div>
-                        );
-                      };
-
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <TTLRenderer />
-                        </div>
-                      );
-                    }
-
-                    // Badge field
-                    if (item.fieldType === 'badge') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Badge
-                            status={item.status || 'default'}
-                            text={String(value)}
-                            color={item.color}
+                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                          <DetailRenderer
+                            value={value}
+                            label={pLabel ?? resolveStringOrDefault(item.label)}
+                            config={mergedConfig}
+                            routeParams={routeParams}
+                            record={resolvedData || {}}
                           />
-                        </div>
+                        </DetailsFieldWrapper>
                       );
                     }
 
-                    // Tag field (single or multiple)
-                    if (item.fieldType === 'tag' || item.fieldType === 'tags') {
-                      const tags = Array.isArray(value) ? value : [ value ];
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            {tags.map((tag: any, i: number) => (
-                              <Tag key={i} color={item.color}>
-                                {String(tag)}
-                              </Tag>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // Progress field
-                    if (item.fieldType === 'progress') {
-                      const type = item.progressType || 'line';
-                      // Map badge status to progress status
-                      let progressStatus: 'success' | 'exception' | 'normal' | 'active' = 'normal';
-                      if (item.status === 'success') progressStatus = 'success';
-                      else if (item.status === 'error' || item.status === 'warning') progressStatus = 'exception';
-                      else if (item.status === 'processing') progressStatus = 'active';
-
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Progress
-                            type={type}
-                            percent={Number(value) || 0}
-                            status={progressStatus}
-                            showInfo={true}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Avatar field
-                    if (item.fieldType === 'avatar') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <Avatar
-                            src={value}
-                            size={item.size || 'default'}
-                            shape={item.shape || 'circle'}
-                            icon={item.icon ? React.createElement((Icons as any)[ item.icon ]) : undefined}
-                          >
-                            {item.text || String(value).charAt(0).toUpperCase()}
-                          </Avatar>
-                        </div>
-                      );
-                    }
-
-                    // Icon field
-                    if (item.fieldType === 'icon') {
-                      const IconComponent = (Icons as any)[ String(value) ];
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          {IconComponent ? (
-                            <IconComponent
-                              style={{
-                                fontSize: item.size || 24,
-                                color: item.color
-                              }}
-                            />
-                          ) : (
-                            <span>{value}</span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // Link field
-                    if (item.fieldType === 'link') {
-                      const href = item.linkConfig?.routePattern
-                        ? substituteUrlParams(item.linkConfig.routePattern, { ...routeParams, ...detailResponse }, value)
-                        : value;
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <a
-                            href={href}
-                            target={item.target || '_blank'}
-                            rel="noopener noreferrer"
-                          >
-                            {value}
-                          </a>
-                        </div>
-                      );
-                    }
-
-                    // Video field
-                    if (item.fieldType === 'video') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <video
-                            src={value}
-                            controls={item.controls !== false}
-                            style={{ maxWidth: '100%', maxHeight: '400px' }}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Audio field
-                    if (item.fieldType === 'audio') {
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <audio
-                            src={value}
-                            controls={item.controls !== false}
-                            style={{ width: '100%' }}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // QR Code field
-                    if (item.fieldType === 'qrcode') {
-                      const qrSize = typeof item.size === 'number' ? item.size : 128;
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <QRCode
-                            value={String(value)}
-                            size={qrSize}
-                            errorLevel={item.errorLevel || 'M'}
-                            icon={item.logoImage}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Timeline field - renders array data as vertical timeline
-                    if (item.fieldType === 'timeline') {
-                      const config = item.timelineConfig || {};
-                      const itemMapping = config.itemMapping || {};
-                      const labelField = itemMapping.labelField || 'name';
-                      const timestampField = itemMapping.timestampField || 'ts';
-                      const descriptionField = itemMapping.descriptionField;
-                      const typeField = itemMapping.typeField;
-                      const iconField = itemMapping.iconField;
-                      const timestampFormat = config.timestampFormat || 'MMM D, h:mm:ss A';
-                      const showTimestamp = config.showTimestamp !== false;
-
-                      // Convert data to array if needed
-                      let items: any[] = [];
-                      if (Array.isArray(value)) {
-                        items = value;
-                      } else if (value && typeof value === 'object') {
-                        // If it's an object with checkpoints or events array, use that
-                        items = value.checkpoints || value.events || [];
-                      }
-
-                      // Apply maxItems limit
-                      if (config.maxItems && items.length > config.maxItems) {
-                        items = items.slice(0, config.maxItems);
-                      }
-
-                      // Reverse if configured
-                      if (config.reverse) {
-                        items = [ ...items ].reverse();
-                      }
-
-                      // Helper to get color from type/level
-                      const getColorFromType = (type?: string): string => {
-                        switch (type) {
-                          // Status types
-                          case 'success': return '#52c41a';
-                          case 'warning': return '#faad14';
-                          case 'error': return '#ff4d4f';
-                          // Observability levels
-                          case 'critical': return '#cf1322';
-                          case 'warn': return '#faad14';
-                          case 'debug': return '#8c8c8c';
-                          case 'trace': return '#bfbfbf';
-                          case 'info':
-                          default: return '#1890ff';
-                        }
-                      };
-
-                      // Build timeline items
-                      const timelineItems = items.map((item: any, idx: number) => {
-                        const label = item[ labelField ] || `Event ${idx + 1}`;
-                        const timestamp = item[ timestampField ];
-                        const description = descriptionField ? item[ descriptionField ] : undefined;
-                        const type = typeField ? item[ typeField ] : undefined;
-                        const iconName = iconField ? item[ iconField ] : undefined;
-
-                        // Detect additional data (fields beyond standard timeline fields)
-                        const standardFields = new Set([
-                          labelField,
-                          timestampField,
-                          descriptionField,
-                          typeField,
-                          iconField
-                        ].filter(Boolean));
-
-                        const allFields = Object.keys(item);
-                        const additionalFields = allFields.filter(field => !standardFields.has(field));
-                        const hasAdditionalData = additionalFields.length > 0;
-
-                        // Format timestamp
-                        let formattedTime = '';
-                        if (timestamp && showTimestamp) {
-                          try {
-                            // Handle epoch timestamps (number) vs ISO strings
-                            const ts = typeof timestamp === 'number' ? timestamp : Date.parse(timestamp);
-                            if (!isNaN(ts)) {
-                              formattedTime = dayjs(ts).format(timestampFormat);
-                            }
-                          } catch {
-                            // Ignore invalid timestamps
-                          }
-                        }
-
-                        // Get icon if specified
-                        let dotIcon = undefined;
-                        if (iconName && (Icons as any)[ iconName ]) {
-                          const IconComponent = (Icons as any)[ iconName ];
-                          dotIcon = <IconComponent />;
-                        }
-
-                        return {
-                          key: idx,
-                          dot: dotIcon,
-                          color: getColorFromType(type),
-                          children: (
-                            <div className="timeline-item-content">
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-                                  <span style={{ fontWeight: 500 }}>{label}</span>
-                                  {hasAdditionalData && (
-                                    <OpenInModal
-                                      modalType="details"
-                                      modalPageConfig={{
-                                        propertiesConfig: additionalFields.map(field => ({
-                                          name: field,
-                                          label: field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1'),
-                                          fieldType: 'json' as const,
-                                          column: field
-                                        })),
-                                        detailResponse: item
-                                      }}
-                                      modalTitle={label || 'Event Details'}
-                                      modalWidth={800}
-                                    >
-                                      <button
-                                        type="button"
-                                        style={{
-                                          padding: '0 4px',
-                                          minWidth: 'auto',
-                                          height: 'auto',
-                                          border: 'none',
-                                          background: 'transparent',
-                                          cursor: 'pointer',
-                                          color: '#1890ff',
-                                          display: 'inline-flex',
-                                          alignItems: 'center'
-                                        }}
-                                      >
-                                        {React.createElement((Icons as any).InfoCircleOutlined)}
-                                      </button>
-                                    </OpenInModal>
-                                  )}
-                                </div>
-                                {formattedTime && (
-                                  <span style={{ fontSize: '12px', color: '#8c8c8c', marginLeft: '8px', whiteSpace: 'nowrap' }}>
-                                    {formattedTime}
-                                  </span>
-                                )}
-                              </div>
-                              {description && (
-                                <div style={{ fontSize: '13px', color: '#595959', marginTop: '4px' }}>
-                                  {description}
-                                </div>
-                              )}
-                            </div>
-                          ),
-                        };
-                      });
-
-                      if (timelineItems.length === 0) {
-                        return (
-                          <div key={index} className="details-field-container">
-                            <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                            <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                            <span style={{ color: '#8c8c8c' }}>No events</span>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <div key={index} className="details-field-container">
-                          <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                          <HelpText helpText={resolveStringOrDefault(item.helpText)} />
-                          <div style={{ paddingTop: '8px' }}>
-                            <Timeline
-                              mode={config.mode || 'left'}
-                              items={timelineItems}
-                            />
-                          </div>
-                        </div>
-                      );
-                    }
-
+                    // Default fallback — smart text rendering
                     return (
-                      <div key={index} className="details-field-container">
-                        <div className="details-field-label">{resolveStringOrDefault(item.label)}</div>
-                        <HelpText helpText={resolveStringOrDefault(item.helpText)} />
+                      <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
                         <div>
                           {value !== undefined && value !== null && value !== '' ? (
                             typeof value === 'string' && value.match(/^https?:\/\//i) ? (
-                              <a href={value} target="_blank" rel="noopener noreferrer">
+                              <a href={value} target={item.target || '_blank'} rel={(item.target || '_blank') === '_blank' ? 'noopener noreferrer' : undefined}>
                                 {value}
                               </a>
                             ) : typeof value === 'object' ? (
@@ -1237,7 +652,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
                             <span>—</span>
                           )}
                         </div>
-                      </div>
+                      </DetailsFieldWrapper>
                     );
                   })}
               </div>

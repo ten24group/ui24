@@ -1,9 +1,22 @@
-import { ReactNode } from 'react';
+import React, { ReactNode } from 'react';
 import { FieldType, PropertyType } from './field-types';
 import { IModalConfig } from '../../modal/Modal';
 import { GetSignedUploadUrlAPIConfig } from '../common';
 import { IEntityConfigReference } from '../hooks';
 import type { Condition, ConditionalValue } from './evaluation';
+import type { IApiConfig } from '../context/ApiContext';
+import type { ISectionsConfig } from '../../pages/PostAuth/SectionsRenderer';
+import type { IColumnsConfig } from '../forms/shared/utils';
+import type { IDataQualityConfig } from '../common/DataQualityIndicator';
+import type { IErrorHandlingConfig, IRetryConfig } from '../common/ErrorFallback';
+
+export interface IDetailApiConfig {
+  detailApiConfig?: IApiConfig;
+}
+
+export interface IDataSourceMixin<T = Record<string, unknown>> {
+  dataSource?: T;
+}
 
 /**
  * Template configuration interface for complex string interpolation.
@@ -39,6 +52,51 @@ export type Template = string | ITemplateConfig;
 export interface IOptions {
   label: string;
   value: string | number;
+}
+
+/**
+ * Quick-create UX enhancement for select fields (#44).
+ *
+ * Works **alongside** `addNewOptionConfig` — it does not replace it.
+ * When `enabled`, a contextual `+ Create "[term]"` button appears inside the
+ * dropdown whenever the user's search returns no results.  Clicking it opens
+ * the entity's own create form (resolved via `addNewOptionConfig`) with the
+ * search term already pre-filled into `prefillField`.
+ *
+ * The entity form handles all validation, required fields, and submission —
+ * nothing is duplicated here.
+ *
+ * @example
+ * // fw24 entity field metadata:
+ * addNewOptionConfig: { entityName: 'team', pageType: 'create' },
+ * quickCreate: {
+ *   enabled: true,
+ *   prefillField: 'teamName',  // entity field pre-filled with the search term
+ *   openIn: 'drawer',          // open as a side drawer (default: 'modal')
+ * }
+ */
+export interface IQuickCreateConfig {
+  /**
+   * Activates the contextual "+ Create '[term]'" button when the search
+   * returns no results.  Requires `addNewOptionConfig` to be set.
+   * @default false
+   */
+  enabled?: boolean;
+
+  /**
+   * Entity field name to pre-fill with the current search term when the
+   * create form opens.  Defaults to the `label` field from
+   * `apiConfig.optionMapping` when omitted.
+   */
+  prefillField?: string;
+
+  /**
+   * Container for the entity create form.
+   * - `'modal'`  — centred modal (default, existing behaviour)
+   * - `'drawer'` — right-side sliding drawer
+   * @default 'modal'
+   */
+  openIn?: 'modal' | 'drawer';
 }
 
 /**
@@ -116,6 +174,34 @@ export interface IFieldTypeProperties {
   // Icon field properties
   library?: 'antd' | 'fontawesome' | 'material' | 'custom';
 
+  // Boolean/Switch field properties
+  checkedChildren?: React.ReactNode;
+  unCheckedChildren?: React.ReactNode;
+
+  // Clipboard
+  /** When true, shows a copy-to-clipboard icon on hover (detail/table views) */
+  copyable?: boolean;
+
+  // Progressive Disclosure (#40)
+  /**
+   * Disclosure tier for this field. Fields with higher tiers are hidden until
+   * the user expands the form. Requires `disclosure` config on the form.
+   * - 'basic' (default): Always visible
+   * - 'advanced': Hidden until user clicks "Show advanced fields"
+   * - 'expert': Hidden until user clicks a second time
+   */
+  tier?: 'basic' | 'advanced' | 'expert';
+
+  // Embed field properties
+  /** Configuration for embedded external content (iframe or markdown) */
+  embedConfig?: {
+    type: 'iframe' | 'markdown';
+    /** Height of the embed container in pixels (default: 400) */
+    height?: number;
+    /** Sandbox attribute for iframe security (default: 'allow-scripts allow-same-origin') */
+    sandbox?: string;
+  };
+
   // Link field properties
   target?: '_blank' | '_self' | '_parent' | '_top';
 
@@ -128,9 +214,17 @@ export interface IFieldTypeProperties {
   logoImage?: string;
 
   // Text format properties (for url, phone, email)
-  format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage';
+  format?: 'url' | 'phone' | 'email' | 'text' | 'decimal' | 'integer' | 'currency' | 'percentage' | 'ssn' | 'zip' | 'zipPlus4' | 'creditCard' | 'date' | 'ein';
   mask?: string;
   maxLength?: number;
+
+  /** Additional mask options when `mask` or `format` is specified */
+  maskOptions?: {
+    /** Whether to show placeholder characters when the field is empty (default: false) */
+    lazy?: boolean;
+    /** Character used for unfilled mask positions (default: '_') */
+    placeholderChar?: string;
+  };
 
   // Timeline field properties
   timelineConfig?: {
@@ -164,6 +258,52 @@ export interface IFieldTypeProperties {
 }
 
 /**
+ * Rich help configuration for contextual field descriptions.
+ * Single source of truth — used by IBaseFieldConfig.help, HelpText, HelpIcon.
+ */
+export interface IHelpConfig {
+  /** Description text displayed based on placement */
+  description?: string;
+  /** Short tooltip text shown on hover (for 'tooltip' placement) */
+  tooltip?: string;
+  /** URL to external documentation */
+  docsUrl?: string;
+  /** How to display the help: below field (default), as tooltip on label, or as popover */
+  placement?: 'below' | 'tooltip' | 'popover';
+}
+
+/** Built-in masking patterns for common PII types (#51) */
+export type MaskingPattern = 'ssn' | 'email' | 'phone' | 'card' | 'custom';
+
+/** Display masking configuration for PII / sensitive data (#51) */
+export interface IMaskingConfig {
+  enabled: boolean;
+  pattern: MaskingPattern;
+  /** Custom regex + replacement for 'custom' pattern */
+  customPattern?: { match: string; replace: string };
+  /** Allow user to reveal the original value */
+  allowReveal?: boolean;
+  /** Condition that must pass for the reveal button to appear */
+  revealCondition?: Condition;
+  /** Auto-hide revealed value after N seconds */
+  revealDuration?: number;
+  /** Log reveal events for audit trail (field name + timestamp emitted via callback) */
+  auditReveal?: boolean;
+}
+
+/** Derived / computed field configuration (#35) */
+export interface IDerivedFieldConfig {
+  /** Template string using existing Template system (e.g. '{firstName} {lastName}') */
+  template?: Template;
+  /** Simple arithmetic expression (e.g. 'quantity * unitPrice') */
+  expression?: string;
+  /** Conditional value mapping */
+  conditions?: Array<{ when: Condition; value: unknown }>;
+  /** Fields to watch for recomputation (form mode) */
+  watchFields?: string[];
+}
+
+/**
  * Base field configuration - shared properties across all field types
  */
 export interface IBaseFieldConfig extends IFieldTypeProperties {
@@ -177,6 +317,13 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
   placeholder?: string | ConditionalValue<string>;
   helpText?: string | ConditionalValue<string>;
   hidden?: boolean;
+
+  /**
+   * Rich help configuration for contextual field descriptions.
+   * Supports tooltip, popover, and below-field placement.
+   * When specified, takes precedence over `helpText` for rendering.
+   */
+  help?: IHelpConfig;
 
   // Condition system
   /** Condition for conditional visibility (hides the field when false) */
@@ -208,8 +355,36 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
    */
   rendererConfig?: Readonly<Record<string, unknown>>;
 
+  /**
+   * Field dependency — when the named field(s) change, this field's options are refreshed.
+   * The parent field's value is included as a filter parameter in the options API call.
+   * 
+   * @example
+   * // state field depends on country: changing country refetches state options
+   * dependsOn: 'country'
+   * // or multiple:
+   * dependsOn: ['country', 'region']
+   */
+  dependsOn?: string | string[];
+
+  /** Display masking configuration for PII / sensitive data (#51) */
+  masking?: IMaskingConfig;
+
+  /** Derived / computed field configuration (#35) */
+  derived?: IDerivedFieldConfig;
+
+  /**
+   * Fallback display value shown when the field value is null or undefined (#35).
+   * Applied in the rendering pipeline before the renderer receives the value.
+   * Overrides per-renderer defaults (e.g. '—').
+   *
+   * @example nullValue: 'N/A'
+   * @example nullValue: '(none)'
+   */
+  nullValue?: string;
+
   // Nested structures (for list/map types)
-  properties?: Array<any>; // Will be properly typed in specific interfaces
+  properties?: Array<any>;
   items?: {
     type: PropertyType;
     properties?: Array<any>;
@@ -228,6 +403,8 @@ export interface IFormFieldResponse extends IBaseFieldConfig {
   // Modal/Entity references
   addNewOption?: IModalConfig; // DEPRECATED: Use addNewOptionConfig
   addNewOptionConfig?: IEntityConfigReference;
+  /** Inline quick-create form inside the dropdown (#44) */
+  quickCreate?: IQuickCreateConfig;
 
   // File/Image fields
   accept?: string;
@@ -269,6 +446,8 @@ export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
   // Modal/Entity references
   addNewOption?: IModalConfig; // DEPRECATED: Use addNewOptionConfig
   addNewOptionConfig?: IEntityConfigReference;
+  /** Inline quick-create form inside the dropdown (#44) */
+  quickCreate?: IQuickCreateConfig;
 
   // File/Image fields
   accept?: string;
@@ -323,11 +502,7 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
     identifierMapping?:
     | { source: string; target: string; }
     | Array<{ source: string; target: string; }>;
-    modalConfigRef?: {
-      entityName: string;
-      pageType: 'view' | 'create' | 'list';
-      overrideConfig?: Record<string, any>;
-    };
+    modalConfigRef?: IEntityConfigReference;
     modalWidth?: number | string;
     modalTitle?: string;
     displayConfig?: {
@@ -389,5 +564,159 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
     type: PropertyType;
     properties?: Array<IDetailFieldConfig>;
   };
+}
+
+// ── onDataChange payload types (shared across page components) ──
+
+export interface IDetailDataChangePayload {
+  record?: Record<string, unknown>;
+  pageType?: string;
+  entityName?: string;
+  dataUpdatedAt?: string;
+}
+
+export interface IFormDataChangePayload {
+  record?: Record<string, unknown>;
+  formValues?: Record<string, unknown>;
+  pageType?: string;
+  entityName?: string;
+  /** Whether the form currently has no validation errors. True by default (untouched fields have no errors). */
+  isValid?: boolean;
+}
+
+export interface ITableDataChangePayload {
+  selectedRecords?: ReadonlyArray<Record<string, unknown>>;
+  selectedRowKeys?: ReadonlyArray<React.Key>;
+  filters?: Record<string, unknown>;
+  searchQuery?: string;
+  pageType?: string;
+  entityName?: string;
+}
+
+// ── Page config shared mixin ──
+
+/** Single inline alert banner configuration */
+export interface IPageAlertConfig {
+  /** Alert type — maps to antd Alert types */
+  type: 'info' | 'warning' | 'error' | 'success';
+  /** Main alert message. Supports template interpolation with record/routeParams. */
+  message: string;
+  /** Optional secondary description text */
+  description?: string;
+  /** Whether the alert can be dismissed (closes until page refresh) */
+  closable?: boolean;
+  /**
+   * Condition that must evaluate to true for the alert to be shown.
+   * Evaluated against the current record, form values, and actor context.
+   * Omit to always show the alert.
+   */
+  visibility?: Condition;
+  /** Where the alert is placed relative to the page content */
+  placement?: 'top' | 'bottom';
+}
+
+export interface IPageConfigBase {
+  entityName?: string;
+  routeParams?: Record<string, any>;
+  sectionsConfig?: ISectionsConfig;
+  loading?: { type: 'skeleton' | 'spinner'; rows?: number };
+  errorHandling?: IErrorHandlingConfig;
+  retry?: IRetryConfig;
+  /**
+   * Inline contextual alert banners shown above/below the page content (#16).
+   * Each alert is independently condition-evaluated.
+   *
+   * @example
+   * alerts: [
+   *   {
+   *     type: 'warning',
+   *     message: 'This record is archived',
+   *     visibility: { record: { status: { eq: 'archived' } } }
+   *   },
+   *   {
+   *     type: 'info',
+   *     message: 'Draft mode active — changes are not published',
+   *     visibility: { record: { isDraft: { eq: true } } }
+   *   }
+   * ]
+   */
+  alerts?: IPageAlertConfig[];
+}
+
+// ── Page config interfaces ──
+
+/**
+ * A related-entity tab shown below the main detail card (#91).
+ * Renders a sub-table of records related to the current record.
+ */
+export interface IRelatedTab {
+  /** Tab key — must be unique */
+  key: string;
+  /** Tab label shown in the tab strip */
+  label: string;
+  /** Icon name for the tab (antd icon) */
+  icon?: string;
+  /** 
+   * The page config key to render inside this tab (maps to a table/detail page config).
+   * The current record's ID is available in routeParams for filter injection.
+   */
+  pageConfigKey: string;
+  /** Default filters to inject — supports :param placeholders from the parent record */
+  defaultFilters?: Record<string, string>;
+  /** Condition for showing this tab (evaluated against the parent record) */
+  visibility?: Condition;
+}
+
+export interface IDetailsConfig extends IDetailApiConfig, IDataSourceMixin<Record<string, unknown>>, IPageConfigBase {
+  pageTitle?: Template;
+  identifiers?: string | number | Array<string | number>;
+  propertiesConfig: Array<IDetailFieldConfig>;
+  columnsConfig?: IColumnsConfig;
+  dataQuality?: IDataQualityConfig;
+  /**
+   * Related-entity tabs rendered below the main detail content (#91).
+   * Each tab shows a sub-table of records associated with the current record.
+   * 
+   * @example
+   * relatedTabs: [
+   *   {
+   *     key: 'orders',
+   *     label: 'Orders',
+   *     pageConfigKey: 'orders-list',
+   *     defaultFilters: { customerId: ':id' },
+   *   }
+   * ]
+   */
+  relatedTabs?: IRelatedTab[];
+
+  /**
+   * Additional API sources to fetch and merge into the record (#90).
+   * Fetched in parallel with the primary detailApiConfig.
+   * Results are shallow-merged into the primary record. If `key` is provided,
+   * the response is nested under that key (e.g. `record.preferences`).
+   *
+   * @example
+   * dataSources: [
+   *   { apiConfig: { apiUrl: '/users/:id/preferences', apiMethod: 'GET' } },
+   *   { apiConfig: { apiUrl: '/users/:id/stats', apiMethod: 'GET' }, key: 'stats' },
+   * ]
+   */
+  dataSources?: Array<{
+    apiConfig: IApiConfig;
+    /** When provided, nests the response under this key in the merged record */
+    key?: string;
+    /** responseKey to pluck from the API response (same as IApiConfig.responseKey semantics) */
+    responseKey?: string;
+  }>;
+}
+
+export interface IDetailsComponentProps extends IDetailsConfig {
+  propertiesConfig: Array<IDetailFieldConfig>;
+  detailApiConfig?: IApiConfig;
+  identifiers?: string | number;
+  columnsConfig?: IColumnsConfig;
+  routeParams?: Record<string, any>;
+  onDataChange?: (data: IDetailDataChangePayload) => void;
+  refreshRef?: React.RefObject<(() => Promise<void>) | null>;
 }
 

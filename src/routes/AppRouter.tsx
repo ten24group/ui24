@@ -6,12 +6,14 @@ import { defaultRoutes } from './DefaultRoutes';
 import { CoreLayout } from '../layout';
 import { ConfigLoader } from '../common/ConfigLoader';
 import { ErrorBoundary } from 'react-error-boundary';
+import { toErrorMessage } from '../core/common/ErrorFallback';
+import type { FallbackProps } from 'react-error-boundary';
 
-const ErrorFallback = ({ error }: { error: Error }) => {
+const ErrorFallback = ({ error }: FallbackProps) => {
   return (
     <div role="alert">
       <p>Something went wrong:</p>
-      <pre style={{ color: "red" }}>{error.message}</pre>
+      <pre style={{ color: "red" }}>{toErrorMessage(error)}</pre>
     </div>
   );
 };

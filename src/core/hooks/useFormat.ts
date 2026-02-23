@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useUi24Config } from "../context";
 import { Dayjs } from 'dayjs';
 import { dayjsCustom } from "../dayjs";
@@ -8,21 +9,26 @@ export const useFormat = () => {
 
     /**
      * Formats a date using a specified format string.
-     * @param {Date} date - The date to format.
-     * @param {string} type - The format-type to use.
-     * @returns {string} The formatted date.
+     *
+     * Wrapped in useCallback — stable reference that only changes when formatConfig changes.
+     * This prevents infinite re-render loops when used as a dependency in useEffect/useMemo.
+     *
+     * @param {string | Date | Dayjs | number} date - The date to format.
+     * @param {'date' | 'time' | 'datetime'} type - The format-type to use (maps to formatConfig key).
+     * @param {string} timezone - The timezone to use for formatting (default: 'UTC').
+     * @returns {string} The formatted date string, or the original value if invalid/empty.
      */
-    const formatDate = (date: string | Date | Dayjs | number, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string => {
+    const formatDate = useCallback((date: string | Date | Dayjs | number | null | undefined, type: 'date' | 'time' | 'datetime' = 'datetime', timezone: string = 'UTC'): string | null | undefined => {
         try {
-            // Return empty string for null, undefined, or empty values
+            // Return null/undefined/empty as-is — callers decide how to render missing data
             if (date === null || date === undefined || date === '') {
-                return date as any;
+                return date as null | undefined | '';
             }
 
             const formatString = formatConfig?.[ type ];
             const dayjsDate = dayjsCustom.tz(date, timezone);
 
-            // If invalid date, return original value (don't hide the data)
+            // If invalid date, return stringified original (don't hide the data)
             if (!dayjsDate.isValid()) {
                 console.error('[useFormat] Invalid date detected:', {
                     value: date,
@@ -31,7 +37,7 @@ export const useFormat = () => {
                     formatType: type,
                     stack: new Error().stack
                 });
-                return date as any;
+                return String(date);
             }
 
             return dayjsDate.format(formatString);
@@ -42,47 +48,52 @@ export const useFormat = () => {
                 timezone,
                 formatType: type
             });
-            return error.message;
+            return (error as Error).message;
         }
-    }
+    }, [ formatConfig ]);
 
     /**
-     *  Formats a boolean value to a string.
-     * @param value - The boolean value to format.
-     * @returns The formatted boolean value.
-     * 
+     * Formats a boolean value to a string.
+     *
+     * Wrapped in useCallback — stable reference that only changes when formatConfig changes.
+     * This prevents infinite re-render loops when used as a dependency in useEffect/useMemo.
+     *
+     * @param value - The boolean value to format. Accepts boolean, string ('true'/'yes'/'1'), or number (1/0).
+     * @returns The formatted boolean value (e.g., "YES" / "NO"), or the original value if not recognized.
+     *
      * @example
      * ```ts
-     * formatBoolean(true); // returns "YES"
+     * formatBoolean(true);    // returns "YES" (or formatConfig.boolean.true)
+     * formatBoolean(false);   // returns "NO"  (or formatConfig.boolean.false)
+     * formatBoolean('yes');   // returns "YES"
+     * formatBoolean(null);    // returns null (preserves missing data)
      * ```
      */
-    const formatBoolean = (value: unknown): string => {
+    const formatBoolean = useCallback((value: unknown): string | null | undefined => {
         // IMPORTANT: Treat null/undefined as "no value" (not false).
         // The Details view sometimes formats booleans even when backend omits the field,
         // and we must not render "False" for missing data (e.g., audit success is often undefined).
-        if (value === null || value === undefined) return value as any;
+        if (value === null || value === undefined) return value as null | undefined;
 
-        // Strict boolean
         if (typeof value === 'boolean') {
             return value ? (formatConfig?.boolean?.true || 'True') : (formatConfig?.boolean?.false || 'False');
         }
 
-        // Common coercions (strings/numbers) for resilience
         if (typeof value === 'string') {
             const v = value.trim().toLowerCase();
             if (v === 'true' || v === 'yes' || v === '1') return formatConfig?.boolean?.true || 'True';
             if (v === 'false' || v === 'no' || v === '0') return formatConfig?.boolean?.false || 'False';
-            return value as any;
+            return value;
         }
 
         if (typeof value === 'number') {
             if (value === 1) return formatConfig?.boolean?.true || 'True';
             if (value === 0) return formatConfig?.boolean?.false || 'False';
-            return value as any;
+            return String(value);
         }
 
-        return value as any;
-    }
+        return String(value);
+    }, [ formatConfig ]);
 
     return { formatDate, formatBoolean };
 };

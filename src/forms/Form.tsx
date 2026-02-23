@@ -105,46 +105,55 @@
  * @see {@link useApi} for API integration
  */
 
-import { Form as AntForm, Spin, Skeleton, Alert } from 'antd';
+import { Form as AntForm, Alert, Button, Space, Select } from 'antd';
 import React, { useState, useEffect, useMemo } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 import { dayjsCustom } from '../core/dayjs';
 
 import { CreateButtons } from '../core/forms';
-import { useNavigate } from 'react-router-dom';
 import { FormField, IFormField } from '../core/forms';
 import type { FormFieldConditionProps } from '../core/forms/FormField/FormField';
+import { ListFormField } from '../core/forms/FormField/ListFormField';
 import { IForm } from '../core/forms/formConfig';
-import { useApi } from '../core/context';
-//import { CreateButtons, FieldOptionsAPIConfig, fetchFieldOptions, isFieldOptionsAPIConfig } from '../core/forms';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
 import { useAppContext } from '../core/context/AppContext';
-import { substituteUrlParams, getNestedValue } from '../core/utils';
+import { substituteUrlParams, getNestedValue, deriveEntityName } from '../core/utils';
 import { FormContainer, FormColumn } from '../core/forms/FormField/components';
 import { useResolveBatch } from '../core/hooks/useResolveBatch';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
-import { ConditionalValue } from '../core/types/evaluation';
-import { formStyles } from '../core/forms/FormField/styles';
-import { determineColumnLayout, IColumnsConfig, splitIntoColumns } from '../core/forms/shared/utils';
+import { useTranslation } from '../core/hooks';
+import { ConditionalValue, isConditionalValue } from '../core/types/evaluation';
+import type { IFormDataChangePayload } from '../core/types/field-config';
+import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
+import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
+import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
+import { DataLoadingState } from '../core/common/DataLoadingState';
 import { ErrorFallback } from '../core/common';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { useDebounce } from '../core/hooks/useSelectiveDebounce';
 import './Form.css';
-import { useCoreNavigator } from '../routes/Navigation';
 import { useOperationExecutor } from '../core/services/OperationExecutor';
+import { useThrottleCountdown } from '../core/hooks/useThrottleCountdown';
+import { useRetryCountdown } from '../core/hooks/useRetryCountdown';
+import { DiffReviewModal } from '../core/common/DiffReview/DiffReviewModal';
+import { useDerivedFieldValues } from '../core/hooks/useDerivedFields';
+import { useFormSubmitInstrumentation } from '../core/telemetry';
+import { useEntityDetail } from '../core/query/useEntityDetail';
+
+// Stable empty objects to avoid re-creating {} on every render (used as defaults)
+const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
+const EMPTY_DEFAULT_VALUES: Record<string, any> = {};
 
 /**
  * Extended form configuration with column layout support and state lifting.
  */
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
-  routeParams?: Record<string, string>;
-  entityName?: string;  // From backend config generation
-  onDataChange?: (data: { record?: any; formValues?: Record<string, any>; pageType?: string; entityName?: string }) => void;
-  // ✅ NO showResponseModal prop needed - Form uses global context via OperationExecutor
+  onDataChange?: (data: IFormDataChangePayload) => void;
+  stickyActions?: boolean;
 }
 
 /**
@@ -188,20 +197,32 @@ export function Form({
   skipSuccessToast,
   skipErrorToast,
   closeModalOnError,
+  notification,
+  throttle,
   disabled = false,
   buttonLoader = false,
   identifiers,
   useDynamicIdFromParams = true,
   columnsConfig,
-  routeParams = {},
-  defaultValues = {},
+  routeParams = EMPTY_ROUTE_PARAMS,
+  defaultValues = EMPTY_DEFAULT_VALUES,
   entityName,  // From backend config
   onDataChange,  // Callback to lift state to wrapper
   helpText,  // Help text to display above form fields
+  loading: loadingConfig,  // Loading state configuration (#57)
+  stickyActions = true,  // Sticky form action buttons (#41)
+  _prefillFieldNames,  // Internal: fields pre-filled from URL that should be locked
+  reviewBeforeSave,  // Diff-on-save review configuration (#36)
+  dataSource,  // Pre-loaded record data (bypasses API call in edit mode)
+  disclosure,  // Progressive disclosure config (#40)
+  templates,   // Record templates config (#42)
+  onSuccess: onSuccessConfig,  // Backend response → UI state mapping (#92)
+  errorHandling,  // Error recovery config (#58)
 }: IFormWithColumnsConfig) {
-  const navigate = useCoreNavigator();
-
   const { notifyError, notifySuccess } = useAppContext()
+
+  // Evaluation context for resolving ConditionalValue defaults (#33)
+  const evaluationContext = useNewEvaluationContext();
 
   // Generate STABLE formConfig name - CRITICAL: Must not change across re-renders!
   // Otherwise React will destroy and recreate the form, losing all field errors
@@ -213,17 +234,37 @@ export function Form({
   const { dynamicID = "" } = useParams()
 
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>(convertColumnsConfigForFormField(propertiesConfig))
-  const [ dataLoadedFromView, setDataLoadedFromView ] = useState((identifiers || (useDynamicIdFromParams && dynamicID) || Object.keys(routeParams).length > 0) ? false : true)
-  const { callApiMethod } = useApi();
+
+  // Progressive disclosure state (#40)
+  const TIER_ORDER = { basic: 0, advanced: 1, expert: 2 } as const;
+  type DisclosureTier = keyof typeof TIER_ORDER;
+  const [ activeTier, setActiveTier ] = useState<DisclosureTier>(disclosure?.defaultTier ?? 'basic');
+
+  // Record templates state (#42) — tracks which template is currently applied
+  const [ activeTemplateId, setActiveTemplateId ] = useState<string | null>(null);
+
+  const identifiersToUse = useDynamicIdFromParams ? dynamicID : identifiers;
   const operationExecutor = useOperationExecutor();
+  const { isThrottled, buttonText: throttleText, startPolling: startThrottlePolling } = useThrottleCountdown(
+    operationExecutor,
+    apiConfig?.apiUrl,
+    !!(throttle?.cooldownMs),
+    !!(throttle?.showCountdown)
+  );
+  // Error-recovery countdown (#58) — resets the submit button after failures
+  const { isRetrying, retryText, startRetryCountdown } = useRetryCountdown();
   const [ loader, setLoader ] = useState<boolean>(false)
   const [ btnLoader, setBtnLoader ] = useState<boolean>(false)
-  const [ isRefreshing, setIsRefreshing ] = useState<boolean>(false)  // Separate loading state for refresh
-  const [ identifiersToUse, setIdentifiersToUse ] = useState<string | number | undefined>(useDynamicIdFromParams ? dynamicID : identifiers);
   const [ validationErrors, setValidationErrors ] = useState<Array<{ field: string; message: string }>>([]);  // Track validation errors for display
 
   // Track initial record (for edit mode)
   const [ initialRecord, setInitialRecord ] = useState<any>(null);
+  const initialRecordRef = React.useRef<any>(null);
+  initialRecordRef.current = initialRecord;
+
+  // Diff-on-save state (#36)
+  const [ diffReviewOpen, setDiffReviewOpen ] = useState(false);
+  const [ pendingSubmitValues, setPendingSubmitValues ] = useState<Record<string, any> | null>(null);
 
   // Track previous values to detect actual changes (not just re-renders)
   const prevFormPropertiesConfigRef = React.useRef<IFormField[] | null>(null);
@@ -236,14 +277,6 @@ export function Form({
   useEffect(() => {
     setBtnLoader(buttonLoader)
   }, [ buttonLoader ])
-
-  useEffect(() => {
-    if (useDynamicIdFromParams) {
-      setIdentifiersToUse(dynamicID);
-    } else {
-      setIdentifiersToUse(identifiers);
-    }
-  }, [ identifiers, dynamicID ])
 
   // Helper: Format item values for form display
   const itemValueFormatter = React.useCallback((item: IFormField, itemValue: any) => {
@@ -264,7 +297,9 @@ export function Form({
 
     if (type === "list" && fieldType && ![ 'wysiwyg', 'rich-text' ].includes(fieldType.toLowerCase())) {
       itemValue = itemValue || [];
-      itemValue = itemValue.map(it => itemValueFormatter(item.items as any, it));
+      // item.items is { type, properties } — a structural subset of IFormField.
+      // Cast is safe: itemValueFormatter only reads type/properties/items/fieldType/name.
+      itemValue = itemValue.map((it: unknown) => itemValueFormatter(item.items as IFormField, it));
     }
 
     if (fieldType === "datetime" || fieldType === "date" || fieldType === "time") {
@@ -294,74 +329,77 @@ export function Form({
   // Store updated field values for form refresh
   const updatedFieldValuesRef = React.useRef<Record<string, any> | null>(null);
 
-  // Standard data fetch function (can be called on mount or on-demand)
-  const loadAndFormatData = React.useCallback(async (showLoader = true) => {
-    if (showLoader) {
-      setIsRefreshing(true);
-      setLoader(true);
-    }
+  const formEntityName = React.useMemo(
+    () => deriveEntityName(detailApiConfig?.apiUrl || apiConfig?.apiUrl, entityName),
+    [ detailApiConfig?.apiUrl, apiConfig?.apiUrl, entityName ]
+  );
 
-    // if the page has api-config and record identifier or route params, then fetch the record and update the form-fields with initial values.
-    const shouldFetchRecord = detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0);
+  // Ref for formPropertiesConfig to use in effects without adding it as a dependency
+  const formPropertiesConfigRef = React.useRef(formPropertiesConfig);
+  formPropertiesConfigRef.current = formPropertiesConfig;
 
-    let recordData = {};
-    if (shouldFetchRecord) {
-      try {
-        let apiUrl = detailApiConfig.apiUrl;
+  // Ref for reviewBeforeSave to access latest value in stable validateAndSubmit callback
+  const reviewBeforeSaveRef = React.useRef(reviewBeforeSave);
+  reviewBeforeSaveRef.current = reviewBeforeSave;
 
-        // Use the clean utility function for URL parameter substitution
-        apiUrl = substituteUrlParams(apiUrl, routeParams, identifiersToUse);
+  // Form submit instrumentation hook
+  const { instrumentSubmit } = useFormSubmitInstrumentation({
+    entity: formEntityName || 'unknown',
+    fieldCount: formPropertiesConfigRef.current.length
+  });
 
-        const response: any = await callApiMethod({ ...detailApiConfig, apiUrl });
+  // ── Declarative data fetching for edit mode via useEntityDetail ──
+  const isEditMode = !!dataSource || !!(detailApiConfig && (identifiersToUse !== "" || Object.keys(routeParams).length > 0));
 
-        if (response.status >= 200 && response.status < 300) {
-          const detailResponse = detailApiConfig.responseKey ? response.data[ detailApiConfig.responseKey ] : response.data;
+  const {
+    data: editData,
+    isLoading: editLoading,
+    isFetching: editFetching,
+    error: editError,
+    refetch: refetchEditData,
+  } = useEntityDetail({
+    apiConfig: detailApiConfig || { apiUrl: '', apiMethod: 'GET' },
+    routeParams,
+    identifier: identifiersToUse,
+    entityName: formEntityName,
+    enabled: isEditMode && !dataSource,
+    staleTime: 30 * 1000,
+  });
 
-          // Store initial record for state lifting
-          setInitialRecord(detailResponse);
-          recordData = detailResponse;
-        } else {
-          // Handle error response using consolidated error handler
-          const errorResult = handleApiError(response, 'Failed to load record');
-          notifyError(errorResult.formattedErrors.join('\n'));
-        }
-      } catch (error: any) {
-        // Handle network errors or other exceptions using consolidated error handler
-        const errorResult = handleApiError(error, 'Failed to load record');
-        notifyError(errorResult.formattedErrors.join('\n'));
-      }
-    }
+  const [ dataLoadedFromView, setDataLoadedFromView ] = useState(!isEditMode);
 
-    if (recordData && Object.keys(recordData).length > 0) {
-      const updatedFieldsWithInitialValues = formPropertiesConfig.map((item: IFormField) => {
-        const fieldPath = item.column || item.name || item.id;
-        // Use getNestedValue to handle dot-notation paths (e.g., 'leaguesConfig.enabled')
-        const itemValue = itemValueFormatter(item, getNestedValue(recordData, fieldPath))
-        return { ...item, initialValue: itemValue }
-      });
-
-      setFormPropertiesConfig(updatedFieldsWithInitialValues);
-
-      // Store values for form update (applied after form is available)
-      // Use showLoader param, not isRefreshing state (which is stale in async context)
-      if (showLoader) {
-        const refreshedValues = updatedFieldsWithInitialValues.reduce((acc, item) => {
-          acc[ item.name ] = item.initialValue;
-          return acc;
-        }, {});
-        updatedFieldValuesRef.current = refreshedValues;
-      }
-    }
-
-    setLoader(false);
-    setIsRefreshing(false);
-    setDataLoadedFromView(true);
-  }, [ detailApiConfig, identifiersToUse, routeParams, callApiMethod, notifyError, formPropertiesConfig, itemValueFormatter ]);
-
-  // Initial load
+  // When edit data arrives (from API or pre-loaded dataSource), format and update form properties
+  const resolvedEditData = dataSource || editData;
   useEffect(() => {
-    loadAndFormatData(false);  // Don't show refresh loader on initial load
-  }, [])
+    if (!resolvedEditData || !isEditMode) return;
+
+    setInitialRecord(resolvedEditData);
+
+    const currentConfig = formPropertiesConfigRef.current;
+    const updatedFieldsWithInitialValues = currentConfig.map((item: IFormField) => {
+      const fieldPath = item.column || item.name || item.id;
+      const itemValue = itemValueFormatter(item, getNestedValue(resolvedEditData, fieldPath));
+      return { ...item, initialValue: itemValue };
+    });
+
+    setFormPropertiesConfig(updatedFieldsWithInitialValues);
+    setDataLoadedFromView(true);
+  }, [ resolvedEditData, isEditMode, itemValueFormatter ]);
+
+  // Handle edit data fetch errors
+  useEffect(() => {
+    if (!editError) return;
+    const errorResult = handleApiError(editError, 'Failed to load record');
+    notifyError(errorResult.formattedErrors.join('\n'));
+    setDataLoadedFromView(true);
+  }, [ editError, notifyError ]);
+
+  // Create mode: no fetch needed, mark data as loaded immediately
+  useEffect(() => {
+    if (!isEditMode) {
+      setDataLoadedFromView(true);
+    }
+  }, [ isEditMode ]);
 
   // AbortController for request cancellation on unmount
   const abortControllerRef = React.useRef<AbortController | null>(null);
@@ -453,11 +491,7 @@ export function Form({
             try {
               result[ key ] = JSON.parse(value as string);
             } catch (error) {
-              console.log("JSON parsing failed for", {
-                error,
-                field: key,
-                value: value
-              });
+              console.warn("[Form] JSON parsing failed for field:", key, error);
               // If JSON parsing fails, keep the original value
               result[ key ] = value;
             }
@@ -533,10 +567,19 @@ export function Form({
             : (responseConfig?.showModal || !!dynamicConfigKey),
           skipErrorToast: skipErrorToast ?? true, // Default to true for forms (manual error handling)
           closeModalOnError: closeModalOnError ?? false, // Default to false for forms (keep open for fixes)
-          abortSignal: abortControllerRef.current.signal
+          abortSignal: abortControllerRef.current.signal,
+          ...(notification && { notification }),
+          ...(throttle && { throttle }),
+          ...(onSuccessConfig && { onSuccess: onSuccessConfig }),
         },
         {
           onSuccess: onSubmitSuccessCallback,
+          // Backend Response → UI State Mapping (#92) — update form fields from response
+          onFieldUpdate: onSuccessConfig?.updateFields
+            ? (fields: Record<string, unknown>) => {
+              form.setFieldsValue(fields);
+            }
+            : undefined,
           onClose: onCancelCallback, // Close form/modal after redirect or when operation completes
           onValidationError: (fieldErrors, formErrors) => {
             // Set field-level errors in the form
@@ -556,9 +599,16 @@ export function Form({
           onError: (errorResult) => {
             // Show generic error toast (OperationExecutor skips it because skipErrorToast: true)
             notifyError(errorResult.errorMessage);
+            // Start retry countdown if configured (#58)
+            if (errorHandling?.retryDelay) {
+              startRetryCountdown(errorHandling.retryDelay);
+            }
           }
         }
       );
+
+      // Start polling cooldown after execution (for countdown display)
+      if (throttle?.showCountdown) startThrottlePolling();
     } else {
       // NO API CALL (navigation-only or custom submission)
       // Call onSubmitSuccessCallback directly (for navigation-only modals)
@@ -570,6 +620,10 @@ export function Form({
     //call when defined
     onSubmit && onSubmit(values)
   }
+
+  // Stable ref for onFinish — avoids cascading re-creations of submit handlers
+  const onFinishRef = React.useRef(onFinish);
+  onFinishRef.current = onFinish;
 
   const [ form ] = AntForm.useForm();
 
@@ -592,74 +646,15 @@ export function Form({
    * This keeps behavior consistent regardless of the underlying submit event plumbing.
    */
 
-  // React 19 + antd v5 workaround: intercept native form submit for child buttons
-  // that use htmlType="submit" (e.g., OTP login, password reset forms).
-  // This fires during the capture phase, before antd's own handler.
-  const handleNativeFormSubmit = React.useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
+  // Shared validation + submission logic used by both native form submit and explicit button clicks.
+  // Uses refs for unstable dependencies (onFinish, formPropertiesConfig) to keep the callback stable.
+  const validateAndSubmit = React.useCallback(async () => {
     setValidationErrors([]);
-    try {
-      // Only validate active fields (exclude condition-hidden/disabled)
-      const currentConditionProps = conditionPropsMapRef.current;
-      const activeFieldNames = formPropertiesConfig
-        .filter((_: any, i: number) => {
-          const cp = currentConditionProps[ i ];
-          return !cp?.conditionHidden && !cp?.conditionDisabled;
-        })
-        .map((f: any) => f.name)
-        .filter(Boolean);
 
-      // Validate only active (non-hidden, non-disabled) fields
-      if (activeFieldNames.length > 0) {
-        await form.validateFields(activeFieldNames);
-      }
-      // Get ALL field values (including hidden/disabled) for submission.
-      // validateFields() only returns validated fields, so we use getFieldsValue(true)
-      // to include condition-hidden fields whose values should still be submitted.
-      const values = form.getFieldsValue(true);
-      await onFinish(values);
-    } catch (err: any) {
-      if (err?.errorFields?.length > 0) {
-        const getFieldLabel = (fieldPath: string[]): string => {
-          const fieldName = fieldPath.join('.');
-          const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
-          const lbl = fieldConfig?.label;
-          return (typeof lbl === 'string' ? lbl : '') || fieldConfig?.name || fieldName;
-        };
-        const errors = err.errorFields.map((f: any) => {
-          const fieldLabel = getFieldLabel(f.name || []);
-          let message = f.errors?.join(', ') || 'This field is required';
-          message = message.replace(/undefined/gi, '');
-          return { field: fieldLabel, message };
-        });
-        setValidationErrors(errors);
-        const firstErrorField = err.errorFields[ 0 ]?.name;
-        if (firstErrorField) {
-          form.scrollToField(firstErrorField, { behavior: 'smooth', block: 'center' });
-        }
-        notifyError(`Please fix ${errors.length} validation error${errors.length > 1 ? 's' : ''} before submitting.`);
-      }
-    }
-  }, [ form, onFinish, formPropertiesConfig, notifyError ]);
-  const effectiveFormButtons = useMemo(() => {
-    const isSubmit = (btn: any): boolean => {
-      if (typeof btn === 'string') return btn === 'submit';
-      if (!btn || typeof btn !== 'object') return false;
-      if (btn.action === 'submit') return true;
-      if (btn.id === 'submit') return true;
-      if (btn.htmlType === 'submit') return true;
-      return false;
-    };
-
-    // Shared click handler for submit buttons - validates form and calls onFinish
-    const handleSubmitClick = async () => {
-      setValidationErrors([]);
+    await instrumentSubmit(async () => {
       try {
-        // Only validate fields that are NOT condition-hidden or condition-disabled.
-        // This prevents required-but-hidden fields from blocking form submission.
         const currentConditionProps = conditionPropsMapRef.current;
-        const activeFieldNames = formPropertiesConfig
+        const activeFieldNames = formPropertiesConfigRef.current
           .filter((_: any, i: number) => {
             const cp = currentConditionProps[ i ];
             return !cp?.conditionHidden && !cp?.conditionDisabled;
@@ -667,18 +662,23 @@ export function Form({
           .map((f: any) => f.name)
           .filter(Boolean);
 
-        // Validate only active (non-hidden, non-disabled) fields
         if (activeFieldNames.length > 0) {
           await form.validateFields(activeFieldNames);
         }
-        // Get ALL field values (including hidden/disabled) for submission
         const values = form.getFieldsValue(true);
-        await onFinish(values);
+
+        if (reviewBeforeSaveRef.current?.enabled && initialRecordRef.current) {
+          setPendingSubmitValues(values);
+          setDiffReviewOpen(true);
+          return;
+        }
+
+        await onFinishRef.current(values);
       } catch (err: any) {
         if (err?.errorFields?.length > 0) {
           const getFieldLabel = (fieldPath: string[]): string => {
             const fieldName = fieldPath.join('.');
-            const fieldConfig = formPropertiesConfig.find(f => f.name === fieldName || f.id === fieldName);
+            const fieldConfig = formPropertiesConfigRef.current.find((f: any) => f.name === fieldName || f.id === fieldName);
             const lbl = fieldConfig?.label;
             return (typeof lbl === 'string' ? lbl : '') || fieldConfig?.name || fieldName;
           };
@@ -695,7 +695,28 @@ export function Form({
           }
           notifyError(`Please fix ${errors.length} validation error${errors.length > 1 ? 's' : ''} before submitting.`);
         }
+        throw err;
       }
+    });
+  }, [ form, notifyError, instrumentSubmit ]);
+
+  // React 19 + antd v5 workaround: intercept native form submit for child buttons
+  // that use htmlType="submit" (e.g., OTP login, password reset forms).
+  // This fires during the capture phase, before antd's own handler.
+  const handleNativeFormSubmit = React.useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    await validateAndSubmit();
+  }, [ validateAndSubmit ]);
+
+  const effectiveFormButtons = useMemo(() => {
+    const isSubmit = (btn: any): boolean => {
+      if (typeof btn === 'string') return btn === 'submit';
+      if (!btn || typeof btn !== 'object') return false;
+      if (btn.action === 'submit') return true;
+      if (btn.id === 'submit') return true;
+      if (btn.htmlType === 'submit') return true;
+      return false;
     };
 
     return (formButtons || []).map((btn: any) => {
@@ -704,24 +725,49 @@ export function Form({
       // For string buttons (e.g., "submit"), convert to object with action property
       // Buttons.tsx will merge this with PreDefinedButtons to get text, styles, etc.
       if (typeof btn === 'string') {
-        return { action: btn, htmlType: 'button', onClick: handleSubmitClick };
+        return { action: btn, htmlType: 'button', onClick: validateAndSubmit };
       }
 
       // For object buttons, preserve existing config and override onClick
-      return { ...btn, htmlType: 'button', onClick: handleSubmitClick };
+      return { ...btn, htmlType: 'button', onClick: validateAndSubmit };
     });
-  }, [ formButtons, form, onFinish, formPropertiesConfig, notifyError ]);
+  }, [ formButtons, validateAndSubmit ]);
 
-  // Apply refreshed values to form (when refresh completes)
+  // Apply refreshed values to form (when edit data refetch completes)
   useEffect(() => {
     if (updatedFieldValuesRef.current) {
       form.setFieldsValue(updatedFieldValuesRef.current);
       updatedFieldValuesRef.current = null; // Clear after applying
     }
-  }, [ form, isRefreshing ]);
+  }, [ form, editFetching ]);
 
-  // Watch form values
-  const formValues = AntForm.useWatch([], form) || form.getFieldsValue(true);
+  // Watch form values.
+  // Do NOT fall back to form.getFieldsValue() here — the <AntForm form={form}> is
+  // conditionally rendered (behind the dataLoadedFromView gate), so calling
+  // getFieldsValue() on an unconnected instance triggers the antd warning:
+  // "Instance created by useForm is not connected to any Form element".
+  // useWatch returns undefined before mount, which is safe: callers guard with `|| {}`.
+  // We keep the raw value (before coalescing) to detect mount status for isValid.
+  const rawFormValues = AntForm.useWatch([], form);
+  const formValues = rawFormValues ?? {};
+
+  // Computed / derived field values (#35)
+  const derivedValues = useDerivedFieldValues(formPropertiesConfig, formValues || {}, evaluationContext);
+  const prevDerivedRef = React.useRef<Record<string, unknown>>({});
+  useEffect(() => {
+    const changed: Record<string, unknown> = {};
+    let hasChanges = false;
+    for (const [ key, val ] of Object.entries(derivedValues)) {
+      if (prevDerivedRef.current[ key ] !== val) {
+        changed[ key ] = val;
+        hasChanges = true;
+      }
+    }
+    if (hasChanges) {
+      form.setFieldsValue(changed);
+      prevDerivedRef.current = derivedValues;
+    }
+  }, [ derivedValues, form ]);
 
   // NEW: Determine pageType from initialRecord
   const pageType = useMemo(() => {
@@ -735,13 +781,23 @@ export function Form({
   useEffect(() => {
     if (!onDataChange) return;
 
+    // isValid: true when no field has validation errors.
+    // Guard against calling getFieldsError() before the <AntForm> element is connected
+    // (rawFormValues is undefined when the form instance is not yet mounted — e.g. edit forms
+    // behind the dataLoadedFromView gate). An unconnected call triggers antd's
+    // "Instance created by useForm is not connected" warning.
+    const isValid = rawFormValues === undefined
+      ? true  // form not mounted yet; optimistically valid
+      : form.getFieldsError().every(f => f.errors.length === 0);
+
     onDataChange({
       record: initialRecord,
       formValues: debouncedFormValues || {},
       pageType,
-      entityName
+      entityName,
+      isValid,
     });
-  }, [ initialRecord, debouncedFormValues, pageType, entityName, onDataChange ]);
+  }, [ initialRecord, debouncedFormValues, rawFormValues, pageType, entityName, onDataChange, form ]);
 
   // ── Condition evaluation for form fields ──
   // Batch evaluate visibility, enablement, and resolve ConditionalValue fields for all fields.
@@ -767,6 +823,7 @@ export function Form({
   const resolvedLabels = useResolveBatch<string>(labelValues);
   const resolvedPlaceholders = useResolveBatch<string>(placeholderValues);
   const resolvedHelpTexts = useResolveBatch<string>(helpTextValues);
+  const { t } = useTranslation(); // i18n (#22)
 
   // Build condition props for each field
   const conditionPropsMap = useMemo(() => {
@@ -784,17 +841,17 @@ export function Form({
         props.resolvedRenderer = resolvedRenderers[ i ] as string;
       }
       if (resolvedLabels[ i ] !== undefined) {
-        props.resolvedLabel = resolvedLabels[ i ] as string;
+        props.resolvedLabel = t(resolvedLabels[ i ] as string); // i18n (#22)
       }
       if (resolvedPlaceholders[ i ] !== undefined) {
-        props.resolvedPlaceholder = resolvedPlaceholders[ i ] as string;
+        props.resolvedPlaceholder = t(resolvedPlaceholders[ i ] as string); // i18n (#22)
       }
       if (resolvedHelpTexts[ i ] !== undefined) {
-        props.resolvedHelpText = resolvedHelpTexts[ i ] as string;
+        props.resolvedHelpText = t(resolvedHelpTexts[ i ] as string); // i18n (#22)
       }
       return props;
     });
-  }, [ getFieldConditionProps, resolvedRenderers, resolvedLabels, resolvedPlaceholders, resolvedHelpTexts, formPropertiesConfig ]);
+  }, [ getFieldConditionProps, resolvedRenderers, resolvedLabels, resolvedPlaceholders, resolvedHelpTexts, formPropertiesConfig, t ]);
 
   // Keep the ref in sync so submit handlers can read the latest condition state
   conditionPropsMapRef.current = conditionPropsMap;
@@ -802,20 +859,35 @@ export function Form({
   // Determine columns to render
   // Keep condition-hidden fields (they render as hidden Form.Item to preserve values)
   let columns: IFormField[][] = [];
-  const items = formPropertiesConfig.filter((item, idx) => {
+  const items = formPropertiesConfig.filter((item) => {
     // If there's a visibility condition, always include (FormField handles hidden rendering)
     if (item.visibility !== undefined) return true;
-    // Otherwise, use legacy static hidden check
-    return !item.hidden;
+    // Legacy static hidden check
+    if (item.hidden) return false;
+    // Progressive disclosure tier filter (#40)
+    if (disclosure?.enabled && item.tier) {
+      return TIER_ORDER[ item.tier as DisclosureTier ] <= TIER_ORDER[ activeTier ];
+    }
+    return true;
   });
 
-  // Map from filtered items back to original formPropertiesConfig indices
-  const itemOriginalIndices: number[] = [];
-  formPropertiesConfig.forEach((item, idx) => {
-    if (item.visibility !== undefined || !item.hidden) {
-      itemOriginalIndices.push(idx);
-    }
-  });
+  // For progressive disclosure: check if there are higher-tier fields not yet shown
+  const hasAdvancedFields = disclosure?.enabled && formPropertiesConfig.some(
+    f => !f.hidden && f.tier === 'advanced'
+  );
+  const hasExpertFields = disclosure?.enabled && formPropertiesConfig.some(
+    f => !f.hidden && f.tier === 'expert'
+  );
+  const canExpandMore = disclosure?.enabled && (
+    (hasAdvancedFields && activeTier === 'basic') ||
+    (hasExpertFields && activeTier !== 'expert')
+  );
+  const canCollapse = disclosure?.enabled && activeTier !== 'basic';
+
+  // Map each rendered item back to its original index in formPropertiesConfig.
+  // Must use the same filter logic as `items` so that condition props are looked
+  // up at the correct index (progressive disclosure tier filtering can shift indices).
+  const itemOriginalIndices: number[] = items.map(item => formPropertiesConfig.indexOf(item));
 
   // Special case: if we have only one item and it's a map with many properties, 
   // create multiple columns for the nested properties
@@ -838,10 +910,24 @@ export function Form({
     const filteredIdx = items.indexOf(item);
     const originalIdx = filteredIdx >= 0 ? itemOriginalIndices[ filteredIdx ] : index;
     const condProps = conditionPropsMap[ originalIdx ] || {};
+    const isPrefillLocked = _prefillFieldNames?.has(item.name);
+
+    // Delegate list/array type fields to ListFormField (#111)
+    if (item.type === 'list') {
+      return (
+        <React.Fragment key={"fe" + index}>
+          <ListFormField
+            item={item}
+            resolvedLabel={condProps.resolvedLabel}
+            conditionDisabled={condProps.conditionDisabled || isPrefillLocked}
+          />
+        </React.Fragment>
+      );
+    }
 
     return (
       <React.Fragment key={"fe" + index}>
-        <FormField {...item} {...condProps} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
+        <FormField {...item} {...condProps} conditionDisabled={condProps.conditionDisabled || isPrefillLocked} setFormValue={(newValue: { name: string, value: string | object, index?: number }) => {
           if (newValue.index !== undefined && typeof newValue.value === "object") {
             const currentValue = form.getFieldValue(newValue.name) || [];
             form.setFieldsValue({
@@ -884,6 +970,15 @@ export function Form({
 
       // Recursive function to extract initial/default values from nested structures
       // Priority: initialValue (from API in edit mode) > defaultValue (schema default)
+      // Resolve a defaultValue that may be a ConditionalValue (#33)
+      const resolveDefault = (val: any): any => {
+        if (val === undefined || val === null) return val;
+        if (isConditionalValue(val)) {
+          return conditionEvaluator.resolveValue(val, evaluationContext);
+        }
+        return val;
+      };
+
       const extractDefaultValues = (fields: any[]): any => {
         return fields.reduce((acc, item) => {
           // For map fields with nested properties, recursively extract values
@@ -905,12 +1000,12 @@ export function Form({
             if (item.initialValue !== undefined) {
               acc[ item.name ] = item.initialValue;
             } else if (item.defaultValue !== undefined) {
-              acc[ item.name ] = item.defaultValue;
+              acc[ item.name ] = resolveDefault(item.defaultValue);
             }
           }
           // For regular fields, prioritize initialValue over defaultValue
           else if (item.initialValue !== undefined || item.defaultValue !== undefined) {
-            acc[ item.name ] = item.initialValue ?? item.defaultValue;
+            acc[ item.name ] = item.initialValue ?? resolveDefault(item.defaultValue);
           }
 
           return acc;
@@ -935,16 +1030,16 @@ export function Form({
   return (
     <>
       {!dataLoadedFromView ? (
-        // Show skeleton loader on initial load for instant page transition
-        <div>
-          <Skeleton active paragraph={{ rows: 10 }} />
-        </div>
+        <DataLoadingState type={loadingConfig?.type} pageType="form" rows={loadingConfig?.rows || formPropertiesConfig?.length || 6} />
       ) : (
         <ErrorBoundary
           FallbackComponent={ErrorFallback}
           onReset={() => {
-            // Reset form state on error boundary reset
+            // Reset form state and refetch data on error boundary reset
             setValidationErrors([]);
+            if (isEditMode) {
+              refetchEditData();
+            }
           }}
         >
           <AntForm
@@ -952,10 +1047,67 @@ export function Form({
             form={form}
             {...stableFormConfig}
             layout="vertical"
-            onFinish={onFinish}
             onSubmitCapture={handleNativeFormSubmit}
             disabled={loader}
           >
+            {/* Record Templates picker (#42) */}
+            {templates && templates.items.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>
+                  {templates.label ?? 'Start from a template'}
+                </div>
+                {templates.style === 'select' ? (
+                  <Select
+                    style={{ minWidth: 220 }}
+                    allowClear
+                    placeholder="— No template —"
+                    value={activeTemplateId ?? undefined}
+                    onChange={(val: string | undefined) => {
+                      const tpl = val ? templates.items.find(t => t.id === val) : null;
+                      if (tpl) {
+                        setActiveTemplateId(tpl.id);
+                        if (templates.replaceValues !== false) {
+                          form.resetFields();
+                        }
+                        form.setFieldsValue(tpl.values);
+                      } else {
+                        setActiveTemplateId(null);
+                      }
+                    }}
+                    options={templates.items.map(tpl => ({
+                      value: tpl.id,
+                      label: tpl.label,
+                      title: tpl.description,
+                    }))}
+                  />
+                ) : (
+                  <Space wrap>
+                    {templates.items.map(tpl => (
+                      <Button
+                        key={tpl.id}
+                        size="small"
+                        type={activeTemplateId === tpl.id ? 'primary' : 'default'}
+                        title={tpl.description}
+                        onClick={() => {
+                          if (activeTemplateId === tpl.id) {
+                            setActiveTemplateId(null);
+                            form.resetFields();
+                          } else {
+                            setActiveTemplateId(tpl.id);
+                            if (templates.replaceValues !== false) {
+                              form.resetFields();
+                            }
+                            form.setFieldsValue(tpl.values);
+                          }
+                        }}
+                      >
+                        {tpl.label}
+                      </Button>
+                    ))}
+                  </Space>
+                )}
+              </div>
+            )}
             {helpText && (
               <Alert
                 message={helpText}
@@ -972,9 +1124,31 @@ export function Form({
                   </FormColumn>
                 ))}
               </FormContainer>
-            ) : (
+            ) : columns.length === 1 && columns[ 0 ] ? (
               <div style={{ maxWidth: 600 }}>
                 {columns[ 0 ].map(renderFormField)}
+              </div>
+            ) : null}
+            {/* Progressive disclosure toggle (#40) */}
+            {disclosure?.enabled && (canExpandMore || canCollapse) && (
+              <div style={{ marginTop: 8, marginBottom: 8 }}>
+                {canExpandMore && activeTier === 'basic' && (
+                  <Button type="link" size="small" onClick={() => setActiveTier('advanced')} style={{ paddingLeft: 0 }}>
+                    {disclosure.labels?.showAdvanced ?? '+ Show advanced fields'}
+                  </Button>
+                )}
+                {canExpandMore && activeTier === 'advanced' && hasExpertFields && (
+                  <Button type="link" size="small" onClick={() => setActiveTier('expert')} style={{ paddingLeft: 0 }}>
+                    {disclosure.labels?.showExpert ?? '+ Show expert fields'}
+                  </Button>
+                )}
+                {canCollapse && (
+                  <Button type="link" size="small" danger onClick={() => setActiveTier(activeTier === 'expert' && hasAdvancedFields ? 'advanced' : 'basic')} style={{ paddingLeft: 0 }}>
+                    {activeTier === 'expert'
+                      ? (disclosure.labels?.hideExpert ?? '- Hide expert fields')
+                      : (disclosure.labels?.hideAdvanced ?? '- Hide advanced fields')}
+                  </Button>
+                )}
               </div>
             )}
             {children}
@@ -997,12 +1171,50 @@ export function Form({
               />
             )}
             {effectiveFormButtons.length > 0 && (
-              <div style={{ display: "flex" }}>
-                <CreateButtons formButtons={effectiveFormButtons} loader={btnLoader} routeParams={routeParams} onCancelCallback={onCancelCallback} />
+              <div className={stickyActions ? 'form-actions-sticky' : undefined} style={{ paddingLeft: 10, paddingRight: 10 }}>
+                <CreateButtons
+                  formButtons={effectiveFormButtons}
+                  loader={btnLoader}
+                  routeParams={routeParams}
+                  onCancelCallback={onCancelCallback}
+                  isThrottled={isThrottled || isRetrying}
+                  throttleText={
+                    isThrottled ? throttleText
+                      : isRetrying && (errorHandling?.showCountdown !== false) ? retryText
+                        : undefined
+                  }
+                />
               </div>
             )}
           </AntForm>
         </ErrorBoundary>
+      )}
+      {reviewBeforeSave?.enabled && (
+        <DiffReviewModal
+          open={diffReviewOpen}
+          onConfirm={async () => {
+            setDiffReviewOpen(false);
+            if (pendingSubmitValues) {
+              await onFinishRef.current(pendingSubmitValues);
+              setPendingSubmitValues(null);
+            }
+          }}
+          onCancel={() => {
+            setDiffReviewOpen(false);
+            setPendingSubmitValues(null);
+          }}
+          originalValues={initialRecord || {}}
+          currentValues={pendingSubmitValues || {}}
+          config={{
+            fields: reviewBeforeSave.fields,
+            requireConfirmFor: reviewBeforeSave.requireConfirmFor,
+            format: reviewBeforeSave.format,
+          }}
+          fieldLabels={Object.fromEntries(
+            formPropertiesConfig.map(f => [ f.name, typeof f.label === 'string' ? f.label : f.name ])
+          )}
+          loading={btnLoader}
+        />
       )}
     </>
   );

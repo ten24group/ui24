@@ -1,6 +1,43 @@
 import { parseValidationErrors, is400ValidationError, AntFieldError } from './validation-errors';
 
 /**
+ * Shape of an error with an HTTP status code.
+ * Covers both Axios-style errors (status on root or response.status)
+ * and plain objects with a status field.
+ */
+interface ErrorWithStatus {
+  status?: number;
+  response?: { status?: number };
+  message?: string;
+}
+
+/**
+ * Extract the HTTP status code from an error object (Axios or plain).
+ * Returns `undefined` if the error doesn't carry a status code.
+ */
+export function getErrorStatus(error: unknown): number | undefined {
+  if (error == null || typeof error !== 'object') return undefined;
+  const err = error as ErrorWithStatus;
+  return err.status ?? err.response?.status;
+}
+
+/**
+ * Check if an error represents a specific HTTP status code (e.g., 404).
+ * Works with Axios errors, plain response objects, and any error shape
+ * that carries `status` or `response.status`.
+ *
+ * @example
+ * ```typescript
+ * if (isHttpStatus(error, 404)) {
+ *   // Record not found
+ * }
+ * ```
+ */
+export function isHttpStatus(error: unknown, status: number): boolean {
+  return getErrorStatus(error) === status;
+}
+
+/**
  * Format validation errors as user-friendly strings
  * Combines field-level and form-level errors into a single array
  * 
@@ -111,6 +148,9 @@ export interface ApiErrorHandlerResult {
   
   /** All formatted errors as array (for multiline display or individual rendering) */
   formattedErrors: string[];
+
+  /** Present when the server returned HTTP 429 with a Retry-After header */
+  retryAfterMs?: number;
 }
 
 /**
@@ -185,11 +225,32 @@ export function handleApiError(
   
   // Non-validation error (404, 403, 500, network error, etc.)
   const errorMessage = extractErrorMessage(errorOrResponse, fallbackMessage);
+
+  // Extract 429 Retry-After header when present
+  let retryAfterMs: number | undefined;
+  if (status === 429) {
+    const headers = errorOrResponse?.headers || errorOrResponse?.response?.headers;
+    const retryAfter = headers?.['retry-after'] || headers?.get?.('retry-after');
+    if (retryAfter) {
+      const parsed = Number(retryAfter);
+      if (Number.isFinite(parsed)) {
+        // Retry-After as seconds (e.g., "120")
+        retryAfterMs = parsed * 1000;
+      } else {
+        // Retry-After as HTTP-date (e.g., "Wed, 21 Oct 2025 07:28:00 GMT")
+        const dateMs = Date.parse(String(retryAfter));
+        if (!isNaN(dateMs)) {
+          retryAfterMs = Math.max(0, dateMs - Date.now());
+        }
+      }
+    }
+  }
   
   return {
     isValidationError: false,
     errorMessage,
-    formattedErrors: [errorMessage]
+    formattedErrors: [errorMessage],
+    retryAfterMs,
   };
 }
 

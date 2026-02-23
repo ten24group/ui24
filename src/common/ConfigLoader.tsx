@@ -2,6 +2,11 @@ import React, { createContext, useRef, useState, useEffect, ReactNode } from 're
 import { useApi, useAuth, useUi24Config } from '../core/context';
 import { Spin } from 'antd';
 import { loadConfigs } from './utils';
+import { instrument } from '../core/telemetry';
+import { validatePagesConfig, setValidationIssues } from '../core/validation/configValidator';
+import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
+import { ExtensionRegistry } from '../core/registry/ExtensionRegistry';
+import { IS_DEV } from '../core/constants';
 
 const ConfigLoaderContext = createContext<undefined>(undefined);
 
@@ -19,7 +24,7 @@ const dedupeRequest = async (url: string, loadFn: () => Promise<any>) => {
 
 export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) => {
     const { selectConfig, updateConfig } = useUi24Config();
-    const [loader, setLoader] = useState(false);
+    const [ loader, setLoader ] = useState(false);
     const { callApiMethod } = useApi();
     const { login, logout, isLoggedIn } = useAuth();
     const configLoadedRef = useRef(false);
@@ -43,7 +48,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                     updateConfig({
                         'uiConfig': {
                             ...selectConfig(config => config.uiConfig),
-                            auth: authResponse[0]
+                            auth: authResponse[ 0 ]
                         }
                     });
                     authConfigLoadedRef.current = true;
@@ -64,7 +69,12 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!isLoggedIn || configLoadedRef.current || pagesConfig.length > 0) return;
             setLoader(true);
 
-            try {
+            const configSpan = instrument.begin('config.load', 'async', {
+                'config.phase': 'app',
+                'span.level': 'info',
+            });
+
+            try{
                 // Verify token if needed
                 if (authConfig) {
                     try {
@@ -72,7 +82,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                             apiUrl: authConfig.apiConfig.apiUrl,
                             apiMethod: authConfig.apiConfig.apiMethod
                         });
-                        
+
                         if (validate.status === 200) {
                             const data = validate.data as { token?: string };
                             if (data?.token) {
@@ -90,37 +100,83 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                 }
 
                 // Load all other configs in parallel
-                const [pagesResponse, menuResponse, dashboardResponse] = await Promise.all([
+                const [ pagesResponse, menuResponse, dashboardResponse ] = await Promise.all([
                     dedupeRequest(pageConfigUrl, () => loadConfigs(pageConfigUrl)),
                     dedupeRequest(menuConfigUrl, () => loadConfigs(menuConfigUrl)),
                     dedupeRequest(dashboard, () => loadConfigs(dashboard))
-                ]).then(responses => responses.map(r => r[0]));
+                ]).then(responses => responses.map(r => r[ 0 ]));
+
+                const mergedPagesConfig = {
+                    ...(pagesResponse ?? {}),
+                    "dashboard": dashboardResponse,
+                };
 
                 updateConfig({
-                    'pagesConfig': {
-                        ...(pagesResponse ?? {}),
-                        "dashboard": dashboardResponse
-                    },
+                    'pagesConfig': mergedPagesConfig,
                     'menuItems': menuResponse || []
                 });
+
+                // Config validation (#9): run at load time in dev, report to store
+                if (IS_DEV) {
+                    const knownFieldTypes = new Set([
+                        ...Object.keys(fieldTypeRegistry.listAll()),
+                        ...ExtensionRegistry.getRegisteredFieldTypeKeys(),
+                    ]);
+                    const issues = validatePagesConfig(mergedPagesConfig, knownFieldTypes);
+                    setValidationIssues(issues);
+                    const errors = issues.filter(i => i.severity === 'error');
+                    const warnings = issues.filter(i => i.severity === 'warning');
+                    if (errors.length > 0) {
+                        console.error(`[ui24] Config validation: ${errors.length} error(s), ${warnings.length} warning(s). Open DevTools → Warnings for details.`);
+                    } else if (warnings.length > 0) {
+                        console.warn(`[ui24] Config validation: ${warnings.length} warning(s). Open DevTools → Warnings for details.`);
+                    }
+                }
+
+                configSpan.setAttribute('config.pagesCount', Object.keys(pagesResponse ?? {}).length);
+                configSpan.setAttribute('config.menuItemsCount', (menuResponse || []).length);
+                configSpan.setAttribute('config.loaded', true);
 
                 configLoadedRef.current = true;
             } catch (error) {
                 console.error('Error loading configs:', error);
+                configSpan.setAttribute('span.level', 'error');
+                throw error;
             } finally {
+                configSpan.end();
                 setLoader(false);
             }
         }
 
         loadAppConfigs();
-    }, [isLoggedIn]); // Only depend on login state
+    }, [ isLoggedIn ]); // Only depend on login state
+
+    // Reload config when the user returns to the tab after being away (#5).
+    // Debounced: only triggers if the tab was hidden for at least 5 minutes,
+    // avoiding unnecessary refetches on quick alt-tabs.
+    const lastVisibleRef = useRef(Date.now());
+    useEffect(() => {
+        if (!isLoggedIn || !configLoadedRef.current) return;
+        const STALE_THRESHOLD = 60 * 60 * 1000; // 1 hour
+
+        const handleVisibilityChange = () => {
+            if (document.hidden) {
+                lastVisibleRef.current = Date.now();
+            } else if (Date.now() - lastVisibleRef.current > STALE_THRESHOLD) {
+                configLoadedRef.current = false;
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [ isLoggedIn ]);
 
     return (
         <ConfigLoaderContext.Provider value={undefined}>
-            <Spin spinning={loader} style={{ 
-                paddingTop: '25%', 
+            <Spin spinning={loader} style={{
+                paddingTop: '25%',
                 display: 'flex',
-                justifyContent: 'center', 
+                justifyContent: 'center',
                 alignContent: 'center'
             }}>
                 {children}

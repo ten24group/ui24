@@ -93,29 +93,113 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { Table as AntTable, Spin, Skeleton, Button, Dropdown, Tooltip, Badge, Space } from "antd";
-import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined } from '@ant-design/icons';
+import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge, Space } from "antd";
+import { DragSortWrapper, DragHandleCell, SortableRow } from './DragSortTable';
+import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined, ColumnHeightOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { Resizable } from 'react-resizable';
 import { useTable } from "./useTable";
-import { ITableConfig } from "./type";
+import { ITableConfig, IRecord, ITableSummaryConfig } from "./type";
 import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
 import { ErrorBoundary } from 'react-error-boundary';
-import { ErrorFallback } from '../core/common';
+import { ErrorFallback, QueryErrorState } from '../core/common/ErrorFallback';
 import { renderSingleAction } from '../core/utils/actionRenderer';
-import { Condition } from '../core/types/evaluation';
 import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
 import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
+import { useApi } from '../core/context/ApiContext';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { substituteUrlParams } from '../core/utils';
+import { TableContextMenu, useTableContextMenu } from './ContextMenu/ContextMenu';
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
 import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
-import { AutoRefreshSelector } from '../core/components/AutoRefreshSelector';
+import { RefreshControl } from '../core/common/RefreshControl';
+import { EmptyState } from '../core/common/EmptyState';
+import { DataLoadingState } from '../core/common/DataLoadingState';
+import { useCoreNavigator } from '../routes/Navigation';
 import './Table.css';
 import { usePlaceholderContext } from "./hooks/usePlaceholderContext";
 import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
+import { CardView } from './CardView/CardView';
+import { ViewSwitcher, ViewContainer, useViewState, KanbanLayout, CalendarLayout, TreeLayout, MapLayout } from '../core/common/ViewSwitcher';
+import { useDeepLink } from './hooks/useDeepLink';
+import { DataQualityIndicator } from '../core/common/DataQualityIndicator';
+import { useTableViews, type TableViewState } from './hooks/useTableViews';
+import { ViewSelector } from './components/ViewSelector';
+
+// ============================================================================
+// RESIZABLE TABLE HEADER (#113)
+// ============================================================================
+
+/**
+ * ResizableTitle — wraps a table header cell to make it resizable by dragging.
+ * Uses react-resizable's Resizable component.
+ */
+interface ResizableTitleProps extends React.HTMLAttributes<HTMLTableCellElement> {
+  onResize?: (e: React.SyntheticEvent, data: { size: { width: number } }) => void;
+  width?: number;
+}
+
+const ResizableTitle: React.FC<ResizableTitleProps> = (props) => {
+  const { onResize, width, ...restProps } = props;
+
+  if (!width) {
+    return <th {...restProps} />;
+  }
+
+  return (
+    <Resizable
+      width={width}
+      height={0}
+      handle={
+        <span
+          className="react-resizable-handle"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            right: -5,
+            bottom: 0,
+            top: 0,
+            width: 10,
+            cursor: 'col-resize',
+            zIndex: 1,
+          }}
+        />
+      }
+      onResize={onResize}
+      draggableOpts={{ enableUserSelectHack: false }}
+    >
+      <th {...restProps} />
+    </Resizable>
+  );
+};
+
+/**
+ * Compute aggregate display value for a summary column (#27).
+ */
+function computeSummaryCell(
+  aggregation: 'sum' | 'avg' | 'min' | 'max' | 'count',
+  dataIndex: string,
+  data: readonly Record<string, unknown>[],
+  precision?: number,
+  label?: string,
+): string {
+  if (aggregation === 'count') return label ?? String(data.length);
+
+  const nums = data.map(row => Number(row[ dataIndex ])).filter(n => !isNaN(n));
+  let result: number;
+  switch (aggregation) {
+    case 'sum': result = nums.reduce((a, b) => a + b, 0); break;
+    case 'avg': result = nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0; break;
+    case 'min': result = nums.length ? Math.min(...nums) : 0; break;
+    case 'max': result = nums.length ? Math.max(...nums) : 0; break;
+    default: result = 0;
+  }
+  const dp = precision ?? (aggregation === 'avg' ? 2 : 0);
+  return result.toFixed(dp);
+}
 
 /**
  * Main Table component for rendering data tables with advanced features.
@@ -139,7 +223,6 @@ import { JsonViewer } from '../core/common/JsonViewer/JsonViewer';
  */
 export const Table = ({
   propertiesConfig,
-  records = [], //not using as of now
   apiConfig,
   routeParams,
   defaultFilters,
@@ -153,7 +236,27 @@ export const Table = ({
   onDataChange,  // Callback to lift state to wrapper
   showToolbar = true,
   showPagination = true,
+  emptyState,
+  rowFormatting,
+  pagination: paginationConfig,
+  density: densityConfig,
+  columnResizing: columnResizingConfig,
+  pinnedColumns: pinnedColumnsConfig,
+  contextMenu: contextMenuConfig,
+  displayMode: displayModeConfig,
+  viewSwitcher: viewSwitcherConfig,
+  loading: loadingConfig,
+  errorHandling: errorHandlingConfig,
+  retry: retryConfig,
+  deepLink: deepLinkConfig,
+  dataSource: preloadedRecords,
+  views: viewsConfig,
+  dataQuality: dataQualityConfig,
+  virtualScroll: virtualScrollConfig,
+  summary: summaryConfig,
+  rowDrag: rowDragConfig,
 }: ITableConfig) => {
+  const coreNavigate = useCoreNavigator();
   // Build placeholder context for segments and filters
   const placeholderContext = usePlaceholderContext(routeParams);
 
@@ -177,10 +280,13 @@ export const Table = ({
       ? segments
       : [ { id: 'default-group', segments: segments } ];
 
-    groups.forEach((group: any) => {
+    groups.forEach(group => {
+      // Normalize: grouped format has { segments: [...] }, flat format was wrapped above
+      const segs = 'segments' in group ? group.segments : [ group ];
+
       // Find segment with explicit default=true flag
       // NOTE: Only explicit defaults are used; we don't fallback to first segment
-      const defaultSeg = group.segments.find((s: any) => s.default);
+      const defaultSeg = segs.find(s => s.default);
 
       if (defaultSeg && defaultSeg.filters && Object.keys(defaultSeg.filters).length > 0) {
         // Resolve placeholders (e.g., :actor.actorId) before merging
@@ -231,14 +337,48 @@ export const Table = ({
     isSearchMode,
     toggleSearchMode,
     canToggleSearchMode,
+    dataUpdatedAt,
+    fetchError,
+    currentPage,
+    sort: activeSort,
   } = useTable({
     propertiesConfig,
     apiConfig,
     routeParams,
-    defaultFilters: initialFiltersForTable, // Pass merged defaults here
+    defaultFilters: initialFiltersForTable,
     fetchStrategy,
-    initialPageSize // Pass backend page size config
+    initialPageSize,
+    paginationConfig,
+    dataSource: preloadedRecords,
   });
+
+  // Deep linking: bidirectional URL sync (#21)
+  useDeepLink(deepLinkConfig, {
+    filters: appliedFilters,
+    search: searchQuery,
+    sort: activeSort.map(s => ({ field: String(s.field ?? s.columnKey ?? ''), order: String(s.order ?? '') })),
+    page: currentPage,
+  });
+
+  // Saved views (#19)
+  const currentViewState = useMemo<TableViewState>(() => ({
+    columns: columnSettings.filter(c => c.visible).map(c => c.key),
+    sort: activeSort.map(s => ({ field: String(s.field ?? s.columnKey ?? ''), order: String(s.order ?? '') })),
+    filters: appliedFilters,
+    pageSize: initialPageSize,
+    search: searchQuery,
+  }), [ columnSettings, activeSort, appliedFilters, initialPageSize, searchQuery ]);
+
+  const savedViews = useTableViews(entityName, viewsConfig, currentViewState);
+
+  const handleLoadView = useCallback((viewId: string): TableViewState | undefined => {
+    const state = savedViews.loadView(viewId);
+    if (!state) return undefined;
+    if (state.filters) setAppliedFilters(state.filters as Record<string, string>);
+    if (state.search !== undefined) onSearch(state.search);
+    setFetchTrigger(prev => prev + 1);
+    return state;
+  }, [ savedViews, setAppliedFilters, onSearch, setFetchTrigger ]);
 
   // Auto-refresh functionality
   const autoRefresh = useAutoRefresh({
@@ -247,11 +387,257 @@ export const Table = ({
     defaultInterval: 30
   });
 
+  // Drag-to-reorder row order state (#62)
+  // Tracks local order as array of record ID strings; syncs from listRecords when data changes
+  const { callApiMethod } = useApi();
+  const [ dragOrderIds, setDragOrderIds ] = useState<string[]>([]);
+  useEffect(() => {
+    setDragOrderIds(listRecords.map(r => String(r[ recordIdentifierKey ] ?? '')));
+  }, [ listRecords, recordIdentifierKey ]);
+
+  const handleDragOrderChange = useCallback(
+    async (newIds: string[]) => {
+      setDragOrderIds(newIds);
+      if (rowDragConfig?.onOrderChange) {
+        try {
+          await callApiMethod({
+            ...rowDragConfig.onOrderChange,
+            apiMethod: rowDragConfig.onOrderChange.apiMethod ?? 'POST',
+            payload: { ids: newIds },
+          });
+        } catch {
+          // Revert on failure
+          setDragOrderIds(listRecords.map(r => String(r[ recordIdentifierKey ] ?? '')));
+        }
+      }
+    },
+    [ rowDragConfig, callApiMethod, listRecords, recordIdentifierKey ]
+  );
+
+  // Reorder listRecords to follow drag order for display
+  const orderedRecords = useMemo(() => {
+    if (!rowDragConfig?.enabled || dragOrderIds.length === 0) return listRecords;
+    const indexMap = new Map(dragOrderIds.map((id, i) => [ id, i ]));
+    return [ ...listRecords ].sort((a, b) => {
+      const ai = indexMap.get(String(a[ recordIdentifierKey ] ?? '')) ?? Infinity;
+      const bi = indexMap.get(String(b[ recordIdentifierKey ] ?? '')) ?? Infinity;
+      return ai - bi;
+    });
+  }, [ rowDragConfig?.enabled, dragOrderIds, listRecords, recordIdentifierKey ]);
+
   const [ showFilters, setShowFilters ] = React.useState(false);
+
+  // Density state (#113) — maps to antd Table size prop
+  const densityDefault = densityConfig?.default || 'default';
+  const densityStorageKey = entityName ? `ui24-table-density-${entityName}` : null;
+
+  const [ density, setDensity ] = useState<'default' | 'compact' | 'comfortable'>(() => {
+    if (densityConfig?.persist && densityStorageKey) {
+      const stored = localStorage.getItem(densityStorageKey);
+      if (stored === 'compact' || stored === 'comfortable' || stored === 'default') return stored;
+    }
+    return densityDefault;
+  });
+
+  const cycleDensity = useCallback(() => {
+    setDensity(prev => {
+      const next = prev === 'default' ? 'compact' : prev === 'compact' ? 'comfortable' : 'default';
+      if (densityConfig?.persist && densityStorageKey) {
+        localStorage.setItem(densityStorageKey, next);
+      }
+      return next;
+    });
+  }, [ densityConfig?.persist, densityStorageKey ]);
+
+  const antTableSize = density === 'compact' ? 'small' : density === 'comfortable' ? 'large' : 'middle';
+
+  // Pinned (frozen) columns (#113) — apply fixed: 'left'/'right' based on config
+  const hasPinnedColumns = !!(pinnedColumnsConfig?.left?.length || pinnedColumnsConfig?.right?.length);
+  const leftPinned = useMemo(() => new Set(pinnedColumnsConfig?.left || []), [ pinnedColumnsConfig?.left ]);
+  const rightPinned = useMemo(() => new Set(pinnedColumnsConfig?.right || []), [ pinnedColumnsConfig?.right ]);
+
+  // Column resize state (#113) — tracked widths per column, persisted to localStorage
+  const resizeEnabled = !!columnResizingConfig?.enabled;
+  const resizeMinWidth = columnResizingConfig?.minWidth || 60;
+  const resizeStorageKey = entityName && columnResizingConfig?.persist ? `ui24-col-widths-${entityName}` : null;
+
+  const [ columnWidths, setColumnWidths ] = useState<Record<string, number>>(() => {
+    if (resizeStorageKey) {
+      try {
+        const stored = localStorage.getItem(resizeStorageKey);
+        if (stored) return JSON.parse(stored);
+      } catch { /* ignore */ }
+    }
+    return {};
+  });
+
+  const handleColumnResize = useCallback((dataIndex: string) => (_e: any, { size }: { size: { width: number } }) => {
+    setColumnWidths(prev => {
+      const next = { ...prev, [ dataIndex ]: Math.max(size.width, resizeMinWidth) };
+      if (resizeStorageKey) {
+        try { localStorage.setItem(resizeStorageKey, JSON.stringify(next)); } catch { /* ignore */ }
+      }
+      return next;
+    });
+  }, [ resizeMinWidth, resizeStorageKey ]);
+
+  // Context menu (#110) — uses reusable component
+  const ctxMenu = useTableContextMenu();
+
+  // Display mode state (#32) — table vs card
+  const displayDefault = displayModeConfig?.default || 'table';
+  const displayStorageKey = entityName ? `ui24-display-mode-${entityName}` : null;
+
+  const [ displayMode, setDisplayMode ] = useState<'table' | 'card'>(() => {
+    if (displayModeConfig?.remember && displayStorageKey) {
+      const stored = localStorage.getItem(displayStorageKey);
+      if (stored === 'table' || stored === 'card') return stored;
+    }
+    return displayDefault;
+  });
+
+  const toggleDisplayMode = useCallback(() => {
+    setDisplayMode(prev => {
+      const next = prev === 'table' ? 'card' : 'table';
+      if (displayModeConfig?.remember && displayStorageKey) {
+        localStorage.setItem(displayStorageKey, next);
+      }
+      return next;
+    });
+  }, [ displayModeConfig?.remember, displayStorageKey ]);
+
+  // Unified ViewSwitcher (#119) — replaces displayMode toggle when configured
+  const viewState = useViewState(
+    viewSwitcherConfig || { available: [ 'table' ], default: 'table' },
+    entityName
+  );
+
+  // Resolve which view is active: viewSwitcher takes priority over displayMode
+  const useUnifiedSwitcher = !!viewSwitcherConfig && viewSwitcherConfig.available.length > 1;
+  const isCardView = useUnifiedSwitcher
+    ? viewState.activeView === 'card-grid'
+    : displayMode === 'card';
+
+  // Resolve card config from unified viewSwitcher or legacy displayMode
+  const resolvedCardConfig = viewSwitcherConfig?.cardConfig || displayModeConfig?.cardConfig;
+
+  // Record click handler — navigate to the detail page using the identifier column's first action URL
+  const handleRecordClick = useCallback((record: IRecord) => {
+    const identifierCol = propertiesConfig.find(p => p.isIdentifier);
+    const firstAction = identifierCol?.actions?.[ 0 ];
+    if (firstAction?.url) {
+      const url = substituteUrlParams(firstAction.url, { ...routeParams, ...record });
+      coreNavigate(url);
+    }
+  }, [ propertiesConfig, routeParams, coreNavigate ]);
+
+  // Layout-specific navigation: each layout can define its own navigate-on-click URL
+  // with :id / :fieldName placeholders. Falls back to the generic handleRecordClick.
+  const createLayoutRecordClickHandler = useCallback(
+    (navigateUrl: string | undefined, idFieldOverride: string | undefined) => {
+      if (!navigateUrl) return handleRecordClick;
+      return (record: Record<string, unknown>) => {
+        const idKey = idFieldOverride || recordIdentifierKey;
+        const idValue = String(record[ idKey ] ?? '');
+        const resolvedUrl = substituteUrlParams(
+          navigateUrl.replace(':id', idValue).replace(`:${idKey}`, idValue),
+          { ...routeParams, ...record }
+        );
+        coreNavigate(resolvedUrl);
+      };
+    },
+    [ handleRecordClick, recordIdentifierKey, routeParams, coreNavigate ]
+  );
+
+  // Stable handler for card action clicks (ignores the record argument)
+  const handleCardActionClick = useCallback(
+    (url: string) => coreNavigate(url),
+    [ coreNavigate ]
+  );
+
+  // Pre-compute stable click handlers for each layout to avoid creating new
+  // functions during render (which defeats React.memo on the layout components).
+  const kanbanRecordClickHandler = useMemo(
+    () => createLayoutRecordClickHandler(
+      viewSwitcherConfig?.kanbanConfig?.onClickNavigateTo,
+      viewSwitcherConfig?.kanbanConfig?.idField
+    ),
+    [ createLayoutRecordClickHandler, viewSwitcherConfig?.kanbanConfig?.onClickNavigateTo, viewSwitcherConfig?.kanbanConfig?.idField ]
+  );
+
+  const calendarRecordClickHandler = useMemo(
+    () => createLayoutRecordClickHandler(
+      viewSwitcherConfig?.calendarConfig?.onEventClickNavigateTo,
+      viewSwitcherConfig?.calendarConfig?.idField
+    ),
+    [ createLayoutRecordClickHandler, viewSwitcherConfig?.calendarConfig?.onEventClickNavigateTo, viewSwitcherConfig?.calendarConfig?.idField ]
+  );
+
+  const treeRecordClickHandler = useMemo(
+    () => createLayoutRecordClickHandler(
+      viewSwitcherConfig?.treeConfig?.onNodeClickNavigateTo,
+      viewSwitcherConfig?.treeConfig?.idField
+    ),
+    [ createLayoutRecordClickHandler, viewSwitcherConfig?.treeConfig?.onNodeClickNavigateTo, viewSwitcherConfig?.treeConfig?.idField ]
+  );
+
+  const mapRecordClickHandler = useMemo(
+    () => createLayoutRecordClickHandler(
+      viewSwitcherConfig?.mapConfig?.onMarkerClickNavigateTo,
+      viewSwitcherConfig?.mapConfig?.idField
+    ),
+    [ createLayoutRecordClickHandler, viewSwitcherConfig?.mapConfig?.onMarkerClickNavigateTo, viewSwitcherConfig?.mapConfig?.idField ]
+  );
+
+  // Kanban: move record API call when a card is dragged between columns
+  const handleKanbanMoveRecord = useCallback(
+    async (recordId: string, newColumnValue: string) => {
+      const moveApi = viewSwitcherConfig?.kanbanConfig?.moveApiConfig;
+      if (!moveApi) return;
+      const groupByField = viewSwitcherConfig?.kanbanConfig?.groupByField ?? '';
+      await callApiMethod({
+        apiUrl: substituteUrlParams(moveApi.apiUrl, { ...routeParams, id: recordId }),
+        apiMethod: moveApi.apiMethod as 'PUT' | 'PATCH' | 'POST',
+        payload: { [ groupByField ]: newColumnValue },
+      });
+    },
+    [ viewSwitcherConfig?.kanbanConfig, callApiMethod, routeParams ]
+  );
 
   // Ref to always access latest appliedFilters in callbacks (avoids stale closures)
   const appliedFiltersRef = useRef(appliedFilters);
   appliedFiltersRef.current = appliedFilters;
+
+  // Handler for filter segment changes (extracted from JSX to comply with Rules of Hooks)
+  const handleSegmentChange = useCallback((segmentId: string, filtersToAdd: Record<string, any>, filtersToRemove: Record<string, any>) => {
+    // Use ref to get latest filters (avoids stale closures)
+    const currentFilters = appliedFiltersRef.current;
+    let newFilters = { ...currentFilters };
+
+    // 1. Remove filters from previous segment
+    if (filtersToRemove) {
+      Object.keys(filtersToRemove).forEach(key => {
+        delete newFilters[ key ];
+      });
+    }
+
+    // 2. Add filters from new segment
+    if (filtersToAdd) {
+      Object.assign(newFilters, filtersToAdd);
+    }
+
+    // 3. Restore default filters for removed keys (if they exist)
+    Object.keys(filtersToRemove || {}).forEach(key => {
+      if (resolvedDefaultFilters[ key ] !== undefined && newFilters[ key ] === undefined) {
+        newFilters[ key ] = resolvedDefaultFilters[ key ];
+      }
+    });
+
+    // 4. Update state and fetch — React batches setAppliedFilters + fetchRecords
+    // into one render, so the reactive payload memo picks up new filters
+    setAppliedFilters(newFilters);
+    fetchRecords(1);
+  }, [ resolvedDefaultFilters, setAppliedFilters, fetchRecords ]);
 
   // Track selected row keys for bulk actions and row selection
   const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
@@ -301,11 +687,11 @@ export const Table = ({
   const evaluationContext = useNewEvaluationContext();
 
   // Bulk action condition evaluation
-  const bulkActionsArr = useMemo(() => bulkActions ? [...bulkActions] : [], [bulkActions]);
+  const bulkActionsArr = useMemo(() => bulkActions ? [ ...bulkActions ] : [], [ bulkActions ]);
   const bulkExtraCtx = useMemo(() => ({
     selectedRecords,
     queryParams: routeParams,
-  }), [selectedRecords, routeParams]);
+  }), [ selectedRecords, routeParams ]);
 
   const { visibilityResults: bulkVisResults, enablementResults: bulkEnResults, getItemProps: getBulkActionProps } =
     useEvaluatedItems(bulkActionsArr, { additionalContext: bulkExtraCtx });
@@ -320,23 +706,25 @@ export const Table = ({
         return {
           ...action,
           _evaluated: {
-            visible: bulkVisResults[index],
-            enabled: bulkEnResults[index],
+            visible: bulkVisResults[ index ],
+            enabled: bulkEnResults[ index ],
             disabledMessage: props.conditionDisabledMessage || '',
           }
         };
       })
       .filter(action => action._evaluated.visible !== false);
-  }, [bulkActionsArr, bulkVisResults, bulkEnResults, getBulkActionProps]);
+  }, [ bulkActionsArr, bulkVisResults, bulkEnResults, getBulkActionProps ]);
 
   // Row selection configuration for AntTable - using AntD's native row selection API
   const rowSelection = useMemo(() => {
     if (!rowSelectionConfig?.enabled) return undefined;
 
     return {
-      type: 'checkbox' as const,
+      type: (rowSelectionConfig.type ?? 'checkbox') as 'checkbox' | 'radio',
       selectedRowKeys,
-      onChange: (selectedKeys: React.Key[], selectedRows: any[]) => {
+      // preserveSelectedRowKeys keeps selection when paginating (#30)
+      preserveSelectedRowKeys: rowSelectionConfig.persistAcrossPages ?? false,
+      onChange: (selectedKeys: React.Key[]) => {
         setSelectedRowKeys(selectedKeys);
       },
       getCheckboxProps: (record: any) => {
@@ -460,7 +848,7 @@ export const Table = ({
               <RenderFromPageType
                 pageType="details"
                 detailsPageConfig={{
-                  detailResponse: record,  // Pass record data directly - no API fetch needed
+                  dataSource: record as Record<string, unknown>,
                   propertiesConfig: detailFields,
                   columnsConfig: {
                     numColumns,
@@ -529,7 +917,7 @@ export const Table = ({
       // Optional: Custom indent size
       indentSize: expandableConfig.indentSize,
     };
-  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys, evaluationContext ]);
+  }, [ expandableConfig, routeParams, propertiesConfig, entityName, expandedRowKeys, evaluationContext, placeholderContext ]);
 
   const renderPagination = () => {
     if (typeof Pagination === 'function') {
@@ -538,85 +926,217 @@ export const Table = ({
     return Pagination;
   };
 
+  // ── Memoized table props (avoid new references each render) ──
+
+  const resolvedColumns = useMemo(() => {
+    let cols = columns;
+    if (hasPinnedColumns) {
+      cols = cols.map(col => {
+        const key = String(col.dataIndex || col.key || '');
+        if (key && leftPinned.has(key)) return { ...col, fixed: 'left' as const };
+        if (key && rightPinned.has(key)) return { ...col, fixed: 'right' as const };
+        return col;
+      });
+    }
+    if (resizeEnabled) {
+      cols = cols.map(col => {
+        const key = String(col.dataIndex || col.key || '');
+        if (!key || key === 'action') return col;
+        const width = columnWidths[ key ] || (typeof col.width === 'number' ? col.width : 150);
+        return {
+          ...col,
+          width,
+          onHeaderCell: () => ({
+            width,
+            onResize: handleColumnResize(key),
+          }),
+        };
+      });
+    }
+    if (dataQualityConfig?.enabled && dataQualityConfig.showInList) {
+      const qualityCol = {
+        title: 'Completeness',
+        dataIndex: '__dataQuality',
+        key: '__dataQuality',
+        width: 60,
+        render: (_: unknown, record: Record<string, unknown>) => (
+          <DataQualityIndicator
+            record={record}
+            config={dataQualityConfig}
+            propertiesConfig={propertiesConfig}
+            mode="compact"
+          />
+        ),
+      };
+      cols = [ ...cols, qualityCol ];
+    }
+    // Drag-handle column — prepended so it's always the first column (#62)
+    if (rowDragConfig?.enabled) {
+      const dragCol = {
+        key: '__drag',
+        dataIndex: '__drag',
+        title: '',
+        width: 36,
+        fixed: 'left' as const,
+        render: (_: unknown, record: Record<string, unknown>) => {
+          const id = String(record[ recordIdentifierKey ] ?? '');
+          return <DragHandleCell id={id} />;
+        },
+      };
+      cols = [ dragCol, ...cols ];
+    }
+    return cols;
+  }, [ columns, hasPinnedColumns, leftPinned, rightPinned, resizeEnabled, columnWidths, handleColumnResize, dataQualityConfig, propertiesConfig, rowDragConfig, recordIdentifierKey ]);
+
+  const tableRowClassName = useMemo(() => {
+    if (!rowFormatting || rowFormatting.length === 0) return undefined;
+    return (record: IRecord) => {
+      const rawRecord = record.__raw__ || record;
+      const classNames: string[] = [];
+      for (const rule of rowFormatting) {
+        try {
+          const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+          if (match && rule.className) {
+            classNames.push(rule.className);
+          }
+        } catch {
+          // Fail-safe: skip rule on evaluation error
+        }
+      }
+      return classNames.join(' ');
+    };
+  }, [ rowFormatting, evaluationContext ]);
+
+  const tableOnRow = useCallback((record: IRecord) => {
+    const props: Record<string, unknown> = {};
+    if (rowFormatting && rowFormatting.length > 0) {
+      const rawRecord = record.__raw__ || record;
+      const rowStyle: React.CSSProperties = {};
+      for (const rule of rowFormatting) {
+        try {
+          const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
+          if (match && rule.style) Object.assign(rowStyle, rule.style);
+        } catch { /* fail-safe */ }
+      }
+      if (Object.keys(rowStyle).length > 0) props.style = rowStyle;
+    }
+    if (contextMenuConfig?.items?.length) {
+      props.onContextMenu = (e: React.MouseEvent) => {
+        ctxMenu.show(e, record);
+      };
+    }
+    return props;
+  }, [ rowFormatting, evaluationContext, contextMenuConfig, ctxMenu ]);
+
+  const tableLocale = useMemo(() => ({
+    emptyText: (
+      <EmptyState
+        variant={hasActiveFilters ? 'noResults' : 'noData'}
+        entityName={entityName}
+        config={emptyState}
+        onClearFilters={hasActiveFilters ? clearAllFilters : undefined}
+        onNavigate={coreNavigate}
+      />
+    ),
+  }), [ hasActiveFilters, entityName, emptyState, clearAllFilters, coreNavigate ]);
+
+  const tableLoading = useMemo(() => ({
+    indicator: <div><Spin /></div>,
+    spinning: isLoading,
+  }), [ isLoading ]);
+
   return (
     <ErrorBoundary
-      FallbackComponent={({
-        error,
-        resetErrorBoundary,
-      }) => (
-        <ErrorFallback
-          error={new Error(`Error in table: ${error.message}`)}
-          resetErrorBoundary={resetErrorBoundary}
-        />
-      )}
+      FallbackComponent={ErrorFallback}
       onReset={() => {
-        console.log("Table ErrorBoundary Reset");
-        // Optionally, trigger a table data reload
         handleReload();
       }}
     >
 
       {showToolbar && (
-      <div className="table-toolbar">
-        <div style={{ flex: 1 }}>
-          {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {canToggleSearchMode && (
-            <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
-              <Button
-                icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
-                onClick={toggleSearchMode}
-                type={isSearchMode ? "default" : "primary"}
-              />
-            </Tooltip>
-          )}
-          {hasExpandableConfig && (
-            <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>
-              <Button
-                icon={allExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
-                onClick={allExpanded ? handleCollapseAll : handleExpandAll}
-                type={someExpanded ? "primary" : "default"}
-              />
-            </Tooltip>
-          )}
-          <Tooltip title="Reset">
-            <Button icon={<ClearOutlined />} onClick={handleRefresh} />
-          </Tooltip>
-          <Tooltip title="Refresh Data">
-            <Button icon={<ReloadOutlined />} onClick={handleReload} />
-          </Tooltip>
-          <AutoRefreshSelector
-            isEnabled={autoRefresh.isEnabled}
-            interval={autoRefresh.interval}
-            timeUntilRefresh={autoRefresh.timeUntilRefresh}
-            onToggle={autoRefresh.toggleEnabled}
-            onIntervalChange={autoRefresh.setInterval}
-            size="middle"
-          />
-          <Tooltip title="Column Settings">
-            <Dropdown
-              popupRender={() => (
-                <ColumnSettings
-                  columns={columnSettings}
-                  onColumnChange={handleColumnSettingsChange}
-                  onReset={resetColumnSettings}
-                  fetchStrategy={currentFetchStrategy}
-                  onFetchStrategyChange={handleFetchStrategyChange}
+        <div className="table-toolbar">
+          <div style={{ flex: 1 }}>
+            {isSearchMode && <Search onSearch={onSearch} value={searchQuery} />}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {canToggleSearchMode && (
+              <Tooltip title={isSearchMode ? "Switch to Database Mode" : "Switch to Search Mode"}>
+                <Button
+                  icon={isSearchMode ? <DatabaseOutlined /> : <SearchOutlined />}
+                  onClick={toggleSearchMode}
+                  type={isSearchMode ? "default" : "primary"}
                 />
-              )}
-              trigger={[ 'click' ]}
-            >
-              <Button icon={<SettingOutlined />} />
-            </Dropdown>
-          </Tooltip>
-          <Tooltip title="View Applied Filters & Sorts">
-            <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
-              <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
-            </Badge>
-          </Tooltip>
+              </Tooltip>
+            )}
+            {hasExpandableConfig && (
+              <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>
+                <Button
+                  icon={allExpanded ? <ShrinkOutlined /> : <ExpandAltOutlined />}
+                  onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+                  type={someExpanded ? "primary" : "default"}
+                />
+              </Tooltip>
+            )}
+            {useUnifiedSwitcher ? (
+              <ViewSwitcher
+                available={viewState.availableViews}
+                active={viewState.activeView}
+                onChange={viewState.switchView}
+              />
+            ) : displayModeConfig?.allowToggle ? (
+              <Tooltip title={displayMode === 'table' ? 'Card View' : 'Table View'}>
+                <Button
+                  icon={displayMode === 'table' ? <AppstoreOutlined /> : <UnorderedListOutlined />}
+                  onClick={toggleDisplayMode}
+                />
+              </Tooltip>
+            ) : null}
+            {savedViews.enabled && (
+              <ViewSelector
+                views={savedViews.views}
+                activeViewId={savedViews.activeViewId}
+                onLoad={handleLoadView}
+                onSave={savedViews.saveView}
+                onDelete={savedViews.deleteView}
+                allowUserViews={viewsConfig?.allowUserViews}
+              />
+            )}
+            <Tooltip title="Reset">
+              <Button icon={<ClearOutlined />} onClick={handleRefresh} />
+            </Tooltip>
+            <RefreshControl
+              onRefresh={handleReload}
+              dataUpdatedAt={dataUpdatedAt}
+              autoRefresh={autoRefresh}
+            />
+            {densityConfig?.allowToggle && (
+              <Tooltip title={`Density: ${density}`}>
+                <Button icon={<ColumnHeightOutlined />} onClick={cycleDensity} />
+              </Tooltip>
+            )}
+            <Tooltip title="Column Settings">
+              <Dropdown
+                popupRender={() => (
+                  <ColumnSettings
+                    columns={columnSettings}
+                    onColumnChange={handleColumnSettingsChange}
+                    onReset={resetColumnSettings}
+                    fetchStrategy={currentFetchStrategy}
+                    onFetchStrategyChange={handleFetchStrategyChange}
+                  />
+                )}
+                trigger={[ 'click' ]}
+              >
+                <Button icon={<SettingOutlined />} />
+              </Dropdown>
+            </Tooltip>
+            <Tooltip title="View Applied Filters & Sorts">
+              <Badge count={hasActiveFilters || hasActiveSorts ? (activeFiltersCount + activeSortsCount) : 0} color="blue">
+                <Button disabled={!hasActiveFilters && !hasActiveSorts} icon={<NodeExpandOutlined />} onClick={() => setShowFilters(!showFilters)} />
+              </Badge>
+            </Tooltip>
+          </div>
         </div>
-      </div>
       )}
 
       {/* Bulk Actions Toolbar (shown when rows are selected) */}
@@ -632,6 +1152,11 @@ export const Table = ({
         }}>
           <div style={{ fontWeight: 500 }}>
             {selectedRowKeys.length} {selectedRowKeys.length === 1 ? 'item' : 'items'} selected
+            {rowSelectionConfig?.persistAcrossPages && selectedRowKeys.length > (listRecords.length) && (
+              <span style={{ color: '#1677ff', marginLeft: 4, fontWeight: 400, fontSize: 12 }}>
+                (across pages)
+              </span>
+            )}
             <Button
               type="link"
               size="small"
@@ -643,7 +1168,7 @@ export const Table = ({
           </div>
           <Space>
             {visibleBulkActions.map((action, index) => {
-              const rendered = renderSingleAction({
+              const node = renderSingleAction({
                 action,
                 key: `bulk-action-${index}`,
                 isDropdownItem: false,
@@ -651,10 +1176,11 @@ export const Table = ({
                 isDisabled: action._evaluated?.enabled === false,
                 disabledMessage: action._evaluated?.disabledMessage || '',
                 routeParams,
-                record: undefined,  // Bulk actions don't have a single record
-                onSuccessCallback: handleReload,  // Refresh table after bulk action
+                record: undefined,
+                selectedRecords,
+                onSuccessCallback: handleReload,
               });
-              return rendered as React.ReactNode;
+              return <React.Fragment key={`bulk-action-${index}`}>{node}</React.Fragment>;
             })}
           </Space>
         </div>
@@ -666,39 +1192,7 @@ export const Table = ({
           segments={segments}
           isSearchMode={isSearchMode}
           appliedFilters={appliedFilters}
-          onSegmentChange={useCallback((segmentId: string, filtersToAdd: Record<string, any>, filtersToRemove: Record<string, any>) => {
-            // Use ref to get latest filters (avoids stale closures)
-            const currentFilters = appliedFiltersRef.current;
-            let newFilters = { ...currentFilters };
-
-            // 1. Remove filters from previous segment
-            // These are the keys controlled by the segment we're switching away from
-            if (filtersToRemove) {
-              Object.keys(filtersToRemove).forEach(key => {
-                delete newFilters[ key ];
-              });
-            }
-
-            // 2. Add filters from new segment
-            // If switching to "All" (empty filters), this step does nothing
-            if (filtersToAdd) {
-              Object.assign(newFilters, filtersToAdd);
-            }
-
-            // 3. Restore default filters for removed keys (if they exist)
-            // Example: Switching from "Active" (status=active) to "All" (empty)
-            // If defaultFilters has status=pending, restore it
-            Object.keys(filtersToRemove || {}).forEach(key => {
-              if (resolvedDefaultFilters[ key ] !== undefined && newFilters[ key ] === undefined) {
-                newFilters[ key ] = resolvedDefaultFilters[ key ];
-              }
-            });
-
-            // 4. Update state and fetch immediately with new filters
-            // fetchRecords accepts filtersOverride to bypass React's async setState
-            setAppliedFilters(newFilters);
-            fetchRecords(1, undefined, newFilters);
-          }, [ resolvedDefaultFilters, setAppliedFilters, fetchRecords ])}
+          onSegmentChange={handleSegmentChange}
           placeholderContext={placeholderContext}
         />
       )}
@@ -715,37 +1209,170 @@ export const Table = ({
         />
       )}
 
-      {isInitialLoad ? (
-        // Show skeleton loader on initial load for instant page transition
-        <div>
-          <Skeleton active paragraph={{ rows: 10 }} />
-        </div>
+      {fetchError && listRecords.length === 0 && !isInitialLoad ? (
+        <QueryErrorState
+          error={fetchError}
+          onRetry={handleReload}
+          errorHandling={errorHandlingConfig}
+          retry={retryConfig}
+        />
+      ) : isInitialLoad ? (
+        <DataLoadingState type={loadingConfig?.type} pageType={useUnifiedSwitcher ? viewState.activeView : (isCardView ? 'card-grid' : 'table')} columns={propertiesConfig?.length || 5} rows={loadingConfig?.rows} />
       ) : (
         <>
-          <AntTable
-            scroll={{ x: true }}
-            columns={columns}
-            rowKey={recordIdentifierKey}
-            dataSource={listRecords}
-            pagination={false}
-            loading={{
-              indicator: (
-                <div>
-                  <Spin />
-                </div>
-              ),
-              spinning: isLoading,
-            }}
-            onChange={handleTableChange}
-            rowSelection={rowSelection}
-            expandable={expandable}
+          {/* Pagination: top or both */}
+          {showPagination && (paginationConfig?.position === 'top' || paginationConfig?.position === 'both') && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+              {renderPagination()}
+            </div>
+          )}
+          <ViewContainer
+            activeView={useUnifiedSwitcher ? viewState.activeView : (isCardView ? 'card-grid' : 'table')}
+            tableView={
+              <DragSortWrapper
+                enabled={rowDragConfig?.enabled}
+                rowIds={dragOrderIds}
+                onOrderChange={handleDragOrderChange}
+              >
+                <AntTable<IRecord>
+                  scroll={virtualScrollConfig?.enabled
+                    ? { x: hasPinnedColumns ? 'max-content' : true, y: virtualScrollConfig.height ?? 500 }
+                    : { x: hasPinnedColumns ? 'max-content' : true }
+                  }
+                  virtual={virtualScrollConfig?.enabled}
+                  size={antTableSize}
+                  components={rowDragConfig?.enabled
+                    ? {
+                      ...(resizeEnabled ? { header: { cell: ResizableTitle } } : {}),
+                      body: { row: SortableRow },
+                    }
+                    : (resizeEnabled ? { header: { cell: ResizableTitle } } : undefined)
+                  }
+                  columns={resolvedColumns}
+                  rowKey={recordIdentifierKey}
+                  dataSource={rowDragConfig?.enabled ? orderedRecords : listRecords}
+                  pagination={false}
+                  loading={tableLoading}
+                  onChange={handleTableChange}
+                  rowSelection={rowSelection}
+                  expandable={expandable}
+                  rowClassName={tableRowClassName}
+                  onRow={tableOnRow}
+                  locale={tableLocale}
+                  summary={summaryConfig ? (data) => (
+                    <AntTable.Summary fixed>
+                      <AntTable.Summary.Row>
+                        {resolvedColumns.map((col, colIdx) => {
+                          const colDataIndex = (col as { dataIndex?: string }).dataIndex;
+                          const colConfig = summaryConfig.columns.find(c => c.dataIndex === colDataIndex);
+
+                          // First column: show row label if provided (takes priority over aggregation)
+                          if (colIdx === 0 && summaryConfig.label) {
+                            return (
+                              <AntTable.Summary.Cell key={0} index={0}>
+                                <strong>{summaryConfig.label}</strong>
+                              </AntTable.Summary.Cell>
+                            );
+                          }
+
+                          if (!colConfig) return <AntTable.Summary.Cell key={colIdx} index={colIdx} />;
+
+                          const val = computeSummaryCell(
+                            colConfig.aggregation,
+                            colConfig.dataIndex,
+                            data as readonly Record<string, unknown>[],
+                            colConfig.precision,
+                            colConfig.label,
+                          );
+                          return (
+                            <AntTable.Summary.Cell key={colIdx} index={colIdx}>
+                              <strong>{`${colConfig.prefix ?? ''}${val}${colConfig.suffix ?? ''}`}</strong>
+                            </AntTable.Summary.Cell>
+                          );
+                        })}
+                      </AntTable.Summary.Row>
+                    </AntTable.Summary>
+                  ) : undefined}
+                />
+              </DragSortWrapper>
+            }
+            cardGridView={resolvedCardConfig ? (
+              <CardView
+                records={listRecords}
+                cardConfig={resolvedCardConfig}
+                recordIdentifierKey={recordIdentifierKey}
+                onRecordClick={handleRecordClick}
+                onActionClick={handleCardActionClick}
+              />
+            ) : undefined}
+            kanbanView={viewSwitcherConfig?.kanbanConfig ? (
+              <KanbanLayout
+                records={listRecords}
+                config={viewSwitcherConfig.kanbanConfig}
+                recordIdentifierKey={recordIdentifierKey}
+                onRecordClick={kanbanRecordClickHandler}
+                onMoveRecord={viewSwitcherConfig.kanbanConfig.moveApiConfig ? handleKanbanMoveRecord : undefined}
+                parentApiConfig={apiConfig}
+                appliedFilters={appliedFilters}
+                routeParams={routeParams}
+                entityName={entityName}
+              />
+            ) : undefined}
+            calendarView={viewSwitcherConfig?.calendarConfig ? (
+              <CalendarLayout
+                records={listRecords}
+                config={viewSwitcherConfig.calendarConfig}
+                recordIdentifierKey={recordIdentifierKey}
+                onRecordClick={calendarRecordClickHandler}
+                parentApiConfig={apiConfig}
+                appliedFilters={appliedFilters}
+                routeParams={routeParams}
+                entityName={entityName}
+              />
+            ) : undefined}
+            treeView={viewSwitcherConfig?.treeConfig ? (
+              <TreeLayout
+                records={listRecords}
+                config={viewSwitcherConfig.treeConfig}
+                recordIdentifierKey={recordIdentifierKey}
+                onRecordClick={treeRecordClickHandler}
+                parentApiConfig={apiConfig}
+                appliedFilters={appliedFilters}
+                routeParams={routeParams}
+                entityName={entityName}
+              />
+            ) : undefined}
+            mapView={viewSwitcherConfig?.mapConfig ? (
+              <MapLayout
+                records={listRecords}
+                config={viewSwitcherConfig.mapConfig}
+                recordIdentifierKey={recordIdentifierKey}
+                onRecordClick={mapRecordClickHandler}
+                parentApiConfig={apiConfig}
+                appliedFilters={appliedFilters}
+                routeParams={routeParams}
+                entityName={entityName}
+              />
+            ) : undefined}
           />
-          {showPagination && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-            {renderPagination()}
-          </div>
+          {/* Pagination: bottom (default) or both */}
+          {showPagination && paginationConfig?.position !== 'top' && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+              {renderPagination()}
+            </div>
           )}
         </>
+      )}
+      {/* Context menu overlay (#110) */}
+      {contextMenuConfig && (
+        <TableContextMenu
+          {...ctxMenu.menuProps}
+          config={contextMenuConfig}
+          routeParams={routeParams}
+          conditionEvaluator={conditionEvaluator}
+          evaluationContext={evaluationContext}
+          onNavigate={coreNavigate}
+        />
       )}
     </ErrorBoundary>
   );

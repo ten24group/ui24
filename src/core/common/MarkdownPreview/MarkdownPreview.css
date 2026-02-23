@@ -102,7 +102,7 @@
   overflow: auto;
   font-size: 85%;
   line-height: 1.45;
-  background-color: #f6f8fa;
+  background-color: var(--ant-color-bg-layout, #f6f8fa);
   border-radius: 6px;
   margin-bottom: 16px;
 }
@@ -170,7 +170,7 @@
   font-weight: 600;
   padding: 6px 13px;
   border: 1px solid #dfe2e5;
-  background-color: #f6f8fa;
+  background-color: var(--ant-color-bg-layout, #f6f8fa);
 }
 
 .markdown-preview table td {
@@ -179,12 +179,12 @@
 }
 
 .markdown-preview table tr {
-  background-color: #fff;
+  background-color: var(--ant-color-bg-container, #fff);
   border-top: 1px solid #c6cbd1;
 }
 
 .markdown-preview table tr:nth-child(2n) {
-  background-color: #f6f8fa;
+  background-color: var(--ant-color-bg-layout, #f6f8fa);
 }
 
 /* Horizontal Rules */

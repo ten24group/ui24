@@ -29,6 +29,15 @@ export type {
   RouteParams
 } from "./core/registry";
 
+// Export FieldTypeRegistry for custom field type registration
+export { fieldTypeRegistry } from "./core/registry";
+export type {
+  FieldTypeRegistration,
+  BuiltInFormFieldProps,
+  BuiltInDetailFieldProps,
+  BuiltInTableFieldProps,
+} from "./core/registry";
+
 // ── New Condition System Exports ──
 // Registries (call at app init)
 export { ConditionRegistry } from "./core/utils/ConditionRegistry";

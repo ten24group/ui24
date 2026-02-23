@@ -1,4 +1,4 @@
-import { DownOutlined } from '@ant-design/icons';
+import { DownOutlined, EllipsisOutlined } from '@ant-design/icons';
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
 import { Button, Dropdown, MenuProps, Tooltip } from "antd";
 import React, { useMemo } from "react";
@@ -160,8 +160,8 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
         const actionType = action.type || (action.items && action.items.length > 0 ? 'dropdown' : 'button');
         const isDisabled = !enabled;
 
-        // Handle dropdown with items
-        if (actionType === 'dropdown' && action.items && action.items.length > 0) {
+        // Handle dropdown with items (type: 'dropdown' or 'more')
+        if ((actionType === 'dropdown' || actionType === 'more') && action.items && action.items.length > 0) {
             // Filter dropdown items based on visibility condition
             const visibleMenuItems: Array<{ dropItem: IPageAction; dropIndex: number; enabled: boolean; disabledMessage?: string }> = action.items
                 .map((dropItem, dropIndex) => {
@@ -203,7 +203,10 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                 }) as MenuItem;
             });
 
-            const dropdownButton = (
+            // 'more' type renders as icon-only ellipsis (secondary actions / autoGroup pattern)
+            const dropdownButton = actionType === 'more' || (!action.label && action.icon) ? (
+                <Button icon={<EllipsisOutlined />} disabled={isDisabled} title={action.tooltip as string | undefined} />
+            ) : (
                 <Button disabled={isDisabled}>
                     {action.icon && <Icon iconName={action.icon} />}
                     {action.label} <DownOutlined />

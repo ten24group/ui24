@@ -27,6 +27,8 @@ import { OpenRouteInModal } from '../../modal/OpenRouteInModal';
 import { substituteUrlParams, getNestedValue } from '../../core/utils';
 import { evaluateTemplateValue } from '../../core/utils/template';
 import type { Template } from '../../core/types';
+import { RelatedRecordPeek } from './RelatedRecordPeek';
+import type { IEntityConfigReference } from '../../core/hooks/useEntityConfig';
 
 /**
  * Relation identifier mapping from source entity field to target entity parameter.
@@ -39,27 +41,6 @@ export interface RelationIdentifier {
   source: string;
   /** Target parameter name */
   target: string;
-}
-
-/**
- * Entity configuration reference for lazy loading modal configs.
- * Instead of embedding full configs, we reference them by entity name and page type.
- * 
- * Matches backend type from fw24/src/entity/base-entity.ts (IEntityConfigReference)
- */
-export interface IEntityConfigReference {
-  /** Entity name (e.g., 'team', 'game', 'user') */
-  entityName: string;
-  /** Page type to reference */
-  pageType: 'view' | 'create' | 'list';
-  /** Optional config overrides */
-  overrideConfig?: {
-    pageTitle?: string;
-    defaultFilters?: Record<string, any>;
-    hideFields?: string[];
-    showOnlyFields?: string[];
-    [ key: string ]: any;
-  };
 }
 
 /**
@@ -103,6 +84,23 @@ export interface IRelationDisplayConfig {
       /** Function body as string - will be eval'd */
       onClick: string;
     }>;
+  };
+
+  /**
+   * Hover preview (peek) configuration.
+   * When enabled, hovering over relation links shows a popover with key fields.
+   */
+  preview?: {
+    /** Enable hover preview. @default false */
+    enabled: boolean;
+    /** Fields to display in the popover. Defaults to auto-detected from entity config. */
+    fields?: string[];
+    /** Delay before showing popover (ms). @default 300 */
+    delay?: number;
+    /** Popover placement. @default 'right' */
+    placement?: 'right' | 'top' | 'auto';
+    /** Max width of popover (px). @default 400 */
+    maxWidth?: number;
   };
 }
 
@@ -347,20 +345,55 @@ export const RelationFieldRenderer: React.FC<RelationFieldRendererProps> = ({
   // - To-one: Show value as link/text + action icons
   const isToMany = modalType === 'list';
 
+  // Preview (peek) config — only for to-one relations with a modal config ref
+  const previewConfig = displayConfig?.preview;
+  const peekEnabled = !isToMany && previewConfig?.enabled && modalConfigRef;
+
+  // Build resolved identifiers for peek (reuse modalRouteParams which already has them)
+  const peekIdentifiers = useMemo(() => {
+    if (!peekEnabled || !identifierMapping) return {};
+    const mappings = Array.isArray(identifierMapping) ? identifierMapping : [identifierMapping];
+    const ids: Record<string, string> = {};
+    mappings.forEach((m) => {
+      const v = getNestedValue(record, m.source) ?? record.id ?? routeParams.id;
+      if (v != null) ids[m.target as string] = String(v);
+    });
+    return ids;
+  }, [peekEnabled, identifierMapping, record, routeParams.id]);
+
+  // Conditionally wrap content with hover preview
+  const wrapWithPeek = (content: React.ReactNode) => {
+    if (!peekEnabled || !modalConfigRef) return content;
+    return (
+      <RelatedRecordPeek
+        entityConfigRef={modalConfigRef}
+        identifiers={peekIdentifiers}
+        detailUrl={resolvedUrl}
+        fields={previewConfig?.fields}
+        delay={previewConfig?.delay}
+        placement={previewConfig?.placement}
+        maxWidth={previewConfig?.maxWidth}
+      >
+        {content}
+      </RelatedRecordPeek>
+    );
+  };
+
   return (
     <Space size="small">
       {/* For to-one relations: Show value as link or plain text */}
       {!isToMany && (
         <>
-          {hasValue && shouldShowLink && shouldShowActions && (!actionConfig || actionConfig.link !== false) ? (
-            <Link url={resolvedUrl} className="details-link">
-              {displayValue}
-            </Link>
-          ) : hasValue ? (
-            <span>{displayValue}</span>
-          ) : (
-            <span style={{ color: '#999' }}>—</span>
-          )}
+          {hasValue && shouldShowLink && shouldShowActions && (!actionConfig || actionConfig.link !== false)
+            ? wrapWithPeek(
+              <Link url={resolvedUrl} className="details-link">
+                {displayValue}
+              </Link>
+            )
+            : hasValue
+            ? wrapWithPeek(<span>{displayValue}</span>)
+            : <span style={{ color: '#999' }}>—</span>
+          }
         </>
       )}
 

@@ -7,7 +7,7 @@ import { IDescriptionWidgetProps } from '../../dashboard/widgets/DescriptionWidg
 import { TimePeriodSelector, TimePeriod } from '../../dashboard/widgets/TimePeriodSelector';
 import dayjs from 'dayjs';
 import { useUi24Config } from '../../core/context';
-import { IDetailsConfig } from '../../detail/Details';
+import type { IDetailsConfig } from '../../core/types/field-config';
 import { IForm } from '../../core/forms/formConfig';
 import { IModalConfig } from '../../modal/Modal';
 import { PageDataProvider } from '../../core/context/PageDataContext';

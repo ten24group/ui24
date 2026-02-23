@@ -13,6 +13,7 @@ import { useApi } from '../../core/context/ApiContext';
 import { useOperationExecutor } from '../../core/services/OperationExecutor';
 import { PageHeader, IPageHeader } from '../PostAuth/PageHeader/PageHeader';
 import type { IResponseDisplayConfig } from '../../modal/Modal';
+import type { ConditionalValue } from '../../core/types/evaluation';
 import type { Template } from '../../core/types';
 
 interface IWizardPageProps extends IWizardPageConfig, IPageHeader {
@@ -23,8 +24,8 @@ interface IWizardPageProps extends IWizardPageConfig, IPageHeader {
   onSubmitSuccessCallback?: (response?: unknown) => void;
   /** Callback when wizard is cancelled */
   onCancelCallback?: () => void;
-  /** Redirect URL after successful submission */
-  submitSuccessRedirect?: string;
+  /** Redirect URL after successful submission. Supports ConditionalValue for condition-based routing. */
+  submitSuccessRedirect?: string | ConditionalValue<string>;
   /** Navigation options for redirect */
   submitSuccessRedirectOptions?: { replace?: boolean; state?: unknown };
   /** Configuration for showing response in modal */

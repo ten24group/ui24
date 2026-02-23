@@ -1,5 +1,6 @@
 import React from 'react';
-import { Details, IDetailsComponentProps, IDetailsConfig } from '../../detail/Details';
+import { Details } from '../../detail/Details';
+import type { IDetailsComponentProps, IDetailsConfig } from '../../core/types/field-config';
 import './DetailWidget.css';
 
 export interface IDetailWidgetProps extends IDetailsConfig {

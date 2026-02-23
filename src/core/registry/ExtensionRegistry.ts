@@ -1,3 +1,5 @@
+import { IS_DEV } from '../constants';
+
 /**
  * @fileoverview Extension Registry - Core extensibility system for UI24
  * 
@@ -92,6 +94,22 @@ interface ConditionalRegistration {
   readonly description?: string;
 }
 
+/** Command registration for the Command Palette (#63) */
+export interface CommandRegistration {
+  /** Unique command ID */
+  readonly id: string;
+  /** Display label shown in the palette */
+  readonly label: string;
+  /** Group/category (e.g. 'Navigation', 'Actions', 'Settings') */
+  readonly group?: string;
+  /** Icon name (from Icons component) */
+  readonly icon?: string;
+  /** Keyboard shortcut hint (display only, e.g. 'Ctrl+E') */
+  readonly shortcut?: string;
+  /** Handler called when the command is selected */
+  readonly handler: () => void;
+}
+
 // Key types
 type EntityPageKey = `${string}:${OverridablePageType}`;
 type EntityFieldKey = `${string}:${string}:${FieldContext | 'all'}`;
@@ -112,6 +130,7 @@ class ExtensionRegistryImpl {
   private readonly widgets = new Map<string, WidgetRegistration>();
   private readonly widgetTypeOverrides = new Map<string, ComponentType<WidgetRendererProps>>();
   private readonly conditionals: ConditionalRegistration[] = [];
+  private readonly commands: CommandRegistration[] = [];
 
   private debugMode = false;
   private initialized = false;
@@ -175,6 +194,17 @@ class ExtensionRegistryImpl {
       }
     });
     return results;
+  }
+
+  /**
+   * List all registered components with their metadata.
+   */
+  public listComponents(): ReadonlyArray<ComponentRegistration & { key: string }> {
+    const result: Array<ComponentRegistration & { key: string }> = [];
+    this.components.forEach((reg, key) => {
+      result.push({ ...reg, key });
+    });
+    return result;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -637,6 +667,17 @@ class ExtensionRegistryImpl {
   }
 
   /**
+   * Return all custom field type keys registered via overrideFieldType() or registerFieldRenderer().
+   * Used by config validation to avoid false-positive "unknown fieldType" warnings for custom types.
+   */
+  public getRegisteredFieldTypeKeys(): string[] {
+    const keys = new Set<string>();
+    this.fieldTypeOverrides.forEach((_, k) => keys.add(k.split(':')[0]));
+    this.fieldRenderers.forEach((_, k) => keys.add(k));
+    return Array.from(keys);
+  }
+
+  /**
    * Clear all registrations (for testing).
    */
   public clear(): void {
@@ -686,7 +727,7 @@ class ExtensionRegistryImpl {
   }
 
   private warnIfInitialized(method: string, key: string): void {
-    if (this.initialized && process.env.NODE_ENV === 'development') {
+    if (this.initialized && IS_DEV) {
       console.warn(
         `[ExtensionRegistry] Late ${method} call for "${key}". ` +
         'Extensions should be registered before app initialization.'
@@ -695,7 +736,7 @@ class ExtensionRegistryImpl {
   }
 
   private log(level: 'info' | 'warn' | 'error', message: string): void {
-    if (process.env.NODE_ENV === 'development' || this.debugMode) {
+    if (IS_DEV || this.debugMode) {
       console[ level ](`[ExtensionRegistry] ${message}`);
     }
   }
@@ -721,6 +762,42 @@ class ExtensionRegistryImpl {
     if (this.debugMode) {
       console.log(`[ExtensionRegistry] ✗ No match for ${type}: ${key}`);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // COMMAND PALETTE COMMANDS (#63)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Register a command for the Command Palette.
+   * Commands appear in the Cmd+K search and can be triggered by the user.
+   * 
+   * @example
+   * ExtensionRegistry.registerCommand({
+   *   id: 'export-csv',
+   *   label: 'Export to CSV',
+   *   group: 'Actions',
+   *   icon: 'download',
+   *   handler: () => downloadCSV(),
+   * });
+   */
+  public registerCommand(config: CommandRegistration): void {
+    const existing = this.commands.findIndex(c => c.id === config.id);
+    if (existing >= 0) {
+      this.log('warn', `Overwriting command: ${config.id}`);
+      this.commands[existing] = config;
+    } else {
+      this.commands.push(config);
+    }
+    this.log('info', `Registered command: ${config.id}`);
+  }
+
+  /**
+   * Get all registered commands.
+   * Used by the CommandPalette to populate custom command items.
+   */
+  public getCommands(): ReadonlyArray<CommandRegistration> {
+    return this.commands;
   }
 }
 

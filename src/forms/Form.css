@@ -8,27 +8,48 @@
 
 /* Subtle form field styling */
 .form-column .ant-form-item-label > label {
-  color: #595959;
+  color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
   font-weight: 500;
 }
 
-/* Clean input styling */
-.form-column .ant-input,
-.form-column .ant-select-selector,
-.form-column .ant-picker {
-  border-color: #e8e8e8;
-  transition: all 0.2s ease;
+/* Masked input styling (#120) — matches antd Input appearance with proper pseudo-states */
+.masked-input {
+  width: 100%;
+  padding: 4px 11px;
+  font-size: 14px;
+  line-height: 1.5714;
+  border-radius: 6px;
+  border: 1px solid var(--ant-color-border, #d9d9d9);
+  background: var(--ant-color-bg-container, #fff);
+  color: var(--ant-color-text, rgba(0, 0, 0, 0.88));
+  transition: all 0.2s;
+  outline: none;
+}
+.masked-input::placeholder {
+  color: var(--ant-color-text-placeholder, rgba(0, 0, 0, 0.25));
+}
+.masked-input:hover:not(:disabled) {
+  border-color: var(--ant-color-primary-hover, #4096ff);
+}
+.masked-input:focus:not(:disabled) {
+  border-color: var(--ant-color-primary, #1677ff);
+  box-shadow: 0 0 0 2px rgba(5, 145, 255, 0.1);
+}
+.masked-input--disabled {
+  color: var(--ant-color-text-disabled, rgba(0, 0, 0, 0.25));
+  background: var(--ant-color-bg-container-disabled, rgba(0, 0, 0, 0.04));
+  border-color: var(--ant-color-border, #d9d9d9);
+  cursor: not-allowed;
 }
 
-.form-column .ant-input:hover,
-.form-column .ant-select-selector:hover,
-.form-column .ant-picker:hover {
-  border-color: #d9d9d9;
+/* Sticky form actions (#41) */
+.form-actions-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: var(--ant-color-bg-container, #fff);
+  padding: 12px 0;
+  border-top: 1px solid var(--ant-color-border, #f0f0f0);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
 }
-
-.form-column .ant-input:focus,
-.form-column .ant-select-selector:focus,
-.form-column .ant-picker:focus {
-  border-color: #40a9ff;
-  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.05);
-} 
