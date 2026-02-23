@@ -447,6 +447,18 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ fetchTrigger ]); // Depend on fetchTrigger, not appliedFilters (avoids circular updates)
 
+  // Re-fetch when routeParams change (e.g., dashboard time period filter)
+  const serializedRouteParams = JSON.stringify(routeParams);
+  const isInitialMount = React.useRef(true);
+  React.useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return; // Skip initial mount — fetchTrigger=1 already handles it
+    }
+    setFetchTrigger(prev => prev + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ serializedRouteParams ]);
+
   const handleRefresh = React.useCallback(() => {
     // Reset to defaultFilters instead of clearing everything
     // This preserves pre-applied filters (e.g., awayTeamId from relation modals)
