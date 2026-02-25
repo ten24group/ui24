@@ -114,7 +114,6 @@ import { dayjsCustom } from '../core/dayjs';
 import { CreateButtons } from '../core/forms';
 import { FormField, IFormField } from '../core/forms';
 import type { FormFieldConditionProps } from '../core/forms/FormField/FormField';
-import { ListFormField } from '../core/forms/FormField/ListFormField';
 import { IForm } from '../core/forms/formConfig';
 import { convertColumnsConfigForFormField } from '../core/forms';
 import { useParams } from "react-router-dom"
@@ -353,7 +352,6 @@ export function Form({
 
   const {
     data: editData,
-    isLoading: editLoading,
     isFetching: editFetching,
     error: editError,
     refetch: refetchEditData,
@@ -911,19 +909,6 @@ export function Form({
     const originalIdx = filteredIdx >= 0 ? itemOriginalIndices[ filteredIdx ] : index;
     const condProps = conditionPropsMap[ originalIdx ] || {};
     const isPrefillLocked = _prefillFieldNames?.has(item.name);
-
-    // Delegate list/array type fields to ListFormField (#111)
-    if (item.type === 'list') {
-      return (
-        <React.Fragment key={"fe" + index}>
-          <ListFormField
-            item={item}
-            resolvedLabel={condProps.resolvedLabel}
-            conditionDisabled={condProps.conditionDisabled || isPrefillLocked}
-          />
-        </React.Fragment>
-      );
-    }
 
     return (
       <React.Fragment key={"fe" + index}>
