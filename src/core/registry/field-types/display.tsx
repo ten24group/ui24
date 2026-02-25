@@ -15,7 +15,7 @@ import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 const iconRecord: Record<string, unknown> = Object.fromEntries(Object.entries(Icons));
 
 function getIconComponent(name: string): React.ComponentType<{ style?: React.CSSProperties }> | undefined {
-  const icon = iconRecord[name];
+  const icon = iconRecord[ name ];
   return typeof icon === 'function' ? icon as React.ComponentType<{ style?: React.CSSProperties }> : undefined;
 }
 
@@ -38,7 +38,7 @@ const BadgeDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => (
 );
 
 const TagDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
-  const tags = Array.isArray(value) ? value : [value];
+  const tags = Array.isArray(value) ? value : [ value ];
   return (
     <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
       {tags.map((tag: unknown, i: number) => (
@@ -108,7 +108,7 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
     items = items.slice(0, tlConfig.maxItems);
   }
   if (tlConfig.reverse) {
-    items = [...items].reverse();
+    items = [ ...items ].reverse();
   }
 
   const getColorFromType = (type?: string): string => {
@@ -126,14 +126,14 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
   };
 
   const timelineItems = items.map((item, idx) => {
-    const label = String(item[labelField] ?? `Event ${idx + 1}`);
-    const timestamp = item[timestampField];
-    const description = descriptionField ? item[descriptionField] : undefined;
-    const type = typeField ? String(item[typeField] ?? '') : undefined;
-    const iconName = iconField ? String(item[iconField] ?? '') : undefined;
+    const label = String(item[ labelField ] ?? `Event ${idx + 1}`);
+    const timestamp = item[ timestampField ];
+    const description = descriptionField ? item[ descriptionField ] : undefined;
+    const type = typeField ? String(item[ typeField ] ?? '') : undefined;
+    const iconName = iconField ? String(item[ iconField ] ?? '') : undefined;
 
     const standardFields = new Set(
-      [labelField, timestampField, descriptionField, typeField, iconField].filter(Boolean)
+      [ labelField, timestampField, descriptionField, typeField, iconField ].filter(Boolean)
     );
     const additionalFields = Object.keys(item).filter(field => !standardFields.has(field));
     const hasAdditionalData = additionalFields.length > 0;
@@ -310,9 +310,9 @@ const ListDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
   return (
     <div>
       {value.map((item, i) => (
-        <div key={i} style={{ marginBottom: 4, padding: '4px 8px', background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 4, fontSize: 12 }}>
+        <div key={i} style={{ marginBottom: 4, padding: '4px 8px', background: 'var(--ant-color-fill-quaternary, rgba(0, 0, 0, 0.02))', border: '1px solid var(--ant-color-border-secondary, #f0f0f0)', borderRadius: 4, fontSize: 12 }}>
           {typeof item === 'object' && item !== null
-            ? Object.entries(item as Record<string, unknown>).map(([k, v]) => (
+            ? Object.entries(item as Record<string, unknown>).map(([ k, v ]) => (
               <span key={k} style={{ marginRight: 8 }}>
                 <b>{k}:</b> {String(v ?? '—')}
               </span>
@@ -331,7 +331,7 @@ const ListTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
 
   // Simple string/number array — show inline if short
   if (value.every(item => typeof item === 'string' || typeof item === 'number')) {
-    if (value.length === 1) return <span>{String(value[0])}</span>;
+    if (value.length === 1) return <span>{String(value[ 0 ])}</span>;
     if (value.length <= 3) return <span>{value.join(', ')}</span>;
   }
 
