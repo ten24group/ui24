@@ -111,7 +111,7 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
     }, [ dropdownItemsMap ]);
 
     // Evaluate dropdown item visibility + enablement
-    const dropdownItemObjects = useMemo(() => allDropdownItems.map(d => d.item), [allDropdownItems]);
+    const dropdownItemObjects = useMemo(() => allDropdownItems.map(d => d.item), [ allDropdownItems ]);
     const { visibilityResults: ddVisResults, enablementResults: ddEnResults, getItemProps: getDDItemProps } =
         useEvaluatedItems(dropdownItemObjects, { additionalContext: actionExtraCtx });
 
@@ -181,11 +181,51 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                 return null;
             }
 
-            // Render visible items as menu items
-            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.map(({ dropItem, dropIndex, enabled: itemEnabled, disabledMessage: itemDisabledMsg }) => {
-                const itemDisabled = !itemEnabled;
+            // Render visible items as menu items.
+            // If an item is itself a dropdown (nested), render it as an Ant Design
+            // menu group ({ type: 'group' }) with its sub-items as children.
+            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.flatMap(({ dropItem, dropIndex, enabled: itemEnabled, disabledMessage: itemDisabledMsg }) => {
+                const nestedItems = (dropItem as any).items;
+                const isNestedDropdown = ((dropItem as any).type === 'dropdown' || (dropItem as any).type === 'more')
+                    && Array.isArray(nestedItems) && nestedItems.length > 0;
 
-                return renderSingleAction({
+                if (isNestedDropdown) {
+                    const groupChildren = nestedItems
+                        .map((subItem: IPageAction, subIdx: number) =>
+                            renderSingleAction({
+                                action: subItem,
+                                key: `${action.label}-${dropIndex}-sub-${subIdx}`,
+                                isDropdownItem: true,
+                                isInModal,
+                                isDisabled: false,
+                                routeParams,
+                                onSuccessCallback: (response) => {
+                                    if (subItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
+                                        onRefreshData();
+                                    }
+                                },
+                                onNavigate: navigate
+                            }) as MenuItem
+                        )
+                        .filter(Boolean);
+
+                    if (groupChildren.length === 0) return [];
+
+                    const result: NonNullable<MenuProps[ 'items' ]> = [];
+                    if (dropIndex > 0) {
+                        result.push({ type: 'divider' as const, key: `divider-before-group-${dropIndex}` });
+                    }
+                    result.push({
+                        type: 'group' as const,
+                        label: dropItem.label,
+                        key: `group-${dropIndex}`,
+                        children: groupChildren,
+                    });
+                    return result;
+                }
+
+                const itemDisabled = !itemEnabled;
+                return [ renderSingleAction({
                     action: dropItem,
                     key: `${action.label}-${dropIndex}`,
                     isDropdownItem: true,
@@ -194,13 +234,12 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                     disabledMessage: itemDisabledMsg,
                     routeParams,
                     onSuccessCallback: (response) => {
-                        // Refresh data if needed
                         if (dropItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
                             onRefreshData();
                         }
                     },
                     onNavigate: navigate
-                }) as MenuItem;
+                }) as MenuItem ];
             });
 
             // 'more' type renders as icon-only ellipsis (secondary actions / autoGroup pattern)
