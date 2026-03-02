@@ -7,7 +7,7 @@ import { Icon, Link } from "../../../core/common";
 
 export const LogoutButton = () => {
   const { logout } = useAuth();
-  
+
   const handleLogout = async () => {
     logout()
   }
@@ -20,23 +20,25 @@ interface HeaderActionsProps {
 }
 
 export const HeaderActions = ({ secondaryMenuItems = [] }: HeaderActionsProps) => {
-  const dropdownItems: MenuProps['items'] = [
-    // Add secondary menu items first
+  const dropdownItems: MenuProps[ 'items' ] = [
     ...secondaryMenuItems.map((item, index) => ({
       key: `secondary-${index}`,
       label: item.url ? <Link title={item.label} url={item.url} /> : item.label,
       icon: item.icon ? <Icon iconName={item.icon} /> : undefined,
+      children: item.children?.map((child: any, childIdx: number) => ({
+        key: `secondary-${index}-${childIdx}`,
+        label: child.url ? <Link title={child.label} url={child.url} /> : child.label,
+        icon: child.icon ? <Icon iconName={child.icon} /> : undefined,
+      })),
     })),
-    // Add divider if there are secondary items
-    ...(secondaryMenuItems.length > 0 ? [{ type: 'divider' as const }] : []),
-    // Add logout button
+    { type: 'divider' as const, key: 'divider-logout' },
     {
       key: 'logout',
-      label: <LogoutButton/>,
+      label: <LogoutButton />,
     },
   ];
-  
-  return <Dropdown menu={{ items: dropdownItems }} trigger={['click']}> 
-      <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
-    </Dropdown>
+
+  return <Dropdown menu={{ items: dropdownItems }} trigger={[ 'click' ]}>
+    <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
+  </Dropdown>
 }

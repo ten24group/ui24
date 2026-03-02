@@ -57,6 +57,8 @@ export const Header = React.memo(() => {
     actualMenuRecords.forEach((item: any) => {
       if (item.key === 'group-secondary' && item.children) {
         secondary.push(...item.children);
+      } else if (item.group === 'secondary') {
+        secondary.push(item);
       } else {
         primary.push(item);
       }
