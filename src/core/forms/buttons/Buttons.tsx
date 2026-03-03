@@ -162,7 +162,7 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
             if (typeof buttonConfig === "string") {
                 const isCancelButton = buttonConfig === "cancel";
                 const config = PreDefinedButtons[ buttonConfig ];
-                return <div key={"bt" + index} style={{ marginRight: "10px" }}>
+                return <div key={"bt" + index}>
                     <EvaluatedFormButton
                         buttonConfig={config}
                         loader={loader === true && buttonConfig !== "cancel" && buttonConfig !== "reset"}
@@ -181,7 +181,7 @@ export const CreateButtons = React.memo(({ formButtons, loader = false, routePar
                     ? { ...PreDefinedButtons[ action ], ...buttonConfig }  // Predefined defaults + custom overrides
                     : buttonConfig;  // Fully custom button
 
-                return <div key={"bt" + index} style={{ marginRight: "10px" }}>
+                return <div key={"bt" + index}>
                     <EvaluatedFormButton
                         buttonConfig={finalConfig}
                         loader={action === 'submit' && loader}  // Only show loader on submit

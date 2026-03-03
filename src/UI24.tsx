@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { App as AntdApp, ConfigProvider, theme as antdTheme } from "antd";
 import { BrowserRouter } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import enUS from 'antd/locale/en_US';
 
 import { AppRouter, IAppRouter } from './routes/AppRouter';
@@ -116,34 +117,36 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
     }, []);
 
     return (
-        <ThemeConfigProvider>
-            <AntdApp>
-                <BrowserRouter>
-                    <Ui24ConfigProvider initConfig={ui24config}>
-                        <AppContextProvider>
-                            <ThemeProvider>
-                                <AuthProvider>
-                                    <AppStaticProvider>
-                                        <ApiProvider>
-                                            <QueryProvider>
-                                                <ResponseModalProvider>
-                                                    <AppRouter customRoutes={customRoutes} />
-                                                    {IS_DEV && (
-                                                        <React.Suspense fallback={null}>
-                                                            <ConfigDevTools />
-                                                        </React.Suspense>
-                                                    )}
-                                                </ResponseModalProvider>
-                                            </QueryProvider>
-                                        </ApiProvider>
-                                    </AppStaticProvider>
-                                </AuthProvider>
-                            </ThemeProvider>
-                        </AppContextProvider>
-                    </Ui24ConfigProvider>
-                </BrowserRouter>
-            </AntdApp>
-        </ThemeConfigProvider>
+        <HelmetProvider>
+            <ThemeConfigProvider>
+                <AntdApp>
+                    <BrowserRouter>
+                        <Ui24ConfigProvider initConfig={ui24config}>
+                            <AppContextProvider>
+                                <ThemeProvider>
+                                    <AuthProvider>
+                                        <AppStaticProvider>
+                                            <ApiProvider>
+                                                <QueryProvider>
+                                                    <ResponseModalProvider>
+                                                        <AppRouter customRoutes={customRoutes} />
+                                                        {IS_DEV && (
+                                                            <React.Suspense fallback={null}>
+                                                                <ConfigDevTools />
+                                                            </React.Suspense>
+                                                        )}
+                                                    </ResponseModalProvider>
+                                                </QueryProvider>
+                                            </ApiProvider>
+                                        </AppStaticProvider>
+                                    </AuthProvider>
+                                </ThemeProvider>
+                            </AppContextProvider>
+                        </Ui24ConfigProvider>
+                    </BrowserRouter>
+                </AntdApp>
+            </ThemeConfigProvider>
+        </HelmetProvider>
     )
 }
 export { UI24 };

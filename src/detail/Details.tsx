@@ -194,7 +194,7 @@ const DetailsFieldWrapper: React.FC<{
   const content = item.copyable && isPrimitive
     ? (
       <Typography.Text
-        copyable={{ text: String(value), tooltips: ['Copy', 'Copied'] }}
+        copyable={{ text: String(value), tooltips: [ 'Copy', 'Copied' ] }}
         style={{ display: 'inline' }}
       >
         {children}
@@ -203,7 +203,7 @@ const DetailsFieldWrapper: React.FC<{
     : children;
 
   const displayLabel = t(resolvedLabel ?? resolveStringOrDefault(item.label)); // i18n (#22)
-  const containerClassName = ['details-field-container', formattingClassName].filter(Boolean).join(' ');
+  const containerClassName = [ 'details-field-container', formattingClassName ].filter(Boolean).join(' ');
 
   return (
     <div key={index} className={containerClassName} style={formattingStyles}>
@@ -450,7 +450,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
             noData: {
               title: `${detailEntityName || 'Record'} not found`,
               description: 'The record you are looking for may have been deleted or does not exist.',
-              action: { label: 'Go Back', url: '..' }
+              action: {
+                label: 'Go Back',
+                onClick: () => coreNavigate(-1)
+              }
             }
           }}
           onNavigate={coreNavigate}
@@ -590,7 +593,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     // Complex data (json, map, list, objects)
                     const isComplexData =
-                      !['rich-text', 'wysiwyg', 'multi-select', 'timeline'].includes(item.fieldType) && (
+                      ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
                         item.type === 'list' ||
                         item.type === 'map' ||
                         (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||

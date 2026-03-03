@@ -2,6 +2,7 @@ import { DownOutlined, EllipsisOutlined } from '@ant-design/icons';
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
 import { Button, Dropdown, MenuProps, Tooltip } from "antd";
 import React, { useMemo } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link } from "../../../core/common";
 import { Icon } from "../../../core/common/Icons/Icons";
 import { useModalContext } from "../../../core/context";
@@ -314,31 +315,40 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
         );
 
     return (
-        <div className="PageHeader">
-            <AntPageHeader
-                className="site-page-header"
-                title={evaluatedPageTitle}
-                breadcrumb={{
-                    items: visibleBreadcrumbs.map((item, index) => {
-                        // Evaluate label template if provided, otherwise use as-is
-                        // Use templateContext (includes record data) for smart detection templates
-                        const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
+        <>
+            {/* Update document title using react-helmet-async */}
+            {evaluatedPageTitle && !isInModal && (
+                <Helmet>
+                    <title>{evaluatedPageTitle}</title>
+                </Helmet>
+            )}
 
-                        // Use substituteUrlParams for consistent placeholder handling
-                        const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
+            <div className="PageHeader">
+                <AntPageHeader
+                    className="site-page-header"
+                    title={evaluatedPageTitle}
+                    breadcrumb={{
+                        items: visibleBreadcrumbs.map((item, index) => {
+                            // Evaluate label template if provided, otherwise use as-is
+                            // Use templateContext (includes record data) for smart detection templates
+                            const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
 
-                        return {
-                            key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
-                            title: breadcrumbUrl ? (
-                                <Link title={evaluatedLabel} url={breadcrumbUrl} />
-                            ) : (
-                                evaluatedLabel
-                            )
-                        };
-                    })
-                }}
-                extra={PageActions}
-            />
-        </div>
+                            // Use substituteUrlParams for consistent placeholder handling
+                            const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
+
+                            return {
+                                key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
+                                title: breadcrumbUrl ? (
+                                    <Link title={evaluatedLabel} url={breadcrumbUrl} />
+                                ) : (
+                                    evaluatedLabel
+                                )
+                            };
+                        })
+                    }}
+                    extra={PageActions}
+                />
+            </div>
+        </>
     );
 };
