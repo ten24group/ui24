@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.13](https://github.com/ten24group/ui24/compare/v1.1.0-beta.12...v1.1.0-beta.13) (2026-02-27)
+
+
+### Features
+
+* Enhance dropdown menu rendering in PageHeader ([8f0e34e](https://github.com/ten24group/ui24/commit/8f0e34ed384f0b42caede7e94b9ba9120c378813))
+
+## [1.1.0-beta.12](https://github.com/ten24group/ui24/compare/v1.1.0-beta.11...v1.1.0-beta.12) (2026-02-25)
+
 ## [1.1.0-beta.11](https://github.com/ten24group/ui24/compare/v1.1.0-beta.10...v1.1.0-beta.11) (2026-02-23)
 
 
