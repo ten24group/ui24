@@ -1,5 +1,5 @@
 import 'antd-css-utilities/utility.min.css';
-// import '@ant-design/v5-patch-for-react-19';
+import '@ant-design/v5-patch-for-react-19';
 import "./global.css";
 
 // IMPORTANT: Import dayjs setup early to extend plugins globally before Ant Design DatePicker uses them

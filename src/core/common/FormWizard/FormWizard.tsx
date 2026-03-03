@@ -17,7 +17,7 @@
  */
 
 import React, { useState, useCallback, useMemo, useRef } from 'react';
-import { Steps, Button, Form, Card, Space, message, Result, Spin } from 'antd';
+import { Steps, Button, Form, Card, Space, App, Result, Spin } from 'antd';
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
@@ -120,6 +120,7 @@ export const FormWizard: React.FC<FormWizardProps> = ({
   showSuccessResult = false,
   apiClient,
 }) => {
+  const { message } = App.useApp();
   const [ currentStep, setCurrentStep ] = useState(0);
   const [ allValues, setAllValues ] = useState<Record<string, unknown>>(initialValues);
   const [ stepValues, setStepValues ] = useState<Record<string, unknown>>({});

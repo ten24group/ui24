@@ -26,7 +26,11 @@ module.exports = {
     maxAssetSize: 512000,
   },
   resolve: {
-    extensions: ['.ts', '.tsx', '.js', '.jsx']
+    extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    alias: {
+      // Ensure single instance of yjs (prevents constructor check issues)
+      'yjs': path.resolve(__dirname, 'node_modules/yjs')
+    }
   },
   module: {
     rules: [
