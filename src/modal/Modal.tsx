@@ -769,7 +769,7 @@ export const Modal = ({
         }}
       >
         {/* Wrap in ModalContext so child components know they're in a modal */}
-        <ModalContextProvider>
+        <ModalContextProvider onClose={onCancelCallback}>
           <RenderFromPageType
             cardStyle={{ marginTop: "2%" }}
             pageType={modalType as IPageType}

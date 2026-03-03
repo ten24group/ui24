@@ -192,7 +192,7 @@ const DrawerContent = ({
         onClose?.();
       }}
     >
-      <ModalContextProvider>
+      <ModalContextProvider onClose={onClose}>
         <RenderFromPageType
           pageType={pageType}
           listPageConfig={pageType === 'list' ? pageConfig as ITableConfig : undefined}

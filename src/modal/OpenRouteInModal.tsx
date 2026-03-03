@@ -379,7 +379,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
               }}
             >
               {/* Wrap in ModalContext so child components know they're in a modal */}
-              <ModalContextProvider>
+              <ModalContextProvider onClose={handleClose}>
                 <RenderFromPageType
                   {...pageConfig}
                   routeParams={finalRouteParams}
