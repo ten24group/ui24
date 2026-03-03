@@ -42,6 +42,26 @@ export interface IErrorPagesConfig {
   forbidden?: { title?: string; message?: string; showHomeLink?: boolean };
 }
 
+/**
+ * Theme configuration
+ */
+export interface IThemeConfig {
+  /**
+   * Show theme options in secondary menu
+   * @default true
+   */
+  showSwitcher?: boolean;
+
+  /**
+   * Default theme preference
+   * - 'system': Follow OS theme (default)
+   * - 'light': Always light
+   * - 'dark': Always dark
+   * @default 'system'
+   */
+  defaultPreference?: 'system' | 'light' | 'dark';
+}
+
 export type IUi24Config = {
   baseURL: string;
   appURLPrefix?: string;
@@ -76,6 +96,8 @@ export type IUi24Config = {
   pagesConfig?: Record<string, any>
   formatConfig?: IFormatConfig
   themeConfig?: IAntThemeConfig
+  /** Theme switcher configuration */
+  theme?: IThemeConfig;
   /** Environment indicator (banner, title prefix) */
   environment?: IEnvironmentConfig;
   /** Maintenance mode gate */
@@ -152,7 +174,7 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
     updateConfig,
     selectConfig,
     getPageConfig
-  }), [config, updateConfig, selectConfig, getPageConfig]);
+  }), [ config, updateConfig, selectConfig, getPageConfig ]);
 
   return <Ui24Context.Provider value={contextValue}>
     {children}

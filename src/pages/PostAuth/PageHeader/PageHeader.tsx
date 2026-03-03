@@ -2,6 +2,7 @@ import { DownOutlined, EllipsisOutlined } from '@ant-design/icons';
 import { PageHeader as AntPageHeader } from '@ant-design/pro-layout';
 import { Button, Dropdown, MenuProps, Tooltip } from "antd";
 import React, { useMemo } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link } from "../../../core/common";
 import { Icon } from "../../../core/common/Icons/Icons";
 import { useModalContext } from "../../../core/context";
@@ -181,23 +182,40 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                 return null;
             }
 
-            // Render visible items as menu items.
-            // If an item is itself a dropdown (nested), render it as an Ant Design
-            // menu group ({ type: 'group' }) with its sub-items as children.
-            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.flatMap(({ dropItem, dropIndex, enabled: itemEnabled, disabledMessage: itemDisabledMsg }) => {
+            // Render visible items with smart dividers.
+            // Add divider before items with different interaction patterns (modal vs nav).
+            const menuItems: MenuProps[ 'items' ] = visibleMenuItems.flatMap(({ dropItem, dropIndex, enabled: itemEnabled, disabledMessage: itemDisabledMsg }, idx) => {
+                const itemDisabled = !itemEnabled;
                 const nestedItems = (dropItem as any).items;
-                const isNestedDropdown = ((dropItem as any).type === 'dropdown' || (dropItem as any).type === 'more')
-                    && Array.isArray(nestedItems) && nestedItems.length > 0;
+                const hasNested = Array.isArray(nestedItems) && nestedItems.length > 0;
 
-                if (isNestedDropdown) {
-                    const groupChildren = nestedItems
-                        .map((subItem: IPageAction, subIdx: number) =>
+                // Detect if we need a divider before this item
+                const prevItem = idx > 0 ? visibleMenuItems[ idx - 1 ]?.dropItem : null;
+                const needsDivider = idx > 0 && prevItem && (
+                    // Add divider if switching from plain nav to modal/drawer
+                    (!prevItem.openInModal && !prevItem.openInDrawer && (dropItem.openInModal || dropItem.openInDrawer)) ||
+                    // Or if previous had no icon and this has one
+                    (!prevItem.icon && dropItem.icon)
+                );
+
+                const result: NonNullable<MenuProps[ 'items' ]> = [];
+                if (needsDivider) {
+                    result.push({ type: 'divider' as const, key: `divider-${dropIndex}` });
+                }
+
+                if (hasNested) {
+                    // Submenu item (hover to expand)
+                    result.push({
+                        key: `${action.label}-${dropIndex}`,
+                        label: dropItem.label,
+                        icon: dropItem.icon ? <Icon iconName={dropItem.icon} /> : undefined,
+                        disabled: itemDisabled,
+                        children: nestedItems.map((subItem: IPageAction, subIdx: number) =>
                             renderSingleAction({
                                 action: subItem,
-                                key: `${action.label}-${dropIndex}-sub-${subIdx}`,
+                                key: `${dropIndex}-${subIdx}`,
                                 isDropdownItem: true,
                                 isInModal,
-                                isDisabled: false,
                                 routeParams,
                                 onSuccessCallback: (response) => {
                                     if (subItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
@@ -207,39 +225,27 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
                                 onNavigate: navigate
                             }) as MenuItem
                         )
-                        .filter(Boolean);
-
-                    if (groupChildren.length === 0) return [];
-
-                    const result: NonNullable<MenuProps[ 'items' ]> = [];
-                    if (dropIndex > 0) {
-                        result.push({ type: 'divider' as const, key: `divider-before-group-${dropIndex}` });
-                    }
-                    result.push({
-                        type: 'group' as const,
-                        label: dropItem.label,
-                        key: `group-${dropIndex}`,
-                        children: groupChildren,
-                    });
-                    return result;
+                    } as MenuItem);
+                } else {
+                    // Flat item
+                    result.push(renderSingleAction({
+                        action: dropItem,
+                        key: `${action.label}-${dropIndex}`,
+                        isDropdownItem: true,
+                        isInModal,
+                        isDisabled: itemDisabled,
+                        disabledMessage: itemDisabledMsg,
+                        routeParams,
+                        onSuccessCallback: (response) => {
+                            if (dropItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
+                                onRefreshData();
+                            }
+                        },
+                        onNavigate: navigate
+                    }) as MenuItem);
                 }
 
-                const itemDisabled = !itemEnabled;
-                return [ renderSingleAction({
-                    action: dropItem,
-                    key: `${action.label}-${dropIndex}`,
-                    isDropdownItem: true,
-                    isInModal,
-                    isDisabled: itemDisabled,
-                    disabledMessage: itemDisabledMsg,
-                    routeParams,
-                    onSuccessCallback: (response) => {
-                        if (dropItem.modalConfig?.refreshParentOnSuccess && onRefreshData) {
-                            onRefreshData();
-                        }
-                    },
-                    onNavigate: navigate
-                }) as MenuItem ];
+                return result;
             });
 
             // 'more' type renders as icon-only ellipsis (secondary actions / autoGroup pattern)
@@ -309,31 +315,40 @@ export const PageHeader = ({ breadcrumbs = [], pageTitle, pageHeaderActions, app
         );
 
     return (
-        <div className="PageHeader">
-            <AntPageHeader
-                className="site-page-header"
-                title={evaluatedPageTitle}
-                breadcrumb={{
-                    items: visibleBreadcrumbs.map((item, index) => {
-                        // Evaluate label template if provided, otherwise use as-is
-                        // Use templateContext (includes record data) for smart detection templates
-                        const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
+        <>
+            {/* Update document title using react-helmet-async */}
+            {evaluatedPageTitle && !isInModal && (
+                <Helmet>
+                    <title>{evaluatedPageTitle}</title>
+                </Helmet>
+            )}
 
-                        // Use substituteUrlParams for consistent placeholder handling
-                        const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
+            <div className="PageHeader">
+                <AntPageHeader
+                    className="site-page-header"
+                    title={evaluatedPageTitle}
+                    breadcrumb={{
+                        items: visibleBreadcrumbs.map((item, index) => {
+                            // Evaluate label template if provided, otherwise use as-is
+                            // Use templateContext (includes record data) for smart detection templates
+                            const evaluatedLabel = evaluateTemplateValue(item.label, templateContext);
 
-                        return {
-                            key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
-                            title: breadcrumbUrl ? (
-                                <Link title={evaluatedLabel} url={breadcrumbUrl} />
-                            ) : (
-                                evaluatedLabel
-                            )
-                        };
-                    })
-                }}
-                extra={PageActions}
-            />
-        </div>
+                            // Use substituteUrlParams for consistent placeholder handling
+                            const breadcrumbUrl = substituteUrlParams(item.url, templateContext);
+
+                            return {
+                                key: `${evaluatedLabel}-${breadcrumbUrl || ''}-${index}`,
+                                title: breadcrumbUrl ? (
+                                    <Link title={evaluatedLabel} url={breadcrumbUrl} />
+                                ) : (
+                                    evaluatedLabel
+                                )
+                            };
+                        })
+                    }}
+                    extra={PageActions}
+                />
+            </div>
+        </>
     );
 };

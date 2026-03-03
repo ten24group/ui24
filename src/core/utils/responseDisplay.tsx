@@ -6,6 +6,7 @@ import { getNestedValue } from '../utils';
 import { ErrorBoundary } from 'react-error-boundary';
 import { ErrorFallback } from '../common';
 import type { IResponseDisplayConfig } from '../../modal/Modal';
+import { getModalZIndex } from '../../modal/modalUtils';
 
 interface IResponseModalProps {
   visible: boolean;
@@ -13,6 +14,7 @@ interface IResponseModalProps {
   responseConfig: IResponseDisplayConfig;
   actionModalTitle?: string;
   onClose: () => void;
+  modalDepth?: number;
 }
 
 /**
@@ -25,6 +27,7 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
   responseConfig,
   actionModalTitle,
   onClose,
+  modalDepth = 0,
 }) => {
   if (!visible || !responseData) {
     return null;
@@ -38,6 +41,10 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
     showRawJson = false,
     dataPath,
   } = responseConfig;
+
+  // Calculate z-index: response modal should be above the parent modal that triggered it
+  // modalDepth represents the parent modal's depth, so we add 1 for the response modal
+  const zIndex = getModalZIndex(modalDepth + 1);
 
   // Extract data from response using dataPath if provided
   const extractedData = dataPath
@@ -145,6 +152,7 @@ export const ResponseModal: React.FC<IResponseModalProps> = ({
       open={true}
       width={modalWidth}
       onCancel={onClose}
+      zIndex={zIndex}
       footer={[
         <Button key="close" type="primary" onClick={onClose}>
           Close

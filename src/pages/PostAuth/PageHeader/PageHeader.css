@@ -1,6 +1,12 @@
-.PostAuthContainer > .PageHeader {
+.PostAuthContainer>.PageHeader {
     padding-block-start: 8px;
     padding-block-end: 16px;
     padding-inline-start: 40px;
     padding-inline-end: 40px;
+}
+
+/* Ant Design menu icon spacing fix */
+.ant-dropdown-menu-item .anticon+span,
+.ant-dropdown-menu-submenu-title .anticon+span {
+    margin-left: 8px;
 }

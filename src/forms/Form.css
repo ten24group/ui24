@@ -7,7 +7,7 @@
 }
 
 /* Subtle form field styling */
-.form-column .ant-form-item-label > label {
+.form-column .ant-form-item-label>label {
   color: var(--ant-color-text-secondary, rgba(0, 0, 0, 0.65));
   font-weight: 500;
 }
@@ -25,16 +25,20 @@
   transition: all 0.2s;
   outline: none;
 }
+
 .masked-input::placeholder {
   color: var(--ant-color-text-placeholder, rgba(0, 0, 0, 0.25));
 }
+
 .masked-input:hover:not(:disabled) {
   border-color: var(--ant-color-primary-hover, #4096ff);
 }
+
 .masked-input:focus:not(:disabled) {
   border-color: var(--ant-color-primary, #1677ff);
   box-shadow: 0 0 0 2px rgba(5, 145, 255, 0.1);
 }
+
 .masked-input--disabled {
   color: var(--ant-color-text-disabled, rgba(0, 0, 0, 0.25));
   background: var(--ant-color-bg-container-disabled, rgba(0, 0, 0, 0.04));
@@ -48,8 +52,11 @@
   bottom: 0;
   z-index: 10;
   background: var(--ant-color-bg-container, #fff);
-  padding: 12px 0;
-  border-top: 1px solid var(--ant-color-border, #f0f0f0);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  padding: 16px 0;
+  margin: 0 -10px;
+  padding-left: 10px;
+  padding-right: 10px;
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.04);
   display: flex;
+  gap: 8px;
 }

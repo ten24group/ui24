@@ -1,6 +1,6 @@
 import React from 'react';
 import { Empty, Button, Typography } from 'antd';
-import { PlusOutlined, FilterOutlined } from '@ant-design/icons';
+import { PlusOutlined, FilterOutlined, LeftOutlined, FileExclamationOutlined } from '@ant-design/icons';
 
 const { Text } = Typography;
 
@@ -80,9 +80,13 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   const noDataConfig = config?.noData;
   const displayName = entityName || 'records';
 
+  // Detect if this is a "not found" error vs. "no data" state
+  const isNotFoundError = noDataConfig?.title?.toLowerCase().includes('not found');
+  const isGoBackAction = noDataConfig?.action?.label?.toLowerCase().includes('back');
+
   return (
     <Empty
-      image={customImage || Empty.PRESENTED_IMAGE_SIMPLE}
+      image={customImage || (isNotFoundError ? <FileExclamationOutlined style={{ fontSize: 64, color: 'var(--ant-color-text-tertiary)' }} /> : Empty.PRESENTED_IMAGE_SIMPLE)}
       description={
         <div>
           <Text strong style={{ display: 'block', marginBottom: 4 }}>
@@ -96,12 +100,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     >
       {noDataConfig?.action && (
         <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={noDataConfig.action.onClick || (noDataConfig.action.url && onNavigate
-            ? () => onNavigate(noDataConfig.action!.url!)
-            : undefined
-          )}
+          type={isGoBackAction ? "default" : "primary"}
+          icon={isGoBackAction ? <LeftOutlined /> : <PlusOutlined />}
+          onClick={
+            noDataConfig.action.onClick || (noDataConfig.action.url && onNavigate
+              ? () => onNavigate(noDataConfig.action!.url!)
+              : undefined
+            )
+          }
           size="small"
         >
           {noDataConfig.action.label}

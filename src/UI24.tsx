@@ -1,10 +1,12 @@
 import React, { useMemo } from 'react';
 import { App as AntdApp, ConfigProvider, theme as antdTheme } from "antd";
 import { BrowserRouter } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import enUS from 'antd/locale/en_US';
 
 import { AppRouter, IAppRouter } from './routes/AppRouter';
 import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider, AppStaticProvider } from './core/context';
+import { useUi24Config } from './core/context';
 import { ResponseModalProvider } from './core/context/ResponseModalContext';
 import { IUi24Config } from './core/context';
 import { IConditionSystemConfig } from './core/context/types';
@@ -13,7 +15,7 @@ import { setI18nResolver } from './core/types/evaluation';
 import { QueryProvider } from './core/query/QueryProvider';
 import './core/registry/field-types'; // Register built-in field types at startup
 import { IS_DEV } from './core/constants';
-import { useThemeMode } from './core/stores/theme';
+import { useThemeMode, setThemePreference, getThemePreference, initThemeStore } from './core/stores/theme';
 
 // Lazy load ConfigDevTools to avoid bundling it in production
 const ConfigDevTools = React.lazy(() =>
@@ -100,6 +102,50 @@ if (IS_DEV) {
     }
 }
 
+/**
+ * Inner component to handle theme initialization after config is loaded
+ */
+const UI24Inner: React.FC<{ customRoutes: IAppRouter[ 'customRoutes' ] }> = ({ customRoutes }) => {
+    const { selectConfig } = useUi24Config();
+    const appName = selectConfig(config => config.appName);
+    const themeConfig = selectConfig(config => config.theme);
+
+    const [ themeInitialized, setThemeInitialized ] = React.useState(false);
+
+    // Initialize theme store with app namespace FIRST
+    React.useEffect(() => {
+        if (!appName) return;
+
+        initThemeStore(appName);
+        setThemeInitialized(true);
+
+        // Apply default preference if user hasn't set one
+        if (themeConfig?.defaultPreference) {
+            const namespace = appName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            const storageKey = `ui24_${namespace}_theme_preference`;
+            const storedPref = localStorage.getItem(storageKey);
+
+            if (!storedPref) {
+                setThemePreference(themeConfig.defaultPreference);
+            }
+        }
+    }, [ appName, themeConfig?.defaultPreference ]);
+
+    // Don't render until theme is initialized with proper namespace
+    if (!themeInitialized) return null;
+
+    return (
+        <>
+            <AppRouter customRoutes={customRoutes} />
+            {IS_DEV && (
+                <React.Suspense fallback={null}>
+                    <ConfigDevTools />
+                </React.Suspense>
+            )}
+        </>
+    );
+};
+
 const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
     // Initialize tracing and error capture on app mount (dev only)
     React.useEffect(() => {
@@ -116,34 +162,31 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
     }, []);
 
     return (
-        <ThemeConfigProvider>
-            <AntdApp>
-                <BrowserRouter>
-                    <Ui24ConfigProvider initConfig={ui24config}>
-                        <AppContextProvider>
-                            <ThemeProvider>
-                                <AuthProvider>
-                                    <AppStaticProvider>
-                                        <ApiProvider>
-                                            <QueryProvider>
-                                                <ResponseModalProvider>
-                                                    <AppRouter customRoutes={customRoutes} />
-                                                    {IS_DEV && (
-                                                        <React.Suspense fallback={null}>
-                                                            <ConfigDevTools />
-                                                        </React.Suspense>
-                                                    )}
-                                                </ResponseModalProvider>
-                                            </QueryProvider>
-                                        </ApiProvider>
-                                    </AppStaticProvider>
-                                </AuthProvider>
-                            </ThemeProvider>
-                        </AppContextProvider>
-                    </Ui24ConfigProvider>
-                </BrowserRouter>
-            </AntdApp>
-        </ThemeConfigProvider>
+        <HelmetProvider>
+            <ThemeConfigProvider>
+                <AntdApp>
+                    <BrowserRouter>
+                        <Ui24ConfigProvider initConfig={ui24config}>
+                            <AppContextProvider>
+                                <ThemeProvider>
+                                    <AuthProvider>
+                                        <AppStaticProvider>
+                                            <ApiProvider>
+                                                <QueryProvider>
+                                                    <ResponseModalProvider>
+                                                        <UI24Inner customRoutes={customRoutes} />
+                                                    </ResponseModalProvider>
+                                                </QueryProvider>
+                                            </ApiProvider>
+                                        </AppStaticProvider>
+                                    </AuthProvider>
+                                </ThemeProvider>
+                            </AppContextProvider>
+                        </Ui24ConfigProvider>
+                    </BrowserRouter>
+                </AntdApp>
+            </ThemeConfigProvider>
+        </HelmetProvider>
     )
 }
 export { UI24 };

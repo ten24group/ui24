@@ -11,12 +11,13 @@
  * - Chaining support
  */
 
-import { useMemo } from 'react';
+import { useMemo, useContext } from 'react';
 import { useCoreNavigator } from '../../routes/Navigation';
 import { useApi } from '../context/ApiContext';
 import { useAppContext, NotifyOptions } from '../context/AppContext';
 import { useResponseModalContext } from '../context/ResponseModalContext';
 import { useNewEvaluationContext } from '../context/NewEvaluationContext';
+import { ModalDepthContext } from '../../modal/Modal';
 
 import type { IResponseDisplayConfig } from '../../modal/Modal';
 import { IApiConfig } from '../context/ApiContext';
@@ -41,6 +42,10 @@ export interface OperationConfig {
   // ===== Payload & Context =====
   payload?: any;
   routeParams?: Record<string, any>;
+
+  // ===== Modal Depth Override =====
+  /** Override modal depth for z-index calculation of response modals */
+  overrideModalDepth?: number;
 
   // ===== UI State =====
   onLoading?: (isLoading: boolean) => void;
@@ -154,7 +159,9 @@ export interface OperationExecutorDeps {
   notifySuccess: (message: string) => void;
   notifyError: (message: string) => void;
   notify: (level: 'success' | 'error' | 'warning' | 'info', options: NotifyOptions) => void;
-  showResponseModal?: (data: any, config: IResponseDisplayConfig, onModalClose?: () => void) => void;
+  showResponseModal?: (data: any, config: IResponseDisplayConfig, onModalClose?: () => void, modalDepth?: number) => void;
+  /** Current modal depth for z-index calculation */
+  modalDepth?: number;
   /** Evaluation context for resolving ConditionalValue (e.g., conditional redirects) */
   evaluationContext?: NewEvaluationContext;
 }
@@ -308,8 +315,9 @@ export class OperationExecutor {
       }
 
       if (this.deps.showResponseModal) {
-        // Pass clean data (without nextStep) and close callback
-        this.deps.showResponseModal(cleanData, finalResponseConfig, callbacks.onClose);
+        // Pass clean data (without nextStep), close callback, and modal depth (use override if provided)
+        const effectiveDepth = config.overrideModalDepth !== undefined ? config.overrideModalDepth : this.deps.modalDepth;
+        this.deps.showResponseModal(cleanData, finalResponseConfig, callbacks.onClose, effectiveDepth);
       }
 
       callbacks.onChain?.(cleanData, finalResponseConfig);
@@ -584,7 +592,7 @@ export class OperationExecutor {
 
 /**
  * React hook for using OperationExecutor in components
- * Automatically injects global response modal from context
+ * Automatically injects global response modal from context and current modal depth for proper z-index
  */
 export function useOperationExecutor(): OperationExecutor {
   const { callApiMethod } = useApi();
@@ -592,6 +600,7 @@ export function useOperationExecutor(): OperationExecutor {
   const navigate = useCoreNavigator();
   const { showResponseModal } = useResponseModalContext();
   const evaluationContext = useNewEvaluationContext();
+  const modalDepth = useContext(ModalDepthContext);
 
   return useMemo(() => {
     return new OperationExecutor({
@@ -601,7 +610,8 @@ export function useOperationExecutor(): OperationExecutor {
       notifyError,
       notify,
       showResponseModal,
+      modalDepth,
       evaluationContext,
     });
-  }, [ navigate, callApiMethod, notifySuccess, notifyError, notify, showResponseModal, evaluationContext ]);
+  }, [ navigate, callApiMethod, notifySuccess, notifyError, notify, showResponseModal, modalDepth, evaluationContext ]);
 }

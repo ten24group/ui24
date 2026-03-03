@@ -119,7 +119,7 @@ export function renderSingleAction({
       return {
         key,
         label: modalTrigger,
-        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
       } as MenuItem;
     }
     return modalTrigger;
@@ -160,7 +160,7 @@ export function renderSingleAction({
       return {
         key,
         label: modalTrigger,
-        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
       } as MenuItem;
     }
     return modalTrigger;
@@ -206,7 +206,7 @@ export function renderSingleAction({
       return {
         key,
         label: drawerTrigger,
-        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
       } as MenuItem;
     }
     return drawerTrigger;
@@ -249,7 +249,7 @@ export function renderSingleAction({
       return {
         key,
         label: drawerTrigger,
-        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
       } as MenuItem;
     }
     return drawerTrigger;
@@ -280,13 +280,13 @@ export function renderSingleAction({
         // Whitelist mode — only the specified fields, skipping null/undefined
         prefill = Object.fromEntries(
           cloneConfig.includeFields
-            .filter(k => raw[k] !== undefined && raw[k] !== null)
-            .map(k => [k, raw[k]])
+            .filter(k => raw[ k ] !== undefined && raw[ k ] !== null)
+            .map(k => [ k, raw[ k ] ])
         );
       } else {
         // Auto mode — keep all primitive-valued fields that aren't excluded
         prefill = Object.fromEntries(
-          Object.entries(raw).filter(([k, v]) =>
+          Object.entries(raw).filter(([ k, v ]) =>
             v !== undefined && v !== null &&
             !isExcluded(k) &&
             typeof v !== 'object' // skip nested maps/lists — not safely URL-encodable
@@ -299,7 +299,7 @@ export function renderSingleAction({
       // on the target form; each param key becomes a field default value.
       const createUrl = substituteUrlParams(cloneConfig.createUrl, record, primaryIndex);
       const params = new URLSearchParams();
-      for (const [k, v] of Object.entries(prefill)) {
+      for (const [ k, v ] of Object.entries(prefill)) {
         params.set(k, String(v));
       }
       const qs = params.toString();
@@ -311,7 +311,7 @@ export function renderSingleAction({
       return {
         key,
         label: evaluatedLabel,
-        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined,
         onClick: handleClone,
       } as MenuItem;
     }
@@ -343,7 +343,7 @@ export function renderSingleAction({
       return {
         key,
         label: evaluatedLabel,
-        icon: action.icon ? <span style={{ marginRight: '8px' }}><Icon iconName={action.icon} /></span> : undefined,
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined,
         onClick: handleCopy
       } as MenuItem;
     }

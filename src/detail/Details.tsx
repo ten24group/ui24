@@ -104,7 +104,7 @@ import { ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../
 import { QueryErrorState } from '../core/common/ErrorFallback';
 import { MaskedDisplay } from '../core/common/MaskedDisplay';
 import { computeDerivedValue } from '../core/hooks/useDerivedFields';
-import { IApiConfig, useAppContext } from '../core/context';
+import { IApiConfig, useAppContext, useModalContext } from '../core/context';
 import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
@@ -194,7 +194,7 @@ const DetailsFieldWrapper: React.FC<{
   const content = item.copyable && isPrimitive
     ? (
       <Typography.Text
-        copyable={{ text: String(value), tooltips: ['Copy', 'Copied'] }}
+        copyable={{ text: String(value), tooltips: [ 'Copy', 'Copied' ] }}
         style={{ display: 'inline' }}
       >
         {children}
@@ -203,7 +203,7 @@ const DetailsFieldWrapper: React.FC<{
     : children;
 
   const displayLabel = t(resolvedLabel ?? resolveStringOrDefault(item.label)); // i18n (#22)
-  const containerClassName = ['details-field-container', formattingClassName].filter(Boolean).join(' ');
+  const containerClassName = [ 'details-field-container', formattingClassName ].filter(Boolean).join(' ');
 
   return (
     <div key={index} className={containerClassName} style={formattingStyles}>
@@ -219,6 +219,40 @@ const DetailsFieldWrapper: React.FC<{
 
 // IDetailsConfig and IDetailsComponentProps are now in core/types/field-config.ts
 export type { IDetailsConfig, IDetailsComponentProps };
+
+/**
+ * RecordNotFoundState - Smart error state for missing records.
+ * Uses modal context to close modal/drawer if inside one, otherwise navigates back.
+ */
+const RecordNotFoundState: React.FC<{ entityName?: string }> = ({ entityName }) => {
+  const { isInModal, closeModal } = useModalContext();
+  const navigate = useCoreNavigator();
+
+  const handleGoBack = () => {
+    if (isInModal && closeModal) {
+      closeModal();
+    } else {
+      navigate(-1);
+    }
+  };
+
+  return (
+    <EmptyState
+      variant="noData"
+      entityName={entityName}
+      config={{
+        noData: {
+          title: `${entityName || 'Record'} not found`,
+          description: 'The record you are looking for may have been deleted or does not exist.',
+          action: {
+            label: isInModal ? 'Close' : 'Go Back',
+            onClick: handleGoBack
+          }
+        }
+      }}
+    />
+  );
+};
 
 /**
  * Main Details component for rendering read-only record details.
@@ -442,19 +476,8 @@ const Details: React.FC<IDetailsComponentProps> = ({
           retry={retryConfig}
         />
       ) : recordNotFound ? (
-        // Record not found — show contextual empty state
-        <EmptyState
-          variant="noData"
-          entityName={detailEntityName}
-          config={{
-            noData: {
-              title: `${detailEntityName || 'Record'} not found`,
-              description: 'The record you are looking for may have been deleted or does not exist.',
-              action: { label: 'Go Back', url: '..' }
-            }
-          }}
-          onNavigate={coreNavigate}
-        />
+        // Record not found — show contextual empty state with smart "Go Back" behavior
+        <RecordNotFoundState entityName={detailEntityName} />
       ) : (
         // Show spinner overlay only for refresh (keeps content visible)
         <Spin spinning={detailFetching && !detailLoading}>
@@ -590,7 +613,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
 
                     // Complex data (json, map, list, objects)
                     const isComplexData =
-                      !['rich-text', 'wysiwyg', 'multi-select', 'timeline'].includes(item.fieldType) && (
+                      ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
                         item.type === 'list' ||
                         item.type === 'map' ||
                         (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||

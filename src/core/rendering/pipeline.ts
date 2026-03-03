@@ -13,6 +13,8 @@
  */
 
 import type { ReactNode } from 'react';
+import type { Template } from '../types';
+import { evaluateTemplateValue } from '../utils/template';
 
 // ============================================================================
 // TYPES
@@ -69,15 +71,15 @@ export type PipelineFieldConfig = {
    * and condition-based value mapping.
    */
   derived?: {
-    template?: string;
+    template?: Template;
     expression?: string;
     conditions?: Array<{ when: unknown; value: unknown }>;
   };
 };
 
 /** Keys on PipelineFieldConfig that may hold ConditionalValue<string> and are resolved to strings. */
-const CONDITIONAL_PROP_KEYS = ['label', 'placeholder', 'helpText', 'description', 'tooltip'] as const;
-type ConditionalPropKey = typeof CONDITIONAL_PROP_KEYS[number];
+const CONDITIONAL_PROP_KEYS = [ 'label', 'placeholder', 'helpText', 'description', 'tooltip' ] as const;
+type ConditionalPropKey = typeof CONDITIONAL_PROP_KEYS[ number ];
 
 /**
  * Resolved props produced by the pipeline.
@@ -92,13 +94,13 @@ export interface ResolvedFieldProps {
   helpText?: string;
   description?: string;
   tooltip?: string;
-  
+
   // Explicit renderer name (from selectRenderer step) — used by ExtensionRegistry
   _explicitRenderer?: string;
-  
+
   // Smart defaults from registry (from selectRenderer step)
   _registryDefaults?: Record<string, unknown>;
-  
+
   // Formatting metadata (from applyFormatting step)
   _formattingStyles?: Record<string, string | number>;
   _formattingClassName?: string;
@@ -139,15 +141,15 @@ export interface FieldRenderContext {
   /** Row index (table context only) */
   rowIndex?: number;
   /** Condition evaluator instance (injected by caller) */
-  conditionEvaluator?: { 
-    evaluateSync: (condition: unknown, ctx: Record<string, unknown>) => boolean; 
+  conditionEvaluator?: {
+    evaluateSync: (condition: unknown, ctx: Record<string, unknown>) => boolean;
     resolveValue: (value: unknown, ctx: Record<string, unknown>) => unknown;
     resolveTemplate?: (template: string, ctx: Record<string, unknown>) => string;
   };
   /** Evaluation context (user, record, etc.) */
   evaluationContext?: Record<string, unknown>;
   /** Field type registry instance */
-  fieldTypeRegistry?: { 
+  fieldTypeRegistry?: {
     get: <C extends 'form' | 'detail' | 'table'>(type: string, context: C) => React.ComponentType<any> | null;
     getDefaults: (type: string, context: 'form' | 'detail' | 'table') => Record<string, unknown> | null;
   };
@@ -224,17 +226,15 @@ export const transformValue: PipelineStep = (ctx) => {
     const { derived } = field;
 
     if (derived.template) {
-      // Template string: '{firstName} {lastName}' — uses ConditionEvaluator.resolveTemplate
-      if (conditionEvaluator?.resolveTemplate) {
-        try {
-          const resolved = conditionEvaluator.resolveTemplate(
-            derived.template,
-            { record: rawRecord, ...evaluationContext }
-          );
-          if (resolved !== undefined) transformed = resolved;
-        } catch {
-          // fail-safe: keep original value
-        }
+      // Template string: '{firstName} {lastName}' — uses evaluateTemplateValue to handle both string and ITemplateConfig
+      try {
+        const resolved = evaluateTemplateValue(
+          derived.template,
+          { record: rawRecord, ...evaluationContext }
+        );
+        if (resolved !== undefined && resolved !== '') transformed = resolved;
+      } catch {
+        // fail-safe: keep original value
       }
     } else if (derived.expression) {
       // Simple arithmetic: 'quantity * unitPrice'
@@ -244,7 +244,7 @@ export const transformValue: PipelineStep = (ctx) => {
           let val: unknown = rawRecord;
           for (const part of parts) {
             if (val == null || typeof val !== 'object') return 'NaN';
-            val = (val as Record<string, unknown>)[part];
+            val = (val as Record<string, unknown>)[ part ];
           }
           return typeof val === 'number' ? String(val) : 'NaN';
         });
@@ -304,22 +304,22 @@ export const resolveConditionalProps: PipelineStep = (ctx) => {
   const resolveCtx = { ...evaluationContext, record: rawRecord };
 
   for (const key of CONDITIONAL_PROP_KEYS) {
-    const propValue = field[key]; // PipelineFieldConfig[ConditionalPropKey] → unknown
+    const propValue = field[ key ]; // PipelineFieldConfig[ConditionalPropKey] → unknown
     if (propValue === undefined) continue;
 
     // ConditionalValue objects have a `rules` array
     if (typeof propValue === 'object' && propValue !== null && 'rules' in propValue && conditionEvaluator) {
       try {
         const resolved = conditionEvaluator.resolveValue(propValue, resolveCtx);
-        ctx.resolvedProps[key] = typeof resolved === 'string' ? resolved : undefined;
+        ctx.resolvedProps[ key ] = typeof resolved === 'string' ? resolved : undefined;
       } catch {
         // Fall back to the default value if condition evaluation fails
         const fallback = 'default' in propValue ? propValue.default : undefined;
-        ctx.resolvedProps[key] = typeof fallback === 'string' ? fallback : undefined;
+        ctx.resolvedProps[ key ] = typeof fallback === 'string' ? fallback : undefined;
       }
     } else {
       // Plain string value — assign directly with runtime narrowing
-      ctx.resolvedProps[key] = typeof propValue === 'string' ? propValue : undefined;
+      ctx.resolvedProps[ key ] = typeof propValue === 'string' ? propValue : undefined;
     }
   }
 
@@ -424,12 +424,12 @@ export const expandPermissions: PipelineStep = (ctx) => {
   const { field } = ctx;
   if (!field.permission) return ctx;
 
-  const groups = Array.isArray(field.permission) ? field.permission : [field.permission];
+  const groups = Array.isArray(field.permission) ? field.permission : [ field.permission ];
   const permCondition = { actor: { groups: { inList: groups } } };
 
   const merged: PipelineFieldConfig = { ...field };
   if (field.visibility) {
-    merged.visibility = { and: [field.visibility, permCondition] };
+    merged.visibility = { and: [ field.visibility, permCondition ] };
   } else {
     merged.visibility = permCondition;
   }
@@ -463,9 +463,9 @@ export type PipelineOptions = {
   routeParams?: Record<string, string>;
   renderContext: 'table' | 'form' | 'detail';
   rowIndex?: number;
-  conditionEvaluator?: FieldRenderContext['conditionEvaluator'];
+  conditionEvaluator?: FieldRenderContext[ 'conditionEvaluator' ];
   evaluationContext?: Record<string, unknown>;
-  fieldTypeRegistry?: FieldRenderContext['fieldTypeRegistry'];
+  fieldTypeRegistry?: FieldRenderContext[ 'fieldTypeRegistry' ];
 };
 
 /**

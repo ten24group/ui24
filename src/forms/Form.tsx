@@ -1156,7 +1156,7 @@ export function Form({
               />
             )}
             {effectiveFormButtons.length > 0 && (
-              <div className={stickyActions ? 'form-actions-sticky' : undefined} style={{ paddingLeft: 10, paddingRight: 10 }}>
+              <div className={stickyActions ? 'form-actions-sticky' : undefined}>
                 <CreateButtons
                   formButtons={effectiveFormButtons}
                   loader={btnLoader}

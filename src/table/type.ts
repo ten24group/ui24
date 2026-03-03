@@ -108,6 +108,11 @@ export interface IDualTableApiConfig {
 }
 
 /**
+ * Union type for table API configs (used for type safety in view switcher layouts)
+ */
+export type TableApiConfigUnion = IApiConfig | ITableApiConfig | IDualTableApiConfig;
+
+/**
  * Table configuration interface
  * 
  * For single endpoint (backward compatible):

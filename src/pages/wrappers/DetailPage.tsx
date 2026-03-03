@@ -211,32 +211,35 @@ export const DetailPage: React.FC<DetailPageProps> = ({
             />
           )}
 
-          {/* Render main content and sections */}
-          <SectionsRenderer
-            sectionsConfig={sectionsConfig}
-            routeParams={enhancedRouteParams}
-            parentData={{ record }}
-            depth={depth}
-            cardStyle={cardStyle}
-            isParentLoading={isLoading}
+          {/* Render main content - Details component always shown (handles its own error states) */}
+          <Card
+            style={{ ...cardStyle, padding: 0, marginTop: 16 }}
+            size="small"
           >
-            {/* Main content (Details) - rendered as first section if sectionsConfig exists, otherwise standalone */}
-            <Card
-              style={{ ...cardStyle, padding: 0, marginTop: sectionsConfig ? 0 : 16 }}
-              size="small"
-            >
-              <Details
-                {...detailProps}
-                routeParams={enhancedRouteParams}  // Override routeParams for to-many relations (must come after spread)
-                identifiers={identifiers}
-                onDataChange={handleDataChange}
-                refreshRef={refreshFnRef}
-              />
-            </Card>
-          </SectionsRenderer>
+            <Details
+              {...detailProps}
+              routeParams={enhancedRouteParams}
+              identifiers={identifiers}
+              onDataChange={handleDataChange}
+              refreshRef={refreshFnRef}
+            />
+          </Card>
+
+          {/* Sections - only render when we have valid record data */}
+          {record && !isLoading && sectionsConfig && (
+            <SectionsRenderer
+              sectionsConfig={sectionsConfig}
+              routeParams={enhancedRouteParams}
+              parentData={{ record }}
+              depth={depth}
+              cardStyle={cardStyle}
+              isParentLoading={isLoading}
+            />
+          )}
 
           {/* Related entity tabs (#91) — rendered after the main detail card */}
-          {detailProps.relatedTabs && detailProps.relatedTabs.length > 0 && (
+          {/* Only render tabs when we have a valid record (not null and not loading) */}
+          {detailProps.relatedTabs && detailProps.relatedTabs.length > 0 && record && !isLoading && (
             <RelatedTabs
               tabs={detailProps.relatedTabs}
               record={record}

@@ -34,6 +34,9 @@ import { usePageSpan } from '../../core/telemetry';
 
 export type IPageType = PageStaticContextValue[ 'pageType' ];
 
+// Re-export from centralized location
+export { isValidPageType } from '../../core/types/pageConfig';
+
 /**
  * Route parameters type - string keys to string values only.
  * No loose Record<string, any> types.
@@ -107,10 +110,10 @@ export const PostAuthPage = ({ CustomPageHeader, children, ...props }: IPostAuth
   const pageType = props.pageType || 'custom';
   const entityLabel = entityName || 'Unknown';
   const pageTypeLabel = pageType === 'list' ? 'List' :
-                       pageType === 'details' ? 'Detail' :
-                       pageType === 'form' ? 'Form' :
-                       pageType === 'dashboard' ? 'Dashboard' :
-                       'Page';
+    pageType === 'details' ? 'Detail' :
+      pageType === 'form' ? 'Form' :
+        pageType === 'dashboard' ? 'Dashboard' :
+          'Page';
 
   // Page mount span - automatically managed by hook with Strict Mode handling
   usePageSpan({
