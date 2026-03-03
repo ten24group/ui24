@@ -18,7 +18,7 @@ import { useResolveRoute } from '../../hooks/useResolveRoute';
 import { RenderFromPageType, isValidPageType, type IRenderFromPageType } from '../../../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../../context';
 import { useModalDepth, ModalDepthContext } from '../../../modal/Modal';
-import { getDefaultModalWidth, toModalSizeType } from '../../../modal/modalUtils';
+import { getDefaultModalWidth, toModalSizeType, getModalZIndex } from '../../../modal/modalUtils';
 import { ErrorFallback } from '../index';
 import {
   isPageConfigEntry,
@@ -186,18 +186,21 @@ const PeekModal: React.FC<PeekModalProps> = ({ url, title, onClose }) => {
 
   if (!found || !pageConfig) {
     return (
-      <Modal
-        open
-        onCancel={onClose}
-        footer={null}
-        title={title}
-        width={640}
-        destroyOnHidden
-      >
-        <div style={{ padding: 24, textAlign: 'center', color: '#8c8c8c' }}>
-          Could not resolve page configuration for this route.
-        </div>
-      </Modal>
+      <ModalDepthContext.Provider value={nextDepth}>
+        <Modal
+          open
+          onCancel={onClose}
+          footer={null}
+          title={title}
+          width={640}
+          destroyOnHidden
+          zIndex={getModalZIndex(nextDepth)}
+        >
+          <div style={{ padding: 24, textAlign: 'center', color: '#8c8c8c' }}>
+            Could not resolve page configuration for this route.
+          </div>
+        </Modal>
+      </ModalDepthContext.Provider>
     );
   }
 
@@ -211,6 +214,7 @@ const PeekModal: React.FC<PeekModalProps> = ({ url, title, onClose }) => {
         width={width}
         destroyOnHidden
         wrapClassName={`modal-depth-${currentDepth}`}
+        zIndex={getModalZIndex(nextDepth)}
       >
         <ErrorBoundary FallbackComponent={ErrorFallback} onReset={onClose}>
           <ModalContextProvider>

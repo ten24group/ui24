@@ -14,4 +14,4 @@ export type { OpenRouteInModalProps } from './OpenRouteInModal';
 export { OpenRouteInDrawer } from './OpenRouteInDrawer';
 export type { OpenRouteInDrawerProps } from './OpenRouteInDrawer';
 
-export { getDefaultModalWidth } from './modalUtils';
+export { getDefaultModalWidth, getModalZIndex, MODAL_BASE_ZINDEX } from './modalUtils';

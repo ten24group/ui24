@@ -10,7 +10,7 @@ import type { IResponseDisplayConfig } from '../../modal/Modal';
 import { ResponseModal } from '../utils/responseDisplay';
 
 interface ResponseModalContextValue {
-  showResponseModal: (data: any, config: IResponseDisplayConfig, onModalClose?: () => void) => void;
+  showResponseModal: (data: any, config: IResponseDisplayConfig, onModalClose?: () => void, modalDepth?: number) => void;
   hideResponseModal: () => void;
 }
 
@@ -35,12 +35,14 @@ export const ResponseModalProvider: React.FC<ResponseModalProviderProps> = ({ ch
   const [ responseConfig, setResponseConfig ] = useState<IResponseDisplayConfig | null>(null);
   const [ parentTitle, setParentTitle ] = useState<string | undefined>(undefined);
   const [ onModalCloseCallback, setOnModalCloseCallback ] = useState<(() => void) | null>(null);
+  const [ modalDepth, setModalDepth ] = useState<number>(0);
 
-  const showResponseModal = (data: any, config: IResponseDisplayConfig, onModalClose?: () => void) => {
+  const showResponseModal = (data: any, config: IResponseDisplayConfig, onModalClose?: () => void, depth: number = 0) => {
     // Always update data/config first
     setResponseData(data);
     setResponseConfig(config);
     setParentTitle(config.modalTitle);
+    setModalDepth(depth);
 
     // Store close callback for parent modal
     // Only set if we are not already visible (start of chain) to preserve the original parent closer
@@ -88,6 +90,7 @@ export const ResponseModalProvider: React.FC<ResponseModalProviderProps> = ({ ch
           responseConfig={responseConfig}
           actionModalTitle={parentTitle}
           onClose={hideResponseModal}
+          modalDepth={modalDepth}
         />
       )}
     </ResponseModalContext.Provider>

@@ -21,6 +21,8 @@ import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../core/context';
 import { evaluateTemplateValue } from '../core/utils/template';
 import type { Template } from '../core/types';
+import { useModalDepth, ModalDepthContext } from './Modal';
+import { getModalZIndex } from './modalUtils';
 
 export interface OpenRouteInDrawerProps {
   /** URL to resolve and open in drawer (e.g., "/view-user/:id"). Optional when drawerConfigRef is provided. */
@@ -79,6 +81,10 @@ export const OpenRouteInDrawer: React.FC<OpenRouteInDrawerProps> = ({
   const location = useLocation();
   const initialLocation = useRef(location.pathname);
 
+  // Track drawer depth for stack effect (same as modal)
+  const currentDepth = useModalDepth();
+  const nextDepth = currentDepth + 1;
+
   const { resolveConfigRef } = useEntityConfig();
 
   const resolvedFromRef = React.useMemo(() => {
@@ -128,32 +134,35 @@ export const OpenRouteInDrawer: React.FC<OpenRouteInDrawerProps> = ({
       </Link>
 
       {open && (
-        <AntDrawer
-          title={evaluatedTitle}
-          placement={placement}
-          width={(placement === 'left' || placement === 'right') ? width : undefined}
-          height={(placement === 'top' || placement === 'bottom') ? height : undefined}
-          closable={closable}
-          mask={mask}
-          maskClosable={maskClosable}
-          destroyOnClose={destroyOnClose}
-          open={true}
-          onClose={handleClose}
-        >
-          {loading ? (
-            <div style={{ padding: 24, textAlign: 'center' }}>
-              <Spin />
-            </div>
-          ) : !found || !pageConfig ? (
-            <ErrorFallback error={new Error('Unable to resolve drawer route configuration')} resetErrorBoundary={handleClose} />
-          ) : (
-            <ErrorBoundary FallbackComponent={ErrorFallback} onReset={handleClose}>
-              <ModalContextProvider>
-                <RenderFromPageType {...pageConfig} />
-              </ModalContextProvider>
-            </ErrorBoundary>
-          )}
-        </AntDrawer>
+        <ModalDepthContext.Provider value={nextDepth}>
+          <AntDrawer
+            title={evaluatedTitle}
+            placement={placement}
+            width={(placement === 'left' || placement === 'right') ? width : undefined}
+            height={(placement === 'top' || placement === 'bottom') ? height : undefined}
+            closable={closable}
+            mask={mask}
+            maskClosable={maskClosable}
+            destroyOnClose={destroyOnClose}
+            open={true}
+            onClose={handleClose}
+            zIndex={getModalZIndex(nextDepth)}
+          >
+            {loading ? (
+              <div style={{ padding: 24, textAlign: 'center' }}>
+                <Spin />
+              </div>
+            ) : !found || !pageConfig ? (
+              <ErrorFallback error={new Error('Unable to resolve drawer route configuration')} resetErrorBoundary={handleClose} />
+            ) : (
+              <ErrorBoundary FallbackComponent={ErrorFallback} onReset={handleClose}>
+                <ModalContextProvider>
+                  <RenderFromPageType {...pageConfig} />
+                </ModalContextProvider>
+              </ErrorBoundary>
+            )}
+          </AntDrawer>
+        </ModalDepthContext.Provider>
       )}
     </>
   );

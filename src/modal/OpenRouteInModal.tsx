@@ -31,7 +31,7 @@ import { Link, ErrorFallback } from '../core/common';
 import { RenderFromPageType, isValidPageType, type IRenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../core/context';
 import { substituteUrlParams } from '../core/utils';
-import { getDefaultModalWidth, toModalSizeType } from './modalUtils';
+import { getDefaultModalWidth, toModalSizeType, getModalZIndex } from './modalUtils';
 import { evaluateTemplateValue } from '../core/utils/template';
 import type { Template } from '../core/types';
 import { useCoreNavigator } from '../routes/Navigation';
@@ -390,7 +390,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          zIndex: 1000
+          zIndex: getModalZIndex(nextDepth)
         }}>
           <Spin size="large" />
         </div>
@@ -407,6 +407,7 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
             width={finalWidth}
             destroyOnHidden
             wrapClassName={`modal-depth-${currentDepth}`}
+            zIndex={getModalZIndex(nextDepth)}
           >
             <ErrorBoundary
               FallbackComponent={ErrorFallback}

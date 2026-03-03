@@ -36,6 +36,7 @@ import type { ConditionalValue } from '../core/types/evaluation';
 import { evaluateTemplateValue } from '../core/utils/template';
 import { Link } from '../core/common';
 import { INavigateToConfig, IResponseDisplayConfig } from './Modal';
+import { getModalZIndex } from './modalUtils';
 
 /**
  * Drawer configuration interface (presentation properties only).
@@ -298,6 +299,7 @@ export const Drawer = ({
       destroyOnHidden={destroyOnClose}
       open={true}
       onClose={onClose}
+      zIndex={getModalZIndex(depth)}
     >
       <DrawerContent
         pageType={pageType}

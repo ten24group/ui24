@@ -2,11 +2,13 @@ import React, { useMemo } from 'react';
 import { Modal, Drawer, Descriptions, Tag, Button, Space, Typography } from 'antd';
 import { CheckOutlined, CloseOutlined, WarningOutlined } from '@ant-design/icons';
 import type { IForm } from '../../forms/formConfig';
+import { useModalDepth, ModalDepthContext } from '../../../modal/Modal';
+import { getModalZIndex } from '../../../modal/modalUtils';
 
 const { Text } = Typography;
 
 type DiffReviewConfig = Pick<
-  NonNullable<IForm['reviewBeforeSave']>,
+  NonNullable<IForm[ 'reviewBeforeSave' ]>,
   'fields' | 'requireConfirmFor' | 'format'
 >;
 
@@ -57,6 +59,10 @@ export const DiffReviewModal: React.FC<DiffReviewModalProps> = ({
   fieldLabels = {},
   loading = false,
 }) => {
+  // Track modal depth for proper z-index stacking
+  const currentDepth = useModalDepth();
+  const nextDepth = currentDepth + 1;
+
   const changes = useMemo<FieldChange[]>(() => {
     const requireConfirmSet = new Set(config.requireConfirmFor || []);
     const result: FieldChange[] = [];
@@ -66,8 +72,8 @@ export const DiffReviewModal: React.FC<DiffReviewModalProps> = ({
       : config.fields;
 
     for (const field of fieldsToCheck) {
-      const before = originalValues[field];
-      const after = currentValues[field];
+      const before = originalValues[ field ];
+      const after = currentValues[ field ];
 
       if (config.fields === 'changed-only' || !config.fields) {
         if (isEqual(before, after)) continue;
@@ -75,7 +81,7 @@ export const DiffReviewModal: React.FC<DiffReviewModalProps> = ({
 
       result.push({
         field,
-        label: fieldLabels[field] || field,
+        label: fieldLabels[ field ] || field,
         before,
         after,
         requiresConfirm: requireConfirmSet.has(field),
@@ -83,7 +89,7 @@ export const DiffReviewModal: React.FC<DiffReviewModalProps> = ({
     }
 
     return result;
-  }, [originalValues, currentValues, config, fieldLabels]);
+  }, [ originalValues, currentValues, config, fieldLabels ]);
 
   const hasChanges = changes.length > 0;
   const hasCriticalChanges = changes.some(c => c.requiresConfirm);
@@ -163,28 +169,34 @@ export const DiffReviewModal: React.FC<DiffReviewModalProps> = ({
 
   if (config.format === 'drawer') {
     return (
-      <Drawer
-        title={title}
-        open={open}
-        onClose={onCancel}
-        width={600}
-        footer={null}
-      >
-        {content}
-      </Drawer>
+      <ModalDepthContext.Provider value={nextDepth}>
+        <Drawer
+          title={title}
+          open={open}
+          onClose={onCancel}
+          width={600}
+          footer={null}
+          zIndex={getModalZIndex(nextDepth)}
+        >
+          {content}
+        </Drawer>
+      </ModalDepthContext.Provider>
     );
   }
 
   return (
-    <Modal
-      title={title}
-      open={open}
-      onCancel={onCancel}
-      footer={null}
-      width={700}
-      destroyOnClose
-    >
-      {content}
-    </Modal>
+    <ModalDepthContext.Provider value={nextDepth}>
+      <Modal
+        title={title}
+        open={open}
+        onCancel={onCancel}
+        footer={null}
+        width={700}
+        destroyOnClose
+        zIndex={getModalZIndex(nextDepth)}
+      >
+        {content}
+      </Modal>
+    </ModalDepthContext.Provider>
   );
 };

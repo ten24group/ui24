@@ -43,13 +43,43 @@ import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
 import { IPageType, RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { useCoreNavigator } from '../routes/Navigation';
 import { ITableConfig } from '../table/type';
-import { getDefaultModalWidth } from './modalUtils';
+import { getDefaultModalWidth, getModalZIndex } from './modalUtils';
 import { useOperationExecutor } from '../core/services/OperationExecutor';
 import { type IWizardPageConfig } from '../core/common/FormWizard';
 import { useThrottleCountdown } from '../core/hooks/useThrottleCountdown';
 import { useModalInstrumentation } from '../core/telemetry';
 
-// Simple modal depth tracking for stack effect
+/**
+ * ============================================================================
+ * MODAL DEPTH & Z-INDEX ARCHITECTURE
+ * ============================================================================
+ * 
+ * PURPOSE: Ensure proper stacking of nested modals and response modals
+ * 
+ * PROBLEM CONTEXT:
+ * - Before commit 8a8aa6b: Response modals were DOM children of parent modals,
+ *   so Ant Design automatically handled z-index stacking
+ * - After commit 8a8aa6b: Response modals moved to global ResponseModalProvider,
+ *   breaking automatic stacking (both parent and response used default z-index 1000)
+ * 
+ * SOLUTION:
+ * 1. ModalDepthContext: Tracks nesting depth (0 = page, 1 = first modal, 2 = nested, etc.)
+ * 2. Explicit zIndex: ALL modals/drawers set zIndex={getModalZIndex(depth)} to ensure proper stacking
+ * 3. Override mechanism: Modal.tsx passes overrideModalDepth to OperationExecutor so response
+ *    modals get the correct depth (parent modal's nextDepth) even though OperationExecutor
+ *    reads from context at the parent's level
+ * 
+ * DEPTH CALCULATION:
+ * - Page/Root: depth = 0, no modal
+ * - First modal: depth = 1, zIndex = 1001
+ * - Response from first modal: depth = 2, zIndex = 1002
+ * - Second nested modal: depth = 2, zIndex = 1002
+ * - Response from second modal: depth = 3, zIndex = 1003
+ * 
+ * @see modalUtils.ts for getModalZIndex() implementation
+ * @see ResponseModalContext.tsx for global response modal management
+ * @see OperationExecutor.ts for overrideModalDepth handling
+ */
 export const ModalDepthContext = React.createContext(0);
 export const useModalDepth = () => React.useContext(ModalDepthContext);
 
@@ -401,6 +431,8 @@ export const Modal = ({
   const nextDepth = currentDepth + 1;
 
   // ✅ NO response modal management - handled globally by OperationExecutor + ResponseModalContext
+  // Note: operationExecutor reads modalDepth from context (currentDepth), but we need to override it with nextDepth
+  // when executing operations from THIS modal, so response modals appear above this modal
   const operationExecutor = useOperationExecutor();
 
   // AbortController for request cancellation on unmount
@@ -461,6 +493,7 @@ export const Modal = ({
         skipSuccessToast,
         skipErrorToast,
         closeModalOnError,
+        overrideModalDepth: nextDepth, // Pass this modal's depth so response modal appears above
         ...(notification && { notification }),
         ...(throttle && { throttle }),
         abortSignal: abortControllerRef.current.signal
@@ -692,6 +725,7 @@ export const Modal = ({
           onOk={confirmApiAction}
           onCancel={onCancelCallback}
           okText={throttleText || "Confirm"}
+          zIndex={getModalZIndex(nextDepth)}
           cancelText="Cancel"
           loading={loading}
           okButtonProps={{ disabled: isThrottled || loading }}
@@ -730,7 +764,7 @@ export const Modal = ({
     if (chainConfig.containerType === 'drawer') {
       return (
         <ModalDepthContext.Provider value={nextDepth}>
-          <AntDrawer title={chainTitle} placement="right" width={modalWidth || 520} open onClose={onCancelCallback}>
+          <AntDrawer title={chainTitle} placement="right" width={modalWidth || 520} open onClose={onCancelCallback} zIndex={getModalZIndex(nextDepth)}>
             {chainContent}
           </AntDrawer>
         </ModalDepthContext.Provider>
@@ -739,7 +773,7 @@ export const Modal = ({
 
     return (
       <ModalDepthContext.Provider value={nextDepth}>
-        <AntModal title={chainTitle} open footer={null} width={modalWidth || 640} onCancel={onCancelCallback}>
+        <AntModal title={chainTitle} open footer={null} width={modalWidth || 640} onCancel={onCancelCallback} zIndex={getModalZIndex(nextDepth)}>
           {chainContent}
         </AntModal>
       </ModalDepthContext.Provider>
@@ -862,6 +896,7 @@ export const Modal = ({
             width={effectiveWidth || 600}
             placement="right"
             styles={{ body: { padding: 0 } }}
+            zIndex={getModalZIndex(nextDepth)}
           >
             {modalInnerContent}
           </AntDrawer>
@@ -882,6 +917,7 @@ export const Modal = ({
           styles={{
             body: { padding: 0 }
           }}
+          zIndex={getModalZIndex(nextDepth)}
         >
           {modalInnerContent}
         </AntModal>
@@ -899,6 +935,7 @@ export const Modal = ({
           open={true}
           onCancel={onCancelCallback}
           wrapClassName={`modal-depth-${currentDepth}`}
+          zIndex={getModalZIndex(nextDepth)}
         >
           <ErrorBoundary
             FallbackComponent={ErrorFallback}
