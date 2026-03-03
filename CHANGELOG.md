@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.14](https://github.com/ten24group/ui24/compare/v1.1.0-beta.13...v1.1.0-beta.14) (2026-03-03)
+
+
+### Features
+
+* Enhance Ant Design integration and improve message handling ([cec643d](https://github.com/ten24group/ui24/commit/cec643d317ae5a73e92b63adadccc35fe7e2a924))
+* Enhance CommandPalette and modal utilities with new type guards and utility functions ([d9cd292](https://github.com/ten24group/ui24/commit/d9cd292f8ba853759ae93bce2e0aa126307007c8))
+* Enhance modal context to support closing behavior in RecordNotFoundState ([54484c3](https://github.com/ten24group/ui24/commit/54484c3cac1e63d599182ac0f7e6c9395697a85e))
+* Implement modal depth management for improved z-index handling ([848b4bd](https://github.com/ten24group/ui24/commit/848b4bd8b0c448e037708c8d3791a7ed3d5fd32a))
+* Implement theme management and configuration in UI24 ([fa18160](https://github.com/ten24group/ui24/commit/fa18160150d1acb57bdaf68e7d8f9837ff3daf06))
+* Integrate react-helmet-async for improved document head management ([93d43bc](https://github.com/ten24group/ui24/commit/93d43bc0f1d2c72a8c594e8635b8229c1f614adb))
+
 ## [1.1.0-beta.13](https://github.com/ten24group/ui24/compare/v1.1.0-beta.12...v1.1.0-beta.13) (2026-02-27)
 
 
