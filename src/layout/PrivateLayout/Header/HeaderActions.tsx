@@ -1,9 +1,10 @@
-import React from 'react';
-import { DownOutlined } from '@ant-design/icons';
+import React, { useMemo } from 'react';
+import { DownOutlined, SunOutlined, MoonOutlined, DesktopOutlined } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
-import { Dropdown } from 'antd';
-import { useAuth } from '../../../core/context';
+import { Dropdown, Space, Tooltip } from 'antd';
+import { useAuth, useUi24Config } from '../../../core/context';
 import { Icon, Link } from "../../../core/common";
+import { useThemePreference, setThemePreference, type ThemePreference } from '../../../core/stores/theme';
 
 export const LogoutButton = () => {
   const { logout } = useAuth();
@@ -20,7 +21,56 @@ interface HeaderActionsProps {
 }
 
 export const HeaderActions = ({ secondaryMenuItems = [] }: HeaderActionsProps) => {
-  const dropdownItems: MenuProps[ 'items' ] = [
+  const { selectConfig } = useUi24Config();
+  const themeConfig = selectConfig(config => config.theme);
+  const currentPreference = useThemePreference();
+
+  const showThemeSwitcher = themeConfig?.showSwitcher !== false;
+
+  const handleThemeChange = (preference: ThemePreference) => {
+    setThemePreference(preference);
+  };
+
+  const themeButtons = useMemo(() => {
+    if (!showThemeSwitcher) return null;
+
+    const preferences: Array<{ key: ThemePreference; icon: React.ReactNode; tooltip: string }> = [
+      { key: 'light', icon: <SunOutlined />, tooltip: 'Light Mode' },
+      { key: 'dark', icon: <MoonOutlined />, tooltip: 'Dark Mode' },
+      { key: 'system', icon: <DesktopOutlined />, tooltip: 'System Theme' },
+    ];
+
+    return (
+      <Space.Compact>
+        {preferences.map(({ key, icon, tooltip }) => {
+          const isActive = currentPreference === key;
+          return (
+            <Tooltip key={key} title={tooltip}>
+              <a
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleThemeChange(key);
+                }}
+                style={{
+                  padding: '4px 8px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  opacity: isActive ? 1 : 0.5,
+                  color: isActive ? 'var(--ant-color-primary)' : 'inherit',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {icon}
+              </a>
+            </Tooltip>
+          );
+        })}
+      </Space.Compact>
+    );
+  }, [ currentPreference, showThemeSwitcher ]);
+
+  const dropdownItems: MenuProps[ 'items' ] = useMemo(() => [
     ...secondaryMenuItems.map((item, index) => ({
       key: `secondary-${index}`,
       label: item.url ? <Link title={item.label} url={item.url} /> : item.label,
@@ -31,14 +81,23 @@ export const HeaderActions = ({ secondaryMenuItems = [] }: HeaderActionsProps) =
         icon: child.icon ? <Icon iconName={child.icon} /> : undefined,
       })),
     })),
+    ...(showThemeSwitcher ? [
+      { type: 'divider' as const, key: 'divider-theme' },
+      {
+        key: 'theme-selector',
+        label: themeButtons,
+      },
+    ] : []),
     { type: 'divider' as const, key: 'divider-logout' },
     {
       key: 'logout',
       label: <LogoutButton />,
     },
-  ];
+  ], [ secondaryMenuItems, showThemeSwitcher, themeButtons ]);
 
-  return <Dropdown menu={{ items: dropdownItems }} trigger={[ 'click' ]}>
-    <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
-  </Dropdown>
+  return (
+    <Dropdown menu={{ items: dropdownItems }} trigger={[ 'click' ]}>
+      <a onClick={(e) => e.preventDefault()}>Admin <DownOutlined /></a>
+    </Dropdown>
+  );
 }
