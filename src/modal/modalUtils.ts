@@ -6,6 +6,33 @@
 export type ModalSizeType = 'confirm' | 'form' | 'list' | 'details' | 'dashboard' | 'accordion' | 'custom';
 
 /**
+ * Convert page type string to ModalSizeType for width calculation
+ */
+export function toModalSizeType(pageType: string | undefined): ModalSizeType {
+  if (!pageType) return 'details';
+  
+  switch (pageType) {
+    case 'view':
+      return 'details';
+    case 'create':
+    case 'edit':
+      return 'form';
+    case 'list':
+      return 'list';
+    case 'dashboard':
+      return 'dashboard';
+    case 'accordion':
+      return 'accordion';
+    case 'confirm':
+      return 'confirm';
+    case 'custom':
+      return 'custom';
+    default:
+      return 'details';
+  }
+}
+
+/**
  * Get default modal width based on page/modal type
  * These are maximums - CSS will constrain with max-width for stacking
  */

@@ -15,11 +15,16 @@ import {
   ExpandOutlined,
 } from '@ant-design/icons';
 import { useResolveRoute } from '../../hooks/useResolveRoute';
-import { RenderFromPageType } from '../../../pages/PostAuth/PostAuthPage';
+import { RenderFromPageType, isValidPageType, type IRenderFromPageType } from '../../../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../../context';
 import { useModalDepth, ModalDepthContext } from '../../../modal/Modal';
-import { getDefaultModalWidth } from '../../../modal/modalUtils';
+import { getDefaultModalWidth, toModalSizeType } from '../../../modal/modalUtils';
 import { ErrorFallback } from '../index';
+import {
+  isPageConfigEntry,
+  toRenderProps,
+  type PageConfigEntry,
+} from '../../types/pageConfig';
 import './CommandPalette.css';
 
 // ============================================================================
@@ -51,23 +56,23 @@ export interface CommandPaletteProps {
 // ============================================================================
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ReactNode }> = {
-  recent:     { label: 'Recent',     icon: <ClockCircleOutlined /> },
-  navigation: { label: 'Pages',      icon: <CompassOutlined /> },
-  entity:     { label: 'Entities',   icon: <AppstoreOutlined /> },
-  action:     { label: 'Actions',    icon: <ThunderboltOutlined /> },
-  command:    { label: 'Commands',   icon: <CodeOutlined /> },
-  custom:     { label: 'Custom',     icon: <FileOutlined /> },
+  recent: { label: 'Recent', icon: <ClockCircleOutlined /> },
+  navigation: { label: 'Pages', icon: <CompassOutlined /> },
+  entity: { label: 'Entities', icon: <AppstoreOutlined /> },
+  action: { label: 'Actions', icon: <ThunderboltOutlined /> },
+  command: { label: 'Commands', icon: <CodeOutlined /> },
+  custom: { label: 'Custom', icon: <FileOutlined /> },
 };
 
 const getCategoryMeta = (cat: string) =>
-  CATEGORY_META[cat] || { label: cat.charAt(0).toUpperCase() + cat.slice(1), icon: <FileOutlined /> };
+  CATEGORY_META[ cat ] || { label: cat.charAt(0).toUpperCase() + cat.slice(1), icon: <FileOutlined /> };
 
-const CATEGORY_ORDER = ['recent', 'navigation', 'entity', 'action', 'command', 'custom'];
+const CATEGORY_ORDER = [ 'recent', 'navigation', 'entity', 'action', 'command', 'custom' ];
 
 const FILTER_PREFIXES: Record<string, { categories: string[]; label: string }> = {
-  '>': { categories: ['command', 'action'], label: 'Commands' },
-  '/': { categories: ['navigation'],        label: 'Pages' },
-  '@': { categories: ['entity'],            label: 'Entities' },
+  '>': { categories: [ 'command', 'action' ], label: 'Commands' },
+  '/': { categories: [ 'navigation' ], label: 'Pages' },
+  '@': { categories: [ 'entity' ], label: 'Entities' },
 };
 
 // ============================================================================
@@ -129,8 +134,8 @@ function flatKeywords(item: CommandItem): string {
 
 function buildIndex(items: CommandItem[]): MiniSearch {
   const ms = new MiniSearch({
-    fields: ['title', 'description', 'keywordsText', 'path'],
-    storeFields: ['id'],
+    fields: [ 'title', 'description', 'keywordsText', 'path' ],
+    storeFields: [ 'id' ],
     searchOptions: {
       boost: { title: 3, description: 1, keywordsText: 2, path: 1 },
       prefix: true,
@@ -175,8 +180,9 @@ const PeekModal: React.FC<PeekModalProps> = ({ url, title, onClose }) => {
 
   const width = useMemo(() => {
     if (!pageConfig) return 1200;
-    return getDefaultModalWidth(pageConfig.pageType, undefined) || 1200;
-  }, [pageConfig]);
+    const pageType = isPageConfigEntry(pageConfig) ? pageConfig.pageType : undefined;
+    return getDefaultModalWidth(toModalSizeType(pageType), undefined) || 1200;
+  }, [ pageConfig ]);
 
   if (!found || !pageConfig) {
     return (
@@ -209,9 +215,10 @@ const PeekModal: React.FC<PeekModalProps> = ({ url, title, onClose }) => {
         <ErrorBoundary FallbackComponent={ErrorFallback} onReset={onClose}>
           <ModalContextProvider>
             <RenderFromPageType
-              {...pageConfig}
-              routeParams={params}
-              onCancelCallback={onClose}
+              {...toRenderProps(pageConfig, {
+                routeParams: params,
+                onCancelCallback: onClose,
+              })}
             />
           </ModalContextProvider>
         </ErrorBoundary>
@@ -233,11 +240,11 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 }) => {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState('');
+  const [ search, setSearch ] = useState('');
   const shiftHeld = useRef(false);
 
   // Peek modal state
-  const [peekItem, setPeekItem] = useState<{ url: string; title: string } | null>(null);
+  const [ peekItem, setPeekItem ] = useState<{ url: string; title: string } | null>(null);
 
   // Track Shift key globally
   useEffect(() => {
@@ -254,42 +261,42 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   // Force focus after modal animation
   useEffect(() => {
     if (open) {
-      const timers = [50, 150, 300].map(ms =>
+      const timers = [ 50, 150, 300 ].map(ms =>
         setTimeout(() => inputRef.current?.focus(), ms)
       );
       return () => timers.forEach(clearTimeout);
     } else {
       setSearch('');
     }
-  }, [open]);
+  }, [ open ]);
 
   // Reset scroll on open
   useEffect(() => {
     if (open) {
       requestAnimationFrame(() => listRef.current?.scrollTo(0, 0));
     }
-  }, [open]);
+  }, [ open ]);
 
   // ── Parse prefix + query ──────────────────────────────────────────────
   const activePrefix = Object.keys(FILTER_PREFIXES).find(p => search.startsWith(p));
-  const prefixMeta = activePrefix ? FILTER_PREFIXES[activePrefix] : null;
+  const prefixMeta = activePrefix ? FILTER_PREFIXES[ activePrefix ] : null;
   const query = activePrefix ? search.slice(activePrefix.length).trimStart() : search.trim();
 
   // ── Pre-filter items by prefix category ───────────────────────────────
   const prefilteredItems = useMemo(() => {
     if (!prefixMeta) return items;
     return items.filter(i => prefixMeta.categories.includes(i.category));
-  }, [items, prefixMeta]);
+  }, [ items, prefixMeta ]);
 
   // ── MiniSearch index ──────────────────────────────────────────────────
-  const miniSearch = useMemo(() => buildIndex(prefilteredItems), [prefilteredItems]);
+  const miniSearch = useMemo(() => buildIndex(prefilteredItems), [ prefilteredItems ]);
 
   // ── Item lookup map ───────────────────────────────────────────────────
   const itemMap = useMemo(() => {
     const map = new Map<string, CommandItem>();
     for (const item of items) map.set(item.id, item);
     return map;
-  }, [items]);
+  }, [ items ]);
 
   // ── Search ────────────────────────────────────────────────────────────
   const { results, searchTerms } = useMemo<{
@@ -315,7 +322,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       .filter((item): item is CommandItem => !!item);
 
     return { results: matched, searchTerms: Array.from(allTerms) };
-  }, [query, miniSearch, prefilteredItems, itemMap]);
+  }, [ query, miniSearch, prefilteredItems, itemMap ]);
 
   // ── Group results by category ─────────────────────────────────────────
   const grouped = useMemo(() => {
@@ -338,7 +345,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       groups.push({ category: cat, items: remaining.filter(i => i.category === cat) });
     }
     return groups;
-  }, [results, recentCount]);
+  }, [ results, recentCount ]);
 
   const totalResults = results.length;
 
@@ -351,7 +358,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
     item.onSelect();
     onClose();
-  }, [onClose]);
+  }, [ onClose ]);
 
   return (
     <>

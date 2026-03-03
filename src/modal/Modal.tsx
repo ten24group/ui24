@@ -145,6 +145,9 @@ export interface IResponseDisplayConfig {
    * Example: "data.results" will use response.data.results as the data source
    */
   dataPath?: string;
+
+  /** Nested response config for chaining operations (e.g., form -> form -> details) */
+  responseConfig?: IResponseDisplayConfig;
 }
 
 export interface IModalConfig {

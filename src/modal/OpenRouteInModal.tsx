@@ -28,15 +28,21 @@ import { useResolveRoute } from '../core/hooks/useResolveRoute';
 import { useEntityConfig } from '../core/hooks/useEntityConfig';
 import type { IEntityConfigReference } from '../core/hooks/useEntityConfig';
 import { Link, ErrorFallback } from '../core/common';
-import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
+import { RenderFromPageType, isValidPageType, type IRenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { ModalContextProvider } from '../core/context';
 import { substituteUrlParams } from '../core/utils';
-import { getDefaultModalWidth } from './modalUtils';
+import { getDefaultModalWidth, toModalSizeType } from './modalUtils';
 import { evaluateTemplateValue } from '../core/utils/template';
 import type { Template } from '../core/types';
 import { useCoreNavigator } from '../routes/Navigation';
 import { useModalDepth, ModalDepthContext } from './Modal';
 import { useModalInstrumentation, useModalContentSpan } from '../core/telemetry';
+import {
+  isPageConfigEntry,
+  isEntityConfigReference,
+  toRenderProps,
+  type PageConfigEntry,
+} from '../core/types/pageConfig';
 
 export interface OpenRouteInModalProps {
   /** 
@@ -252,16 +258,34 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   }, [ location.pathname, open ]);
 
   // Extract entity name and page type for instrumentation
-  const extractEntityName = () => {
-    return (pageConfig)?.formPageConfig?.entityName ||
-      (pageConfig)?.listPageConfig?.entityName ||
-      (pageConfig)?.detailsPageConfig?.entityName ||
-      (pageConfig)?.pageTitle ||
-      'Unknown';
+  const extractEntityName = (): string => {
+    if (!pageConfig) return 'Unknown';
+
+    // Handle IEntityConfigReference
+    if (isEntityConfigReference(pageConfig)) {
+      return pageConfig.entityName;
+    }
+
+    // Handle PageConfigEntry
+    if (isPageConfigEntry(pageConfig)) {
+      return pageConfig.formPageConfig?.entityName ||
+        pageConfig.listPageConfig?.entityName ||
+        pageConfig.detailsPageConfig?.entityName ||
+        pageConfig.pageTitle ||
+        'Unknown';
+    }
+
+    return 'Unknown';
   };
 
-  const extractPageType = () => {
-    return (pageConfig)?.pageType || 'unknown';
+  const extractPageType = (): string => {
+    if (!pageConfig) return 'unknown';
+
+    if (isEntityConfigReference(pageConfig) || isPageConfigEntry(pageConfig)) {
+      return pageConfig.pageType || 'unknown';
+    }
+
+    return 'unknown';
   };
 
   // Modal content span (active while modal is open) - managed automatically
@@ -320,7 +344,11 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   const finalWidth = React.useMemo(() => {
     if (!pageConfig) return getDefaultModalWidth('details', modalWidth);
 
-    return getDefaultModalWidth(pageConfig.pageType as any, modalWidth);
+    const pageType = (isEntityConfigReference(pageConfig) || isPageConfigEntry(pageConfig))
+      ? pageConfig.pageType
+      : undefined;
+
+    return getDefaultModalWidth(toModalSizeType(pageType), modalWidth);
   }, [ pageConfig, modalWidth ]);
 
   // Merge route params: original routeParams + resolved params from URL + query params
@@ -335,11 +363,19 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   // Evaluate modalTitle template if provided, otherwise use page title
   // Use finalRouteParams (includes record data) instead of just params
   const finalTitle = React.useMemo(() => {
-    const pageTitleFallback = pageConfig?.pageTitle;
+    let pageTitleFallback: string | undefined;
+
+    if (pageConfig && isPageConfigEntry(pageConfig)) {
+      pageTitleFallback = pageConfig.pageTitle;
+    } else if (pageConfig && isEntityConfigReference(pageConfig)) {
+      // IEntityConfigReference might have pageTitle in overrideConfig
+      pageTitleFallback = pageConfig.overrideConfig?.pageTitle;
+    }
+
     return modalTitle
       ? evaluateTemplateValue(modalTitle, finalRouteParams, pageTitleFallback)
       : pageTitleFallback;
-  }, [ modalTitle, finalRouteParams, pageConfig?.pageTitle ]);
+  }, [ modalTitle, finalRouteParams, pageConfig ]);
 
   return (
     <>
@@ -381,10 +417,11 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
               {/* Wrap in ModalContext so child components know they're in a modal */}
               <ModalContextProvider onClose={handleClose}>
                 <RenderFromPageType
-                  {...pageConfig}
-                  routeParams={finalRouteParams}
-                  onSuccessCallback={handleSuccess}
-                  onCancelCallback={handleClose}
+                  {...toRenderProps(pageConfig, {
+                    routeParams: finalRouteParams,
+                    onSuccessCallback: handleSuccess,
+                    onCancelCallback: handleClose,
+                  })}
                 />
               </ModalContextProvider>
             </ErrorBoundary>

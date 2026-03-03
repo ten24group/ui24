@@ -20,13 +20,13 @@ import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 
 // Lazy-load @ant-design/plots to keep the main bundle size small
 const TinyLineLazy = React.lazy(() =>
-  import('@ant-design/plots').then(m => ({ default: m.TinyLine }))
+  import('@ant-design/plots').then(m => ({ default: m.Tiny.Line }))
 );
 const TinyAreaLazy = React.lazy(() =>
-  import('@ant-design/plots').then(m => ({ default: m.TinyArea }))
+  import('@ant-design/plots').then(m => ({ default: m.Tiny.Area }))
 );
 const TinyColumnLazy = React.lazy(() =>
-  import('@ant-design/plots').then(m => ({ default: m.TinyColumn }))
+  import('@ant-design/plots').then(m => ({ default: m.Tiny.Column }))
 );
 
 interface SparklineConfig {

@@ -98,7 +98,7 @@ import { DragSortWrapper, DragHandleCell, SortableRow } from './DragSortTable';
 import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined, ColumnHeightOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { Resizable } from 'react-resizable';
 import { useTable } from "./useTable";
-import { ITableConfig, IRecord, ITableSummaryConfig } from "./type";
+import { ITableConfig, IRecord, ITableSummaryConfig, ITableApiConfig } from "./type";
 import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
 import { AppliedFiltersDisplay } from './AppliedFilters/AppliedFiltersDisplay';
@@ -351,6 +351,17 @@ export const Table = ({
     paginationConfig,
     dataSource: preloadedRecords,
   });
+
+  // Resolve API config for view switcher layouts (handles dual API configs)
+  const resolvedApiConfigForLayouts: ITableApiConfig | undefined = useMemo(() => {
+    if (!apiConfig) return undefined;
+    // If dual API config, resolve based on current search mode
+    if ('search' in apiConfig && 'database' in apiConfig) {
+      return isSearchMode ? apiConfig.search : apiConfig.database;
+    }
+    // Otherwise, it's already a simple ITableApiConfig
+    return apiConfig as ITableApiConfig;
+  }, [apiConfig, isSearchMode]);
 
   // Deep linking: bidirectional URL sync (#21)
   useDeepLink(deepLinkConfig, {
@@ -1312,7 +1323,7 @@ export const Table = ({
                 recordIdentifierKey={recordIdentifierKey}
                 onRecordClick={kanbanRecordClickHandler}
                 onMoveRecord={viewSwitcherConfig.kanbanConfig.moveApiConfig ? handleKanbanMoveRecord : undefined}
-                parentApiConfig={apiConfig}
+                parentApiConfig={resolvedApiConfigForLayouts}
                 appliedFilters={appliedFilters}
                 routeParams={routeParams}
                 entityName={entityName}
@@ -1324,7 +1335,7 @@ export const Table = ({
                 config={viewSwitcherConfig.calendarConfig}
                 recordIdentifierKey={recordIdentifierKey}
                 onRecordClick={calendarRecordClickHandler}
-                parentApiConfig={apiConfig}
+                parentApiConfig={resolvedApiConfigForLayouts}
                 appliedFilters={appliedFilters}
                 routeParams={routeParams}
                 entityName={entityName}
@@ -1336,7 +1347,7 @@ export const Table = ({
                 config={viewSwitcherConfig.treeConfig}
                 recordIdentifierKey={recordIdentifierKey}
                 onRecordClick={treeRecordClickHandler}
-                parentApiConfig={apiConfig}
+                parentApiConfig={resolvedApiConfigForLayouts}
                 appliedFilters={appliedFilters}
                 routeParams={routeParams}
                 entityName={entityName}
@@ -1348,7 +1359,7 @@ export const Table = ({
                 config={viewSwitcherConfig.mapConfig}
                 recordIdentifierKey={recordIdentifierKey}
                 onRecordClick={mapRecordClickHandler}
-                parentApiConfig={apiConfig}
+                parentApiConfig={resolvedApiConfigForLayouts}
                 appliedFilters={appliedFilters}
                 routeParams={routeParams}
                 entityName={entityName}

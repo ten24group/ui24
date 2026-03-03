@@ -113,6 +113,9 @@ export interface IEntityConfigReference {
   };
 }
 
+// Re-export from centralized location
+export { isEntityConfigReference } from '../types/pageConfig';
+
 function isDualApiConfig(config: unknown): config is IDualApiConfig {
   return !!config && typeof config === 'object' && 'search' in config && 'database' in config;
 }
