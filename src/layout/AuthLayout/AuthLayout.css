@@ -1,5 +1,6 @@
 .login-layout {
-  min-height: 100vh; /* Ensure it takes up the full viewport height */
+  min-height: 100vh;
+  /* Ensure it takes up the full viewport height */
   display: flex;
   justify-content: center;
   align-items: center;
@@ -19,32 +20,38 @@
   overflow: auto;
   background: inherit;
 }
-  
+
 .login-row {
   margin: 0 auto;
 }
 
 .containerTop {
   text-align: center;
-  
+
 }
 
-.containerTop > .header {
+.containerTop>.header {
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.logo > img {
-  width: 35vw; /* Adjusts size based on the viewport width */
-  height: auto; /* Maintains the image's aspect ratio */
+.logo>img {
+  width: 35vw;
+  /* Adjusts size based on the viewport width */
+  height: auto;
+  /* Maintains the image's aspect ratio */
   margin-inline-end: 8px;
-  max-width: 120px; /* Ensures the logo doesn't get too large on wider screens */
-  min-width: 50px; /* Ensures the logo remains visible on smaller screens */
+  max-width: 120px;
+  /* Ensures the logo doesn't get too large on wider screens */
+  min-width: 50px;
+  /* Ensures the logo remains visible on smaller screens */
 }
+
 @media (min-width: 768px) {
-  .logo > img {
-    width: 10vw; /* Reduce the width on larger screens */
+  .logo>img {
+    width: 10vw;
+    /* Reduce the width on larger screens */
   }
 }
 
@@ -60,7 +67,7 @@
   line-height: 44px;
 }
 
-.containerTop > .description {
+.containerTop>.description {
   margin-block-start: 12px;
   margin-block-end: 40px;
   color: rgba(0, 0, 0, 0.65);

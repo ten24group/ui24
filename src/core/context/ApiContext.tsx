@@ -14,7 +14,7 @@ import { captureRequest, captureResponse } from '../devtools/store/network';
 export interface IApiConfig {
     apiUrl: string;
     apiMethod: string;
-    payload?: Record<string, unknown> | FormData | string;
+    payload?: Record<string, any> | FormData | string;
     responseKey?: string;
     useSearch?: boolean;
     headers?: Record<string, string>;
@@ -376,7 +376,7 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
                         duration,
                         responseBody: response.data,
                         responseHeaders: Object.fromEntries(
-                            Object.entries(response.headers || {}).map(([k, v]) => [k, String(v)])
+                            Object.entries(response.headers || {}).map(([ k, v ]) => [ k, String(v) ])
                         ),
                     });
                 }

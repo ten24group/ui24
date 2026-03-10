@@ -672,7 +672,7 @@ class ExtensionRegistryImpl {
    */
   public getRegisteredFieldTypeKeys(): string[] {
     const keys = new Set<string>();
-    this.fieldTypeOverrides.forEach((_, k) => keys.add(k.split(':')[0]));
+    this.fieldTypeOverrides.forEach((_, k) => keys.add(k.split(':')[ 0 ]));
     this.fieldRenderers.forEach((_, k) => keys.add(k));
     return Array.from(keys);
   }
@@ -785,7 +785,7 @@ class ExtensionRegistryImpl {
     const existing = this.commands.findIndex(c => c.id === config.id);
     if (existing >= 0) {
       this.log('warn', `Overwriting command: ${config.id}`);
-      this.commands[existing] = config;
+      this.commands[ existing ] = config;
     } else {
       this.commands.push(config);
     }

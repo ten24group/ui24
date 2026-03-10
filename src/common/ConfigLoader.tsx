@@ -74,7 +74,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                 'span.level': 'info',
             });
 
-            try{
+            try {
                 // Verify token if needed
                 if (authConfig) {
                     try {
@@ -171,9 +171,14 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [ isLoggedIn ]);
 
+    // Show loading spinner if:
+    // 1. Auth config hasn't loaded yet (needed for login page), OR
+    // 2. Any config is currently loading (loader state)
+    const shouldShowLoader = !authConfigLoadedRef.current || loader;
+
     return (
         <ConfigLoaderContext.Provider value={undefined}>
-            <Spin spinning={loader} style={{
+            <Spin spinning={shouldShowLoader} style={{
                 paddingTop: '25%',
                 display: 'flex',
                 justifyContent: 'center',
