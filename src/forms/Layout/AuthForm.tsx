@@ -13,12 +13,12 @@ export const AuthForm = ({
     children,
     message,
     ...props
-} : AuthFormProps) => {
+}: AuthFormProps) => {
 
     const { propertiesConfig } = props;
     const formPropertiesConfig: Array<any> = propertiesConfig?.length > 0 ? convertColumnsConfigForFormField(propertiesConfig) : [];
 
-    if( propertiesConfig.length === 0 ) {
+    if (propertiesConfig.length === 0) {
         return null;
     }
 
@@ -32,6 +32,7 @@ export const AuthForm = ({
             <Form
                 formConfig={formConfig}
                 propertiesConfig={formPropertiesConfig}
+                columnsConfig={{ numColumns: 1, columns: [] }}
                 {...props}
             >
                 {children}
