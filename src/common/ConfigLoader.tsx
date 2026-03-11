@@ -51,8 +51,8 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                             auth: authResponse[ 0 ]
                         }
                     });
-                    authConfigLoadedRef.current = true;
                 }
+                authConfigLoadedRef.current = true;
             } catch (error) {
                 console.error('Error loading auth config:', error);
             } finally {
