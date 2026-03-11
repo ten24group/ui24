@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.16](https://github.com/ten24group/ui24/compare/v1.1.0-beta.15...v1.1.0-beta.16) (2026-03-11)
+
+
+### Bug Fixes
+
+* Correct loading state assignment in ConfigLoader ([9c3fb8b](https://github.com/ten24group/ui24/commit/9c3fb8bce96b02aa5767437faee04e04e2b2d55a))
+
 ## [1.1.0-beta.15](https://github.com/ten24group/ui24/compare/v1.1.0-beta.14...v1.1.0-beta.15) (2026-03-10)
 
 ## [1.1.0-beta.14](https://github.com/ten24group/ui24/compare/v1.1.0-beta.13...v1.1.0-beta.14) (2026-03-03)
