@@ -58,27 +58,27 @@ const MakeFormItem = ({
     const pipelineResult = processField(fieldConfig, initialValue, formValues);
     const dependencyFilters = React.useMemo(() => {
         if (!dependsOn || !form) return undefined;
-        const deps = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
+        const deps = Array.isArray(dependsOn) ? dependsOn : [ dependsOn ];
         const filters: Record<string, unknown> = {};
         let hasValue = false;
         for (const dep of deps) {
             const val = form.getFieldValue(dep);
             if (val !== undefined && val !== null && val !== '') {
-                filters[dep] = val;
+                filters[ dep ] = val;
                 hasValue = true;
             }
         }
         return hasValue ? filters : undefined;
-    }, [dependsOn, form]);
+    }, [ dependsOn, form ]);
 
     // Force re-render when dependency fields change by watching all form values
     // (antd's Form.useWatch with no specific field watches all values)
     const watchedDeps = Form.useWatch(
         dependsOn
             ? (values: Record<string, unknown>) => {
-                const deps = Array.isArray(dependsOn) ? dependsOn : [dependsOn];
-                return deps.map(d => values?.[d]);
-              }
+                const deps = Array.isArray(dependsOn) ? dependsOn : [ dependsOn ];
+                return deps.map(d => values?.[ d ]);
+            }
             : () => null,
         form
     );
@@ -93,12 +93,12 @@ const MakeFormItem = ({
             return;
         }
         // Check if any dependency value actually changed
-        const changed = watchedDeps.some((v: unknown, i: number) => v !== prevDepsRef.current?.[i]);
+        const changed = watchedDeps.some((v: unknown, i: number) => v !== prevDepsRef.current?.[ i ]);
         if (changed) {
             form.setFieldValue(name, undefined);
             prevDepsRef.current = watchedDeps;
         }
-    }, [watchedDeps, dependsOn, form, name]);
+    }, [ watchedDeps, dependsOn, form, name ]);
 
     const formatConfig = selectConfig(config => config.formatConfig);
     const { Component: CustomFieldRenderer, props: customFieldProps } = useFieldRenderer('' + (fieldType || ''), 'form', {
