@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.17](https://github.com/ten24group/ui24/compare/v1.1.0-beta.16...v1.1.0-beta.17) (2026-03-12)
+
+
+### Bug Fixes
+
+* Update default theme preference to 'light' in theme store ([15016fd](https://github.com/ten24group/ui24/commit/15016fd128569a86a34a623851437e57144c9cef))
+
 ## [1.1.0-beta.16](https://github.com/ten24group/ui24/compare/v1.1.0-beta.15...v1.1.0-beta.16) (2026-03-11)
 
 
