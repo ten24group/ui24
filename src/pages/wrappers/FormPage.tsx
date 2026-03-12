@@ -71,13 +71,17 @@ export const FormPage: React.FC<FormPageProps> = ({
     const result: Record<string, unknown> = {};
     for (const field of (formProps.propertiesConfig ?? [])) {
       if (field.defaultValue !== undefined) {
-        result[ field.name ] = isConditionalValue(field.defaultValue)
-          ? conditionEvaluator.resolveValue(field.defaultValue, evalCtx)
-          : field.defaultValue;
+        // CRITICAL FIX: Use column as the field name if available, otherwise fallback to name/id.
+        // The backend generator puts the display label in 'name' and the actual field name in 'column'.
+        const fieldName = field.column || field.name || field.id || '';
+        if (fieldName) {
+          result[ fieldName ] = isConditionalValue(field.defaultValue)
+            ? conditionEvaluator.resolveValue(field.defaultValue, evalCtx)
+            : field.defaultValue;
+        }
       }
     }
     return result;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ formProps.propertiesConfig, evalCtx ]);
 
   // Resolve ConditionalValue in page-level defaultValues dict
@@ -136,8 +140,7 @@ export const FormPage: React.FC<FormPageProps> = ({
       });
 
     return () => { cancelled = true; };
-  // Re-fetch when route params change (e.g. on navigate to a different record)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Re-fetch when route params change (e.g. on navigate to a different record)
   }, [ formProps.schemaApiConfig?.apiUrl, routeParams ]);
 
   // Effective fields: dynamic (server) schema if available, else static
