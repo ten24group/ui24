@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.18](https://github.com/ten24group/ui24/compare/v1.1.0-beta.17...v1.1.0-beta.18) (2026-03-13)
+
+
+### Bug Fixes
+
+* **query:** improve react-query cache invalidation for entities ([ad8ccc9](https://github.com/ten24group/ui24/commit/ad8ccc9a911daecf30a99d00b975b73ab69345e0))
+
 ## [1.1.0-beta.17](https://github.com/ten24group/ui24/compare/v1.1.0-beta.16...v1.1.0-beta.17) (2026-03-12)
 
 
