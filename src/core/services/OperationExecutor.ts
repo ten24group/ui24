@@ -42,6 +42,8 @@ export interface OperationConfig {
   // ===== Payload & Context =====
   payload?: any;
   routeParams?: Record<string, any>;
+  entityName?: string; // Entity name for cache invalidation (if apiUrl is substituted)
+  originalApiUrl?: string; // Original unsubstituted API URL for cache invalidation
 
   // ===== Modal Depth Override =====
   /** Override modal depth for z-index calculation of response modals */
@@ -275,7 +277,11 @@ export class OperationExecutor {
     }
 
     // Invalidate React Query cache for the affected entity (auto-derived from apiUrl)
-    invalidateEntityCacheFromUrl(config.apiConfig.apiUrl);
+    if (config.entityName) {
+      invalidateEntityCacheByName(config.entityName);
+    } else {
+      invalidateEntityCacheFromUrl(config.originalApiUrl || config.apiConfig.apiUrl);
+    }
 
     // Invalidate additional explicitly-specified related entities
     if (config.invalidateRelated?.length) {

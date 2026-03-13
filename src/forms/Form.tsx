@@ -544,6 +544,9 @@ export function Form({
             payload: formattedValues
           },
           routeParams,
+          entityName,
+          originalApiUrl: apiConfig.apiUrl,
+          invalidateRelated: entityName ? [entityName] : undefined,
           onLoading: (loading) => {
             setLoader(loading);
             setBtnLoader(loading);

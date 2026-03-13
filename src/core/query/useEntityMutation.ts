@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 import { useApi, type IApiConfig } from '../context/ApiContext';
 import { queryKeys } from './queryKeys';
 import { queryClient } from './QueryProvider';
+import { deriveEntityName } from '../utils';
 
 export interface UseEntityMutationOptions {
   /** Entity name — used to invalidate related caches on success */
@@ -59,14 +60,14 @@ export function useEntityMutation({ entityName, relatedEntities = [], onInvalida
     if (onInvalidate) {
       await onInvalidate();
     }
-  }, [queryClient, entityName, relatedEntities, onInvalidate]);
+  }, [ queryClient, entityName, relatedEntities, onInvalidate ]);
 
   /**
    * Invalidate only list queries (lighter-weight, for when detail data is unchanged).
    */
   const invalidateLists = useCallback(
     () => queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).lists() }),
-    [queryClient, entityName]
+    [ queryClient, entityName ]
   );
 
   /**
@@ -74,7 +75,7 @@ export function useEntityMutation({ entityName, relatedEntities = [], onInvalida
    */
   const invalidateDetails = useCallback(
     () => queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).details() }),
-    [queryClient, entityName]
+    [ queryClient, entityName ]
   );
 
   /**
@@ -82,7 +83,7 @@ export function useEntityMutation({ entityName, relatedEntities = [], onInvalida
    */
   const invalidateFieldOptions = useCallback(
     () => queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).allFieldOptions() }),
-    [queryClient, entityName]
+    [ queryClient, entityName ]
   );
 
   return {
@@ -102,6 +103,7 @@ export function useEntityMutation({ entityName, relatedEntities = [], onInvalida
  * Uses the singleton queryClient, so no hook context is required.
  */
 export function invalidateEntityCacheByName(entityName: string): Promise<void> {
+  console.log('[invalidateEntityCacheByName] invalidating queryKey:', queryKeys.entity(entityName).all);
   return queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).all });
 }
 
@@ -116,14 +118,9 @@ export function invalidateEntityCacheByName(entityName: string): Promise<void> {
 export function invalidateEntityCacheFromUrl(apiUrl?: string): void {
   if (!apiUrl) return;
 
-  const parts = apiUrl.split('/').filter(Boolean);
-  let entityName: string | undefined;
-  for (let i = parts.length - 1; i >= 0; i--) {
-    if (!parts[i].startsWith(':')) {
-      entityName = parts[i];
-      break;
-    }
-  }
+  const entityName = deriveEntityName(apiUrl);
+
+  console.log('[invalidateEntityCacheFromUrl] apiUrl:', apiUrl, 'derived entityName:', entityName);
 
   if (entityName && entityName !== 'unknown') {
     invalidateEntityCacheByName(entityName);
