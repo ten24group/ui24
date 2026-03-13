@@ -106,8 +106,19 @@ export const deriveEntityName = (apiUrl?: string, entityName?: string): string =
   if (entityName) return entityName;
   const url = apiUrl || '';
   const parts = url.split('/').filter(Boolean);
-  const lastPart = parts[ parts.length - 1 ] || 'unknown';
-  return lastPart.startsWith(':') ? (parts[ parts.length - 2 ] || 'unknown') : lastPart;
+
+  // Walk backwards to find the first part that is not a parameter, not an action verb, and not an ID
+  const actionVerbs = [ 'search', 'list', 'create', 'update', 'delete', 'duplicate' ];
+  const isId = (part: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i.test(part) || /^\d+$/.test(part);
+
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[ i ];
+    if (!part.startsWith(':') && !actionVerbs.includes(part.toLowerCase()) && !isId(part)) {
+      return part;
+    }
+  }
+
+  return parts[ parts.length - 1 ] || 'unknown';
 };
 
 /**

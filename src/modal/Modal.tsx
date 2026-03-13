@@ -482,6 +482,7 @@ export const Modal = ({
           ...apiConfig,
           apiUrl: formattedApiUrl
         },
+        originalApiUrl: apiConfig.apiUrl,
         routeParams,
         onLoading: setLoading,
         successMessage,
