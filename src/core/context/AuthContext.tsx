@@ -175,7 +175,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       refreshToken: authProvider.refreshToken,
       rememberMe,
       setRememberMe,
-      // FIXED: Expose decoded user information from JWT token
+      getCredentials: authProvider.getCredentials?.bind(authProvider),
       user,
     }}>
       {children}

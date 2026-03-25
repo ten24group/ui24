@@ -99,4 +99,11 @@ export interface IAuthProvider {
    * Called when the provider is being replaced or component unmounts.
    */
   destroy?(): void;
+
+  /**
+   * Retrieves the current AWS temporary credentials (cached or freshly fetched).
+   * Used by micro-frontends that need SigV4-signed requests.
+   * @returns A promise that resolves to credentials, or null if unavailable.
+   */
+  getCredentials?(): Promise<{ accessKeyId: string; secretAccessKey: string; sessionToken?: string; expiration?: Date } | null>;
 }
