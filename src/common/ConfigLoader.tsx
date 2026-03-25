@@ -28,7 +28,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { callApiMethod } = useApi();
     const { login, logout, isLoggedIn } = useAuth();
     const configLoadedRef = useRef(false);
-    const authConfigLoadedRef = useRef(false);
+    const [ authConfigLoaded, setAuthConfigLoaded ] = useState(false);
 
     // Get all config URLs at once
     const { auth: authConfigUrl } = selectConfig(config => config.uiConfig);
@@ -36,23 +36,27 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const authConfig = selectConfig(config => config.auth?.verifyToken);
     const pagesConfig = selectConfig(config => config.pagesConfig || []);
 
-    // Load auth config separately as it's needed for the login page
+    // Load auth config separately as it's needed for the login page.
+    // When auth is a direct object (not a URL), mark loaded immediately.
     useEffect(() => {
-        async function loadAuthConfig() {
-            if (authConfigLoadedRef.current) return;
-            setLoader(true);
+        if (authConfigLoaded) return;
 
+        if (typeof authConfigUrl !== 'string') {
+            setAuthConfigLoaded(true);
+            return;
+        }
+
+        async function loadAuthConfig() {
+            setLoader(true);
             try {
-                if (typeof authConfigUrl === 'string') {
-                    const authResponse = await dedupeRequest(authConfigUrl, () => loadConfigs(authConfigUrl));
-                    updateConfig({
-                        'uiConfig': {
-                            ...selectConfig(config => config.uiConfig),
-                            auth: authResponse[ 0 ]
-                        }
-                    });
-                }
-                authConfigLoadedRef.current = true;
+                const authResponse = await dedupeRequest(authConfigUrl as string, () => loadConfigs(authConfigUrl as string));
+                updateConfig({
+                    'uiConfig': {
+                        ...selectConfig(config => config.uiConfig),
+                        auth: authResponse[ 0 ]
+                    }
+                });
+                setAuthConfigLoaded(true);
             } catch (error) {
                 console.error('Error loading auth config:', error);
             } finally {
@@ -171,10 +175,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
         return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }, [ isLoggedIn ]);
 
-    // Show loading spinner if:
-    // 1. Auth config hasn't loaded yet (needed for login page), OR
-    // 2. Any config is currently loading (loader state)
-    const shouldShowLoader = !authConfigLoadedRef.current || loader;
+    const shouldShowLoader = !authConfigLoaded || loader;
 
     return (
         <ConfigLoaderContext.Provider value={undefined}>
