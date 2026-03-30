@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.21](https://github.com/ten24group/ui24/compare/v1.1.0-beta.20...v1.1.0-beta.21) (2026-03-30)
+
+
+### Features
+
+* add inline table field type for rendering array-of-objects as a compact Ant Design table ([2bee81e](https://github.com/ten24group/ui24/commit/2bee81eb7c33bfa486452221acdaa8d26d224eac))
+
 ## [1.1.0-beta.20](https://github.com/ten24group/ui24/compare/v1.1.0-beta.19...v1.1.0-beta.20) (2026-03-25)
 
 ## [1.1.0-beta.19](https://github.com/ten24group/ui24/compare/v1.1.0-beta.18...v1.1.0-beta.19) (2026-03-25)
