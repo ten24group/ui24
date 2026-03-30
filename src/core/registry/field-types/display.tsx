@@ -1,5 +1,5 @@
-import React from 'react';
-import { Input, Badge, Tag, Progress, Avatar, Timeline } from 'antd';
+import React, { useMemo } from 'react';
+import { Input, Badge, Tag, Progress, Avatar, Timeline, Table } from 'antd';
 import { useFormat } from '../../hooks/useFormat';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
 import { OpenInModal } from '../../../modal/Modal';
@@ -286,7 +286,7 @@ const IconTable: React.FC<BuiltInTableFieldProps> = ({ value }) => {
 const ListDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
   if (!Array.isArray(value) || value.length === 0) return <span>—</span>;
 
-  // Primitive array — render as a comma-separated inline list (≤5) or bullet list (>5)
+  // Primitive array — render as tags (≤5) or bullet list (>5)
   if (value.every(item => typeof item === 'string' || typeof item === 'number')) {
     if (value.length <= 5) {
       return (
@@ -306,22 +306,57 @@ const ListDetail: React.FC<BuiltInDetailFieldProps> = ({ value }) => {
     );
   }
 
-  // Object array — render as a compact table-like stack
+  // Object array — auto-render as an inline Ant Design table
+  const objectItems = value.filter(
+    (item): item is Record<string, unknown> => typeof item === 'object' && item !== null
+  );
+  if (objectItems.length > 0) {
+    return <AutoInlineTable rows={objectItems} />;
+  }
+
+  return <span>{JSON.stringify(value)}</span>;
+};
+
+function toTitleCase(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .trim();
+}
+
+const AutoInlineTable: React.FC<{ rows: Array<Record<string, unknown>> }> = ({ rows }) => {
+  const columns = useMemo(() => {
+    const keySet = new Set<string>();
+    for (const row of rows) {
+      for (const key of Object.keys(row)) {
+        keySet.add(key);
+      }
+    }
+    return Array.from(keySet).map(key => ({
+      title: toTitleCase(key),
+      dataIndex: key,
+      key,
+      render: (val: unknown) => (val != null ? String(val) : '—'),
+    }));
+  }, [ rows ]);
+
+  const dataSource = useMemo(
+    () => rows.map((row, idx) => ({ ...row, _rowKey: idx })),
+    [ rows ]
+  );
+
   return (
-    <div>
-      {value.map((item, i) => (
-        <div key={i} style={{ marginBottom: 4, padding: '4px 8px', background: 'var(--ant-color-fill-quaternary, rgba(0, 0, 0, 0.02))', border: '1px solid var(--ant-color-border-secondary, #f0f0f0)', borderRadius: 4, fontSize: 12 }}>
-          {typeof item === 'object' && item !== null
-            ? Object.entries(item as Record<string, unknown>).map(([ k, v ]) => (
-              <span key={k} style={{ marginRight: 8 }}>
-                <b>{k}:</b> {String(v ?? '—')}
-              </span>
-            ))
-            : String(item)
-          }
-        </div>
-      ))}
-    </div>
+    <Table
+      dataSource={dataSource}
+      columns={columns}
+      rowKey="_rowKey"
+      size="small"
+      showHeader
+      bordered
+      pagination={false}
+      style={{ width: '100%' }}
+    />
   );
 };
 

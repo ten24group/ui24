@@ -68,6 +68,9 @@ export type FieldType =
   // Timeline & events
   | "timeline"
 
+  // Inline table (renders array-of-objects as a compact read-only table)
+  | "inline-table"
+
   // Special
   | "custom";
 

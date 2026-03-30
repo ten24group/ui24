@@ -105,6 +105,37 @@ export interface IQuickCreateConfig {
 export type IPreDefinedValidations = "required" | "email" | `match:${string}`;
 
 /**
+ * Column definition for inline-table field type.
+ */
+export interface IInlineTableColumnConfig {
+  /** Object key to extract the cell value from */
+  key: string;
+  /** Column header label (falls back to `key` when omitted) */
+  label?: string;
+  /** Fixed column width in pixels */
+  width?: number;
+  /** Horizontal alignment (default: 'left') */
+  align?: 'left' | 'center' | 'right';
+}
+
+/**
+ * Configuration for inline-table field type.
+ * Renders an array-of-objects as a compact, read-only Ant Design table.
+ */
+export interface IInlineTableConfig {
+  /** Column definitions */
+  columns: IInlineTableColumnConfig[];
+  /** Ant Design table size (default: 'small') */
+  size?: 'small' | 'middle' | 'large';
+  /** Whether to show column headers (default: true) */
+  showHeader?: boolean;
+  /** Whether to show cell borders (default: true) */
+  bordered?: boolean;
+  /** Maximum visible rows before scroll (default: unlimited) */
+  maxRows?: number;
+}
+
+/**
  * Field-specific properties for all field types.
  * 100% parity with backend PropertyConfig in fw24/src/ui-config-gen/templates/custom-page.ts
  * 
@@ -225,6 +256,9 @@ export interface IFieldTypeProperties {
     /** Character used for unfilled mask positions (default: '_') */
     placeholderChar?: string;
   };
+
+  // Inline table field properties
+  inlineTableConfig?: IInlineTableConfig;
 
   // Timeline field properties
   timelineConfig?: {

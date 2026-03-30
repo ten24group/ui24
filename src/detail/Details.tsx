@@ -611,6 +611,24 @@ const Details: React.FC<IDetailsComponentProps> = ({
                       );
                     }
 
+                    // List-of-objects: render as an inline table instead of JSON
+                    if (
+                      item.type === 'list' &&
+                      Array.isArray(value) &&
+                      value.length > 0 &&
+                      value.some(v => typeof v === 'object' && v !== null)
+                    ) {
+                      const rendererKey = item.fieldType === 'inline-table' ? 'inline-table' : 'list';
+                      const ListRenderer = fieldTypeRegistry.get(rendererKey, 'detail');
+                      if (ListRenderer) {
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                            <ListRenderer value={value} config={item} />
+                          </DetailsFieldWrapper>
+                        );
+                      }
+                    }
+
                     // Complex data (json, map, list, objects)
                     const isComplexData =
                       ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
