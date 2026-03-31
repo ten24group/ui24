@@ -44,7 +44,6 @@ export const useAutoRefresh = ({
   const [ intervalSeconds, setIntervalSeconds ] = useState<AutoRefreshInterval>(defaultInterval);
   const [ timeUntilRefresh, setTimeUntilRefresh ] = useState<number>(defaultInterval);
 
-  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onRefreshRef = useRef(onRefresh);
 
@@ -55,10 +54,6 @@ export const useAutoRefresh = ({
 
   // Cleanup function
   const cleanup = useCallback(() => {
-    if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-      refreshIntervalRef.current = null;
-    }
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
       countdownIntervalRef.current = null;

@@ -74,6 +74,7 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
     const { callApiMethod } = useApi();
 
     const dataConfigKey = JSON.stringify(dataConfig);
+    const routeParamsKey = JSON.stringify(routeParams);
 
     useEffect(() => {
         let isMounted = true;
@@ -110,7 +111,7 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
         fetchData();
         return () => { isMounted = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ dataConfigKey, callApiMethod ]);
+    }, [ dataConfigKey, callApiMethod, routeParamsKey ]);
 
     const renderDescriptionItems = () => {
         if (options.items) {
