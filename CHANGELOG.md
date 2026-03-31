@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.23](https://github.com/ten24group/ui24/compare/v1.1.0-beta.22...v1.1.0-beta.23) (2026-03-31)
+
+
+### Bug Fixes
+
+* 28 stability, performance, and correctness fixes across ui24 ([604e825](https://github.com/ten24group/ui24/commit/604e825dfea1823f4d9be837757800108ff28fe7)), closes [#222](https://github.com/ten24group/ui24/issues/222) [#1677](https://github.com/ten24group/ui24/issues/1677)
+
 ## [1.1.0-beta.22](https://github.com/ten24group/ui24/compare/v1.1.0-beta.21...v1.1.0-beta.22) (2026-03-31)
 
 ## [1.1.0-beta.21](https://github.com/ten24group/ui24/compare/v1.1.0-beta.20...v1.1.0-beta.21) (2026-03-30)
