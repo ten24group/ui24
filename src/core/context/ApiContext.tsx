@@ -41,6 +41,11 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Track ongoing requests to prevent duplicates (e.g., due to StrictMode double mount)
     const ongoingRequestsRef = useRef<Map<string, Promise<AxiosResponse<any>>>>(new Map());
 
+    // Track token refresh promise across renders — a `let` inside the render body
+    // resets to null on each render, so parallel 401 responses would each start
+    // their own refresh. A ref ensures only one refresh is in flight.
+    const refreshPromiseRef = useRef<Promise<void> | null>(null);
+
     // Helper to stable stringify objects with sorted keys for consistent dedupe keys
     const stableStringify = (obj: any): string => {
         return JSON.stringify(obj, (_, value) => {
@@ -70,8 +75,6 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setupNewFeaturesTestMocks(axiosInstance);
     }
 
-    // Authentication interceptors
-    let refreshPromise: Promise<void> | null = null;
     axiosInstance.interceptors.request.use(
         async (config: InternalAxiosRequestConfig) => {
             const headers = config.headers as Record<string, any>;
@@ -136,13 +139,13 @@ export const ApiProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
             if (shouldRetry && retryCount === 0) {
                 orig._retryCount = (orig._retryCount || 0) + 1;
-                if (!refreshPromise) {
-                    refreshPromise = auth.refreshAuth()
+                if (!refreshPromiseRef.current) {
+                    refreshPromiseRef.current = auth.refreshAuth()
                         .catch((err: any) => { auth.logout(); throw err; })
-                        .finally(() => { refreshPromise = null; });
+                        .finally(() => { refreshPromiseRef.current = null; });
                 }
                 try {
-                    await refreshPromise;
+                    await refreshPromiseRef.current;
 
                     // CRITICAL: Create a FRESH config object without stale auth headers
                     // Axios's AxiosHeaders class has internal state that makes header deletion unreliable

@@ -653,6 +653,11 @@ export const Table = ({
   // Track selected row keys for bulk actions and row selection
   const [ selectedRowKeys, setSelectedRowKeys ] = useState<React.Key[]>([]);
 
+  // Clear stale selections when the entity changes (e.g., navigating between different tables)
+  useEffect(() => {
+    setSelectedRowKeys([]);
+  }, [ entityName ]);
+
   // Track expanded row keys for expand/collapse all functionality
   const [ expandedRowKeys, setExpandedRowKeys ] = useState<React.Key[]>([]);
 
@@ -1164,7 +1169,7 @@ export const Table = ({
           <div style={{ fontWeight: 500 }}>
             {selectedRowKeys.length} {selectedRowKeys.length === 1 ? 'item' : 'items'} selected
             {rowSelectionConfig?.persistAcrossPages && selectedRowKeys.length > (listRecords.length) && (
-              <span style={{ color: '#1677ff', marginLeft: 4, fontWeight: 400, fontSize: 12 }}>
+              <span style={{ color: 'var(--ant-color-primary, #1677ff)', marginLeft: 4, fontWeight: 400, fontSize: 12 }}>
                 (across pages)
               </span>
             )}

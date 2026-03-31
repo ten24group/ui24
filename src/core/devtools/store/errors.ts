@@ -28,7 +28,7 @@ let _counter = 0;
 let _installed = false;
 
 function emit(): void {
-  _snapshot = [..._entries];
+  _snapshot = [ ..._entries ];
   _listeners.forEach(fn => fn());
 }
 
@@ -54,12 +54,10 @@ export function captureError(
   if (message.includes('[ui24-devtools]')) return;
 
   // Deduplicate: merge consecutive identical messages
-  const last = _entries[_entries.length - 1];
+  const last = _entries[ _entries.length - 1 ];
   if (last && last.message === message && last.severity === severity) {
-    _entries = [
-      ..._entries.slice(0, -1),
-      { ...last, count: last.count + 1, timestamp: Date.now() },
-    ];
+    last.count++;
+    last.timestamp = Date.now();
     emit();
     return;
   }
@@ -74,7 +72,7 @@ export function captureError(
     count: 1,
   };
 
-  _entries = [..._entries, entry];
+  _entries.push(entry);
   if (_entries.length > MAX_ENTRIES) {
     _entries = _entries.slice(_entries.length - MAX_ENTRIES);
   }
@@ -112,22 +110,23 @@ export function installErrorCapture(): void {
     captureError('warn', args.map(normalizeMessage).join(' '));
   };
 
-  // window.onerror
-  window.addEventListener('error', (ev: ErrorEvent) => {
+  const handleGlobalError = (ev: ErrorEvent) => {
     captureError(
       'error',
       ev.message || 'Unknown error',
       ev.error?.stack,
       ev.filename ? `${ev.filename}:${ev.lineno}:${ev.colno}` : undefined,
     );
-  });
+  };
 
-  // Unhandled promise rejections
-  window.addEventListener('unhandledrejection', (ev: PromiseRejectionEvent) => {
+  const handleUnhandledRejection = (ev: PromiseRejectionEvent) => {
     const msg = ev.reason instanceof Error ? ev.reason.message : normalizeMessage(ev.reason);
     const stack = ev.reason instanceof Error ? ev.reason.stack : undefined;
     captureError('error', `Unhandled rejection: ${msg}`, stack);
-  });
+  };
+
+  window.addEventListener('error', handleGlobalError);
+  window.addEventListener('unhandledrejection', handleUnhandledRejection);
 }
 
 export function useErrorStore(): readonly ErrorEntry[] {
@@ -141,7 +140,11 @@ export function useErrorStore(): readonly ErrorEntry[] {
 
 export function useErrorCount(): { errors: number; warnings: number } {
   const entries = useErrorStore();
-  const errors = entries.filter(e => e.severity === 'error').length;
-  const warnings = entries.filter(e => e.severity === 'warn').length;
+  let errors = 0;
+  let warnings = 0;
+  for (const e of entries) {
+    if (e.severity === 'error') errors++;
+    else warnings++;
+  }
   return { errors, warnings };
 }

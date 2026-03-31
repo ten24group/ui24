@@ -110,19 +110,20 @@ export function useEntityList<TApiConfig extends IApiConfig = IApiConfig>({
 
   const queryKey = useMemo(
     () => {
-      const p = JSON.parse(payloadJson);
       return queryKeys.entity(entityName).list({
         apiUrl,
-        filters: p.filters || p,
-        sort: p.sort || p.order,
-        page: p.page,
-        cursor: p.cursor,
-        pageSize: p.count || p.hitsPerPage,
-        search: p.q,
-        attributes: p.attributes,
+        filters: payload.filters || payload,
+        sort: payload.sort || payload.order,
+        page: payload.page,
+        cursor: payload.cursor,
+        pageSize: payload.count || payload.hitsPerPage,
+        search: payload.q,
+        attributes: payload.attributes,
       });
     },
-    [entityName, apiUrl, payloadJson]
+    // payloadJson is the content-based key — when it changes, payload has new values
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ entityName, apiUrl, payloadJson ]
   );
 
   // ── Stable queryFn ──
@@ -152,7 +153,7 @@ export function useEntityList<TApiConfig extends IApiConfig = IApiConfig>({
 
   const invalidate = useCallback(
     () => queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).lists() }),
-    [queryClient, entityName]
+    [ queryClient, entityName ]
   );
 
   // ── Extract records from response ──
@@ -161,14 +162,14 @@ export function useEntityList<TApiConfig extends IApiConfig = IApiConfig>({
   const responseKey = apiConfig.responseKey;
   const records = useMemo(() => {
     if (!query.data) return undefined;
-    if (responseKey && query.data[responseKey]) {
-      return query.data[responseKey];
+    if (responseKey && query.data[ responseKey ]) {
+      return query.data[ responseKey ];
     }
     if (query.data.items) {
       return query.data.items;
     }
     return query.data;
-  }, [query.data, responseKey]);
+  }, [ query.data, responseKey ]);
 
   return {
     data: records,

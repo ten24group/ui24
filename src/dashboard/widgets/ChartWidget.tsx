@@ -9,7 +9,7 @@ import { WidgetError } from './WidgetError';
 export type ChartType = 'line' | 'bar' | 'area' | 'pie';
 
 export interface IChartDataPoint {
-  [key: string]: any; // Allow any column names
+  [ key: string ]: any; // Allow any column names
 }
 
 export interface IChartConfig {
@@ -52,7 +52,7 @@ export interface IChartWidgetProps {
   };
   options?: Partial<IChartConfig>;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
-  dashboardTimePeriod?: { period: string; range: [any, any] };
+  dashboardTimePeriod?: { period: string; range: [ any, any ] };
   routeParams?: Record<string, any>;
 }
 
@@ -69,9 +69,9 @@ const DEFAULT_CHART_CONFIG: Partial<IChartConfig> = {
 };
 
 export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, options, timePeriodSelectorProps, dashboardTimePeriod, routeParams }) => {
-  const [chartData, setChartData] = useState<IChartDataPoint[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [ chartData, setChartData ] = useState<IChartDataPoint[]>([]);
+  const [ loading, setLoading ] = useState(false);
+  const [ error, setError ] = useState<string | null>(null);
   const { callApiMethod } = useApi();
 
   // Compute effective payload with time period if present
@@ -79,7 +79,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     let basePayload = dataConfig?.payload || {};
     // Priority: per-chart selector > dashboard selector
     if (timePeriodSelectorProps && timePeriodSelectorProps.value?.range) {
-      const [start, end] = timePeriodSelectorProps.value.range;
+      const [ start, end ] = timePeriodSelectorProps.value.range;
       // Use the timezone of the start/end Dayjs objects
       return {
         ...basePayload,
@@ -88,7 +88,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
         period: timePeriodSelectorProps.value.period,
       };
     } else if (dashboardTimePeriod && dashboardTimePeriod.range) {
-      const [start, end] = dashboardTimePeriod.range;
+      const [ start, end ] = dashboardTimePeriod.range;
       return {
         ...basePayload,
         startDate: start.format('YYYY-MM-DDTHH:mm:ss'),
@@ -97,7 +97,10 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
       };
     }
     return basePayload;
-  }, [dataConfig?.payload, timePeriodSelectorProps, dashboardTimePeriod]);
+  }, [ dataConfig?.payload, timePeriodSelectorProps, dashboardTimePeriod ]);
+
+  const dataConfigKey = JSON.stringify(dataConfig);
+  const routeParamsKey = JSON.stringify(routeParams);
 
   useEffect(() => {
     let isMounted = true;
@@ -118,7 +121,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
           responseKey: dataConfig.responseKey,
           headers: dataConfig.headers,
         });
-        const data = dataConfig.responseKey ? response.data[dataConfig.responseKey] : response.data;
+        const data = dataConfig.responseKey ? response.data[ dataConfig.responseKey ] : response.data;
         if (isMounted) setChartData(Array.isArray(data) ? data : []);
       } catch (err: any) {
         if (isMounted) setError(err?.message || 'Failed to fetch data');
@@ -128,24 +131,25 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     };
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, callApiMethod, effectivePayload, routeParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ dataConfigKey, callApiMethod, effectivePayload, routeParamsKey ]);
 
   if (options?.type !== 'pie' && (!options?.xField || !options?.yField)) {
     return <div className="chart-widget-error"><WidgetError message="Missing required xField or yField configuration" /></div>;
   }
-  if (options?.type !== 'pie') {
-    const hasValidYField = chartData.every(d => d && (typeof d[options.yField!] === 'number' || typeof d[options.yField!] === 'string'));
-    if (!hasValidYField && chartData.length > 0) {
-      return <div className="chart-widget-error"><WidgetError message={`Data is missing the required yField: ${options.yField}`} /></div>;
+  if (options?.type !== 'pie' && chartData.length > 0) {
+    const hasValidYField = chartData.some(d => d && (typeof d[ options!.yField! ] === 'number' || typeof d[ options!.yField! ] === 'string'));
+    if (!hasValidYField) {
+      return <div className="chart-widget-error"><WidgetError message={`Data is missing the required yField: ${options!.yField}`} /></div>;
     }
   }
 
   const axisLabels = {
     xAxis: {
-      title: { text: options.xAxisLabel || options.xField, style: { fontWeight: 500 } },
+      title: { text: options?.xAxisLabel || options?.xField, style: { fontWeight: 500 } },
     },
     yAxis: {
-      title: { text: options.yAxisLabel || options.yField, style: { fontWeight: 500 } },
+      title: { text: options?.yAxisLabel || options?.yField, style: { fontWeight: 500 } },
     },
   };
 
@@ -155,7 +159,7 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
     animation: options?.animation ?? DEFAULT_CHART_CONFIG.animation,
     height: options?.height ?? DEFAULT_CHART_CONFIG.height,
   };
-  if (options.type !== 'pie') {
+  if (options?.type !== 'pie') {
     chartConfig.xField = options.xField;
     chartConfig.yField = options.yField;
     chartConfig.smooth = options?.smooth ?? DEFAULT_CHART_CONFIG.smooth;
@@ -199,11 +203,11 @@ export const ChartWidget: React.FC<IChartWidgetProps> = ({ title, dataConfig, op
       case 'bar':
         return <Column {...(chartConfig as ColumnConfig)} />;
       case 'area':
-        return <Area 
-          {...(chartConfig as AreaConfig)} 
-          area={{ 
-            style: options?.areaStyle 
-          }} 
+        return <Area
+          {...(chartConfig as AreaConfig)}
+          area={{
+            style: options?.areaStyle
+          }}
         />;
       case 'pie':
         return <Pie {...(chartConfig as PieConfig)} />;

@@ -65,28 +65,22 @@ export const useAutoRefresh = ({
     }
   }, []);
 
-  // Start auto-refresh
+  // Start auto-refresh — single interval drives both countdown and refresh
+  // to prevent the two timers from drifting apart.
   const start = useCallback(() => {
     cleanup();
 
-    // Reset countdown
     setTimeUntilRefresh(intervalSeconds);
 
-    // Start countdown timer (updates every second)
+    let remaining = intervalSeconds;
     countdownIntervalRef.current = setInterval(() => {
-      setTimeUntilRefresh(prev => {
-        const next = prev - 1;
-        if (next <= 0) {
-          return intervalSeconds; // Reset when reaching 0
-        }
-        return next;
-      });
+      remaining--;
+      if (remaining <= 0) {
+        onRefreshRef.current();
+        remaining = intervalSeconds;
+      }
+      setTimeUntilRefresh(remaining);
     }, 1000);
-
-    // Start refresh interval
-    refreshIntervalRef.current = setInterval(() => {
-      onRefreshRef.current();
-    }, intervalSeconds * 1000);
   }, [ intervalSeconds, cleanup ]);
 
   // Effect to start/stop based on enabled state and interval
@@ -128,11 +122,10 @@ export const useAutoRefresh = ({
 
   const manualRefresh = useCallback(() => {
     onRefreshRef.current();
-    // Reset timer after manual refresh
     if (isEnabled) {
-      setTimeUntilRefresh(intervalSeconds);
+      start();
     }
-  }, [ isEnabled, intervalSeconds ]);
+  }, [ isEnabled, start ]);
 
   return {
     isEnabled,

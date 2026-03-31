@@ -40,27 +40,30 @@ export interface UseEntityMutationOptions {
 export function useEntityMutation({ entityName, relatedEntities = [], onInvalidate }: UseEntityMutationOptions) {
   const queryClient = useQueryClient();
 
+  // Stabilize relatedEntities via JSON serialization so the useCallback below
+  // doesn't re-create on every render due to a new array reference from the caller.
+  const relatedEntitiesKey = JSON.stringify(relatedEntities);
+
   /**
    * Invalidate all caches related to this entity.
    * Call this after a successful mutation to ensure stale data is refreshed.
    */
   const invalidate = useCallback(async () => {
+    const related: string[] = JSON.parse(relatedEntitiesKey);
     const invalidations = [
-      // Invalidate all queries for the primary entity
       queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).all }),
-      // Invalidate related entities
-      ...relatedEntities.map(related =>
-        queryClient.invalidateQueries({ queryKey: queryKeys.entity(related).all })
+      ...related.map(r =>
+        queryClient.invalidateQueries({ queryKey: queryKeys.entity(r).all })
       ),
     ];
 
     await Promise.all(invalidations);
 
-    // Custom invalidation callback
     if (onInvalidate) {
       await onInvalidate();
     }
-  }, [ queryClient, entityName, relatedEntities, onInvalidate ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ queryClient, entityName, relatedEntitiesKey, onInvalidate ]);
 
   /**
    * Invalidate only list queries (lighter-weight, for when detail data is unchanged).

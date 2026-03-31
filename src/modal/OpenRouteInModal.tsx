@@ -240,15 +240,21 @@ export const OpenRouteInModal: React.FC<OpenRouteInModalProps> = ({
   const found = modalConfigRef ? !!resolvedFromRef : foundViaUrl;
   const pageConfig = modalConfigRef ? resolvedFromRef : pageConfigViaUrl;
 
-  // Check if modal should open based on screen size
+  // Check if modal should open based on screen size (re-evaluates on resize)
+  const [ windowWidth, setWindowWidth ] = React.useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1280
+  );
+  React.useEffect(() => {
+    if (!openInModalCondition) return;
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [ openInModalCondition ]);
+
   const shouldOpenInModal = React.useMemo(() => {
     if (!openInModalCondition) return true;
-
-    if (typeof window === 'undefined') return true;
-
-    const breakpoint = BREAKPOINTS[ openInModalCondition ];
-    return window.innerWidth >= breakpoint;
-  }, [ openInModalCondition ]);
+    return windowWidth >= BREAKPOINTS[ openInModalCondition ];
+  }, [ openInModalCondition, windowWidth ]);
 
   // Edge Case 2: Close modal if route changes
   useEffect(() => {

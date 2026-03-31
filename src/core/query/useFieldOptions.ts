@@ -92,23 +92,22 @@ export function useFieldOptions({
   const dependencyFiltersRef = useRef(dependencyFilters);
   dependencyFiltersRef.current = dependencyFilters;
 
-  // Include dependencyFilters AND apiConfig.filters in query key so:
-  // - Cascading selects get separate cache entries (dependencyFilters)
-  // - Different static filters for the same field don't collide (apiConfig.filters)
+  // Stabilize object refs via JSON serialization so the queryKey doesn't
+  // change on every render due to new object references from parent.
+  const filtersKey = apiConfig.filters ? JSON.stringify(apiConfig.filters) : '';
+  const depsKey = dependencyFilters ? JSON.stringify(dependencyFilters) : '';
+
   const queryKey = useMemo(
     () => queryKeys.entity(entityName).fieldOptions({
       apiUrl: apiConfig.apiUrl,
       fieldName,
       search: search || undefined,
       cursor: cursor || undefined,
-      ...(apiConfig.filters && Object.keys(apiConfig.filters).length > 0
-        ? { filters: apiConfig.filters }
-        : {}),
-      ...(dependencyFilters && Object.keys(dependencyFilters).length > 0
-        ? { deps: dependencyFilters }
-        : {}),
+      ...(filtersKey ? { filters: JSON.parse(filtersKey) } : {}),
+      ...(depsKey ? { deps: JSON.parse(depsKey) } : {}),
     }),
-    [ entityName, fieldName, apiConfig.apiUrl, apiConfig.filters, search, cursor, dependencyFilters ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ entityName, fieldName, apiConfig.apiUrl, filtersKey, search, cursor, depsKey ]
   );
 
   // ── Stable queryFn ──

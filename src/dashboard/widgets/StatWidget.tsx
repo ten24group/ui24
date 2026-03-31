@@ -37,7 +37,7 @@ export interface IStatWidgetProps {
     secondary?: ISecondaryStatConfig;
     icon?: React.ReactNode | string | IStatWidgetIconConfig;
   };
-  dashboardTimePeriod?: { period: string; range: [any, any] };
+  dashboardTimePeriod?: { period: string; range: [ any, any ] };
   routeParams?: Record<string, any>;
 }
 
@@ -60,16 +60,16 @@ const TrendArrow: React.FC<ITrendConfig & { value: string | number; color?: stri
 };
 
 export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, options, dashboardTimePeriod, routeParams }) => {
-  const [apiData, setApiData] = useState<any>({ value: '—' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [ apiData, setApiData ] = useState<any>({ value: '—' });
+  const [ loading, setLoading ] = useState(false);
+  const [ error, setError ] = useState<string | null>(null);
   const { callApiMethod } = useApi();
 
   // Compute effective payload with dashboard time period if present
   const effectivePayload = React.useMemo(() => {
     let basePayload = dataConfig?.payload || {};
     if (dashboardTimePeriod && dashboardTimePeriod.range) {
-      const [start, end] = dashboardTimePeriod.range;
+      const [ start, end ] = dashboardTimePeriod.range;
       return {
         ...basePayload,
         startDate: start.format('YYYY-MM-DDTHH:mm:ss'),
@@ -78,7 +78,10 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
       };
     }
     return basePayload;
-  }, [dataConfig?.payload, dashboardTimePeriod]);
+  }, [ dataConfig?.payload, dashboardTimePeriod ]);
+
+  const dataConfigKey = JSON.stringify(dataConfig);
+  const routeParamsKey = JSON.stringify(routeParams);
 
   useEffect(() => {
     let isMounted = true;
@@ -100,8 +103,7 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
           responseKey: dataConfig.responseKey,
           headers: dataConfig.headers,
         });
-        // Use responseKey if provided, else use response.data
-        data = dataConfig.responseKey ? response.data[dataConfig.responseKey] : response.data;
+        data = dataConfig.responseKey ? response.data[ dataConfig.responseKey ] : response.data;
         if (isMounted) setApiData(data);
       } catch (err: any) {
         if (isMounted) setError(err?.message || 'Failed to fetch data');
@@ -111,7 +113,8 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
     };
     fetchData();
     return () => { isMounted = false; };
-  }, [dataConfig, callApiMethod, effectivePayload, routeParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ dataConfigKey, callApiMethod, effectivePayload, routeParamsKey ]);
 
   // Enhanced icon rendering for background
   const renderBackgroundIcon = (icon: React.ReactNode | string | IStatWidgetIconConfig | undefined): React.ReactNode => {
@@ -124,8 +127,8 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
         iconNode = <span style={{ fontSize: cfg.size || ICON_DEFAULT_SIZE }}>{cfg.emoji}</span>;
       } else if (cfg.url) {
         iconNode = <img src={cfg.url} alt="icon" style={{ width: cfg.size || ICON_DEFAULT_SIZE, height: cfg.size || ICON_DEFAULT_SIZE }} />;
-      } else if (cfg.name && (AntIcons as any)[cfg.name]) {
-        const IconComp = (AntIcons as any)[cfg.name];
+      } else if (cfg.name && (AntIcons as any)[ cfg.name ]) {
+        const IconComp = (AntIcons as any)[ cfg.name ];
         iconNode = <IconComp style={{ fontSize: cfg.size || ICON_DEFAULT_SIZE }} />;
       } else if (cfg.name) {
         iconNode = <span style={{ fontSize: cfg.size || ICON_DEFAULT_SIZE }}>{cfg.name}</span>;
@@ -133,8 +136,8 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
     } else if (typeof icon === 'string') {
       if (icon.startsWith('http') || icon.startsWith('/')) {
         iconNode = <img src={icon} alt="icon" style={{ width: ICON_DEFAULT_SIZE, height: ICON_DEFAULT_SIZE }} />;
-      } else if ((AntIcons as any)[icon]) {
-        const IconComp = (AntIcons as any)[icon];
+      } else if ((AntIcons as any)[ icon ]) {
+        const IconComp = (AntIcons as any)[ icon ];
         iconNode = <IconComp style={{ fontSize: ICON_DEFAULT_SIZE }} />;
       } else {
         iconNode = <span style={{ fontSize: ICON_DEFAULT_SIZE }}>{icon}</span>;
@@ -179,7 +182,7 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
         <div className="stat-widget-secondary">
           <span>
             {(apiData.secondary.label || options?.secondary?.label) && <span>{apiData.secondary.label || options?.secondary?.label} </span>}
-            {apiData.secondary.value && <span style={{ color: '#222', fontWeight: 500 }}>{apiData.secondary.value}</span>}
+            {apiData.secondary.value && <span style={{ color: 'var(--ant-color-text, #222)', fontWeight: 500 }}>{apiData.secondary.value}</span>}
           </span>
           {apiData.secondary.trend && (
             <TrendArrow

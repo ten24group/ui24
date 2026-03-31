@@ -93,35 +93,37 @@ export const DetailPage: React.FC<DetailPageProps> = ({
         ...primaryRecord,
       };
 
-      const results = await Promise.allSettled(
-        detailProps.dataSources!.map(async (source) => {
-          // Substitute :param placeholders in the apiUrl
-          const resolvedUrl = source.apiConfig.apiUrl.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) =>
-            String(mergedRouteParams[ k ] ?? `:${k}`)
-          );
-          const response = await callApiMethod<any>({ ...source.apiConfig, apiUrl: resolvedUrl });
-          const data = response?.data;
-          const value = source.responseKey ? data?.[ source.responseKey ] : data;
-          return { key: source.key, value };
-        })
-      );
+      try {
+        const results = await Promise.allSettled(
+          detailProps.dataSources!.map(async (source) => {
+            const resolvedUrl = source.apiConfig.apiUrl.replace(/:([a-zA-Z_][a-zA-Z0-9_]*)/g, (_, k) =>
+              String(mergedRouteParams[ k ] ?? `:${k}`)
+            );
+            const response = await callApiMethod<any>({ ...source.apiConfig, apiUrl: resolvedUrl });
+            const data = response?.data;
+            const value = source.responseKey ? data?.[ source.responseKey ] : data;
+            return { key: source.key, value };
+          })
+        );
 
-      if (cancelled) return;
+        if (cancelled) return;
 
-      let merged = { ...primaryRecord };
-      results.forEach((result) => {
-        if (result.status === 'fulfilled') {
-          const { key, value } = result.value;
-          if (key) {
-            merged = { ...merged, [ key ]: value };
-          } else if (value && typeof value === 'object' && !Array.isArray(value)) {
-            merged = { ...merged, ...value };
+        let merged = { ...primaryRecord };
+        results.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const { key, value } = result.value;
+            if (key) {
+              merged = { ...merged, [ key ]: value };
+            } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+              merged = { ...merged, ...value };
+            }
           }
-        }
-      });
+        });
 
-      setRecord(merged);
-      setIsLoading(false);
+        setRecord(merged);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     };
 
     fetchSecondary();

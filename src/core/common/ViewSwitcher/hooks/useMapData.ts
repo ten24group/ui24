@@ -33,9 +33,11 @@ const EMPTY: Record<string, unknown>[] = [];
 export function useMapData(options: UseMapDataOptions): UseMapDataResult {
   const { apiConfig, appliedFilters, routeParams, entityName, maxRecords = 5000, enabled } = options;
 
+  const routeParamsKey = JSON.stringify(routeParams);
   const resolvedUrl = useMemo(
     () => (enabled ? substituteUrlParams(apiConfig.apiUrl, routeParams) : ''),
-    [ enabled, apiConfig.apiUrl, routeParams ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ enabled, apiConfig.apiUrl, routeParamsKey ]
   );
 
   const payload = useMemo(() => ({

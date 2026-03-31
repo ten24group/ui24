@@ -176,7 +176,9 @@ export class OperationExecutor {
   /** Cooldown tracker: operation key → expiry timestamp (ms) */
   private static cooldowns = new Map<string, number>();
 
-  constructor(private deps: OperationExecutorDeps) { }
+  constructor(private deps: OperationExecutorDeps) {
+    OperationExecutor.purgeStaleCooldowns();
+  }
 
   /**
    * Check if an operation is currently in cooldown.
@@ -191,6 +193,21 @@ export class OperationExecutor {
       return 0;
     }
     return remaining;
+  }
+
+  /**
+   * Purge expired entries from the static cooldowns Map.
+   * Called periodically to prevent unbounded growth across navigations.
+   */
+  static purgeStaleCooldowns(): void {
+    const now = Date.now();
+    const keysToDelete: string[] = [];
+    OperationExecutor.cooldowns.forEach((expiry, key) => {
+      if (expiry <= now) {
+        keysToDelete.push(key);
+      }
+    });
+    keysToDelete.forEach(key => OperationExecutor.cooldowns.delete(key));
   }
 
   /**

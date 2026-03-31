@@ -39,9 +39,11 @@ export function useKanbanColumnData(options: {
 
   const [ requestedCount, setRequestedCount ] = useState(pageSize);
 
+  const routeParamsKey = JSON.stringify(routeParams);
   const resolvedUrl = useMemo(
     () => (enabled ? substituteUrlParams(apiConfig.apiUrl, routeParams) : ''),
-    [ enabled, apiConfig.apiUrl, routeParams ]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ enabled, apiConfig.apiUrl, routeParamsKey ]
   );
 
   const payload = useMemo(() => ({

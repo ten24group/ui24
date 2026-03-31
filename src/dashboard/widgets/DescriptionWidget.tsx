@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Descriptions, Card, Typography } from 'antd';
 import { useApi } from '../../core/context';
-import { formatKey } from '../../core/utils';
+import { formatKey, substituteUrlParams } from '../../core/utils';
 import { JsonDescription } from '../../core/common';
 import { WidgetError } from './WidgetError';
 
@@ -16,6 +16,7 @@ export interface IDescriptionWidgetProps {
         responseKey?: string;
         headers?: Record<string, string>;
     };
+    routeParams?: Record<string, any>;
     options?: {
         bordered?: boolean;
         column?: number;
@@ -64,12 +65,15 @@ const renderValue = (value: any): React.ReactNode => {
 export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
     title,
     dataConfig,
+    routeParams,
     options = {}
 }) => {
     const [ data, setData ] = useState<any>({});
     const [ loading, setLoading ] = useState(false);
     const [ error, setError ] = useState<string | null>(null);
     const { callApiMethod } = useApi();
+
+    const dataConfigKey = JSON.stringify(dataConfig);
 
     useEffect(() => {
         let isMounted = true;
@@ -85,8 +89,9 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
 
             try {
                 const apiMethod = dataConfig.apiMethod || 'GET';
+                const apiUrl = substituteUrlParams(dataConfig.apiUrl, routeParams);
                 const response = await callApiMethod({
-                    apiUrl: dataConfig.apiUrl,
+                    apiUrl,
                     apiMethod,
                     payload: dataConfig.payload,
                     responseKey: dataConfig.responseKey,
@@ -104,7 +109,8 @@ export const DescriptionWidget: React.FC<IDescriptionWidgetProps> = ({
 
         fetchData();
         return () => { isMounted = false; };
-    }, [ dataConfig, callApiMethod ]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ dataConfigKey, callApiMethod ]);
 
     const renderDescriptionItems = () => {
         if (options.items) {

@@ -67,20 +67,29 @@ export function useEntityDetail({
 
   const apiUrl = apiConfig.apiUrl;
 
+  // Stabilize routeParams via JSON serialization — callers typically create a
+  // new object literal on each render, but the values rarely change.
+  const routeParamsKey = JSON.stringify(routeParams);
+  const stableRouteParams = useMemo(
+    () => routeParams || {},
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ routeParamsKey ]
+  );
+
   // ── Derived values (all from the URL pattern) ──
   const resolvedEntityName = useMemo(
     () => entityNameOverride || deriveEntityName(apiUrl),
-    [entityNameOverride, apiUrl]
+    [ entityNameOverride, apiUrl ]
   );
 
   const resolvedApiUrl = useMemo(
-    () => apiUrl ? substituteUrlParams(apiUrl, routeParams || {}, identifier) : '',
-    [apiUrl, routeParams, identifier]
+    () => apiUrl ? substituteUrlParams(apiUrl, stableRouteParams, identifier) : '',
+    [ apiUrl, stableRouteParams, identifier ]
   );
 
   const cacheIdentifiers = useMemo(
-    () => buildCacheIdentifiers(apiUrl, routeParams || {}, identifier),
-    [apiUrl, routeParams, identifier]
+    () => buildCacheIdentifiers(apiUrl, stableRouteParams, identifier),
+    [ apiUrl, stableRouteParams, identifier ]
   );
 
   // ── Refs for queryFn closure stability ──
@@ -98,7 +107,7 @@ export function useEntityDetail({
 
   const queryKey = useMemo(
     () => queryKeys.entity(resolvedEntityName).detail(cacheIdentifiers),
-    [resolvedEntityName, cacheIdentifiers]
+    [ resolvedEntityName, cacheIdentifiers ]
   );
 
   // ── Stable queryFn ──
@@ -127,12 +136,12 @@ export function useEntityDetail({
 
   const invalidate = useCallback(
     () => queryClient.invalidateQueries({ queryKey }),
-    [queryClient, queryKey]
+    [ queryClient, queryKey ]
   );
 
   const invalidateAll = useCallback(
     () => queryClient.invalidateQueries({ queryKey: queryKeys.entity(resolvedEntityName).details() }),
-    [queryClient, resolvedEntityName]
+    [ queryClient, resolvedEntityName ]
   );
 
   // Extract responseKey for stable memo dependency (avoids recomputation when
@@ -140,11 +149,11 @@ export function useEntityDetail({
   const responseKey = apiConfig.responseKey;
   const data = useMemo(() => {
     if (!query.data) return undefined;
-    if (responseKey && query.data[responseKey]) {
-      return query.data[responseKey];
+    if (responseKey && query.data[ responseKey ]) {
+      return query.data[ responseKey ];
     }
     return query.data;
-  }, [query.data, responseKey]);
+  }, [ query.data, responseKey ]);
 
   return {
     data,

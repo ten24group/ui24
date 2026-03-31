@@ -54,7 +54,7 @@ export const FormPage: React.FC<FormPageProps> = ({
     const names = new Set<string>();
 
     params.forEach((value, key) => {
-      if (NON_FIELD_URL_PARAMS.includes(key)) return;
+      if (NON_FIELD_URL_PARAMS.includes(key.toLowerCase())) return;
       if (prefillConfig.autoDetect === false) return;
       values[ key ] = value;
       names.add(key);
@@ -140,8 +140,8 @@ export const FormPage: React.FC<FormPageProps> = ({
       });
 
     return () => { cancelled = true; };
-    // Re-fetch when route params change (e.g. on navigate to a different record)
-  }, [ formProps.schemaApiConfig?.apiUrl, routeParams ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ JSON.stringify(formProps.schemaApiConfig), JSON.stringify(routeParams) ]);
 
   // Effective fields: dynamic (server) schema if available, else static
   const effectivePropertiesConfig = dynamicSchema ?? formProps.propertiesConfig;

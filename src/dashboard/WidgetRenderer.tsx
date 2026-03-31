@@ -147,7 +147,7 @@ export const WidgetRenderer: React.FC<{
         return <TimelineWidget title={widget.title} events={events} mode={mode} reverse={reverse} maxEvents={maxEvents} />;
       }
       case 'description': {
-        return <DescriptionWidget title={widget.title} {...widget} />;
+        return <DescriptionWidget title={widget.title} dataConfig={widget.dataConfig} options={widget.options} routeParams={routeParams} />;
       }
       case 'markdown': {
         return <MarkdownWidget title={widget.title} {...widget} />;
@@ -211,7 +211,7 @@ export const WidgetRenderer: React.FC<{
   return (
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
-      onReset={() => {}}
+      onReset={() => { }}
     >
       {renderWidgetContent()}
     </ErrorBoundary>

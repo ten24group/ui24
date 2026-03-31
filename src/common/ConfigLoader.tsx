@@ -28,6 +28,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { callApiMethod } = useApi();
     const { login, logout, isLoggedIn } = useAuth();
     const configLoadedRef = useRef(false);
+    const configLoadingRef = useRef(false);
     const [ authConfigLoaded, setAuthConfigLoaded ] = useState(false);
     const [ configStaleFlag, setConfigStaleFlag ] = useState(0);
 
@@ -71,7 +72,8 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Load other configs after login
     useEffect(() => {
         async function loadAppConfigs() {
-            if (!isLoggedIn || configLoadedRef.current) return;
+            if (!isLoggedIn || configLoadedRef.current || configLoadingRef.current) return;
+            configLoadingRef.current = true;
             setLoader(true);
 
             const configSpan = instrument.begin('config.load', 'async', {
@@ -147,6 +149,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                 console.error('Error loading configs:', error);
                 configSpan.setAttribute('span.level', 'error');
             } finally {
+                configLoadingRef.current = false;
                 configSpan.end();
                 setLoader(false);
             }
