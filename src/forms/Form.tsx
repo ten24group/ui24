@@ -224,9 +224,15 @@ export function Form({
   const evaluationContext = useNewEvaluationContext();
 
   // Generate STABLE formConfig name - CRITICAL: Must not change across re-renders!
-  // Otherwise React will destroy and recreate the form, losing all field errors
+  // Otherwise React will destroy and recreate the form, losing all field errors.
+  // Use a ref for the fallback UUID so it persists across renders when formConfig is undefined.
+  const fallbackFormConfigRef = React.useRef<{ name: string } | null>(null);
   const stableFormConfig = React.useMemo(() => {
-    return formConfig || { name: "customForm-" + uuidv4() };
+    if (formConfig) return formConfig;
+    if (!fallbackFormConfigRef.current) {
+      fallbackFormConfigRef.current = { name: "customForm-" + uuidv4() };
+    }
+    return fallbackFormConfigRef.current;
   }, [ formConfig ]);
 
   // TODO: remove the dynamic-id option from here and use the identifiers prop instead
@@ -265,9 +271,10 @@ export function Form({
   const [ diffReviewOpen, setDiffReviewOpen ] = useState(false);
   const [ pendingSubmitValues, setPendingSubmitValues ] = useState<Record<string, any> | null>(null);
 
-  // Track previous values to detect actual changes (not just re-renders)
-  const prevFormPropertiesConfigRef = React.useRef<IFormField[] | null>(null);
-  const prevDefaultValuesRef = React.useRef<Record<string, any> | null>(null);
+  // Track previous values to detect actual changes (not just re-renders).
+  // Store serialized strings to avoid re-serializing the previous value on every render.
+  const prevFormPropsJsonRef = React.useRef<string | null>(null);
+  const prevDefaultValuesJsonRef = React.useRef<string | null>(null);
 
   useEffect(() => {
     setLoader(disabled)
@@ -546,7 +553,7 @@ export function Form({
           routeParams,
           entityName,
           originalApiUrl: apiConfig.apiUrl,
-          invalidateRelated: entityName ? [entityName] : undefined,
+          invalidateRelated: entityName ? [ entityName ] : undefined,
           onLoading: (loading) => {
             setLoader(loading);
             setBtnLoader(loading);
@@ -610,12 +617,6 @@ export function Form({
 
       // Start polling cooldown after execution (for countdown display)
       if (throttle?.showCountdown) startThrottlePolling();
-    } else {
-      // NO API CALL (navigation-only or custom submission)
-      // Call onSubmitSuccessCallback directly (for navigation-only modals)
-      if (onSubmitSuccessCallback) {
-        onSubmitSuccessCallback(values);
-      }
     }
 
     //call when defined
@@ -940,16 +941,18 @@ export function Form({
       return; // Wait for data to load
     }
 
-    // Check if formPropertiesConfig actually changed (not just a re-render)
-    const formPropsChanged = prevFormPropertiesConfigRef.current !== null &&
-      JSON.stringify(prevFormPropertiesConfigRef.current) !== JSON.stringify(formPropertiesConfig);
+    // Check if formPropertiesConfig actually changed (not just a re-render).
+    // Serialize current values once and compare against the cached previous string.
+    const currentFormPropsJson = JSON.stringify(formPropertiesConfig);
+    const currentDefaultValuesJson = JSON.stringify(defaultValues);
 
-    // Check if defaultValues actually changed
-    const defaultValuesChanged = prevDefaultValuesRef.current !== null &&
-      JSON.stringify(prevDefaultValuesRef.current) !== JSON.stringify(defaultValues);
+    const formPropsChanged = prevFormPropsJsonRef.current !== null &&
+      prevFormPropsJsonRef.current !== currentFormPropsJson;
 
-    // Only update if this is the first run OR if values actually changed
-    const isFirstRun = prevFormPropertiesConfigRef.current === null;
+    const defaultValuesChanged = prevDefaultValuesJsonRef.current !== null &&
+      prevDefaultValuesJsonRef.current !== currentDefaultValuesJson;
+
+    const isFirstRun = prevFormPropsJsonRef.current === null;
     const shouldUpdate = isFirstRun || formPropsChanged || defaultValuesChanged;
 
     if (shouldUpdate) {
@@ -1008,11 +1011,11 @@ export function Form({
 
       form.setFieldsValue(mergedValues);
 
-      // Update refs to track current values
-      prevFormPropertiesConfigRef.current = formPropertiesConfig;
-      prevDefaultValuesRef.current = defaultValues;
+      // Update refs to track current serialized values
+      prevFormPropsJsonRef.current = currentFormPropsJson;
+      prevDefaultValuesJsonRef.current = currentDefaultValuesJson;
     }
-  }, [ dataLoadedFromView, formPropertiesConfig, defaultValues, form ])
+  }, [ dataLoadedFromView, formPropertiesConfig, defaultValues, form, evaluationContext ])
 
 
   return (

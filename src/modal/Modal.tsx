@@ -928,6 +928,38 @@ export const Modal = ({
     )
   }
 
+  if (modalType === "info" && modalPageConfig && 'title' in modalPageConfig) {
+    const configTitle = (modalPageConfig as IConfirmModal)?.title;
+    const evaluatedTitle = modalTitle
+      ? evaluateTemplateValue(modalTitle, routeParams)
+      : configTitle
+        ? evaluateTemplateValue(configTitle, routeParams)
+        : 'Information';
+    const effectiveWidth = getDefaultModalWidth('confirm', modalWidth);
+
+    return (
+      <ModalDepthContext.Provider value={nextDepth}>
+        <AntModal
+          title={evaluatedTitle}
+          open={true}
+          onCancel={onCancelCallback}
+          footer={null}
+          zIndex={getModalZIndex(nextDepth)}
+          width={effectiveWidth}
+          wrapClassName={`modal-depth-${currentDepth}`}
+        >
+          <ErrorBoundary
+            FallbackComponent={ErrorFallback}
+            onReset={() => { onCancelCallback && onCancelCallback(); }}
+          >
+            {evaluateTemplateValue((modalPageConfig as IConfirmModal)?.content, routeParams)}
+            {children}
+          </ErrorBoundary>
+        </AntModal>
+      </ModalDepthContext.Provider>
+    );
+  }
+
   if (modalType === "custom" && children) {
     return (
       <ModalDepthContext.Provider value={nextDepth}>

@@ -67,30 +67,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (value !== rememberMe && isLoggedIn) {
       const oldStorage = rememberMe ? localStorage : sessionStorage;
       const newStorage = value ? localStorage : sessionStorage;
-      
+
       // Migrate auth token
       const authToken = oldStorage.getItem('ui24_aws_auth_cache_authToken');
       if (authToken) {
         newStorage.setItem('ui24_aws_auth_cache_authToken', authToken);
         oldStorage.removeItem('ui24_aws_auth_cache_authToken');
       }
-      
+
       // Migrate temp AWS credentials
       const tempCreds = oldStorage.getItem('ui24_aws_auth_cache_tmpAwsCredentials');
       if (tempCreds) {
         newStorage.setItem('ui24_aws_auth_cache_tmpAwsCredentials', tempCreds);
         oldStorage.removeItem('ui24_aws_auth_cache_tmpAwsCredentials');
       }
-      
+
       console.log(`[Auth] Migrated tokens from ${rememberMe ? 'localStorage' : 'sessionStorage'} to ${value ? 'localStorage' : 'sessionStorage'}`);
     }
-    
+
     localStorage.setItem('ui24_remember_me', value.toString());
     setRememberMeState(value);
   };
 
   const { selectConfig } = useUi24Config();
-  const providerName = selectConfig((config) => "aws");
+  const providerName = selectConfig((config) => config.authProvider ?? "aws");
 
   // CRITICAL FIX: Memoize authProvider to prevent creating new instances on every render
   // Creating multiple Authenticator instances breaks the credential fetch locking mechanism
@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const token = authProvider.getToken();
         setIsLoggedIn(!!token);
       });
-      
+
       return () => {
         unsubscribe();
         // Cleanup provider when it changes (e.g., when rememberMe toggles)

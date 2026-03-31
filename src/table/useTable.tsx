@@ -276,7 +276,7 @@ function getDeepLinkStateFromUrl(location: ReturnType<typeof useLocation>, prefi
   const sortParam = params.get(key('sort'));
   if (sortParam) {
     result.sort = sortParam.split(',').map(s => {
-      const [field, dir] = s.split(':');
+      const [ field, dir ] = s.split(':');
       return { field, order: dir === 'asc' ? 'ascend' : 'descend' };
     });
   }
@@ -417,7 +417,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     dataUpdatedAt,
     error: fetchError,
   } = isClientSideData
-    ? {
+      ? {
         listRecords: preloadedRecords,
         isLoading: false,
         isInitialLoad: false,
@@ -431,7 +431,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
         dataUpdatedAt: new Date().toISOString(),
         error: null,
       }
-    : tableDataResult;
+      : tableDataResult;
 
   const onSearch = (value: string) => {
     setSearchQuery(value);
@@ -464,7 +464,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     const activeSorts = newSorters.filter(s => s.order);
     setSort(activeSorts);
     setFetchTrigger(prev => prev + 1);
-    instrument.event('table.sort', { 
+    instrument.event('table.sort', {
       'table.sortCount': activeSorts.length,
       'table.sortFields': activeSorts.map(s => s.field).join(','),
     });
@@ -480,20 +480,25 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     cols: propertiesConfig.map(p => p.dataIndex).join(',')
   });
 
+  // Stable string key derived from propertiesConfig — avoids creating a new string in the
+  // dependency array on every render (which would cause useLayoutEffect to fire unnecessarily).
+  const propertiesColumnsKey = React.useMemo(
+    () => propertiesConfig.map(p => p.dataIndex).join(','),
+    [ propertiesConfig ]
+  );
+
   // Reset table state when navigating between different entities
   // Use useLayoutEffect to run BEFORE fetch effect (prevents double fetch)
   useLayoutEffect(() => {
-    const currentCols = propertiesConfig.map(p => p.dataIndex).join(',');
-
     // Check if configuration actually changed (not just Strict Mode double-invocation)
     // Using value comparison (url + columns) instead of boolean flag prevents reset on re-mount
-    if (stableApiUrl === initialDepsRef.current.url && currentCols === initialDepsRef.current.cols) {
+    if (stableApiUrl === initialDepsRef.current.url && propertiesColumnsKey === initialDepsRef.current.cols) {
       // Same entity, don't reset (could be Strict Mode or initial mount)
       return;
     }
 
     // Different entity detected, update refs for next comparison
-    initialDepsRef.current = { url: stableApiUrl, cols: currentCols };
+    initialDepsRef.current = { url: stableApiUrl, cols: propertiesColumnsKey };
 
     setVisibleColumns(propertiesConfig.filter(p => {
       // Check defaultVisible first (new property), fallback to !hidden for backward compatibility
@@ -531,7 +536,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
 
     // Trigger fetch with new state
     setFetchTrigger(prev => prev + 1);
-  }, [ stableApiUrl, propertiesConfig.map(p => p.dataIndex).join(',') ]);
+  }, [ stableApiUrl, propertiesColumnsKey ]);
 
   // Fetch data when fetchTrigger changes
   // fetchTrigger starts at 1, so this triggers the initial fetch on mount
@@ -608,7 +613,7 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
   const applyFilters = React.useCallback((column: string, filterOperator: string, value: string | Array<string>) => {
     _applyFilters(column, filterOperator, value);
     setFetchTrigger(prev => prev + 1);
-    instrument.event('table.filter', { 
+    instrument.event('table.filter', {
       'table.filterColumn': column,
       'table.filterOperator': filterOperator,
     });
@@ -990,9 +995,11 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     });
 
   // Apply column grouping based on groupTitle property
-  // Uses Ant Design's children property to create grouped column headers
-  const finalColumns = React.useMemo(() => {
-    // Check if any columns have groupTitle
+  // Uses Ant Design's children property to create grouped column headers.
+  // NOTE: Not wrapped in useMemo because `columns` is already recreated on every render
+  // (it depends on closures from the render scope). Wrapping just the grouping in useMemo
+  // would be misleading since it can never skip recomputation.
+  const finalColumns = (() => {
     const hasGroups = columns.some(col => col.groupTitle);
     if (!hasGroups) {
       return columns;
@@ -1003,7 +1010,6 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
     const groupedFieldSet = new Set<string>();
     const groupMap = new Map<string, Column[]>();
 
-    // Group columns by groupTitle
     columns.forEach(col => {
       if (col.groupTitle) {
         if (!groupMap.has(col.groupTitle)) {
@@ -1014,21 +1020,19 @@ export const useTable = ({ propertiesConfig, apiConfig, routeParams = {}, defaul
       }
     });
 
-    // Create grouped column structures
     groupMap.forEach((childColumns, groupTitle) => {
       grouped.push({
-        title: t(groupTitle), // i18n (#22)
+        title: t(groupTitle),
         children: childColumns
       });
     });
 
-    // Add ungrouped columns (including action column)
     const ungroupedColumns = columns.filter(col =>
       !groupedFieldSet.has(col.dataIndex as string)
     );
 
     return [ ...grouped, ...ungroupedColumns ];
-  }, [ columns ]);
+  })();
 
 
   return {

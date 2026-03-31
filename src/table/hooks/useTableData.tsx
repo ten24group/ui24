@@ -136,7 +136,7 @@ export const useTableData = ({
   const formattingColumns = React.useMemo(
     () => propertiesConfig.filter(property =>
       [ 'date', 'datetime', 'time', 'boolean', 'switch', 'toggle', 'json' ]
-        .includes(property.fieldType?.toLocaleLowerCase())
+        .includes(property.fieldType?.toLowerCase())
     ),
     [ propertiesConfig ]
   );
@@ -261,7 +261,7 @@ export const useTableData = ({
         fetchSpanRef.current = null;
       }
     }
-  }, [queryIsFetching, error, entityName, apiUrl, isSearchMode, fetchStrategy, currentPage, pageSize]);
+  }, [ queryIsFetching, error, entityName, apiUrl, isSearchMode, fetchStrategy, currentPage, pageSize ]);
 
   // ── Process records: formatting, identifiers (derived via useMemo, no setState) ──
   const listRecords = React.useMemo(() => {
@@ -288,16 +288,16 @@ export const useTableData = ({
 
         processed[ property.dataIndex ] = nestedValue;
 
-        if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLocaleLowerCase())) {
+        if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLowerCase())) {
           const itemValue = nestedValue.toString().startsWith('0')
             ? new Date(parseInt(nestedValue)).toISOString()
             : nestedValue;
-          processed[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLocaleLowerCase() as 'date' | 'datetime' | 'time');
-        } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLocaleLowerCase())) {
+          processed[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLowerCase() as 'date' | 'datetime' | 'time');
+        } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLowerCase())) {
           if (typeof nestedValue === 'boolean') {
             processed[ property.dataIndex ] = formatBoolean(nestedValue);
           }
-        } else if (property.fieldType?.toLocaleLowerCase() === 'json') {
+        } else if (property.fieldType?.toLowerCase() === 'json') {
           processed[ property.dataIndex ] = typeof nestedValue !== 'string'
             ? JSON.stringify(nestedValue, null, 2)
             : nestedValue;

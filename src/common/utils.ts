@@ -2,38 +2,28 @@ import pako from 'pako';
 import { IConfigResolver } from '../core/context';
 
 /**
- * Detect whether the browser's DecompressionStream supports a given format.
- * Caches the result so we only probe once per session.
+ * Decompress a gzip ArrayBuffer via the native DecompressionStream API.
+ * Returns the decompressed text, or null if unsupported / failed.
  *
- * 'brotli' is supported in Firefox 147+ and Safari 18.4+ but isn't in
- * the TS CompressionFormat union yet, so we accept string and cast at the boundary.
+ * NOTE: We only use this for gzip. Brotli via DecompressionStream was removed
+ * because Chrome accepts the constructor but silently fails on actual decompression
+ * (only 'gzip' and 'deflate'/'deflate-raw' are reliably supported across browsers).
  */
-const _formatSupport = new Map<string, boolean>();
-function supportsDecompressionFormat(format: string): boolean {
-    const cached = _formatSupport.get(format);
-    if (cached !== undefined) return cached;
-    if (typeof DecompressionStream === 'undefined') {
-        _formatSupport.set(format, false);
-        return false;
-    }
+function supportsNativeGzip(): boolean {
+    if (typeof DecompressionStream === 'undefined') return false;
     try {
-        new DecompressionStream(format as CompressionFormat);
-        _formatSupport.set(format, true);
+        new DecompressionStream('gzip');
         return true;
     } catch {
-        _formatSupport.set(format, false);
         return false;
     }
 }
+const _nativeGzip = supportsNativeGzip();
 
-/**
- * Decompress an ArrayBuffer via the native DecompressionStream API.
- * Returns the decompressed text, or null if unsupported / failed.
- */
-async function decompressViaStream(buffer: ArrayBuffer, format: string): Promise<string | null> {
-    if (!supportsDecompressionFormat(format)) return null;
+async function decompressGzipViaStream(buffer: ArrayBuffer): Promise<string | null> {
+    if (!_nativeGzip) return null;
     try {
-        const ds = new DecompressionStream(format as CompressionFormat);
+        const ds = new DecompressionStream('gzip');
         const decompressedStream = new Blob([ buffer ]).stream().pipeThrough(ds);
         return await new Response(decompressedStream).text();
     } catch {
@@ -52,9 +42,11 @@ function decompressGzip(buffer: ArrayBuffer): string {
  * Fetch a single config URL with compressed variant fallback.
  *
  * Resolution order:
- *   1. `.br` (brotli) — smallest size; uses native DecompressionStream where available
- *   2. `.gz` (gzip)  — universally supported via pako
- *   3. plain JSON     — no decompression
+ *   1. `.gz` (gzip) — universally supported via pako / native DecompressionStream
+ *   2. plain JSON    — no decompression
+ *
+ * Brotli was removed: Chrome's DecompressionStream constructor accepts 'brotli'
+ * without throwing, but actual decompression silently produces empty output.
  *
  * S3 static files are uploaded as pre-compressed variants, so the
  * client explicitly fetches the compressed file and decompresses locally.
@@ -70,35 +62,26 @@ function withCacheBust(url: string, version?: string): string {
 }
 
 async function loadConfigUrl(url: string, version?: string): Promise<Record<string, unknown>> {
-    url = withCacheBust(url, version);
+    // Cache bust is applied per-variant AFTER the extension so the URL is
+    // correctly formed: url.gz?v=123, NOT url?v=123.gz
 
-    // 1. Try brotli — only if the browser's DecompressionStream supports it
-    if (supportsDecompressionFormat('brotli')) {
-        try {
-            const brResponse = await fetch(`${url}.br`);
-            if (brResponse.ok) {
-                const buffer = await brResponse.arrayBuffer();
-                const text = await decompressViaStream(buffer, 'brotli');
-                if (text) return JSON.parse(text) as Record<string, unknown>;
-            }
-        } catch {
-            // .br not available or decompression failed — fall through
-        }
-    }
-
-    // 2. Try gzip — pako handles this regardless of browser capabilities
+    // 1. Try gzip — native DecompressionStream when available, pako fallback
     try {
-        const gzResponse = await fetch(`${url}.gz`);
+        const gzUrl = withCacheBust(`${url}.gz`, version);
+        const gzResponse = await fetch(gzUrl);
         if (gzResponse.ok) {
             const buffer = await gzResponse.arrayBuffer();
+            const text = await decompressGzipViaStream(buffer);
+            if (text) return JSON.parse(text) as Record<string, unknown>;
             return JSON.parse(decompressGzip(buffer)) as Record<string, unknown>;
         }
     } catch {
         // compressed variant unavailable — silent fallthrough
     }
 
-    // 3. Fallback to uncompressed JSON — this is the final attempt, so errors propagate
-    const response = await fetch(url);
+    // 2. Fallback to uncompressed JSON — this is the final attempt, so errors propagate
+    const plainUrl = withCacheBust(url, version);
+    const response = await fetch(plainUrl);
     if (!response.ok) {
         throw new Error(`Failed to load config from ${url} (HTTP ${response.status})`);
     }
@@ -130,9 +113,10 @@ export const loadConfigs = async <T extends IConfigResolver<any>[]>(
                 return await prop()
             } else if (typeof prop === 'string') {
                 return await loadConfigUrl(prop, options?.version);
-            } else if (typeof prop === 'object') {
+            } else if (prop != null && typeof prop === 'object') {
                 return prop
             }
+            return {} as Record<string, unknown>;
         })
     );
     return configs as T;

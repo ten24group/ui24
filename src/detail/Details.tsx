@@ -495,7 +495,6 @@ const Details: React.FC<IDetailsComponentProps> = ({
             {columns.map((columnItems, colIdx) => (
               <div key={colIdx} style={detailsStyles.column}>
                 {columnItems
-                  .filter((item) => !item.hidden)
                   .map((item: IPropertiesConfig, index: number) => {
                     const value = item.initialValue;
 

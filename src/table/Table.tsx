@@ -361,7 +361,7 @@ export const Table = ({
     }
     // Otherwise, it's already a simple ITableApiConfig
     return apiConfig as ITableApiConfig;
-  }, [apiConfig, isSearchMode]);
+  }, [ apiConfig, isSearchMode ]);
 
   // Deep linking: bidirectional URL sync (#21)
   useDeepLink(deepLinkConfig, {
@@ -1154,7 +1154,7 @@ export const Table = ({
       {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
         <div style={{
           padding: '12px 16px',
-          background: '#e6f7ff',
+          background: 'var(--ant-color-primary-bg, #e6f7ff)',
           borderRadius: '4px',
           marginBottom: '16px',
           display: 'flex',

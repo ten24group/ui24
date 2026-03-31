@@ -23,13 +23,13 @@ export interface AppStaticContextValue {
     groups: string[];
     permissions?: string[];
     // Backward compat: legacy evaluations may use actor.cognito.groups
-    cognito?: { groups: string[]; [key: string]: any };
-    [key: string]: any;
+    cognito?: { groups: string[];[ key: string ]: any };
+    [ key: string ]: any;
   };
   tenant?: {
     tenantId: string;
     name: string;
-    [key: string]: any;
+    [ key: string ]: any;
   };
   device: {
     isMobile: boolean;
@@ -68,7 +68,7 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
   const config = getConditionSystemConfig();
 
   // ── Device state (with optional responsive updates) ──
-  const [device, setDevice] = useState(computeDevice);
+  const [ device, setDevice ] = useState(computeDevice);
 
   useEffect(() => {
     if (!config.responsiveDevice) return;
@@ -82,35 +82,35 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
       window.removeEventListener('resize', handler);
       clearTimeout(timeout);
     };
-  }, [config.responsiveDevice]);
+  }, [ config.responsiveDevice ]);
 
   // ── Feature flags state ──
-  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean | string>>(() => {
+  const [ featureFlags, setFeatureFlags ] = useState<Record<string, boolean | string>>(() => {
     return config.featureFlagProvider?.getFlags() ?? {};
   });
 
   useEffect(() => {
     if (!config.featureFlagProvider?.subscribe) return;
     return config.featureFlagProvider.subscribe(setFeatureFlags);
-  }, [config.featureFlagProvider]);
+  }, [ config.featureFlagProvider ]);
 
   // ── Tenant state ──
-  const [tenant, setTenant] = useState<AppStaticContextValue['tenant']>(() => {
+  const [ tenant, setTenant ] = useState<AppStaticContextValue[ 'tenant' ]>(() => {
     return config.tenantProvider?.getTenant() ?? undefined;
   });
 
   useEffect(() => {
     if (!config.tenantProvider?.subscribe) return;
     return config.tenantProvider.subscribe(setTenant);
-  }, [config.tenantProvider]);
+  }, [ config.tenantProvider ]);
 
   // ── App-defined context providers ──
-  const [appContext, setAppContext] = useState<Record<string, any>>(() => {
+  const [ appContext, setAppContext ] = useState<Record<string, any>>(() => {
     const initial: Record<string, any> = {};
     if (config.contextProviders) {
-      for (const [key, provider] of Object.entries(config.contextProviders)) {
+      for (const [ key, provider ] of Object.entries(config.contextProviders)) {
         try {
-          initial[key] = provider.getContext();
+          initial[ key ] = provider.getContext();
         } catch (e) {
           if (IS_DEV) {
             console.warn(`[AppStaticProvider] Error initializing context provider "${key}":`, e);
@@ -126,21 +126,21 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
     if (!config.contextProviders) return;
     const unsubscribes: Array<() => void> = [];
 
-    for (const [key, provider] of Object.entries(config.contextProviders)) {
+    for (const [ key, provider ] of Object.entries(config.contextProviders)) {
       if (provider.subscribe) {
         const unsub = provider.subscribe((data) => {
-          setAppContext(prev => ({ ...prev, [key]: data }));
+          setAppContext(prev => ({ ...prev, [ key ]: data }));
         });
         unsubscribes.push(unsub);
       }
     }
 
     return () => unsubscribes.forEach(fn => fn());
-  }, [config.contextProviders]);
+  }, [ config.contextProviders ]);
 
   // ── Build actor from auth user ──
   const value = useMemo((): AppStaticContextValue => {
-    const userGroups = user?.['cognito:groups'] || user?.groups || [];
+    const userGroups = user?.[ 'cognito:groups' ] || user?.groups || [];
     const actor = {
       actorId: user?.sub || user?.id || '',
       username: user?.username,
@@ -165,7 +165,7 @@ export const AppStaticProvider = ({ children }: { children: ReactNode }) => {
     user?.id,
     user?.username,
     user?.email,
-    user?.['cognito:groups'],
+    user?.[ 'cognito:groups' ],
     user?.groups,
     user?.permissions,
     device,
@@ -187,10 +187,10 @@ export const useActor = () =>
   useContextSelector(AppStaticContext, state => state?.actor);
 
 export const useActorGroups = () =>
-  useContextSelector(AppStaticContext, state => state?.actor.groups || []);
+  useContextSelector(AppStaticContext, state => state?.actor?.groups || []);
 
 export const useActorId = () =>
-  useContextSelector(AppStaticContext, state => state?.actor.actorId);
+  useContextSelector(AppStaticContext, state => state?.actor?.actorId);
 
 export const useDevice = () =>
   useContextSelector(AppStaticContext, state => state?.device);
@@ -198,7 +198,7 @@ export const useDevice = () =>
 export const useFeatureFlag = (flag: string) =>
   useContextSelector(
     AppStaticContext,
-    state => state?.featureFlags?.[flag] ?? false
+    state => state?.featureFlags?.[ flag ] ?? false
   );
 
 export const useTenant = () =>
