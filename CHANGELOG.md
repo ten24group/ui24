@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.24](https://github.com/ten24group/ui24/compare/v1.1.0-beta.23...v1.1.0-beta.24) (2026-03-31)
+
+
+### Bug Fixes
+
+* DescriptionWidget missing routeParams dep + remove dead refreshIntervalRef ([f00f077](https://github.com/ten24group/ui24/commit/f00f077c7d710f133cc6040406e88b2e560487a7))
+
 ## [1.1.0-beta.23](https://github.com/ten24group/ui24/compare/v1.1.0-beta.22...v1.1.0-beta.23) (2026-03-31)
 
 
