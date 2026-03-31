@@ -29,12 +29,13 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { login, logout, isLoggedIn } = useAuth();
     const configLoadedRef = useRef(false);
     const [ authConfigLoaded, setAuthConfigLoaded ] = useState(false);
+    const [ configStaleFlag, setConfigStaleFlag ] = useState(0);
 
     // Get all config URLs at once
     const { auth: authConfigUrl } = selectConfig(config => config.uiConfig);
     const { pages: pageConfigUrl, menu: menuConfigUrl, dashboard } = selectConfig(config => config.uiConfig);
     const authConfig = selectConfig(config => config.auth?.verifyToken);
-    const pagesConfig = selectConfig(config => config.pagesConfig || []);
+    const pagesConfig = selectConfig(config => config.pagesConfig || {});
 
     // Load auth config separately as it's needed for the login page.
     // When auth is a direct object (not a URL), mark loaded immediately.
@@ -70,7 +71,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Load other configs after login
     useEffect(() => {
         async function loadAppConfigs() {
-            if (!isLoggedIn || configLoadedRef.current || pagesConfig.length > 0) return;
+            if (!isLoggedIn || configLoadedRef.current) return;
             setLoader(true);
 
             const configSpan = instrument.begin('config.load', 'async', {
@@ -145,7 +146,6 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
             } catch (error) {
                 console.error('Error loading configs:', error);
                 configSpan.setAttribute('span.level', 'error');
-                throw error;
             } finally {
                 configSpan.end();
                 setLoader(false);
@@ -153,11 +153,10 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         loadAppConfigs();
-    }, [ isLoggedIn ]); // Only depend on login state
+    }, [ isLoggedIn, configStaleFlag ]); // configStaleFlag triggers reload after visibility stale
 
     // Reload config when the user returns to the tab after being away (#5).
-    // Debounced: only triggers if the tab was hidden for at least 5 minutes,
-    // avoiding unnecessary refetches on quick alt-tabs.
+    // Only triggers if the tab was hidden for at least 1 hour.
     const lastVisibleRef = useRef(Date.now());
     useEffect(() => {
         if (!isLoggedIn || !configLoadedRef.current) return;
@@ -168,6 +167,7 @@ export const ConfigLoader: React.FC<{ children: ReactNode }> = ({ children }) =>
                 lastVisibleRef.current = Date.now();
             } else if (Date.now() - lastVisibleRef.current > STALE_THRESHOLD) {
                 configLoadedRef.current = false;
+                setConfigStaleFlag(prev => prev + 1);
             }
         };
 

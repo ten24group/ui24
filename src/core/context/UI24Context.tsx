@@ -184,7 +184,7 @@ const Ui24ConfigProvider = ({ children, initConfig }) => {
 export const useUi24Config = () => {
   const context = useContext(Ui24Context);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useUi24Config must be used within a Ui24ConfigProvider');
   }
   return context;
 };

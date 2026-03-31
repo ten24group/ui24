@@ -7,51 +7,42 @@
  * - 'dark': Always dark mode
  * 
  * Persists preference in localStorage with app-specific namespace and respects system theme changes.
+ *
+ * IMPORTANT: Module-level state deliberately starts as 'light' without reading localStorage.
+ * The real preference is loaded once initThemeStore() is called with the app namespace,
+ * ensuring we always read from the correct storage key.
  */
-import { useState, useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
-/**
- * User's theme preference (also the resolved mode)
- */
 export type ThemePreference = 'system' | 'light' | 'dark';
 
-/**
- * Actual theme that gets applied (light or dark)
- */
 export type ThemeMode = 'light' | 'dark';
 
-let _appNamespace: string = 'ui24';
+let _appNamespace: string | null = null;
+let _initialized = false;
 
-/**
- * Initialize theme store with app-specific namespace
- * Call this once on app init with the app name from config
- */
 export function initThemeStore(appName: string): void {
   const namespace = appName.toLowerCase().replace(/[^a-z0-9]/g, '_');
   _appNamespace = `ui24_${namespace}`;
+  _initialized = true;
 
-  // Re-read preference with new namespace
   _preference = readStoredPreference();
   _resolvedMode = resolveThemeMode(_preference);
-  _listeners.forEach(fn => fn());
+  _notify();
 }
 
 function getStorageKey(): string {
+  if (!_appNamespace) return 'ui24_theme_preference';
   return `${_appNamespace}_theme_preference`;
 }
 
-/**
- * Check if system prefers dark mode
- */
 function getSystemPrefersDark(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
-/**
- * Read stored theme preference
- */
 function readStoredPreference(): ThemePreference {
+  if (!_initialized) return 'light';
   try {
     const v = localStorage.getItem(getStorageKey());
     if (v === 'system' || v === 'light' || v === 'dark') return v;
@@ -59,37 +50,28 @@ function readStoredPreference(): ThemePreference {
   return 'light';
 }
 
-/**
- * Resolve actual theme mode based on preference
- */
 function resolveThemeMode(preference: ThemePreference): ThemeMode {
   if (preference === 'light') return 'light';
   if (preference === 'dark') return 'dark';
   return getSystemPrefersDark() ? 'dark' : 'light';
 }
 
-// Internal state
-let _preference: ThemePreference = readStoredPreference();
-let _resolvedMode: ThemeMode = resolveThemeMode(_preference);
+let _preference: ThemePreference = 'light';
+let _resolvedMode: ThemeMode = 'light';
 const _listeners = new Set<() => void>();
 
-/**
- * Get current theme preference
- */
+function _notify(): void {
+  _listeners.forEach(fn => fn());
+}
+
 export function getThemePreference(): ThemePreference {
   return _preference;
 }
 
-/**
- * Get currently applied theme mode (light or dark)
- */
 export function getThemeMode(): ThemeMode {
   return _resolvedMode;
 }
 
-/**
- * Set theme preference
- */
 export function setThemePreference(preference: ThemePreference): void {
   if (_preference === preference) return;
   _preference = preference;
@@ -98,56 +80,30 @@ export function setThemePreference(preference: ThemePreference): void {
     localStorage.setItem(getStorageKey(), preference);
   } catch { }
 
-  const newMode = resolveThemeMode(_preference);
-  if (newMode !== _resolvedMode) {
-    _resolvedMode = newMode;
-  }
-
-  // Always notify listeners when preference changes, even if resolved mode is same
-  // This ensures UI active states update correctly
-  _listeners.forEach(fn => fn());
+  _resolvedMode = resolveThemeMode(_preference);
+  _notify();
 }
 
-/**
- * Legacy - kept for backward compatibility
- */
 export function setThemeMode(mode: ThemeMode): void {
   setThemePreference(mode);
 }
 
-/**
- * Legacy - kept for backward compatibility
- */
 export function toggleThemeMode(): void {
   setThemePreference(_resolvedMode === 'light' ? 'dark' : 'light');
 }
 
-/**
- * React hook to get current theme preference
- */
-export function useThemePreference(): ThemePreference {
-  const [ preference, setPreference ] = useState<ThemePreference>(_preference);
-  useEffect(() => {
-    const handler = () => setPreference(getThemePreference());
-    _listeners.add(handler);
-    return () => { _listeners.delete(handler); };
-  }, []);
-  return preference;
+function subscribe(onStoreChange: () => void): () => void {
+  _listeners.add(onStoreChange);
+  return () => { _listeners.delete(onStoreChange); };
 }
 
-/**
- * React hook to get currently applied theme mode (light or dark)
- */
+export function useThemePreference(): ThemePreference {
+  return useSyncExternalStore(subscribe, getThemePreference, () => 'light' as ThemePreference);
+}
+
 export function useThemeMode(): ThemeMode {
-  const [ mode, setMode ] = useState<ThemeMode>(_resolvedMode);
+  const mode = useSyncExternalStore(subscribe, getThemeMode, () => 'light' as ThemeMode);
 
-  useEffect(() => {
-    const handler = () => setMode(getThemeMode());
-    _listeners.add(handler);
-    return () => { _listeners.delete(handler); };
-  }, []);
-
-  // Listen to system theme changes when preference is 'system'
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -157,15 +113,13 @@ export function useThemeMode(): ThemeMode {
         const newMode = resolveThemeMode('system');
         if (newMode !== _resolvedMode) {
           _resolvedMode = newMode;
-          _listeners.forEach(fn => fn());
+          _notify();
         }
       }
     };
 
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', systemChangeHandler);
-      return () => mediaQuery.removeEventListener('change', systemChangeHandler);
-    }
+    mediaQuery.addEventListener('change', systemChangeHandler);
+    return () => mediaQuery.removeEventListener('change', systemChangeHandler);
   }, []);
 
   return mode;

@@ -1,8 +1,7 @@
-import React, { useMemo } from 'react';
-import { App as AntdApp, ConfigProvider, theme as antdTheme } from "antd";
+import React from 'react';
+import { App as AntdApp } from "antd";
 import { BrowserRouter } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import enUS from 'antd/locale/en_US';
 
 import { AppRouter, IAppRouter } from './routes/AppRouter';
 import { Ui24ConfigProvider, AuthProvider, ApiProvider, ThemeProvider, AppContextProvider, AppStaticProvider } from './core/context';
@@ -15,9 +14,8 @@ import { setI18nResolver } from './core/types/evaluation';
 import { QueryProvider } from './core/query/QueryProvider';
 import './core/registry/field-types'; // Register built-in field types at startup
 import { IS_DEV } from './core/constants';
-import { useThemeMode, setThemePreference, getThemePreference, initThemeStore } from './core/stores/theme';
+import { setThemePreference, initThemeStore } from './core/stores/theme';
 
-// Lazy load ConfigDevTools to avoid bundling it in production
 const ConfigDevTools = React.lazy(() =>
     import('./core/devtools/ConfigDevTools').then(module => ({ default: module.ConfigDevTools }))
 );
@@ -58,26 +56,6 @@ export function configure(config: IConditionSystemConfig): void {
         setI18nResolver((key) => config.i18nProvider!.translate(key));
     }
 }
-
-// Wrap ConfigProvider to react to dark/light mode changes.
-// cssVar:true ensures antd injects CSS custom properties (--ant-color-bg-container etc.)
-// into the DOM so that non-component CSS files (Table.css, Details.css, widgets) can
-// reference them via var(--ant-color-*) and automatically respond to theme switches.
-// hashed:false uses stable class names — avoids re-hashing styles on every component remount.
-const ThemeConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const mode = useThemeMode();
-    const themeConfig = useMemo(
-        () => mode === 'dark'
-            ? { cssVar: true, hashed: false as const, algorithm: antdTheme.darkAlgorithm }
-            : { cssVar: true, hashed: false as const },
-        [ mode ]
-    );
-    return (
-        <ConfigProvider locale={enUS} theme={themeConfig}>
-            {children}
-        </ConfigProvider>
-    );
-};
 
 // Conditionally import SDK in dev only - webpack tree-shakes this in production
 let initTracingIfDev: (() => void) | undefined;
@@ -163,29 +141,27 @@ const UI24 = ({ customRoutes = [], ui24config }: IUI24) => {
 
     return (
         <HelmetProvider>
-            <ThemeConfigProvider>
-                <AntdApp>
-                    <BrowserRouter>
-                        <Ui24ConfigProvider initConfig={ui24config}>
+            <BrowserRouter>
+                <Ui24ConfigProvider initConfig={ui24config}>
+                    <ThemeProvider>
+                        <AntdApp>
                             <AppContextProvider>
-                                <ThemeProvider>
-                                    <AuthProvider>
-                                        <AppStaticProvider>
-                                            <ApiProvider>
-                                                <QueryProvider>
-                                                    <ResponseModalProvider>
-                                                        <UI24Inner customRoutes={customRoutes} />
-                                                    </ResponseModalProvider>
-                                                </QueryProvider>
-                                            </ApiProvider>
-                                        </AppStaticProvider>
-                                    </AuthProvider>
-                                </ThemeProvider>
+                                <AuthProvider>
+                                    <AppStaticProvider>
+                                        <ApiProvider>
+                                            <QueryProvider>
+                                                <ResponseModalProvider>
+                                                    <UI24Inner customRoutes={customRoutes} />
+                                                </ResponseModalProvider>
+                                            </QueryProvider>
+                                        </ApiProvider>
+                                    </AppStaticProvider>
+                                </AuthProvider>
                             </AppContextProvider>
-                        </Ui24ConfigProvider>
-                    </BrowserRouter>
-                </AntdApp>
-            </ThemeConfigProvider>
+                        </AntdApp>
+                    </ThemeProvider>
+                </Ui24ConfigProvider>
+            </BrowserRouter>
         </HelmetProvider>
     )
 }

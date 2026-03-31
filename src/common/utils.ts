@@ -71,6 +71,7 @@ function withCacheBust(url: string, version?: string): string {
 
 async function loadConfigUrl(url: string, version?: string): Promise<Record<string, unknown>> {
     url = withCacheBust(url, version);
+
     // 1. Try brotli — only if the browser's DecompressionStream supports it
     if (supportsDecompressionFormat('brotli')) {
         try {
@@ -93,11 +94,14 @@ async function loadConfigUrl(url: string, version?: string): Promise<Record<stri
             return JSON.parse(decompressGzip(buffer)) as Record<string, unknown>;
         }
     } catch {
-        // .gz not available or decompression failed — fall through
+        // compressed variant unavailable — silent fallthrough
     }
 
-    // 3. Fallback to uncompressed JSON
+    // 3. Fallback to uncompressed JSON — this is the final attempt, so errors propagate
     const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to load config from ${url} (HTTP ${response.status})`);
+    }
     return response.json() as Promise<Record<string, unknown>>;
 }
 
@@ -107,12 +111,12 @@ export interface LoadConfigsOptions {
 }
 
 export const loadConfigs = async <T extends IConfigResolver<any>[]>(
-    ...args: [...IConfigResolver<any>[]] | [...IConfigResolver<any>[], LoadConfigsOptions]
+    ...args: [ ...IConfigResolver<any>[] ] | [ ...IConfigResolver<any>[], LoadConfigsOptions ]
 ): Promise<T> => {
     let resolvers: IConfigResolver<any>[];
     let options: LoadConfigsOptions | undefined;
 
-    const last = args[args.length - 1];
+    const last = args[ args.length - 1 ];
     if (last && typeof last === 'object' && !Array.isArray(last) && 'version' in last) {
         options = last as LoadConfigsOptions;
         resolvers = args.slice(0, -1) as IConfigResolver<any>[];
