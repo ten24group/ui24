@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.25](https://github.com/ten24group/ui24/compare/v1.1.0-beta.24...v1.1.0-beta.25) (2026-04-04)
+
+
+### Bug Fixes
+
+* **Form:** adjust mergedValues logic for form initialization ([ce76297](https://github.com/ten24group/ui24/commit/ce76297b7728932052324740fc8162d8cfc2fb27))
+
 ## [1.1.0-beta.24](https://github.com/ten24group/ui24/compare/v1.1.0-beta.23...v1.1.0-beta.24) (2026-03-31)
 
 
