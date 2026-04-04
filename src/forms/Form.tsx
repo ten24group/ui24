@@ -1005,9 +1005,13 @@ export function Form({
 
       const initialValues = extractDefaultValues(formPropertiesConfig);
 
-      // Merge with defaultValues (from modal navigation or other sources)
-      // defaultValues take precedence over initialValues
-      const mergedValues = { ...initialValues, ...defaultValues };
+      // Merge with defaultValues (FormPage schema defaults, URL prefill, modal props).
+      // Create mode: defaultValues win over extractDefaultValues so prefill/schema can set fields.
+      // Edit mode: initialValues (loaded record) MUST win — otherwise entity schema defaults
+      // (e.g. homeScore/awayScore default 0) overwrite real API values after spread order.
+      const mergedValues = initialRecord
+        ? { ...defaultValues, ...initialValues }
+        : { ...initialValues, ...defaultValues };
 
       form.setFieldsValue(mergedValues);
 
@@ -1015,7 +1019,7 @@ export function Form({
       prevFormPropsJsonRef.current = currentFormPropsJson;
       prevDefaultValuesJsonRef.current = currentDefaultValuesJson;
     }
-  }, [ dataLoadedFromView, formPropertiesConfig, defaultValues, form, evaluationContext ])
+  }, [ dataLoadedFromView, formPropertiesConfig, defaultValues, form, evaluationContext, initialRecord ])
 
 
   return (
