@@ -145,6 +145,37 @@ const DisplayOverrideActionsContext = createContext<DisplayOverrideActions | nul
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
 
+function resolveInlineOptionLabel(
+  item: IPropertiesConfig,
+  value: unknown
+): unknown {
+  const fieldType = (item.fieldType || '').toLowerCase();
+  const isSelectLike = [ 'select', 'multi-select', 'radio', 'checkbox', 'autocomplete' ].includes(fieldType);
+  if (!isSelectLike) return value;
+
+  const maybeOptions = (item as unknown as { options?: unknown }).options;
+  if (!Array.isArray(maybeOptions) || maybeOptions.length === 0) return value;
+
+  const options = maybeOptions as Array<{ label?: unknown; value?: unknown }>;
+  const labelByValue = new Map<string, string>();
+  for (const opt of options) {
+    if (opt?.value === undefined) continue;
+    const key = String(opt.value);
+    const label = opt?.label !== undefined ? String(opt.label) : key;
+    labelByValue.set(key, label);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(v => {
+      const key = String(v);
+      return labelByValue.get(key) ?? v;
+    });
+  }
+
+  const key = String(value);
+  return labelByValue.get(key) ?? value;
+}
+
 /**
  * Recursively deserialize JSON strings embedded in values.
  * Handles nested strings that may contain JSON (e.g., DynamoDB metadata
@@ -494,7 +525,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
       const pathStr = typeof propertyPath === 'string' ? propertyPath : String(propertyPath ?? '');
       const nestedValue = getNestedValue(resolvedData, propertyPath);
 
-      let valueForFormat = nestedValue;
+      let valueForFormat = resolveInlineOptionLabel(item, nestedValue);
       let displayOverrideActive = false;
       let displayOverrideValue: unknown = undefined;
       const overrideSpec = item.displayOverride;
