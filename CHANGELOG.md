@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.26](https://github.com/ten24group/ui24/compare/v1.1.0-beta.25...v1.1.0-beta.26) (2026-04-07)
+
+
+### Features
+
+* **display-overrides:** add display override functionality ([93405a0](https://github.com/ten24group/ui24/commit/93405a0c26e28337576c034c54f9841e8c3600fc))
+
 ## [1.1.0-beta.25](https://github.com/ten24group/ui24/compare/v1.1.0-beta.24...v1.1.0-beta.25) (2026-04-04)
 
 
