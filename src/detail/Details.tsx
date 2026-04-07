@@ -95,8 +95,8 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Spin, Typography } from 'antd';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Spin, Tooltip, Typography } from 'antd';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { DataLoadingState } from '../core/common/DataLoadingState';
 import { useParams } from "react-router-dom";
@@ -104,7 +104,7 @@ import { ErrorFallback, JsonDescription, JsonField, Link, EmptyState } from '../
 import { QueryErrorState } from '../core/common/ErrorFallback';
 import { MaskedDisplay } from '../core/common/MaskedDisplay';
 import { computeDerivedValue } from '../core/hooks/useDerivedFields';
-import { IApiConfig, useAppContext, useModalContext } from '../core/context';
+import { IApiConfig, useApi, useAppContext, useModalContext } from '../core/context';
 import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
 import { useEntityConfig, useFormat } from '../core/hooks';
@@ -126,11 +126,21 @@ import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from 
 import { useEntityDetail } from '../core/query/useEntityDetail';
 import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
 import { useRenderPipeline } from '../core/rendering';
+import { DisplayOverrideEditModal, resolveDisplayValueForPath } from '../core/display-overrides';
+import type { DisplayOverrideEntry, DisplayOverrideStorage } from '../core/types/display-override';
 import { DataQualityIndicator, type IDataQualityConfig } from '../core/common/DataQualityIndicator';
 import '../core/registry/field-types'; // ensure built-in registrations run
+import { EditOutlined } from '@ant-design/icons';
 
 // Stable empty object to avoid re-creating {} on every render (used as default for routeParams)
 const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
+
+type DisplayOverrideActions = {
+  patchDisplayOverride: (path: string, entry: DisplayOverrideEntry | null) => Promise<void>;
+  record: Record<string, unknown> | null;
+};
+
+const DisplayOverrideActionsContext = createContext<DisplayOverrideActions | null>(null);
 
 // For backwards compatibility, alias the old name
 type IPropertiesConfig = IDetailFieldConfig;
@@ -182,6 +192,9 @@ const DetailsFieldWrapper: React.FC<{
   /** Raw or formatted value — used for clipboard copy when copyable is true */
   value?: unknown;
 }> = ({ item, index, children, resolvedLabel, formattingStyles, formattingClassName, value }) => {
+  const [ overrideModalOpen, setOverrideModalOpen ] = useState(false);
+  const [ overrideSaving, setOverrideSaving ] = useState(false);
+  const overrideActions = useContext(DisplayOverrideActionsContext);
   const { t } = useTranslation(); // i18n (#22)
   const help = resolveHelpConfig({
     helpText: resolveStringOrDefault(item.helpText),
@@ -204,15 +217,76 @@ const DetailsFieldWrapper: React.FC<{
 
   const displayLabel = t(resolvedLabel ?? resolveStringOrDefault(item.label)); // i18n (#22)
   const containerClassName = [ 'details-field-container', formattingClassName ].filter(Boolean).join(' ');
+  const ov = item.displayOverride;
+  const chrome = ov?.chrome ?? 'tag';
+  const showOverrideChrome =
+    item.displayOverrideActive && chrome !== 'none';
+  const overrideTitle = showOverrideChrome
+    ? 'Override set (click to edit)'
+    : 'Set display override';
+  const propertyPath = item.column || item.name || item.id;
+  const canonicalRaw =
+    overrideActions?.record && propertyPath
+      ? getNestedValue(overrideActions.record, propertyPath)
+      : undefined;
+  const currentOverride: DisplayOverrideEntry | null =
+    item.displayOverrideActive && item.displayOverrideValue !== undefined
+      ? { value: item.displayOverrideValue, kind: 'value' }
+      : null;
+
+  const handleSaveOverride = async (entry: DisplayOverrideEntry) => {
+    if (!overrideActions || !ov?.path) return;
+    setOverrideSaving(true);
+    try {
+      await overrideActions.patchDisplayOverride(ov.path, entry);
+      setOverrideModalOpen(false);
+    } finally {
+      setOverrideSaving(false);
+    }
+  };
+
+  const handleClearOverride = async () => {
+    if (!overrideActions || !ov?.path) return;
+    setOverrideSaving(true);
+    try {
+      await overrideActions.patchDisplayOverride(ov.path, null);
+      setOverrideModalOpen(false);
+    } finally {
+      setOverrideSaving(false);
+    }
+  };
 
   return (
     <div key={index} className={containerClassName} style={formattingStyles}>
       <div className="details-field-label">
         {displayLabel}
+        {ov && overrideActions && (
+          <Tooltip title={overrideTitle}>
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined style={{ color: showOverrideChrome ? '#faad14' : '#8c8c8c' }} />}
+              onClick={() => setOverrideModalOpen(true)}
+              style={{ padding: 0, marginLeft: 6, minWidth: 18, height: 'auto' }}
+            />
+          </Tooltip>
+        )}
         <HelpIcon help={help} />
       </div>
       <HelpText help={help} />
       {content}
+      {ov && overrideActions && (
+        <DisplayOverrideEditModal
+          open={overrideModalOpen}
+          onClose={() => setOverrideModalOpen(false)}
+          fieldConfig={item}
+          canonicalRaw={canonicalRaw}
+          currentOverride={currentOverride}
+          saving={overrideSaving}
+          onSave={handleSaveOverride}
+          onClear={handleClearOverride}
+        />
+      )}
     </div>
   );
 };
@@ -289,12 +363,14 @@ const Details: React.FC<IDetailsComponentProps> = ({
   dataQuality: dataQualityConfig,
   errorHandling: errorHandlingConfig,
   retry: retryConfig,
+  displayOverrides,
 }) => {
   // TODO(#7): Remove dynamicID fallback once all routes pass `identifiers` prop explicitly.
   // Currently, some routes use :dynamicID as the URL param and rely on this fallback.
   // Requires backend config generation to consistently set `identifiers` on detail pages.
   const { dynamicID } = useParams()
-  const { notifyError } = useAppContext();
+  const { notifyError, notifySuccess } = useAppContext();
+  const { callApiMethod } = useApi();
   const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
   const { resolveConfigRef } = useEntityConfig();
   const { formatDate, formatBoolean } = useFormat();
@@ -369,6 +445,7 @@ const Details: React.FC<IDetailsComponentProps> = ({
     isFetching: detailFetching,
     error: detailError,
     refetch: refetchDetail,
+    invalidate: invalidateDetail,
   } = useEntityDetail({
     apiConfig: detailApiConfig || { apiUrl: '', apiMethod: 'GET' },
     routeParams,
@@ -399,6 +476,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
   // Format record info: combine propertiesConfig with formatted values from source data
   const recordInfo = useMemo(() => {
     if (!resolvedData) return propertiesConfig;
+    const rawOverrideMap = displayOverrides
+      ? getNestedValue(resolvedData as Record<string, unknown>, displayOverrides.storageAttribute)
+      : undefined;
+
     return propertiesConfig.map(item => {
       // Derived / computed fields (#35) — compute value from record at render time
       if (item.derived) {
@@ -406,11 +487,83 @@ const Details: React.FC<IDetailsComponentProps> = ({
         return { ...item, initialValue: derivedValue };
       }
       const propertyPath = item.column || item.name || item.id;
+      const pathStr = typeof propertyPath === 'string' ? propertyPath : String(propertyPath ?? '');
       const nestedValue = getNestedValue(resolvedData, propertyPath);
-      const formattedValue = valueFormatter(item, nestedValue);
-      return { ...item, initialValue: formattedValue };
+
+      let valueForFormat = nestedValue;
+      let displayOverrideActive = false;
+      let displayOverrideValue: unknown = undefined;
+      const overrideSpec = item.displayOverride;
+      if (
+        displayOverrides &&
+        overrideSpec &&
+        pathStr.length > 0 &&
+        pathStr === overrideSpec.path
+      ) {
+        const { hasOverride, entry } = resolveDisplayValueForPath({
+          canonical: nestedValue,
+          overrides: rawOverrideMap as DisplayOverrideStorage | undefined,
+          path: overrideSpec.path,
+          channel: overrideSpec.channels?.[ 0 ],
+        });
+        if (hasOverride) {
+          displayOverrideActive = true;
+          displayOverrideValue = entry?.value;
+        }
+      }
+
+      const formattedValue = valueFormatter(item, valueForFormat);
+      return { ...item, initialValue: formattedValue, displayOverrideActive, displayOverrideValue };
     });
-  }, [ resolvedData, propertiesConfig, valueFormatter ]);
+  }, [ resolvedData, propertiesConfig, valueFormatter, displayOverrides ]);
+
+  const patchDisplayOverride = useCallback(
+    async (path: string, entry: DisplayOverrideEntry | null) => {
+      if (!detailApiConfig?.apiUrl || !resolvedData || !displayOverrides?.storageAttribute) return;
+      const storage = displayOverrides.storageAttribute;
+      const raw = getNestedValue(resolvedData as Record<string, unknown>, storage);
+      const currentMap: Record<string, unknown> =
+        raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...(raw as Record<string, unknown>) } : {};
+      if (entry === null) {
+        delete currentMap[ path ];
+      } else {
+        currentMap[ path ] = entry;
+      }
+      const url = substituteUrlParams(detailApiConfig.apiUrl, routeParams, identifier);
+      try {
+        await callApiMethod({
+          ...detailApiConfig,
+          apiMethod: 'PATCH',
+          apiUrl: url,
+          payload: { [ storage ]: currentMap },
+        });
+        notifySuccess('Display override saved');
+        await invalidateDetail();
+      } catch (e) {
+        const err = handleApiError(e, 'Failed to save display override');
+        notifyError(err.formattedErrors.join('\n'));
+      }
+    },
+    [
+      detailApiConfig,
+      resolvedData,
+      displayOverrides,
+      identifier,
+      routeParams,
+      callApiMethod,
+      notifySuccess,
+      notifyError,
+      invalidateDetail,
+    ]
+  );
+
+  const displayOverrideContextValue = useMemo((): DisplayOverrideActions | null => {
+    if (!displayOverrides || !detailApiConfig?.apiUrl || !resolvedData) return null;
+    return {
+      patchDisplayOverride,
+      record: resolvedData as Record<string, unknown>,
+    };
+  }, [ displayOverrides, detailApiConfig?.apiUrl, resolvedData, patchDisplayOverride ]);
 
   // Track data update timestamp
   useEffect(() => {
@@ -459,248 +612,250 @@ const Details: React.FC<IDetailsComponentProps> = ({
   const columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 3); // Details can have up to 3 columns
 
   return (
-    <ErrorBoundary
-      FallbackComponent={ErrorFallback}
-      onReset={() => {
-        // Re-fetch data on error boundary reset
-        refetchDetail();
-      }}
-    >
-      {!dataLoaded ? (
-        <DataLoadingState type={loadingConfig?.type} pageType="detail" columns={columns.length || 2} rows={loadingConfig?.rows} />
-      ) : detailError && !recordNotFound ? (
-        <QueryErrorState
-          error={detailError}
-          onRetry={refetchDetail}
-          errorHandling={errorHandlingConfig}
-          retry={retryConfig}
-        />
-      ) : recordNotFound ? (
-        // Record not found — show contextual empty state with smart "Go Back" behavior
-        <RecordNotFoundState entityName={detailEntityName} />
-      ) : (
-        // Show spinner overlay only for refresh (keeps content visible)
-        <Spin spinning={detailFetching && !detailLoading}>
-          {dataQualityConfig?.enabled && dataQualityConfig.showInDetail !== false && resolvedData && (
-            <div style={{ marginBottom: 16 }}>
-              <DataQualityIndicator
-                record={resolvedData as Record<string, unknown>}
-                config={dataQualityConfig}
-                propertiesConfig={propertiesConfig}
-                mode="full"
-              />
-            </div>
-          )}
-          <div style={detailsStyles.container}>
-            {columns.map((columnItems, colIdx) => (
-              <div key={colIdx} style={detailsStyles.column}>
-                {columnItems
-                  .map((item: IPropertiesConfig, index: number) => {
-                    const value = item.initialValue;
+    <DisplayOverrideActionsContext.Provider value={displayOverrideContextValue}>
+      <ErrorBoundary
+        FallbackComponent={ErrorFallback}
+        onReset={() => {
+          // Re-fetch data on error boundary reset
+          refetchDetail();
+        }}
+      >
+        {!dataLoaded ? (
+          <DataLoadingState type={loadingConfig?.type} pageType="detail" columns={columns.length || 2} rows={loadingConfig?.rows} />
+        ) : detailError && !recordNotFound ? (
+          <QueryErrorState
+            error={detailError}
+            onRetry={refetchDetail}
+            errorHandling={errorHandlingConfig}
+            retry={retryConfig}
+          />
+        ) : recordNotFound ? (
+          // Record not found — show contextual empty state with smart "Go Back" behavior
+          <RecordNotFoundState entityName={detailEntityName} />
+        ) : (
+          // Show spinner overlay only for refresh (keeps content visible)
+          <Spin spinning={detailFetching && !detailLoading}>
+            {dataQualityConfig?.enabled && dataQualityConfig.showInDetail !== false && resolvedData && (
+              <div style={{ marginBottom: 16 }}>
+                <DataQualityIndicator
+                  record={resolvedData as Record<string, unknown>}
+                  config={dataQualityConfig}
+                  propertiesConfig={propertiesConfig}
+                  mode="full"
+                />
+              </div>
+            )}
+            <div style={detailsStyles.container}>
+              {columns.map((columnItems, colIdx) => (
+                <div key={colIdx} style={detailsStyles.column}>
+                  {columnItems
+                    .map((item: IPropertiesConfig, index: number) => {
+                      const value = item.initialValue;
 
-                    // Run rendering pipeline (#95) for resolved label, formatting metadata
-                    const pipelineResult = processField(
-                      item,
-                      value,
-                      resolvedData || {},
-                    );
-                    const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
-
-                    // Relation field rendering
-                    if (item.relationConfig) {
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <RelationFieldRenderer
-                            relationConfig={item.relationConfig}
-                            value={value}
-                            record={resolvedData || {}}
-                            routeParams={routeParams}
-                            label={pLabel ?? resolveStringOrDefault(item.label)}
-                          />
-                        </DetailsFieldWrapper>
+                      // Run rendering pipeline (#95) for resolved label, formatting metadata
+                      const pipelineResult = processField(
+                        item,
+                        value,
+                        resolvedData || {},
                       );
-                    }
+                      const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
 
-                    // Custom renderer from ExtensionRegistry
-                    const CustomDetailRenderer = getFieldRenderer(
-                      '' + (item.fieldType || ''),
-                      'detail',
-                      {
-                        fieldName: item.name || item.column || '',
-                        entityName,
-                        explicitRenderer: typeof item.renderer === 'string' ? item.renderer : undefined,
-                        routeParams
-                      }
-                    );
-
-                    if (CustomDetailRenderer) {
-                      const customDetailProps = buildDetailFieldProps(
-                        '' + (item.fieldType || ''),
-                        {
-                          fieldName: item.name || item.column || '',
-                          value,
-                          label: pLabel ?? resolveStringOrDefault(item.label),
-                          config: item,
-                          routeParams
-                        }
-                      );
-                      const Renderer = CustomDetailRenderer;
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <Renderer {...customDetailProps} />
-                        </DetailsFieldWrapper>
-                      );
-                    }
-
-                    // Null/undefined → em dash
-                    if (value === null || value === undefined) {
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
-                          <span>—</span>
-                        </DetailsFieldWrapper>
-                      );
-                    }
-
-                    // Data masking (#51) — wrap string values when masking is configured
-                    if (item.masking?.enabled && typeof value === 'string') {
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <MaskedDisplay value={value} config={item.masking} />
-                        </DetailsFieldWrapper>
-                      );
-                    }
-
-                    // Link fields
-                    if (item.linkConfig) {
-                      const linkUrl = substituteUrlParams(
-                        item.linkConfig.routePattern,
-                        { ...routeParams, ...resolvedData },
-                        value
-                      );
-
-                      const templateContext = { ...routeParams, ...resolvedData };
-                      const displayText = item.linkConfig.displayText
-                        ? evaluateTemplate(item.linkConfig.displayText, templateContext)
-                        : value;
-
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
-                            {displayText} ({value})
-                          </Link>
-                        </DetailsFieldWrapper>
-                      );
-                    }
-
-                    // Modal fields
-                    if (item.openInModal) {
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <OpenInModal
-                            modalType="details"
-                            primaryIndex={value}
-                            modalPageConfig={{
-                              pageTitle: pLabel ?? resolveStringOrDefault(item.label),
-                              propertiesConfig: [ { ...item, label: pLabel ?? resolveStringOrDefault(item.label) } ],
-                            }}
-                          >
-                            {value}
-                          </OpenInModal>
-                        </DetailsFieldWrapper>
-                      );
-                    }
-
-                    // List-of-objects: render as an inline table instead of JSON
-                    if (
-                      item.type === 'list' &&
-                      Array.isArray(value) &&
-                      value.length > 0 &&
-                      value.some(v => typeof v === 'object' && v !== null)
-                    ) {
-                      const rendererKey = item.fieldType === 'inline-table' ? 'inline-table' : 'list';
-                      const ListRenderer = fieldTypeRegistry.get(rendererKey, 'detail');
-                      if (ListRenderer) {
+                      // Relation field rendering
+                      if (item.relationConfig) {
                         return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
-                            <ListRenderer value={value} config={item} />
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                            <RelationFieldRenderer
+                              relationConfig={item.relationConfig}
+                              value={value}
+                              record={resolvedData || {}}
+                              routeParams={routeParams}
+                              label={pLabel ?? resolveStringOrDefault(item.label)}
+                            />
                           </DetailsFieldWrapper>
                         );
                       }
-                    }
 
-                    // Complex data (json, map, list, objects)
-                    const isComplexData =
-                      ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
-                        item.type === 'list' ||
-                        item.type === 'map' ||
-                        (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
-                        (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+                      // Custom renderer from ExtensionRegistry
+                      const CustomDetailRenderer = getFieldRenderer(
+                        '' + (item.fieldType || ''),
+                        'detail',
+                        {
+                          fieldName: item.name || item.column || '',
+                          entityName,
+                          explicitRenderer: typeof item.renderer === 'string' ? item.renderer : undefined,
+                          routeParams
+                        }
                       );
 
-                    if (isComplexData) {
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
-                          <JsonField data={value} title={pLabel ?? resolveStringOrDefault(item.label)} maxDepth={2} />
-                        </DetailsFieldWrapper>
-                      );
-                    }
+                      if (CustomDetailRenderer) {
+                        const customDetailProps = buildDetailFieldProps(
+                          '' + (item.fieldType || ''),
+                          {
+                            fieldName: item.name || item.column || '',
+                            value,
+                            label: pLabel ?? resolveStringOrDefault(item.label),
+                            config: item,
+                            routeParams
+                          }
+                        );
+                        const Renderer = CustomDetailRenderer;
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                            <Renderer {...customDetailProps} />
+                          </DetailsFieldWrapper>
+                        );
+                      }
 
-                    // Registry-based detail renderer — use pipeline defaults, lookup component directly
-                    const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
-                    if (DetailRenderer) {
-                      const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
-                      const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
+                      // Null/undefined → em dash
+                      if (value === null || value === undefined) {
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                            <span>—</span>
+                          </DetailsFieldWrapper>
+                        );
+                      }
+
+                      // Data masking (#51) — wrap string values when masking is configured
+                      if (item.masking?.enabled && typeof value === 'string') {
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                            <MaskedDisplay value={value} config={item.masking} />
+                          </DetailsFieldWrapper>
+                        );
+                      }
+
+                      // Link fields
+                      if (item.linkConfig) {
+                        const linkUrl = substituteUrlParams(
+                          item.linkConfig.routePattern,
+                          { ...routeParams, ...resolvedData },
+                          value
+                        );
+
+                        const templateContext = { ...routeParams, ...resolvedData };
+                        const displayText = item.linkConfig.displayText
+                          ? evaluateTemplate(item.linkConfig.displayText, templateContext)
+                          : value;
+
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                            <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
+                              {displayText} ({value})
+                            </Link>
+                          </DetailsFieldWrapper>
+                        );
+                      }
+
+                      // Modal fields
+                      if (item.openInModal) {
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                            <OpenInModal
+                              modalType="details"
+                              primaryIndex={value}
+                              modalPageConfig={{
+                                pageTitle: pLabel ?? resolveStringOrDefault(item.label),
+                                propertiesConfig: [ { ...item, label: pLabel ?? resolveStringOrDefault(item.label) } ],
+                              }}
+                            >
+                              {value}
+                            </OpenInModal>
+                          </DetailsFieldWrapper>
+                        );
+                      }
+
+                      // List-of-objects: render as an inline table instead of JSON
+                      if (
+                        item.type === 'list' &&
+                        Array.isArray(value) &&
+                        value.length > 0 &&
+                        value.some(v => typeof v === 'object' && v !== null)
+                      ) {
+                        const rendererKey = item.fieldType === 'inline-table' ? 'inline-table' : 'list';
+                        const ListRenderer = fieldTypeRegistry.get(rendererKey, 'detail');
+                        if (ListRenderer) {
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                              <ListRenderer value={value} config={item} />
+                            </DetailsFieldWrapper>
+                          );
+                        }
+                      }
+
+                      // Complex data (json, map, list, objects)
+                      const isComplexData =
+                        ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
+                          item.type === 'list' ||
+                          item.type === 'map' ||
+                          (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
+                          (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+                        );
+
+                      if (isComplexData) {
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                            <JsonField data={value} title={pLabel ?? resolveStringOrDefault(item.label)} maxDepth={2} />
+                          </DetailsFieldWrapper>
+                        );
+                      }
+
+                      // Registry-based detail renderer — use pipeline defaults, lookup component directly
+                      const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
+                      if (DetailRenderer) {
+                        const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
+                        const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
+                        return (
+                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                            <DetailRenderer
+                              value={value}
+                              label={pLabel ?? resolveStringOrDefault(item.label)}
+                              config={mergedConfig}
+                              routeParams={routeParams}
+                              record={resolvedData || {}}
+                            />
+                          </DetailsFieldWrapper>
+                        );
+                      }
+
+                      // Default fallback — smart text rendering
                       return (
                         <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <DetailRenderer
-                            value={value}
-                            label={pLabel ?? resolveStringOrDefault(item.label)}
-                            config={mergedConfig}
-                            routeParams={routeParams}
-                            record={resolvedData || {}}
-                          />
+                          <div>
+                            {value !== undefined && value !== null && value !== '' ? (
+                              typeof value === 'string' && value.match(/^https?:\/\//i) ? (
+                                <a href={value} target={item.target || '_blank'} rel={(item.target || '_blank') === '_blank' ? 'noopener noreferrer' : undefined}>
+                                  {value}
+                                </a>
+                              ) : typeof value === 'object' ? (
+                                <JsonDescription data={value} />
+                              ) : typeof value === 'string' && value.length > 100 ? (
+                                <div
+                                  style={{
+                                    wordWrap: 'break-word',
+                                    overflowWrap: 'break-word',
+                                    whiteSpace: 'pre-wrap',
+                                    maxWidth: '100%',
+                                  }}
+                                >
+                                  {value}
+                                </div>
+                              ) : (
+                                String(value)
+                              )
+                            ) : (
+                              <span>—</span>
+                            )}
+                          </div>
                         </DetailsFieldWrapper>
                       );
-                    }
-
-                    // Default fallback — smart text rendering
-                    return (
-                      <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                        <div>
-                          {value !== undefined && value !== null && value !== '' ? (
-                            typeof value === 'string' && value.match(/^https?:\/\//i) ? (
-                              <a href={value} target={item.target || '_blank'} rel={(item.target || '_blank') === '_blank' ? 'noopener noreferrer' : undefined}>
-                                {value}
-                              </a>
-                            ) : typeof value === 'object' ? (
-                              <JsonDescription data={value} />
-                            ) : typeof value === 'string' && value.length > 100 ? (
-                              <div
-                                style={{
-                                  wordWrap: 'break-word',
-                                  overflowWrap: 'break-word',
-                                  whiteSpace: 'pre-wrap',
-                                  maxWidth: '100%',
-                                }}
-                              >
-                                {value}
-                              </div>
-                            ) : (
-                              String(value)
-                            )
-                          ) : (
-                            <span>—</span>
-                          )}
-                        </div>
-                      </DetailsFieldWrapper>
-                    );
-                  })}
-              </div>
-            ))}
-          </div>
-        </Spin>
-      )}
-    </ErrorBoundary>
+                    })}
+                </div>
+              ))}
+            </div>
+          </Spin>
+        )}
+      </ErrorBoundary>
+    </DisplayOverrideActionsContext.Provider>
   );
 };
 

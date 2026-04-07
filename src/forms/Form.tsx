@@ -141,7 +141,6 @@ import { DiffReviewModal } from '../core/common/DiffReview/DiffReviewModal';
 import { useDerivedFieldValues } from '../core/hooks/useDerivedFields';
 import { useFormSubmitInstrumentation } from '../core/telemetry';
 import { useEntityDetail } from '../core/query/useEntityDetail';
-
 // Stable empty objects to avoid re-creating {} on every render (used as defaults)
 const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
 const EMPTY_DEFAULT_VALUES: Record<string, any> = {};
@@ -238,7 +237,9 @@ export function Form({
   // TODO: remove the dynamic-id option from here and use the identifiers prop instead
   const { dynamicID = "" } = useParams()
 
-  const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>(convertColumnsConfigForFormField(propertiesConfig))
+  const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>(
+    () => convertColumnsConfigForFormField(propertiesConfig)
+  )
 
   // Progressive disclosure state (#40)
   const TIER_ORDER = { basic: 0, advanced: 1, expert: 2 } as const;
@@ -373,23 +374,16 @@ export function Form({
 
   const [ dataLoadedFromView, setDataLoadedFromView ] = useState(!isEditMode);
 
-  // When edit data arrives (from API or pre-loaded dataSource), format and update form properties
+  // When edit data arrives (from API or pre-loaded dataSource), store record; field `initialValue`s
+  // are merged in the `propertiesConfig` + `initialRecord` effect so a later `propertiesConfig`
+  // refresh cannot wipe loaded values (e.g. navigating view → edit).
   const resolvedEditData = dataSource || editData;
   useEffect(() => {
     if (!resolvedEditData || !isEditMode) return;
 
     setInitialRecord(resolvedEditData);
-
-    const currentConfig = formPropertiesConfigRef.current;
-    const updatedFieldsWithInitialValues = currentConfig.map((item: IFormField) => {
-      const fieldPath = item.column || item.name || item.id;
-      const itemValue = itemValueFormatter(item, getNestedValue(resolvedEditData, fieldPath));
-      return { ...item, initialValue: itemValue };
-    });
-
-    setFormPropertiesConfig(updatedFieldsWithInitialValues);
     setDataLoadedFromView(true);
-  }, [ resolvedEditData, isEditMode, itemValueFormatter ]);
+  }, [ resolvedEditData, isEditMode ]);
 
   // Handle edit data fetch errors
   useEffect(() => {
@@ -399,9 +393,10 @@ export function Form({
     setDataLoadedFromView(true);
   }, [ editError, notifyError ]);
 
-  // Create mode: no fetch needed, mark data as loaded immediately
+  // Create mode: no fetch needed, mark data as loaded immediately; clear edit record if leaving edit mode
   useEffect(() => {
     if (!isEditMode) {
+      setInitialRecord(null);
       setDataLoadedFromView(true);
     }
   }, [ isEditMode ]);
@@ -1020,6 +1015,22 @@ export function Form({
       prevDefaultValuesJsonRef.current = currentDefaultValuesJson;
     }
   }, [ dataLoadedFromView, formPropertiesConfig, defaultValues, form, evaluationContext, initialRecord ])
+
+  useEffect(() => {
+    const converted = convertColumnsConfigForFormField(propertiesConfig);
+    const record = initialRecordRef.current;
+    if (!record) {
+      setFormPropertiesConfig(converted);
+      return;
+    }
+    setFormPropertiesConfig(
+      converted.map((item: IFormField) => {
+        const fieldPath = item.column || item.name || item.id;
+        const itemValue = itemValueFormatter(item, getNestedValue(record, fieldPath));
+        return { ...item, initialValue: itemValue };
+      })
+    );
+  }, [ propertiesConfig, initialRecord, itemValueFormatter ]);
 
 
   return (

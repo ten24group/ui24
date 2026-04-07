@@ -65,7 +65,7 @@ const EmbedDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
 
 /** Table: show "View" button that opens content in a modal */
 const EmbedTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
-  const [open, setOpen] = React.useState(false);
+  const [ open, setOpen ] = React.useState(false);
 
   if (!value) return <span>—</span>;
 
@@ -83,7 +83,7 @@ const EmbedTable: React.FC<BuiltInTableFieldProps> = ({ value, column }) => {
         footer={null}
         width={800}
         title="Embedded Content"
-        destroyOnClose
+        destroyOnHidden
       >
         {embed.type === 'markdown' ? (
           <MarkdownPreview value={String(value)} />

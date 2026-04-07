@@ -192,7 +192,7 @@ export const DiffReviewModal: React.FC<DiffReviewModalProps> = ({
         onCancel={onCancel}
         footer={null}
         width={700}
-        destroyOnClose
+        destroyOnHidden
         zIndex={getModalZIndex(nextDepth)}
       >
         {content}

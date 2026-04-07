@@ -24,7 +24,6 @@ type ResolvedFormField = Omit<IFormField, 'label' | 'placeholder' | 'helpText' |
     renderer?: string;
 };
 
-
 const MakeFormItem = ({
     fieldType = "text",
     namePrefixPath,
@@ -116,9 +115,12 @@ const MakeFormItem = ({
     const help = resolveHelpConfig({ helpText, help: restFormItemProps.help });
 
     // Build label with optional help icon for tooltip/popover placement
-    const labelWithHelp = help?.placement && help.placement !== 'below'
-        ? <span style={{ display: 'inline-flex', alignItems: 'center' }}>{label}<HelpIcon help={help} /></span>
-        : label;
+    const labelWithHelp = (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>{label}</span>
+            {help?.placement && help.placement !== 'below' && <HelpIcon help={help} />}
+        </span>
+    );
 
     // Apply formatting metadata from pipeline (#95/#26)
     const { _formattingStyles, _formattingClassName, _registryDefaults } = pipelineResult.resolvedProps;

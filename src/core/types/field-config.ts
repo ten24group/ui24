@@ -9,6 +9,7 @@ import type { ISectionsConfig } from '../../pages/PostAuth/SectionsRenderer';
 import type { IColumnsConfig } from '../forms/shared/utils';
 import type { IDataQualityConfig } from '../common/DataQualityIndicator';
 import type { IErrorHandlingConfig, IRetryConfig } from '../common/ErrorFallback';
+import type { DisplayOverridesUIConfig, DisplayOverrideFieldUi } from './display-override';
 
 export interface IDetailApiConfig {
   detailApiConfig?: IApiConfig;
@@ -417,6 +418,12 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
    */
   nullValue?: string;
 
+  /**
+   * Merged from `model.displayOverrides.fields` during UI config generation.
+   * Defines per-path admin labels, chrome, and channel hints for override UX.
+   */
+  displayOverride?: DisplayOverrideFieldUi;
+
   // Nested structures (for list/map types)
   properties?: Array<any>;
   items?: {
@@ -592,6 +599,11 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
   // Entity config reference for addNewOption
   addNewOptionConfig?: IEntityConfigReference;
 
+  /** Set at runtime when the displayed value came from the display-override map (Details). */
+  displayOverrideActive?: boolean;
+  /** Set at runtime to allow chrome/tooltip to show the effective override value (Details). */
+  displayOverrideValue?: unknown;
+
   // Nested structures
   properties?: Array<IDetailFieldConfig>;
   items?: {
@@ -675,6 +687,8 @@ export interface IPageConfigBase {
    * ]
    */
   alerts?: IPageAlertConfig[];
+  /** Optional display-overrides UI (storage attribute + field rows); clients merge overrides locally. */
+  displayOverrides?: DisplayOverridesUIConfig;
 }
 
 // ── Page config interfaces ──
