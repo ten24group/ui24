@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.27](https://github.com/ten24group/ui24/compare/v1.1.0-beta.26...v1.1.0-beta.27) (2026-04-07)
+
+
+### Features
+
+* **Details:** add inline option label resolution for select-like fields ([9332ec9](https://github.com/ten24group/ui24/commit/9332ec925da64d6ceaf6254986431babd8f28fa0))
+* **FileUploader:** enhance upload status and state handling ([432ab98](https://github.com/ten24group/ui24/commit/432ab988de43a4af82943922139618bf2bd57da7))
+
 ## [1.1.0-beta.26](https://github.com/ten24group/ui24/compare/v1.1.0-beta.25...v1.1.0-beta.26) (2026-04-07)
 
 
