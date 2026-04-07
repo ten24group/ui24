@@ -9,7 +9,7 @@ import { resolveAnchorProps } from '../../utils/link-utils';
 // Form renderers
 // ============================================================================
 
-const FileForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange }) => (
+const FileForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange, onUploadStatusChange, onUploadStateChange }) => (
   <FileUploader
     accept={accept}
     listType={(listType as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
@@ -17,10 +17,12 @@ const FileForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, fileNameP
     getSignedUploadUrlAPIConfig={getSignedUploadUrlAPIConfig}
     value={value}
     onChange={onChange}
+    onUploadStatusChange={onUploadStatusChange}
+    onUploadStateChange={onUploadStateChange}
   />
 );
 
-const ImageForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, withImageCrop, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange }) => (
+const ImageForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, withImageCrop, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange, onUploadStatusChange, onUploadStateChange }) => (
   <FileUploader
     accept={accept ?? 'image/*'}
     listType={(listType as 'text' | 'picture' | 'picture-card') ?? 'picture-card'}
@@ -29,10 +31,12 @@ const ImageForm: React.FC<BuiltInFormFieldProps> = ({ accept, listType, withImag
     getSignedUploadUrlAPIConfig={getSignedUploadUrlAPIConfig}
     value={value}
     onChange={onChange}
+    onUploadStatusChange={onUploadStatusChange}
+    onUploadStateChange={onUploadStateChange}
   />
 );
 
-const VideoForm: React.FC<BuiltInFormFieldProps> = ({ accept, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange }) => (
+const VideoForm: React.FC<BuiltInFormFieldProps> = ({ accept, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange, onUploadStatusChange, onUploadStateChange }) => (
   <FileUploader
     accept={accept ?? 'video/*'}
     listType="picture-card"
@@ -40,10 +44,12 @@ const VideoForm: React.FC<BuiltInFormFieldProps> = ({ accept, fileNamePrefix, ge
     getSignedUploadUrlAPIConfig={getSignedUploadUrlAPIConfig}
     value={value}
     onChange={onChange}
+    onUploadStatusChange={onUploadStatusChange}
+    onUploadStateChange={onUploadStateChange}
   />
 );
 
-const AudioForm: React.FC<BuiltInFormFieldProps> = ({ accept, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange }) => (
+const AudioForm: React.FC<BuiltInFormFieldProps> = ({ accept, fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange, onUploadStatusChange, onUploadStateChange }) => (
   <FileUploader
     accept={accept ?? 'audio/*'}
     listType="text"
@@ -51,10 +57,12 @@ const AudioForm: React.FC<BuiltInFormFieldProps> = ({ accept, fileNamePrefix, ge
     getSignedUploadUrlAPIConfig={getSignedUploadUrlAPIConfig}
     value={value}
     onChange={onChange}
+    onUploadStatusChange={onUploadStatusChange}
+    onUploadStateChange={onUploadStateChange}
   />
 );
 
-const AvatarForm: React.FC<BuiltInFormFieldProps> = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange }) => (
+const AvatarForm: React.FC<BuiltInFormFieldProps> = ({ fileNamePrefix, getSignedUploadUrlAPIConfig, value, onChange, onUploadStatusChange, onUploadStateChange }) => (
   <FileUploader
     accept="image/*"
     listType="picture-card"
@@ -63,6 +71,8 @@ const AvatarForm: React.FC<BuiltInFormFieldProps> = ({ fileNamePrefix, getSigned
     getSignedUploadUrlAPIConfig={getSignedUploadUrlAPIConfig}
     value={value}
     onChange={onChange}
+    onUploadStatusChange={onUploadStatusChange}
+    onUploadStateChange={onUploadStateChange}
   />
 );
 

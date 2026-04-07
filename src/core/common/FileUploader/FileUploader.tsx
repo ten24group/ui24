@@ -24,6 +24,8 @@ export type ImageUploaderProps = Exclude<UploadProps, 'maxCount' | 'customReques
   value?: string;
   readOnly?: boolean;
   onChange?: (value: string) => void;
+  onUploadStatusChange?: (uploading: boolean) => void;
+  onUploadStateChange?: (state: 'idle' | 'uploading' | 'error' | 'done') => void;
 }
 
 export const FileUploader = (props: ImageUploaderProps) => {
@@ -41,6 +43,8 @@ export const FileUploader = (props: ImageUploaderProps) => {
     value,
     readOnly = false,
     onChange: customOnChange,
+    onUploadStatusChange,
+    onUploadStateChange,
 
     ...restProps
   } = props;
@@ -51,6 +55,7 @@ export const FileUploader = (props: ImageUploaderProps) => {
   const { callApiMethod } = useApi()
   useEffect(() => {
     if (!value) {
+      setFileList(undefined);
       return;
     }
 
@@ -71,14 +76,20 @@ export const FileUploader = (props: ImageUploaderProps) => {
 
     if (info.file.status === 'uploading') {
       setLoading(true);
+      onUploadStatusChange?.(true);
+      onUploadStateChange?.('uploading');
     }
     else if (info.file.status === 'error') {
       setLoading(false);
+      onUploadStatusChange?.(false);
+      onUploadStateChange?.('error');
     }
     else if (info.file.status === 'done') {
       const uploadedImageUrl = info.file.response.data.url as string;
       customOnChange?.(uploadedImageUrl);
       setLoading(false);
+      onUploadStatusChange?.(false);
+      onUploadStateChange?.('done');
     }
   };
 
@@ -99,6 +110,8 @@ export const FileUploader = (props: ImageUploaderProps) => {
 
   const handleRemove: UploadProps[ 'onRemove' ] = () => {
     customOnChange?.(undefined);
+    onUploadStatusChange?.(false);
+    onUploadStateChange?.('idle');
   }
 
   const uploadButton = (

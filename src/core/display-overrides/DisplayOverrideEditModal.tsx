@@ -58,6 +58,8 @@ export const DisplayOverrideEditModal: React.FC<DisplayOverrideEditModalProps> =
   const formatConfig = selectConfig(c => c.formatConfig);
   const [ form ] = Form.useForm();
   const [ jsonDraft, setJsonDraft ] = useState('');
+  const [ uploadInProgress, setUploadInProgress ] = useState(false);
+  const [ uploadState, setUploadState ] = useState<'idle' | 'uploading' | 'error' | 'done'>('idle');
 
   const isComplex = useMemo(() => {
     const ft = (fieldConfig.fieldType || '').toLowerCase();
@@ -70,6 +72,8 @@ export const DisplayOverrideEditModal: React.FC<DisplayOverrideEditModalProps> =
 
   useEffect(() => {
     if (!open) return;
+    setUploadInProgress(false);
+    setUploadState('idle');
     if (isComplex) {
       const src = currentOverride?.value !== undefined ? currentOverride.value : canonicalRaw;
       try {
@@ -93,6 +97,7 @@ export const DisplayOverrideEditModal: React.FC<DisplayOverrideEditModalProps> =
   const label = resolveStringOrDefault(fieldConfig.label, fieldConfig.name || fieldConfig.column || 'Field');
 
   const handleOk = async () => {
+    if (uploadInProgress || uploadState === 'error') return;
     if (isComplex) {
       let parsed: unknown;
       try {
@@ -113,18 +118,24 @@ export const DisplayOverrideEditModal: React.FC<DisplayOverrideEditModalProps> =
   };
 
   const smartDefaults = fieldTypeRegistry.getDefaults(fieldConfig.fieldType || 'text', 'form');
+  const {
+    helpText: _ignoredHelpText,
+    renderer: _ignoredRenderer,
+    label: _ignoredLabel,
+    placeholder: _ignoredPlaceholder,
+    ...passthroughFieldProps
+  } = formFieldShape;
+
   const builtInProps: BuiltInFormFieldProps = {
     ...(smartDefaults || {}),
+    ...passthroughFieldProps,
     fieldType: fieldConfig.fieldType || 'text',
     name: FORM_FIELD,
     placeholder: resolveStringOrDefault(fieldConfig.placeholder),
-    options: formFieldShape.options,
-    formatConfig,
     label,
-    min: fieldConfig.min,
-    max: fieldConfig.max,
-    step: fieldConfig.step,
-    timezone: fieldConfig.timezone,
+    formatConfig,
+    onUploadStatusChange: setUploadInProgress,
+    onUploadStateChange: setUploadState,
   };
 
   const hasOverride = currentOverride?.value !== undefined;
@@ -135,8 +146,9 @@ export const DisplayOverrideEditModal: React.FC<DisplayOverrideEditModalProps> =
       open={open}
       onCancel={onClose}
       destroyOnHidden
-      confirmLoading={saving}
+      confirmLoading={saving || uploadInProgress}
       okText="Save override"
+      okButtonProps={{ disabled: uploadInProgress || uploadState === 'error' }}
       onOk={handleOk}
       footer={(_, { OkBtn, CancelBtn }) => (
         <Space style={{ width: '100%', justifyContent: 'space-between' }}>
@@ -154,6 +166,16 @@ export const DisplayOverrideEditModal: React.FC<DisplayOverrideEditModalProps> =
         <Typography.Text type="secondary">
           The detail view keeps showing the original value. This override is used where display overrides apply (e.g. public app).
         </Typography.Text>
+        {uploadInProgress && (
+          <Typography.Text type="warning">
+            Upload in progress. Please wait before saving the override.
+          </Typography.Text>
+        )}
+        {uploadState === 'error' && (
+          <Typography.Text type="danger">
+            Upload failed. Please re-upload a valid file before saving the override.
+          </Typography.Text>
+        )}
         {isComplex ? (
           <CodeEditor
             language="json"

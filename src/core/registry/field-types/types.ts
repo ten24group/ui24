@@ -58,6 +58,10 @@ export interface BuiltInFormFieldProps extends Partial<IFormField> {
    * watches those field values and passes them here for cascading options.
    */
   dependencyFilters?: Record<string, unknown>;
+  /** Optional uploader status callback for components with async uploads. */
+  onUploadStatusChange?: (uploading: boolean) => void;
+  /** Optional uploader state callback for async upload UX guards. */
+  onUploadStateChange?: (state: 'idle' | 'uploading' | 'error' | 'done') => void;
 }
 
 /**

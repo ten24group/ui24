@@ -232,7 +232,11 @@ export const DetailPage: React.FC<DetailPageProps> = ({
             <SectionsRenderer
               sectionsConfig={sectionsConfig}
               routeParams={enhancedRouteParams}
-              parentData={{ record }}
+              parentData={{
+                record,
+                detailApiConfig: detailProps.detailApiConfig,
+                displayOverrides: detailProps.displayOverrides,
+              }}
               depth={depth}
               cardStyle={cardStyle}
               isParentLoading={isLoading}

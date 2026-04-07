@@ -336,7 +336,9 @@ const SectionContent: React.FC<{
   if (section.pageType === 'details' && section.detailsPageConfig?.useParentData && parentData.record) {
     finalDetailsPageConfig = {
       ...finalDetailsPageConfig,
-      dataSource: parentData.record
+      dataSource: parentData.record,
+      detailApiConfig: finalDetailsPageConfig?.detailApiConfig ?? parentData.detailApiConfig,
+      displayOverrides: finalDetailsPageConfig?.displayOverrides ?? parentData.displayOverrides,
     };
   }
 

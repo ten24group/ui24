@@ -1,6 +1,5 @@
 /**
- * Display overrides — optional per-entity metadata for admin presentation maps stored separately from canonical fields.
- * Aligns with fw24 `display-override-types` / generated UI config. ui24 does not import fw24 at runtime.
+ * Display overrides — maps stored separately from canonical fields (any consumer). Aligns with fw24 generated UI config.
  */
 
 /** One entry in the override map (stored JSON). */
@@ -33,7 +32,6 @@ export interface DisplayOverridesUIConfig {
   allowListItemPaths?: boolean;
   fields?: DisplayOverrideFieldConfig[];
   auto?: boolean;
-  autoMode?: 'editableVisible' | 'allNonRelation';
   excludePaths?: string[];
   defaultChrome?: 'tag' | 'badge' | 'outline' | 'none';
 }

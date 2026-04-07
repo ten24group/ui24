@@ -1,2 +1,2 @@
-export * from './resolveDisplayValue';
+export * from './resolveWithDisplayOverrides';
 export * from './DisplayOverrideEditModal';

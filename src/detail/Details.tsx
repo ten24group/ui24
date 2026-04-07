@@ -126,11 +126,11 @@ import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from 
 import { useEntityDetail } from '../core/query/useEntityDetail';
 import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
 import { useRenderPipeline } from '../core/rendering';
-import { DisplayOverrideEditModal, resolveDisplayValueForPath } from '../core/display-overrides';
+import { DisplayOverrideEditModal, resolveWithDisplayOverrides } from '../core/display-overrides';
 import type { DisplayOverrideEntry, DisplayOverrideStorage } from '../core/types/display-override';
 import { DataQualityIndicator, type IDataQualityConfig } from '../core/common/DataQualityIndicator';
 import '../core/registry/field-types'; // ensure built-in registrations run
-import { EditOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, SwapOutlined } from '@ant-design/icons';
 
 // Stable empty object to avoid re-creating {} on every render (used as default for routeParams)
 const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
@@ -265,7 +265,11 @@ const DetailsFieldWrapper: React.FC<{
             <Button
               type="text"
               size="small"
-              icon={<EditOutlined style={{ color: showOverrideChrome ? '#faad14' : '#8c8c8c' }} />}
+              icon={
+                showOverrideChrome
+                  ? <DiffOutlined style={{ color: '#faad14' }} />
+                  : <SwapOutlined style={{ color: '#8c8c8c' }} />
+              }
               onClick={() => setOverrideModalOpen(true)}
               style={{ padding: 0, marginLeft: 6, minWidth: 18, height: 'auto' }}
             />
@@ -500,13 +504,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
         pathStr.length > 0 &&
         pathStr === overrideSpec.path
       ) {
-        const { hasOverride, entry } = resolveDisplayValueForPath({
-          canonical: nestedValue,
-          overrides: rawOverrideMap as DisplayOverrideStorage | undefined,
-          path: overrideSpec.path,
+        const { valueFromOverride, entry } = resolveWithDisplayOverrides({
+          storedValue: nestedValue,
+          overrideMap: rawOverrideMap as DisplayOverrideStorage | undefined,
+          fieldPath: overrideSpec.path,
           channel: overrideSpec.channels?.[ 0 ],
         });
-        if (hasOverride) {
+        if (valueFromOverride) {
           displayOverrideActive = true;
           displayOverrideValue = entry?.value;
         }
