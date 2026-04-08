@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.30](https://github.com/ten24group/ui24/compare/v1.1.0-beta.29...v1.1.0-beta.30) (2026-04-08)
+
+
+### Features
+
+* **InlineTable:** enhance column configuration with dynamic width and ellipsis support ([f179fdd](https://github.com/ten24group/ui24/commit/f179fdd24ae8e375de02d64fa44722dc16b8b290))
+
 ## [1.1.0-beta.29](https://github.com/ten24group/ui24/compare/v1.1.0-beta.28...v1.1.0-beta.29) (2026-04-08)
 
 
