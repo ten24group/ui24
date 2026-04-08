@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.29](https://github.com/ten24group/ui24/compare/v1.1.0-beta.28...v1.1.0-beta.29) (2026-04-08)
+
+
+### Features
+
+* **Form:** implement submit behavior for conditionally hidden fields ([84d3d51](https://github.com/ten24group/ui24/commit/84d3d51297002c92ab6d807c98be008d017e7f41))
+
 ## [1.1.0-beta.28](https://github.com/ten24group/ui24/compare/v1.1.0-beta.27...v1.1.0-beta.28) (2026-04-08)
 
 
