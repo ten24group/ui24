@@ -58,12 +58,22 @@ const InlineModeToggle: React.FC<{
   </Space>
 );
 
-function buildAntColumns(config: IInlineTableConfig) {
+function buildAntColumns(config: IInlineTableConfig, rows: Array<Record<string, unknown>>) {
+  const jsonLikeKeys = new Set(
+    config.columns
+      .filter((col) => rows.some((row) => {
+        const value = row?.[ col.key ];
+        return value !== null && typeof value === 'object';
+      }))
+      .map((col) => col.key),
+  );
+
   return config.columns.map((col: IInlineTableColumnConfig) => ({
     title: col.label || col.key.charAt(0).toUpperCase() + col.key.slice(1),
     dataIndex: col.key,
     key: col.key,
-    width: col.width,
+    width: col.width ?? (jsonLikeKeys.has(col.key) ? 320 : 160),
+    ellipsis: true,
     align: col.align || ('left' as const),
     render: (val: unknown) => (
       <CellValue value={val} title={col.label || col.key} />
@@ -142,7 +152,7 @@ const InlineTableCore: React.FC<{
   rows: Array<Record<string, unknown>>;
   config: IInlineTableConfig;
 }> = ({ rows, config }) => {
-  const columns = useMemo(() => buildAntColumns(config), [ config ]);
+  const columns = useMemo(() => buildAntColumns(config, rows), [ config, rows ]);
 
   const scroll = config.maxRows && rows.length > config.maxRows
     ? { y: config.maxRows * 40 }
@@ -184,7 +194,7 @@ const InlineTableCore: React.FC<{
         bordered={config.bordered !== false}
         virtual={true}
         pagination={pagination}
-        scroll={{x: true}}
+        scroll={{ x: 'max-content' }}
         style={{ width: '100%' }}
       />
     </Space>
