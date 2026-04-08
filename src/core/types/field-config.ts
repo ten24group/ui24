@@ -134,6 +134,32 @@ export interface IInlineTableConfig {
   bordered?: boolean;
   /** Maximum visible rows before scroll (default: unlimited) */
   maxRows?: number;
+  /**
+   * Client-side pagination (inline-table never calls APIs itself).
+   * - `true` => enabled with defaults
+   * - `false` => disabled
+   * - object => enabled with overrides
+   */
+  pagination?: boolean | {
+    /** Rows per page (default: 25) */
+    pageSize?: number;
+    /** Show page-size selector (default: true) */
+    showSizeChanger?: boolean;
+    /** Allowed page sizes (default: [10, 25, 50, 100]) */
+    pageSizeOptions?: number[];
+  };
+  /**
+   * Value presentation mode for detail view.
+   * - `table`: table only (default)
+   * - `json`: JSON only
+   * - `tabs`: switch between table and JSON
+   */
+  viewMode?: 'table' | 'json' | 'tabs';
+  /** Tab labels used when `viewMode: 'tabs'`. */
+  tabLabels?: {
+    table?: string;
+    json?: string;
+  };
 }
 
 /**
