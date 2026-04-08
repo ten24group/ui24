@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.28](https://github.com/ten24group/ui24/compare/v1.1.0-beta.27...v1.1.0-beta.28) (2026-04-08)
+
+
+### Features
+
+* **InlineTable:** enhance inline table with JSON view and pagination options ([b2386d6](https://github.com/ten24group/ui24/commit/b2386d6185b5ace213e76571be656e05935dcf64))
+
 ## [1.1.0-beta.27](https://github.com/ten24group/ui24/compare/v1.1.0-beta.26...v1.1.0-beta.27) (2026-04-07)
 
 
