@@ -664,6 +664,36 @@ export function Form({
         }
         const values = form.getFieldsValue(true);
 
+        // Build submit payload from visibility-aware semantics:
+        // by default, condition-hidden fields are excluded.
+        const deletePath = (target: Record<string, any>, path: string) => {
+          const parts = path.split('.');
+          let cursor: Record<string, any> | undefined = target;
+          for (let i = 0; i < parts.length - 1; i++) {
+            const key = parts[ i ];
+            const next = cursor?.[ key ];
+            if (!next || typeof next !== 'object') return;
+            cursor = next;
+          }
+          if (!cursor) return;
+          delete cursor[ parts[ parts.length - 1 ] ];
+        };
+
+        const currentFields = formPropertiesConfigRef.current || [];
+        currentFields.forEach((field: any, i: number) => {
+          const cond = currentConditionProps[ i ];
+          if (!cond?.conditionHidden) return;
+
+          const submitWhenHidden = field?.submitWhenHidden || 'auto';
+          if (submitWhenHidden === 'include') return;
+          if (submitWhenHidden !== 'auto' && submitWhenHidden !== 'exclude') return;
+
+          const fieldPath = field.name || field.column;
+          if (typeof fieldPath === 'string' && fieldPath.trim() !== '') {
+            deletePath(values, fieldPath);
+          }
+        });
+
         if (reviewBeforeSaveRef.current?.enabled && initialRecordRef.current) {
           setPendingSubmitValues(values);
           setDiffReviewOpen(true);

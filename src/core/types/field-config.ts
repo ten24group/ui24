@@ -428,6 +428,14 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
    */
   dependsOn?: string | string[];
 
+  /**
+   * Submit behavior for conditionally hidden fields.
+   * - `auto` (default): exclude from payload when hidden by `visibility`; include otherwise.
+   * - `include`: always include in payload, even when condition-hidden.
+   * - `exclude`: always exclude from payload when condition-hidden.
+   */
+  submitWhenHidden?: 'auto' | 'include' | 'exclude';
+
   /** Display masking configuration for PII / sensitive data (#51) */
   masking?: IMaskingConfig;
 
