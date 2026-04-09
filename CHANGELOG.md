@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.31](https://github.com/ten24group/ui24/compare/v1.1.0-beta.30...v1.1.0-beta.31) (2026-04-09)
+
+
+### Features
+
+* **Form:** enhance field registration and submission based on layout configuration ([a517510](https://github.com/ten24group/ui24/commit/a517510093b9146be2abd293485813e9fea08767))
+
 ## [1.1.0-beta.30](https://github.com/ten24group/ui24/compare/v1.1.0-beta.29...v1.1.0-beta.30) (2026-04-08)
 
 
