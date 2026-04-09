@@ -28,7 +28,9 @@
  * ## Data Flow
  * 
  * ### Create Mode
- * 1. Load schema defaults from `propertiesConfig`
+ * 1. Load field definitions and defaults from `propertiesConfig` (intersected with
+ *    `columnsConfig` when the layout lists explicit field keys — generated page config
+ *    is often a subset of the entity but can still include keys not shown in the layout)
  * 2. Merge with `defaultValues` prop (from modal navigation, etc.)
  * 3. Render form with initial values
  * 4. On submit, POST data to API
@@ -37,7 +39,8 @@
  * ### Edit Mode
  * 1. Fetch existing record from `detailApiConfig`
  * 2. Format record data for form display (dates, booleans, JSON, etc.)
- * 3. Set as `initialValue` for each field
+ * 3. Set as `initialValue` for each field in the effective list (layout-scoped when
+ *    `columnsConfig` lists explicit fields)
  * 4. Render form with initial values
  * 5. On submit, PUT/PATCH data to API
  * 6. Redirect or callback on success
@@ -127,7 +130,12 @@ import { ConditionalValue, isConditionalValue } from '../core/types/evaluation';
 import type { IFormDataChangePayload } from '../core/types/field-config';
 import { conditionEvaluator } from '../core/utils/ConditionEvaluator';
 import { useNewEvaluationContext } from '../core/context/NewEvaluationContext';
-import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
+import {
+  collectLayoutFieldKeys,
+  determineColumnLayout,
+  filterPropertiesConfigByLayout,
+  IColumnsConfig,
+} from '../core/forms/shared/utils';
 import { ErrorBoundary } from 'react-error-boundary';
 import { DataLoadingState } from '../core/common/DataLoadingState';
 import { ErrorFallback } from '../core/common';
@@ -161,11 +169,14 @@ interface IFormWithColumnsConfig extends IForm {
  * error handling, and multi-column layouts. Supports both create and edit modes.
  * 
  * @param props - Form configuration props
- * @param props.propertiesConfig - Field configurations from backend
+ * @param props.propertiesConfig - Field definitions for this form (generated page config,
+ *   server-driven schema, or inline). Not necessarily every attribute on the entity, but
+ *   may still list more fields than are placed on the layout.
  * @param props.apiConfig - API configuration for form submission
  * @param props.detailApiConfig - API configuration for loading existing data (edit mode)
  * @param props.formButtons - Form action buttons (submit, cancel, etc.)
- * @param props.columnsConfig - Multi-column layout configuration
+ * @param props.columnsConfig - Optional layout: when present with explicit `fields`,
+ *   registration and submit are limited to that set (see `filterPropertiesConfigByLayout`).
  * @param props.submitSuccessRedirect - URL to redirect to after successful submission
  * @param props.identifiers - Record identifier for edit mode
  * @param props.routeParams - Route parameters for URL substitution
@@ -237,8 +248,22 @@ export function Form({
   // TODO: remove the dynamic-id option from here and use the identifiers prop instead
   const { dynamicID = "" } = useParams()
 
+  // When `columnsConfig` lists explicit field keys, only those belong in form state and in the
+  // submit payload. Page `propertiesConfig` (from generated entities.json, etc.) is already a
+  // subset of the entity model, but it can still enumerate fields that are not on the layout
+  // (e.g. teamId, eventId while the edit grid only shows title, summary, …). Without this
+  // scoping, edit mode would merge the fetched record into every listed field and PATCH extras.
+  const layoutFieldKeys = useMemo(
+    () => collectLayoutFieldKeys(columnsConfig),
+    [ columnsConfig ]
+  );
+  const propertiesConfigForForm = useMemo(
+    () => filterPropertiesConfigByLayout(propertiesConfig, layoutFieldKeys),
+    [ propertiesConfig, layoutFieldKeys ]
+  );
+
   const [ formPropertiesConfig, setFormPropertiesConfig ] = useState<IFormField[]>(
-    () => convertColumnsConfigForFormField(propertiesConfig)
+    () => convertColumnsConfigForFormField(propertiesConfigForForm)
   )
 
   // Progressive disclosure state (#40)
@@ -662,7 +687,15 @@ export function Form({
         if (activeFieldNames.length > 0) {
           await form.validateFields(activeFieldNames);
         }
-        const values = form.getFieldsValue(true);
+        // Align payload keys with the scoped field list (same as `propertiesConfigForForm`). Avoid
+        // `getFieldsValue(true)`, which returns every key in the store, including layout-excluded
+        // fields that were merged from the loaded record into a broader `propertiesConfig`.
+        const submitFieldNames = formPropertiesConfigRef.current
+          .map((f: IFormField) => f.name || f.column)
+          .filter((k): k is string => typeof k === 'string' && k !== '');
+        const values = submitFieldNames.length > 0
+          ? form.getFieldsValue(submitFieldNames as any)
+          : ({} as Record<string, unknown>);
 
         // Build submit payload from visibility-aware semantics:
         // by default, condition-hidden fields are excluded.
@@ -1047,7 +1080,7 @@ export function Form({
   }, [ dataLoadedFromView, formPropertiesConfig, defaultValues, form, evaluationContext, initialRecord ])
 
   useEffect(() => {
-    const converted = convertColumnsConfigForFormField(propertiesConfig);
+    const converted = convertColumnsConfigForFormField(propertiesConfigForForm);
     const record = initialRecordRef.current;
     if (!record) {
       setFormPropertiesConfig(converted);
@@ -1060,7 +1093,7 @@ export function Form({
         return { ...item, initialValue: itemValue };
       })
     );
-  }, [ propertiesConfig, initialRecord, itemValueFormatter ]);
+  }, [ propertiesConfigForForm, initialRecord, itemValueFormatter ]);
 
 
   return (

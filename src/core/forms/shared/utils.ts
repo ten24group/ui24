@@ -20,7 +20,7 @@ export function determineColumnLayout<T>(
     // Get all items that should be rendered based on columnsConfig
     const sortedColumns = columnsConfig.columns
       .sort((a, b) => a.sortOrder - b.sortOrder);
-    
+
     const allConfiguredItems = sortedColumns
       .flatMap(col =>
         col.fields
@@ -58,4 +58,32 @@ export interface IColumnLayoutConfig {
 export interface IColumnsConfig {
   numColumns?: number;
   columns: IColumnLayoutConfig[];
+}
+
+/**
+ * Field keys explicitly listed in a page layout (`columnsConfig`). When non-null, the form
+ * should only register and submit these fields. This intersects with `propertiesConfig`,
+ * which is often page-scoped generated config but can still list more attributes than the layout.
+ */
+export function collectLayoutFieldKeys(columnsConfig?: IColumnsConfig): Set<string> | null {
+  if (!columnsConfig?.columns?.length) return null;
+  const keys = new Set<string>();
+  for (const col of columnsConfig.columns) {
+    for (const f of col.fields) {
+      if (typeof f === 'string' && f.trim() !== '') keys.add(f);
+    }
+  }
+  return keys.size > 0 ? keys : null;
+}
+
+/** Keeps only property entries whose `column` / `name` / `id` appears in the layout key set. */
+export function filterPropertiesConfigByLayout<T extends { name?: string; column?: string; id?: string }>(
+  propertiesConfig: T[],
+  layoutKeys: Set<string> | null
+): T[] {
+  if (!layoutKeys) return propertiesConfig;
+  return propertiesConfig.filter((field) => {
+    const key = field.column || field.name || field.id;
+    return typeof key === 'string' && layoutKeys.has(key);
+  });
 } 
