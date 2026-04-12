@@ -63,3 +63,10 @@
 .details-link:hover {
   color: var(--ant-color-primary-hover, #40a9ff);
 }
+
+/** Recent mutation — matches list row emphasis (global touch registry) */
+.ui24-detail--recent-touched {
+  border-radius: 8px;
+  outline: 2px solid var(--ant-color-primary, #1677ff);
+  outline-offset: 2px;
+}

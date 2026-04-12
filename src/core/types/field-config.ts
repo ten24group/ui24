@@ -397,6 +397,8 @@ export interface IBaseFieldConfig extends IFieldTypeProperties {
   // Type & Behavior
   fieldType?: FieldType;
   type?: PropertyType; // For complex types (list, map)
+  /** IANA timezone for interpreting / displaying date, datetime, and time fields */
+  timezone?: string;
 
   // Values
   defaultValue?: any; // Default value from backend entity schema (for new records)
@@ -513,7 +515,6 @@ export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
   prefixIcon?: ReactNode;
   style?: React.CSSProperties;
   setFormValue?: Function; // Callback for custom value updates
-  timezone?: string; // For date/time fields
 
   // Options for select/radio/checkbox
   options?: Array<IOptions>;
@@ -551,8 +552,6 @@ export interface IFormField extends Omit<IBaseFieldConfig, 'icon'> {
  * before being used in rendering via `useResolveBatch`.
  */
 export interface IDetailFieldConfig extends IBaseFieldConfig {
-  timezone?: string; // For date/time formatting
-
   // Link configuration
   isLink?: boolean;
   linkConfig?: {
@@ -695,6 +694,17 @@ export interface IPageAlertConfig {
   placement?: 'top' | 'bottom';
 }
 
+/**
+ * Post-save global touch registry: enable/disable and TTL.
+ * Used by `OperationExecutor.recentMutationTouch` and reserved `recentSaveMarker` page key.
+ */
+export interface IRecentMutationTouchConfig {
+  /** @default true */
+  enabled?: boolean;
+  /** How long the record id stays in the registry, in ms. @default 150000 (~2.5 min) */
+  durationMs?: number;
+}
+
 export interface IPageConfigBase {
   entityName?: string;
   routeParams?: Record<string, any>;
@@ -723,6 +733,12 @@ export interface IPageConfigBase {
   alerts?: IPageAlertConfig[];
   /** Optional display-overrides UI (storage attribute + field rows); clients merge overrides locally. */
   displayOverrides?: DisplayOverridesUIConfig;
+
+  /**
+   * Reserved: optional future banner. Row/detail emphasis after save uses the global touch registry
+   * (`touchRecentRecord` from {@link OperationExecutor} success), not this flag.
+   */
+  recentSaveMarker?: boolean | IRecentMutationTouchConfig;
 }
 
 // ── Page config interfaces ──

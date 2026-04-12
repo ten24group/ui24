@@ -113,7 +113,7 @@ export const RelatedTabs: React.FC<RelatedTabsProps> = ({ tabs, record, routePar
         items={tabItems}
         activeKey={activeKey}
         onChange={handleTabChange}
-        destroyInactiveTabPane
+        destroyOnHidden
       />
     </div>
   );

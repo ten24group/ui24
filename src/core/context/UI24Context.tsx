@@ -15,6 +15,16 @@ interface IFormatConfig {
     false: string; // NO, FALSE, INACTIVE
   };
   timezone?: string; // e.g. 'America/New_York'
+  /**
+   * How date/datetime/time values are shown across Details, tables, and formatDate().
+   * @default primaryZone: 'local' (browser IANA zone), showUtcSecondary: true when local ≠ UTC
+   */
+  dateTimeDisplay?: {
+    /** Which zone to use for the main formatted string */
+    primaryZone?: 'local' | 'utc' | 'source';
+    /** When primary is local (or source non-UTC), show an extra UTC line / tooltip */
+    showUtcSecondary?: boolean;
+  };
 }
 
 export interface IEnvironmentConfig {

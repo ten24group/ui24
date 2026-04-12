@@ -3,6 +3,7 @@ import React from 'react';
 /**
  * Navigation options for success redirects after form/modal submission.
  * Mirrors IRedirectOptions from fw24/src/entity/base-entity.ts.
+ * Router-only: do not add app-specific keys here (they belong on `OperationConfig`).
  */
 export interface IRedirectOptions {
   replace?: boolean;
@@ -27,7 +28,7 @@ export const isModifiedEvent = (e: React.MouseEvent): boolean =>
 /**
  * Resolve the `target` and `rel` attributes for an anchor element.
  *
- * @param explicitTarget - Explicitly configured target (e.g. from field config)
+ * @param explicitTarget - Explicitly configured target (e.g., from field config)
  * @param url            - The href; used to auto-detect external URLs when no explicit target is set
  * @returns `{ target, rel }` ready to spread onto an `<a>` element
  */
@@ -48,7 +49,7 @@ export const resolveAnchorProps = (
  */
 export const navigateToUrl = (
   url: string,
-  navigate: (url: string, options?: IRedirectOptions) => void,
+  navigate: (url: string, options?: Pick<IRedirectOptions, 'replace' | 'state'>) => void,
   options?: IRedirectOptions,
 ): void => {
   if (isExternalUrl(url)) {
@@ -58,6 +59,15 @@ export const navigateToUrl = (
       window.location.href = url;
     }
   } else {
-    navigate(url, options);
+    const replace = options?.replace;
+    const state = options?.state;
+    if (replace === undefined && state === undefined) {
+      navigate(url);
+    } else {
+      navigate(url, {
+        ...(replace !== undefined ? { replace } : {}),
+        ...(state !== undefined ? { state } : {}),
+      });
+    }
   }
 };

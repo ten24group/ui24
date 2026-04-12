@@ -513,12 +513,18 @@ export function Form({
 
           if (fieldConfig?.fieldType === "json") {
             // Parse JSON field (CodeEditor sends string, we parse to object for backend)
-            try {
-              result[ key ] = JSON.parse(value as string);
-            } catch (error) {
-              console.warn("[Form] JSON parsing failed for field:", key, error);
-              // If JSON parsing fails, keep the original value
-              result[ key ] = value;
+            const raw = value as string | null | undefined;
+            if (raw === null || raw === undefined || raw === '') {
+              result[ key ] = null;
+            } else if (typeof raw === 'string' && (raw === 'undefined' || raw === 'null')) {
+              result[ key ] = null;
+            } else {
+              try {
+                result[ key ] = JSON.parse(raw);
+              } catch (error) {
+                console.warn("[Form] JSON parsing failed for field:", key, error);
+                result[ key ] = value;
+              }
             }
           } else if (fieldConfig?.fieldType === "number") {
             // Convert number fields
@@ -528,14 +534,12 @@ export function Form({
               const numValue = Number(value);
               result[ key ] = isNaN(numValue) ? value : numValue;
             }
-          } else if (fieldConfig?.fieldType === "date") {
-            // Convert date fields
-            result[ key ] = normalizeDateValue(value);
-          } else if (fieldConfig?.fieldType === "time") {
-            // Convert time fields
-            result[ key ] = normalizeDateValue(value);
-          } else if (fieldConfig?.fieldType === "datetime") {
-            // Convert datetime fields
+          } else if (
+            fieldConfig?.fieldType === "date" ||
+            fieldConfig?.fieldType === "time" ||
+            fieldConfig?.fieldType === "datetime"
+          ) {
+            // Cleared → `null` so PATCH can use merge-patch semantics (fw24 maps null → ElectroDB remove).
             result[ key ] = normalizeDateValue(value);
           } else if (fieldConfig?.fieldType === "boolean" || fieldConfig?.fieldType === "switch" || fieldConfig?.fieldType === "toggle") {
             // Convert boolean/switch/toggle fields

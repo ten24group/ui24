@@ -29,7 +29,12 @@ let _installed = false;
 
 function emit(): void {
   _snapshot = [ ..._entries ];
-  _listeners.forEach(fn => fn());
+  // Defer subscriber notification so console.warn/error during a component render
+  // (e.g. antd Tabs deprecations) does not trigger useSyncExternalStore updates in the
+  // same commit and cause "Cannot update a component while rendering a different component".
+  queueMicrotask(() => {
+    _listeners.forEach(fn => fn());
+  });
 }
 
 function generateId(): string {

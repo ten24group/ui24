@@ -400,6 +400,13 @@ export interface ITableConfig extends IPageConfigBase {
   dataQuality?: IDataQualityConfig;
 
   /**
+   * After save, highlight the row when its id is in the global recent-mutation registry (see
+   * `OperationExecutor` / `recentMutationTouch` for TTL). SessionStorage keeps ids across refresh.
+   * Set to `false` to disable row/card styling for this table. Omit or `true` to show highlights.
+   */
+  recentSaveHighlight?: boolean;
+
+  /**
    * Virtual scrolling configuration (#29).
    * When enabled, antd Table renders only the visible rows in the DOM.
    * Dramatically improves performance for large datasets (hundreds to thousands of rows).

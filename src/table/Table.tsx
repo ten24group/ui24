@@ -93,11 +93,13 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { getStableTableRecordId, UI24_RECENT_SAVE_HIGHLIGHT_ROW_CLASS } from '../core/utils/list-highlight';
 import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { DragSortWrapper, DragHandleCell, SortableRow } from './DragSortTable';
 import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined, ColumnHeightOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { Resizable } from 'react-resizable';
 import { useTable } from "./useTable";
+import { useRecentSaveHighlight } from './hooks/useRecentSaveHighlight';
 import { ITableConfig, IRecord, ITableSummaryConfig, ITableApiConfig } from "./type";
 import { Search } from './Search/Search';
 import { ColumnSettings } from './ColumnSettings/ColumnSettings';
@@ -114,6 +116,9 @@ import { TableContextMenu, useTableContextMenu } from './ContextMenu/ContextMenu
 import { RenderFromPageType } from '../pages/PostAuth/PostAuthPage';
 import { resolveFilterPlaceholders } from '../core/utils/placeholderResolver';
 import { FilterSegments } from './FilterSegments/FilterSegments';
+import { useRecentTouchRelativeTick } from '../core/hooks';
+import { getRecentRecordTouchTime } from '../core/utils/recent-save-handoff-store';
+import { englishRecentSaveUpdatedLine } from '../core/utils/recent-touch-relative';
 import { useAutoRefresh } from '../core/hooks/useAutoRefresh';
 import { RefreshControl } from '../core/common/RefreshControl';
 import { EmptyState } from '../core/common/EmptyState';
@@ -255,6 +260,7 @@ export const Table = ({
   virtualScroll: virtualScrollConfig,
   summary: summaryConfig,
   rowDrag: rowDragConfig,
+  recentSaveHighlight,
 }: ITableConfig) => {
   const coreNavigate = useCoreNavigator();
   // Build placeholder context for segments and filters
@@ -528,6 +534,27 @@ export const Table = ({
   const isCardView = useUnifiedSwitcher
     ? viewState.activeView === 'card-grid'
     : displayMode === 'card';
+
+  const { activeHighlightIds } = useRecentSaveHighlight(
+    recentSaveHighlight,
+    recordIdentifierKey,
+    listRecords,
+    isInitialLoad,
+    isCardView ? 'card' : 'table'
+  );
+
+  const recentTouchRelativeTick = useRecentTouchRelativeTick(
+    recentSaveHighlight !== false && activeHighlightIds.size > 0,
+  );
+
+  const recentSaveRowHint = useCallback(
+    (stableId: string): string | undefined => {
+      if (recentSaveHighlight === false || !activeHighlightIds.has(stableId)) return undefined;
+      void recentTouchRelativeTick;
+      return englishRecentSaveUpdatedLine(getRecentRecordTouchTime(stableId));
+    },
+    [ recentSaveHighlight, activeHighlightIds, recentTouchRelativeTick ],
+  );
 
   // Resolve card config from unified viewSwitcher or legacy displayMode
   const resolvedCardConfig = viewSwitcherConfig?.cardConfig || displayModeConfig?.cardConfig;
@@ -1004,11 +1031,14 @@ export const Table = ({
     return cols;
   }, [ columns, hasPinnedColumns, leftPinned, rightPinned, resizeEnabled, columnWidths, handleColumnResize, dataQualityConfig, propertiesConfig, rowDragConfig, recordIdentifierKey ]);
 
-  const tableRowClassName = useMemo(() => {
-    if (!rowFormatting || rowFormatting.length === 0) return undefined;
-    return (record: IRecord) => {
-      const rawRecord = record.__raw__ || record;
-      const classNames: string[] = [];
+  const tableRowClassName = useCallback((record: IRecord) => {
+    const rid = getStableTableRecordId(record as Record<string, unknown>, recordIdentifierKey);
+    const rawRecord = record.__raw__ || record;
+    const classNames: string[] = [];
+    if (activeHighlightIds.has(rid)) {
+      classNames.push(UI24_RECENT_SAVE_HIGHLIGHT_ROW_CLASS);
+    }
+    if (rowFormatting?.length) {
       for (const rule of rowFormatting) {
         try {
           const match = conditionEvaluator.evaluateSync(rule.when, { ...evaluationContext, record: rawRecord });
@@ -1019,9 +1049,9 @@ export const Table = ({
           // Fail-safe: skip rule on evaluation error
         }
       }
-      return classNames.join(' ');
-    };
-  }, [ rowFormatting, evaluationContext ]);
+    }
+    return classNames.filter(Boolean).join(' ') || undefined;
+  }, [ activeHighlightIds, recordIdentifierKey, rowFormatting, evaluationContext ]);
 
   const tableOnRow = useCallback((record: IRecord) => {
     const props: Record<string, unknown> = {};
@@ -1041,8 +1071,14 @@ export const Table = ({
         ctxMenu.show(e, record);
       };
     }
+    const rid = getStableTableRecordId(record as Record<string, unknown>, recordIdentifierKey);
+    const hint = recentSaveRowHint(rid);
+    if (hint) {
+      props.title = hint;
+      props[ 'aria-label' ] = hint;
+    }
     return props;
-  }, [ rowFormatting, evaluationContext, contextMenuConfig, ctxMenu ]);
+  }, [ rowFormatting, evaluationContext, contextMenuConfig, ctxMenu, recordIdentifierKey, recentSaveRowHint ]);
 
   const tableLocale = useMemo(() => ({
     emptyText: (
@@ -1317,6 +1353,8 @@ export const Table = ({
                 records={listRecords}
                 cardConfig={resolvedCardConfig}
                 recordIdentifierKey={recordIdentifierKey}
+                highlightRecordIds={activeHighlightIds}
+                highlightCaptionForRecord={recentSaveRowHint}
                 onRecordClick={handleRecordClick}
                 onActionClick={handleCardActionClick}
               />

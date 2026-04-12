@@ -37,6 +37,7 @@ import type { Condition, ConditionalValue } from '../core/types/evaluation';
 import { evaluateTemplateObject, getNestedValue, substituteUrlParams } from '../core/utils';
 import { handleApiError } from '../core/utils/api-error-handler';
 import { evaluateTemplateValue } from '../core/utils/template';
+import type { IRedirectOptions } from '../core/utils/link-utils';
 import type { IDetailsConfig } from '../core/types/field-config';
 import { IAccordionPageConfig } from '../pages/PostAuth/Accordion/Accordion';
 import { IDashboardPageConfig } from '../pages/PostAuth/DashboardPage';
@@ -190,14 +191,8 @@ export interface IModalConfig {
   apiConfig?: IApiConfig;
   /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
   submitSuccessRedirect?: string | ConditionalValue<string>;
-  /**
-   * Navigation options for submitSuccessRedirect
-   * Uses react-router-dom's NavigateOptions: { replace?: boolean; state?: unknown; }
-   */
-  submitSuccessRedirectOptions?: {
-    replace?: boolean;
-    state?: unknown;
-  };
+  /** Navigation options for submitSuccessRedirect */
+  submitSuccessRedirectOptions?: IRedirectOptions;
 
   /** OR: Navigate without API call (new pattern) */
   navigateTo?: INavigateToConfig | string;

@@ -3,6 +3,7 @@ import { ICreateButtons } from "./buttons/Buttons";
 import { IFormFieldResponse } from "./FormField/FormField";
 import { IApiConfig } from "../context";
 import type { IDetailApiConfig, IDataSourceMixin, IPageConfigBase } from "../types/field-config";
+import type { IRedirectOptions } from "../utils/link-utils";
 import { Template } from "../types";
 import type { Condition, ConditionalValue } from "../types/evaluation";
 import type { IResponseDisplayConfig } from "../../modal/Modal";
@@ -26,14 +27,8 @@ interface IForm extends ICreateButtons, IDetailApiConfig, IDataSourceMixin<Recor
     // ===== Response Handling Config (aligned with FW24) =====
     /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
     submitSuccessRedirect?: string | ConditionalValue<string>;
-    /**
-     * Navigation options for submitSuccessRedirect
-     * Uses react-router-dom's NavigateOptions: { replace?: boolean; state?: unknown; }
-     */
-    submitSuccessRedirectOptions?: {
-        replace?: boolean;
-        state?: unknown;
-    };
+    /** Navigation options for submitSuccessRedirect (`replace`, `state`, `target` only). */
+    submitSuccessRedirectOptions?: IRedirectOptions;
     responseConfig?: IResponseDisplayConfig; // Show response in modal
     dynamicConfigKey?: string; // Extract next-step config from response (chaining)
     refreshParentOnSuccess?: boolean; // Trigger parent refresh

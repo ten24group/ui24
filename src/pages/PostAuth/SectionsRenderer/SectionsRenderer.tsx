@@ -643,7 +643,7 @@ const SectionGroupRenderer: React.FC<{
           items={items}
           activeKey={effectiveActiveKey}
           onChange={(key) => handleChange(key)}
-          destroyInactiveTabPane={!keepMounted}
+          destroyOnHidden={!keepMounted}
           animated
           style={nestedStyle}
         />

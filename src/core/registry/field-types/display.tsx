@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Input, Badge, Tag, Progress, Avatar, Timeline, Table } from 'antd';
-import { useFormat } from '../../hooks/useFormat';
+import { DateTimeZoneChrome } from '../../components/DateTimeZoneChrome';
 import { CustomColorPicker } from '../../common/CustomColorPicker';
 import { OpenInModal } from '../../../modal/Modal';
 import * as Icons from '@ant-design/icons';
@@ -84,7 +84,6 @@ const IconDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
 };
 
 const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) => {
-  const { formatDate } = useFormat();
   const tlConfig = config.timelineConfig || {};
   const itemMapping = tlConfig.itemMapping || {};
   const labelField = itemMapping.labelField || 'name';
@@ -138,12 +137,12 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
     const additionalFields = Object.keys(item).filter(field => !standardFields.has(field));
     const hasAdditionalData = additionalFields.length > 0;
 
-    let formattedTime = '';
+    let timeForChrome: number | null = null;
     if (timestamp && showTimestamp) {
       try {
         const ts = typeof timestamp === 'number' ? timestamp : Date.parse(String(timestamp));
         if (!isNaN(ts)) {
-          formattedTime = formatDate(ts, 'datetime');
+          timeForChrome = ts;
         }
       } catch {
         // Ignore invalid timestamps
@@ -196,9 +195,9 @@ const TimelineDetail: React.FC<BuiltInDetailFieldProps> = ({ value, config }) =>
                 </OpenInModal>
               )}
             </div>
-            {formattedTime && (
+            {timeForChrome != null && (
               <span style={{ fontSize: '12px', color: '#8c8c8c', marginLeft: '8px', whiteSpace: 'nowrap' }}>
-                {formattedTime}
+                <DateTimeZoneChrome value={timeForChrome} kind="datetime" compact />
               </span>
             )}
           </div>

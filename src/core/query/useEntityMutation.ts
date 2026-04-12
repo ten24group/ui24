@@ -106,7 +106,6 @@ export function useEntityMutation({ entityName, relatedEntities = [], onInvalida
  * Uses the singleton queryClient, so no hook context is required.
  */
 export function invalidateEntityCacheByName(entityName: string): Promise<void> {
-  console.log('[invalidateEntityCacheByName] invalidating queryKey:', queryKeys.entity(entityName).all);
   return queryClient.invalidateQueries({ queryKey: queryKeys.entity(entityName).all });
 }
 

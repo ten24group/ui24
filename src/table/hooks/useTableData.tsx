@@ -97,7 +97,7 @@ export const useTableData = ({
 
   // ── Stable hooks (after root-cause fixes to providers) ──
   const { notifyError } = useAppContext();
-  const { formatDate, formatBoolean } = useFormat();
+  const { formatBoolean } = useFormat();
   const placeholderContext = usePlaceholderContext(routeParams);
 
   // Skip reset effect on first mount — initial state already correct
@@ -290,9 +290,9 @@ export const useTableData = ({
 
         if ([ 'date', 'datetime', 'time' ].includes(property.fieldType?.toLowerCase())) {
           const itemValue = nestedValue.toString().startsWith('0')
-            ? new Date(parseInt(nestedValue)).toISOString()
+            ? new Date(parseInt(nestedValue, 10)).toISOString()
             : nestedValue;
-          processed[ property.dataIndex ] = formatDate(itemValue, property.fieldType?.toLowerCase() as 'date' | 'datetime' | 'time');
+          processed[ property.dataIndex ] = itemValue;
         } else if ([ 'boolean', 'switch', 'toggle' ].includes(property.fieldType?.toLowerCase())) {
           if (typeof nestedValue === 'boolean') {
             processed[ property.dataIndex ] = formatBoolean(nestedValue);
@@ -312,7 +312,7 @@ export const useTableData = ({
       return processed;
     });
   }, [ rawResponse, rawRecords, isSearchMode, formattingColumns, identifierColumns,
-    recordIdentifierKey, formatDate, formatBoolean ]);
+    recordIdentifierKey, formatBoolean ]);
 
   // ── Mark data as received (drives skeleton → table transition) ──
   // Ensures the skeleton is visible for a minimum duration so users perceive it.

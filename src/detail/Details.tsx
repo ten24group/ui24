@@ -95,8 +95,8 @@
  * @see {@link useFormat} for date/boolean formatting
  */
 
-import { Button, Spin, Tooltip, Typography } from 'antd';
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Spin, Tag, Tooltip, Typography } from 'antd';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { DataLoadingState } from '../core/common/DataLoadingState';
 import { useParams } from "react-router-dom";
@@ -107,10 +107,17 @@ import { computeDerivedValue } from '../core/hooks/useDerivedFields';
 import { IApiConfig, useApi, useAppContext, useModalContext } from '../core/context';
 import { resolveHelpConfig, HelpText, HelpIcon } from '../core/forms/FormField/components';
 import { determineColumnLayout, IColumnsConfig } from '../core/forms/shared/utils';
-import { useEntityConfig, useFormat } from '../core/hooks';
-import { useTranslation } from '../core/hooks';
+import { useEntityConfig, useFormat, useRecentTouchRelativeTick, useTranslation } from '../core/hooks';
 import { useEvaluatedItems } from '../core/hooks/useEvaluatedItems';
 import { getNestedValue, substituteUrlParams } from '../core/utils';
+import {
+  getRecentRecordTouchTime,
+  getRecentTouchesSnapshotKey,
+  isRecentlyTouchedRecord,
+  subscribeRecentRecordTouches,
+} from '../core/utils/recent-save-handoff-store';
+import { formatRecentTouchRelative } from '../core/utils/recent-touch-relative';
+import { collectDetailPageRecordIdCandidates } from '../core/utils/list-highlight';
 import { handleApiError, isHttpStatus } from '../core/utils/api-error-handler';
 import { OpenInModal } from '../modal/Modal';
 import './Details.css';
@@ -130,7 +137,7 @@ import { DisplayOverrideEditModal, resolveWithDisplayOverrides } from '../core/d
 import type { DisplayOverrideEntry, DisplayOverrideStorage } from '../core/types/display-override';
 import { DataQualityIndicator, type IDataQualityConfig } from '../core/common/DataQualityIndicator';
 import '../core/registry/field-types'; // ensure built-in registrations run
-import { EditOutlined, DiffOutlined, SwapOutlined } from '@ant-design/icons';
+import { EditOutlined, DiffOutlined, InfoCircleOutlined, SwapOutlined } from '@ant-design/icons';
 
 // Stable empty object to avoid re-creating {} on every render (used as default for routeParams)
 const EMPTY_ROUTE_PARAMS: Record<string, string> = {};
@@ -403,12 +410,13 @@ const Details: React.FC<IDetailsComponentProps> = ({
   // TODO(#7): Remove dynamicID fallback once all routes pass `identifiers` prop explicitly.
   // Currently, some routes use :dynamicID as the URL param and rely on this fallback.
   // Requires backend config generation to consistently set `identifiers` on detail pages.
-  const { dynamicID } = useParams()
+  const urlRouteParams = useParams();
+  const { t } = useTranslation();
   const { notifyError, notifySuccess } = useAppContext();
   const { callApiMethod } = useApi();
   const [ dataUpdatedAt, setDataUpdatedAt ] = useState<string | null>(null);
   const { resolveConfigRef } = useEntityConfig();
-  const { formatDate, formatBoolean } = useFormat();
+  const { formatBoolean } = useFormat();
   const coreNavigate = useCoreNavigator();
 
   // Rendering pipeline (#95) — provides processField() for unified label resolution, formatting metadata
@@ -438,21 +446,12 @@ const Details: React.FC<IDetailsComponentProps> = ({
       // from the first argument, and the missing fields simply don't trigger format branches.
       initialValue = itemData?.map((it: unknown) => valueFormatter(item.items as IDetailFieldConfig, it)) ?? [];
     } else if ([ 'date', 'datetime', 'time' ].includes(item?.fieldType)) {
-      // Skip formatting if value is null/undefined/empty
       if (initialValue == null || initialValue === '') {
-        initialValue = null;  // Will render as "—" by default
-      } else {
-        // formate the date value using uiConfig's date-time-formats
-        if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
-          initialValue = new Date(parseInt(initialValue)).toISOString();
-        }
-
-        initialValue = formatDate(
-          initialValue,
-          item.fieldType as 'date' | 'datetime' | 'time',
-          item.timezone
-        );
+        initialValue = null;
+      } else if (typeof initialValue === 'string' && initialValue.startsWith('0')) {
+        initialValue = new Date(parseInt(initialValue, 10)).toISOString();
       }
+      // Keep raw instant / string — built-in detail renderers apply local + UTC chrome
     } else if ([ 'boolean', 'switch', 'toggle' ].includes(item?.fieldType)) {
       // format the boolean value using uiConfig's boolean-formats
       initialValue = formatBoolean(initialValue);
@@ -468,10 +467,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
     // file, image, hidden, custom) pass through unchanged — no formatting needed.
 
     return initialValue;
-  }, [ formatDate, formatBoolean ]);
+  }, [ formatBoolean ]);
 
   // ── Declarative data fetching via useEntityDetail ──
-  const identifier = identifiers || dynamicID;
+  const identifier = identifiers || urlRouteParams.dynamicID;
 
   const {
     data: fetchedData,
@@ -646,6 +645,45 @@ const Details: React.FC<IDetailsComponentProps> = ({
   });
   const columns = determineColumnLayout(items, columnsConfig, columnsConfig?.numColumns || 3); // Details can have up to 3 columns
 
+  const recentTouchesVersion = useSyncExternalStore(
+    subscribeRecentRecordTouches,
+    getRecentTouchesSnapshotKey,
+    () => ''
+  );
+  const entityNameForId = detailEntityName ?? entityName;
+
+  const detailRecentTouchInfo = useMemo(() => {
+    const candidates = collectDetailPageRecordIdCandidates(
+      identifier,
+      resolvedData as Record<string, unknown> | null | undefined,
+      entityNameForId,
+      routeParams as Record<string, unknown>,
+      urlRouteParams as Record<string, string | undefined>
+    );
+    for (const id of candidates) {
+      if (isRecentlyTouchedRecord(id)) {
+        return { show: true as const, touchedAt: getRecentRecordTouchTime(id) };
+      }
+    }
+    return { show: false as const, touchedAt: undefined as number | undefined };
+  }, [
+    identifier,
+    resolvedData,
+    entityNameForId,
+    routeParams,
+    urlRouteParams,
+    recentTouchesVersion,
+  ]);
+
+  const detailRecentTouchTick = useRecentTouchRelativeTick(detailRecentTouchInfo.show);
+
+  const detailRecentTouchLabel = useMemo(() => {
+    void detailRecentTouchTick;
+    if (!detailRecentTouchInfo.show) return '';
+    const ts = detailRecentTouchInfo.touchedAt;
+    return ts != null ? formatRecentTouchRelative(ts) : '';
+  }, [ detailRecentTouchInfo.show, detailRecentTouchInfo.touchedAt, detailRecentTouchTick ]);
+
   return (
     <DisplayOverrideActionsContext.Provider value={displayOverrideContextValue}>
       <ErrorBoundary
@@ -670,222 +708,242 @@ const Details: React.FC<IDetailsComponentProps> = ({
         ) : (
           // Show spinner overlay only for refresh (keeps content visible)
           <Spin spinning={detailFetching && !detailLoading}>
-            {dataQualityConfig?.enabled && dataQualityConfig.showInDetail !== false && resolvedData && (
-              <div style={{ marginBottom: 16 }}>
-                <DataQualityIndicator
-                  record={resolvedData as Record<string, unknown>}
-                  config={dataQualityConfig}
-                  propertiesConfig={propertiesConfig}
-                  mode="full"
-                />
-              </div>
-            )}
-            <div style={detailsStyles.container}>
-              {columns.map((columnItems, colIdx) => (
-                <div key={colIdx} style={detailsStyles.column}>
-                  {columnItems
-                    .map((item: IPropertiesConfig, index: number) => {
-                      const value = item.initialValue;
-
-                      // Run rendering pipeline (#95) for resolved label, formatting metadata
-                      const pipelineResult = processField(
-                        item,
-                        value,
-                        resolvedData || {},
-                      );
-                      const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
-
-                      // Relation field rendering
-                      if (item.relationConfig) {
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                            <RelationFieldRenderer
-                              relationConfig={item.relationConfig}
-                              value={value}
-                              record={resolvedData || {}}
-                              routeParams={routeParams}
-                              label={pLabel ?? resolveStringOrDefault(item.label)}
-                            />
-                          </DetailsFieldWrapper>
-                        );
+            <div
+              className={detailRecentTouchInfo.show ? 'ui24-detail--recent-touched' : undefined}
+              data-ui24-recent-detail={detailRecentTouchInfo.show ? 'true' : undefined}
+            >
+              {detailRecentTouchInfo.show && (
+                <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'end' }}>
+                  <div role="status">
+                    <Alert
+                      type="info"
+                      showIcon
+                      message={
+                        detailRecentTouchLabel
+                          ? `${t('Updated')} ${detailRecentTouchLabel}`
+                          : t('Updated just now')
                       }
+                    />
+                  </div>
+                </div>
+              )}
+              {dataQualityConfig?.enabled && dataQualityConfig.showInDetail !== false && resolvedData && (
+                <div style={{ marginBottom: 16 }}>
+                  <DataQualityIndicator
+                    record={resolvedData as Record<string, unknown>}
+                    config={dataQualityConfig}
+                    propertiesConfig={propertiesConfig}
+                    mode="full"
+                  />
+                </div>
+              )}
+              <div style={detailsStyles.container}>
+                {columns.map((columnItems, colIdx) => (
+                  <div key={colIdx} style={detailsStyles.column}>
+                    {columnItems
+                      .map((item: IPropertiesConfig, index: number) => {
+                        const value = item.initialValue;
 
-                      // Custom renderer from ExtensionRegistry
-                      const CustomDetailRenderer = getFieldRenderer(
-                        '' + (item.fieldType || ''),
-                        'detail',
-                        {
-                          fieldName: item.name || item.column || '',
-                          entityName,
-                          explicitRenderer: typeof item.renderer === 'string' ? item.renderer : undefined,
-                          routeParams
-                        }
-                      );
-
-                      if (CustomDetailRenderer) {
-                        const customDetailProps = buildDetailFieldProps(
-                          '' + (item.fieldType || ''),
-                          {
-                            fieldName: item.name || item.column || '',
-                            value,
-                            label: pLabel ?? resolveStringOrDefault(item.label),
-                            config: item,
-                            routeParams
-                          }
+                        // Run rendering pipeline (#95) for resolved label, formatting metadata
+                        const pipelineResult = processField(
+                          item,
+                          value,
+                          resolvedData || {},
                         );
-                        const Renderer = CustomDetailRenderer;
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                            <Renderer {...customDetailProps} />
-                          </DetailsFieldWrapper>
-                        );
-                      }
+                        const { label: pLabel, _formattingStyles: pStyles, _formattingClassName: pClassName, _registryDefaults: pDefaults } = pipelineResult.resolvedProps;
 
-                      // Null/undefined → em dash
-                      if (value === null || value === undefined) {
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
-                            <span>—</span>
-                          </DetailsFieldWrapper>
-                        );
-                      }
-
-                      // Data masking (#51) — wrap string values when masking is configured
-                      if (item.masking?.enabled && typeof value === 'string') {
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                            <MaskedDisplay value={value} config={item.masking} />
-                          </DetailsFieldWrapper>
-                        );
-                      }
-
-                      // Link fields
-                      if (item.linkConfig) {
-                        const linkUrl = substituteUrlParams(
-                          item.linkConfig.routePattern,
-                          { ...routeParams, ...resolvedData },
-                          value
-                        );
-
-                        const templateContext = { ...routeParams, ...resolvedData };
-                        const displayText = item.linkConfig.displayText
-                          ? evaluateTemplate(item.linkConfig.displayText, templateContext)
-                          : value;
-
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                            <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
-                              {displayText} ({value})
-                            </Link>
-                          </DetailsFieldWrapper>
-                        );
-                      }
-
-                      // Modal fields
-                      if (item.openInModal) {
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                            <OpenInModal
-                              modalType="details"
-                              primaryIndex={value}
-                              modalPageConfig={{
-                                pageTitle: pLabel ?? resolveStringOrDefault(item.label),
-                                propertiesConfig: [ { ...item, label: pLabel ?? resolveStringOrDefault(item.label) } ],
-                              }}
-                            >
-                              {value}
-                            </OpenInModal>
-                          </DetailsFieldWrapper>
-                        );
-                      }
-
-                      // List-of-objects: render as an inline table instead of JSON
-                      if (
-                        item.type === 'list' &&
-                        Array.isArray(value) &&
-                        value.length > 0 &&
-                        value.some(v => typeof v === 'object' && v !== null)
-                      ) {
-                        const rendererKey = item.fieldType === 'inline-table' ? 'inline-table' : 'list';
-                        const ListRenderer = fieldTypeRegistry.get(rendererKey, 'detail');
-                        if (ListRenderer) {
+                        // Relation field rendering
+                        if (item.relationConfig) {
                           return (
-                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
-                              <ListRenderer value={value} config={item} />
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                              <RelationFieldRenderer
+                                relationConfig={item.relationConfig}
+                                value={value}
+                                record={resolvedData || {}}
+                                routeParams={routeParams}
+                                label={pLabel ?? resolveStringOrDefault(item.label)}
+                              />
                             </DetailsFieldWrapper>
                           );
                         }
-                      }
 
-                      // Complex data (json, map, list, objects)
-                      const isComplexData =
-                        ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
-                          item.type === 'list' ||
-                          item.type === 'map' ||
-                          (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
-                          (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+                        // Custom renderer from ExtensionRegistry
+                        const CustomDetailRenderer = getFieldRenderer(
+                          '' + (item.fieldType || ''),
+                          'detail',
+                          {
+                            fieldName: item.name || item.column || '',
+                            entityName,
+                            explicitRenderer: typeof item.renderer === 'string' ? item.renderer : undefined,
+                            routeParams
+                          }
                         );
 
-                      if (isComplexData) {
-                        return (
-                          <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
-                            <JsonField data={value} title={pLabel ?? resolveStringOrDefault(item.label)} maxDepth={2} />
-                          </DetailsFieldWrapper>
-                        );
-                      }
+                        if (CustomDetailRenderer) {
+                          const customDetailProps = buildDetailFieldProps(
+                            '' + (item.fieldType || ''),
+                            {
+                              fieldName: item.name || item.column || '',
+                              value,
+                              label: pLabel ?? resolveStringOrDefault(item.label),
+                              config: item,
+                              routeParams
+                            }
+                          );
+                          const Renderer = CustomDetailRenderer;
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                              <Renderer {...customDetailProps} />
+                            </DetailsFieldWrapper>
+                          );
+                        }
 
-                      // Registry-based detail renderer — use pipeline defaults, lookup component directly
-                      const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
-                      if (DetailRenderer) {
-                        const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
-                        const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
+                        // Null/undefined → em dash
+                        if (value === null || value === undefined) {
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                              <span>—</span>
+                            </DetailsFieldWrapper>
+                          );
+                        }
+
+                        // Data masking (#51) — wrap string values when masking is configured
+                        if (item.masking?.enabled && typeof value === 'string') {
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                              <MaskedDisplay value={value} config={item.masking} />
+                            </DetailsFieldWrapper>
+                          );
+                        }
+
+                        // Link fields
+                        if (item.linkConfig) {
+                          const linkUrl = substituteUrlParams(
+                            item.linkConfig.routePattern,
+                            { ...routeParams, ...resolvedData },
+                            value
+                          );
+
+                          const templateContext = { ...routeParams, ...resolvedData };
+                          const displayText = item.linkConfig.displayText
+                            ? evaluateTemplate(item.linkConfig.displayText, templateContext)
+                            : value;
+
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                              <Link url={linkUrl} className="details-link" target={item.target || '_blank'}>
+                                {displayText} ({value})
+                              </Link>
+                            </DetailsFieldWrapper>
+                          );
+                        }
+
+                        // Modal fields
+                        if (item.openInModal) {
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                              <OpenInModal
+                                modalType="details"
+                                primaryIndex={value}
+                                modalPageConfig={{
+                                  pageTitle: pLabel ?? resolveStringOrDefault(item.label),
+                                  propertiesConfig: [ { ...item, label: pLabel ?? resolveStringOrDefault(item.label) } ],
+                                }}
+                              >
+                                {value}
+                              </OpenInModal>
+                            </DetailsFieldWrapper>
+                          );
+                        }
+
+                        // List-of-objects: render as an inline table instead of JSON
+                        if (
+                          item.type === 'list' &&
+                          Array.isArray(value) &&
+                          value.length > 0 &&
+                          value.some(v => typeof v === 'object' && v !== null)
+                        ) {
+                          const rendererKey = item.fieldType === 'inline-table' ? 'inline-table' : 'list';
+                          const ListRenderer = fieldTypeRegistry.get(rendererKey, 'detail');
+                          if (ListRenderer) {
+                            return (
+                              <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                                <ListRenderer value={value} config={item} />
+                              </DetailsFieldWrapper>
+                            );
+                          }
+                        }
+
+                        // Complex data (json, map, list, objects)
+                        const isComplexData =
+                          ![ 'rich-text', 'wysiwyg', 'multi-select', 'timeline' ].includes(item.fieldType) && (
+                            item.type === 'list' ||
+                            item.type === 'map' ||
+                            (item.fieldType && typeof item.fieldType === 'string' && item.fieldType.toLowerCase() === 'json') ||
+                            (value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+                          );
+
+                        if (isComplexData) {
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName}>
+                              <JsonField data={value} title={pLabel ?? resolveStringOrDefault(item.label)} maxDepth={2} />
+                            </DetailsFieldWrapper>
+                          );
+                        }
+
+                        // Registry-based detail renderer — use pipeline defaults, lookup component directly
+                        const DetailRenderer = fieldTypeRegistry.get(item.fieldType || '', 'detail');
+                        if (DetailRenderer) {
+                          const detailDefaults = pDefaults ?? fieldTypeRegistry.getDefaults(item.fieldType || '', 'detail');
+                          const mergedConfig = detailDefaults ? { ...detailDefaults, ...item } : item;
+                          return (
+                            <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
+                              <DetailRenderer
+                                value={value}
+                                label={pLabel ?? resolveStringOrDefault(item.label)}
+                                config={mergedConfig}
+                                routeParams={routeParams}
+                                record={resolvedData || {}}
+                              />
+                            </DetailsFieldWrapper>
+                          );
+                        }
+
+                        // Default fallback — smart text rendering
                         return (
                           <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                            <DetailRenderer
-                              value={value}
-                              label={pLabel ?? resolveStringOrDefault(item.label)}
-                              config={mergedConfig}
-                              routeParams={routeParams}
-                              record={resolvedData || {}}
-                            />
+                            <div>
+                              {value !== undefined && value !== null && value !== '' ? (
+                                typeof value === 'string' && value.match(/^https?:\/\//i) ? (
+                                  <a href={value} target={item.target || '_blank'} rel={(item.target || '_blank') === '_blank' ? 'noopener noreferrer' : undefined}>
+                                    {value}
+                                  </a>
+                                ) : typeof value === 'object' ? (
+                                  <JsonDescription data={value} />
+                                ) : typeof value === 'string' && value.length > 100 ? (
+                                  <div
+                                    style={{
+                                      wordWrap: 'break-word',
+                                      overflowWrap: 'break-word',
+                                      whiteSpace: 'pre-wrap',
+                                      maxWidth: '100%',
+                                    }}
+                                  >
+                                    {value}
+                                  </div>
+                                ) : (
+                                  String(value)
+                                )
+                              ) : (
+                                <span>—</span>
+                              )}
+                            </div>
                           </DetailsFieldWrapper>
                         );
-                      }
-
-                      // Default fallback — smart text rendering
-                      return (
-                        <DetailsFieldWrapper key={index} item={item} index={index} resolvedLabel={pLabel} formattingStyles={pStyles} formattingClassName={pClassName} value={value}>
-                          <div>
-                            {value !== undefined && value !== null && value !== '' ? (
-                              typeof value === 'string' && value.match(/^https?:\/\//i) ? (
-                                <a href={value} target={item.target || '_blank'} rel={(item.target || '_blank') === '_blank' ? 'noopener noreferrer' : undefined}>
-                                  {value}
-                                </a>
-                              ) : typeof value === 'object' ? (
-                                <JsonDescription data={value} />
-                              ) : typeof value === 'string' && value.length > 100 ? (
-                                <div
-                                  style={{
-                                    wordWrap: 'break-word',
-                                    overflowWrap: 'break-word',
-                                    whiteSpace: 'pre-wrap',
-                                    maxWidth: '100%',
-                                  }}
-                                >
-                                  {value}
-                                </div>
-                              ) : (
-                                String(value)
-                              )
-                            ) : (
-                              <span>—</span>
-                            )}
-                          </div>
-                        </DetailsFieldWrapper>
-                      );
-                    })}
-                </div>
-              ))}
+                      })}
+                  </div>
+                ))}
+              </div>
             </div>
           </Spin>
         )}

@@ -6,6 +6,7 @@
 export { Table } from './Table';
 
 // Types
+export type { IRecentMutationTouchConfig } from '../core/types/field-config';
 export type {
   ITableConfig,
   ITablePropertiesConfig,
@@ -24,6 +25,7 @@ export type {
 // Hooks
 export { useTable } from './useTable';
 export { usePlaceholderContext } from './hooks/usePlaceholderContext';
+export { useRecentSaveHighlight } from './hooks/useRecentSaveHighlight';
 
 // Components
 export { Search } from './Search/Search';

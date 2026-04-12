@@ -8,8 +8,13 @@
 
 import React, { useCallback } from 'react';
 import { Card, Row, Col, Avatar, Empty, Typography, Tag, Badge, Divider, Button, Space } from 'antd';
-import dayjs from 'dayjs';
 import { getNestedValue } from '../../core/utils';
+import { DateTimeZoneChrome } from '../../core/components/DateTimeZoneChrome';
+import {
+  getStableTableRecordId,
+  UI24_RECENT_HIGHLIGHT_DATA_ATTR,
+  UI24_RECENT_SAVE_HIGHLIGHT_CARD_CLASS,
+} from '../../core/utils/list-highlight';
 import type { CardGridConfig } from '../../core/common/ViewSwitcher/types';
 
 const { Text, Paragraph } = Typography;
@@ -18,6 +23,10 @@ interface CardViewProps {
   records: Record<string, unknown>[];
   cardConfig: CardGridConfig;
   recordIdentifierKey: string;
+  /** When non-empty, applies highlight styling to matching cards (same as table row highlight). */
+  highlightRecordIds?: ReadonlySet<string>;
+  /** Shown on highlighted cards only (e.g. “Updated 2 minutes ago”). */
+  highlightCaptionForRecord?: (stableRecordId: string) => string | undefined;
   onRecordClick?: (record: Record<string, unknown>) => void;
   onActionClick?: (url: string, record: Record<string, unknown>) => void;
 }
@@ -26,6 +35,8 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
   records,
   cardConfig,
   recordIdentifierKey,
+  highlightRecordIds,
+  highlightCaptionForRecord,
   onRecordClick,
   onActionClick,
 }) => {
@@ -49,7 +60,8 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
   const resolveActionUrl = useCallback(
     (url: string, record: Record<string, unknown>): string => {
       const idKey = recordIdentifierKey;
-      const idValue = String(getNestedValue(record, idKey) ?? '');
+      const idValue = getStableTableRecordId(record, recordIdentifierKey)
+        || String(getNestedValue(record, idKey) ?? '');
       let resolved = url.replace(':id', idValue).replace(`:${idKey}`, idValue);
       for (const [ key, val ] of Object.entries(record)) {
         if (typeof val === 'string' || typeof val === 'number') {
@@ -70,7 +82,7 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
   return (
     <Row gutter={[ 16, 16 ]}>
       {records.map((record, idx) => {
-        const key = String(getNestedValue(record, recordIdentifierKey) ?? `card-${idx}`);
+        const key = getStableTableRecordId(record, recordIdentifierKey) || `card-${idx}`;
         const title = getNestedValue(record, titleField);
         const description = descriptionField ? getNestedValue(record, descriptionField) : null;
         const image = imageField ? getNestedValue(record, imageField) : null;
@@ -81,6 +93,10 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
         const statusBadge = statusValue && statusMapping
           ? statusMapping[ statusValue ]
           : null;
+
+        const rid = getStableTableRecordId(record, recordIdentifierKey);
+        const isHighlighted = !!highlightRecordIds?.size && highlightRecordIds.has(rid);
+        const highlightClass = isHighlighted ? UI24_RECENT_SAVE_HIGHLIGHT_CARD_CLASS : undefined;
 
         const isHorizontal = cardLayout === 'horizontal';
 
@@ -100,8 +116,15 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
           )
           : null;
 
+        const highlightCaption = isHighlighted ? highlightCaptionForRecord?.(rid) : undefined;
+
         const bodyContent = (
           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {highlightCaption ? (
+              <Text type="secondary" style={{ fontSize: 12, lineHeight: 1.3 }} role="status">
+                {highlightCaption}
+              </Text>
+            ) : null}
             {/* Title row with avatar and status badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {avatar && !coverImage && (
@@ -135,11 +158,11 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
               </Paragraph>
             )}
 
-            {/* Date */}
+            {/* Date — uses formatConfig + local/UTC chrome */}
             {date != null && (
-              <Text type="secondary" style={{ fontSize: 11 }}>
-                {dayjs(String(date)).format('MMM D, YYYY')}
-              </Text>
+              <div style={{ fontSize: 11 }}>
+                <DateTimeZoneChrome value={date} kind="date" compact />
+              </div>
             )}
 
             {/* Tags */}
@@ -201,10 +224,15 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
           </div>
         );
 
+        const highlightAnchorProp = isHighlighted
+          ? { [ UI24_RECENT_HIGHLIGHT_DATA_ATTR ]: key }
+          : {};
+
         if (isHorizontal) {
           return (
-            <Col key={key} xs={24} sm={24} md={colSpan > 12 ? 24 : colSpan * 2} lg={colSpan > 12 ? 24 : colSpan * 2}>
+            <Col key={key} xs={24} sm={24} md={colSpan > 12 ? 24 : colSpan * 2} lg={colSpan > 12 ? 24 : colSpan * 2} {...highlightAnchorProp}>
               <Card
+                className={highlightClass}
                 hoverable={!!onRecordClick}
                 onClick={onRecordClick ? () => onRecordClick(record) : undefined}
                 size="small"
@@ -223,8 +251,9 @@ export const CardView: React.FC<CardViewProps> = React.memo(({
         }
 
         return (
-          <Col key={key} xs={24} sm={12} md={colSpan} lg={colSpan}>
+          <Col key={key} xs={24} sm={12} md={colSpan} lg={colSpan} {...highlightAnchorProp}>
             <Card
+              className={highlightClass}
               hoverable={!!onRecordClick}
               onClick={onRecordClick ? () => onRecordClick(record) : undefined}
               size="small"

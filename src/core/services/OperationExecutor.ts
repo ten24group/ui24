@@ -20,6 +20,7 @@ import { useNewEvaluationContext } from '../context/NewEvaluationContext';
 import { ModalDepthContext } from '../../modal/Modal';
 
 import type { IResponseDisplayConfig } from '../../modal/Modal';
+import type { IRecentMutationTouchConfig } from '../types/field-config';
 import { IApiConfig } from '../context/ApiContext';
 import type { Template, ConditionalValue } from '../types';
 import type { NewEvaluationContext } from '../types/evaluation';
@@ -28,6 +29,8 @@ import { substituteUrlParams } from '../utils';
 import { ApiErrorHandlerResult, handleApiError, getErrorStatus } from '../utils/api-error-handler';
 import { evaluateTemplateValue } from '../utils/template';
 import { IRedirectOptions, navigateToUrl } from '../utils/link-utils';
+import { resolveRecordIdForRecentSaveHandoff, resolveRecentMutationTouchConfig } from '../utils/list-highlight';
+import { touchRecentRecord } from '../utils/recent-save-handoff-store';
 import { invalidateEntityCacheFromUrl, invalidateEntityCacheByName } from '../query/useEntityMutation';
 import { conditionEvaluator } from '../utils/ConditionEvaluator';
 
@@ -53,6 +56,13 @@ export interface OperationConfig {
   onLoading?: (isLoading: boolean) => void;
 
   // ===== Success Behavior =====
+  /**
+   * Register the mutated record id for list/detail highlight (global touch registry).
+   * `true` or omitted: register with default TTL (~2.5 min).
+   * `false`: skip (e.g. background saves).
+   * Object: optional `enabled` and `durationMs` for TTL.
+   */
+  recentMutationTouch?: boolean | IRecentMutationTouchConfig;
   /** Redirect URL after success. Supports ConditionalValue for condition-based routing. */
   submitSuccessRedirect?: string | ConditionalValue<string>;
   submitSuccessRedirectOptions?: IRedirectOptions;
@@ -291,6 +301,19 @@ export class OperationExecutor {
     if (config.conditionalBehavior) {
       const conditionalOverrides = config.conditionalBehavior(data);
       effectiveConfig = { ...config, ...conditionalOverrides };
+    }
+
+    // Global recent-mutation registry (multi-row list highlight; survives detail → list navigation)
+    const touchUi = resolveRecentMutationTouchConfig(effectiveConfig.recentMutationTouch);
+    if (touchUi.enabled) {
+      const id = resolveRecordIdForRecentSaveHandoff(
+        data,
+        effectiveConfig.entityName,
+        effectiveConfig.routeParams,
+      );
+      if (id) {
+        touchRecentRecord(id, touchUi.durationMs);
+      }
     }
 
     // Invalidate React Query cache for the affected entity (auto-derived from apiUrl)
