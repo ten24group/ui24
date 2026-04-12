@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.32](https://github.com/ten24group/ui24/compare/v1.1.0-beta.31...v1.1.0-beta.32) (2026-04-12)
+
+
+### Features
+
+* **DateTimeZoneChrome:** add DateTimeZoneChrome component for displaying date/time with timezone support ([ae9168d](https://github.com/ten24group/ui24/commit/ae9168d6ccb90bfbc0995b2817ec27e711d303a4))
+
 ## [1.1.0-beta.31](https://github.com/ten24group/ui24/compare/v1.1.0-beta.30...v1.1.0-beta.31) (2026-04-09)
 
 
