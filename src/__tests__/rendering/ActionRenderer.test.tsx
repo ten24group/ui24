@@ -22,9 +22,9 @@ jest.mock('@blocknote/react', () => ({ useCreateBlockNote: jest.fn() }));
 jest.mock('@blocknote/mantine', () => ({ BlockNoteView: () => null }));
 jest.mock('jsonpath-plus', () => ({ JSONPath: jest.fn(() => undefined) }));
 jest.mock('react-markdown', () => ({ __esModule: true, default: () => null }));
-jest.mock('remark-gfm', () => ({ __esModule: true, default: () => {} }));
-jest.mock('rehype-raw', () => ({ __esModule: true, default: () => {} }));
-jest.mock('rehype-sanitize', () => ({ __esModule: true, default: () => {} }));
+jest.mock('remark-gfm', () => ({ __esModule: true, default: () => { } }));
+jest.mock('rehype-raw', () => ({ __esModule: true, default: () => { } }));
+jest.mock('rehype-sanitize', () => ({ __esModule: true, default: () => { } }));
 jest.mock('antd-img-crop', () => ({ __esModule: true, default: ({ children }: any) => children }));
 
 jest.mock('../../modal/Modal', () => ({
@@ -32,13 +32,13 @@ jest.mock('../../modal/Modal', () => ({
   ModalDepthContext: React.createContext(0),
   // OpenInModal receives children: [trigger, content]; render just the trigger
   OpenInModal: ({ children }: any) => {
-    const trigger = Array.isArray(children) ? children[0] : children;
+    const trigger = Array.isArray(children) ? children[ 0 ] : children;
     return <div data-testid="mock-open-in-modal">{trigger}</div>;
   },
 }));
 jest.mock('../../modal/OpenRouteInModal', () => ({
   OpenRouteInModal: ({ children }: any) => {
-    const trigger = Array.isArray(children) ? children[0] : children;
+    const trigger = Array.isArray(children) ? children[ 0 ] : children;
     return <div data-testid="mock-open-route-in-modal">{trigger}</div>;
   },
 }));
@@ -49,7 +49,7 @@ jest.mock('../../modal/OpenRouteInDrawer', () => ({
   OpenRouteInDrawer: ({ children }: any) => <div data-testid="mock-open-route-in-drawer">{children}</div>,
 }));
 jest.mock('../../core/context/AuthContext', () => ({
-  useAuth: () => ({ user: { sub: 'test-user', groups: ['admin'] } }),
+  useAuth: () => ({ user: { sub: 'test-user', groups: [ 'admin' ] } }),
 }));
 jest.mock('../../core/context/conditionSystemConfig', () => ({
   getConditionSystemConfig: () => ({}),
@@ -74,6 +74,13 @@ jest.mock('../../core/common', () => ({
 }));
 jest.mock('../../core/common/Icons/Icons', () => ({
   Icon: ({ iconName }: any) => <span data-testid={`icon-${iconName}`}>{iconName}</span>,
+}));
+jest.mock('../../core/bulk-delete/BulkDeleteAction', () => ({
+  BulkDeleteAction: ({ label, selectedRecords, routeParams }: any) => (
+    <button data-testid="bulk-delete-action" data-selected-count={selectedRecords?.length ?? 0} data-has-filters={routeParams?.filters ? 'yes' : 'no'}>
+      {label}
+    </button>
+  ),
 }));
 
 import { renderSingleAction } from '../../core/utils/actionRenderer';
@@ -175,6 +182,33 @@ describe('actionRenderer - disabled state', () => {
     const link = container.querySelector('a');
     // Disabled row actions should NOT have href
     expect(link?.getAttribute('href')).toBeNull();
+  });
+});
+
+describe('actionRenderer - bulk delete action', () => {
+  it('renders configured bulk delete action with selected records and filters', () => {
+    const result = renderSingleAction({
+      action: {
+        label: 'Delete Posts',
+        icon: 'DeleteOutlined',
+        bulkDeleteConfig: {
+          entityName: 'post',
+          impactApiUrl: '/admin/post/delete-impact',
+          executeApiUrl: '/admin/post/execute-delete-plan',
+          identifierFields: [ 'postId' ],
+        },
+      } as any,
+      key: 'bulk-delete',
+      selectedRecords: [ { postId: 'post-1' }, { postId: 'post-2' } ],
+      routeParams: { filters: { status: { eq: 'draft' } } },
+    });
+
+    renderAction(result)!;
+
+    const trigger = screen.getByTestId('bulk-delete-action');
+    expect(trigger).toHaveTextContent('Delete Posts');
+    expect(trigger).toHaveAttribute('data-selected-count', '2');
+    expect(trigger).toHaveAttribute('data-has-filters', 'yes');
   });
 });
 
@@ -336,7 +370,7 @@ describe('actionRenderer - drawer routing', () => {
         openInDrawer: true,
         drawerConfig: {
           drawerType: 'form',
-          drawerPageConfig: { propertiesConfig: [{ name: 'x', fieldType: 'text' }] },
+          drawerPageConfig: { propertiesConfig: [ { name: 'x', fieldType: 'text' } ] },
         },
       } as any,
       key: 'drawer1',

@@ -63,9 +63,16 @@ export interface ITableExpandableConfig {
  * Type-safe filter values.
  * Used in defaultFilters and filter state.
  */
+export type ITableFilterScalar = string | number | boolean | null;
+export type ITableFilterValue = ITableFilterScalar | ReadonlyArray<ITableFilterScalar>;
+export interface ITableAttributeFilter {
+  readonly [ operator: string ]: ITableFilterValue | 'and' | 'or' | undefined;
+  readonly filterId?: string;
+  readonly filterLabel?: string;
+  readonly logicalOp?: 'and' | 'or';
+}
 export interface ITableFilters {
-  readonly [ key: string ]: string | number | boolean | null | undefined |
-  ReadonlyArray<string | number | boolean | null>;
+  readonly [ key: string ]: ITableFilterValue | ITableAttributeFilter | ReadonlyArray<ITableFilters> | undefined;
 }
 
 
@@ -207,7 +214,7 @@ export interface ITableConfig extends IPageConfigBase {
   propertiesConfig: Array<ITablePropertiesConfig>;
   apiConfig: ITableApiConfig | IDualTableApiConfig;
   dataSource?: Array<Record<string, unknown>>;
-  defaultFilters?: Record<string, unknown>;
+  defaultFilters?: ITableFilters;
 
   /**
    * Empty state configuration for when the table has no data.
@@ -654,6 +661,25 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
   };
 }
 
+export interface IBulkDeleteActionConfig {
+  entityName?: string;
+  entityLabel?: string;
+  entityNamePlural?: string;
+  apiBaseUrl?: string;
+  impactApiUrl?: string;
+  executeApiUrl?: string;
+  identifierFields?: ReadonlyArray<string> | Array<string>;
+  allowSelectionDelete?: boolean;
+  allowQueryDelete?: boolean;
+  maxItems?: number;
+  batchSize?: number;
+  concurrent?: number;
+  revalidateBeforeExecute?: boolean;
+  responseConfig?: IResponseDisplayConfig;
+  dynamicConfigKey?: string;
+  invalidateRelated?: ReadonlyArray<string> | Array<string>;
+}
+
 /**
  * Page action type
  * Supports buttons, dropdowns with modals/navigation
@@ -838,6 +864,8 @@ export type IPageAction = {
     /** Template for text format (supports {field} placeholders) */
     template?: Template;
   };
+
+  bulkDeleteConfig?: IBulkDeleteActionConfig;
 
   /**
    * Clone / duplicate action configuration (#43).

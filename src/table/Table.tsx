@@ -712,11 +712,17 @@ export const Table = ({
     setExpandedRowKeys([]);
   }, [ listRecords ]);
 
+  // Latest onDataChange — avoid listing it in the effect deps; unstable inline callbacks
+  // (e.g. bulk-delete nested table) would retrigger every render and cause update loops.
+  const onDataChangeRef = useRef(onDataChange);
+  onDataChangeRef.current = onDataChange;
+
   // Lift table state to wrapper (if callback provided)
   useEffect(() => {
-    if (!onDataChange) return;
+    const lift = onDataChangeRef.current;
+    if (!lift) return;
 
-    onDataChange({
+    lift({
       selectedRecords,
       selectedRowKeys,
       filters: appliedFilters,
@@ -724,7 +730,7 @@ export const Table = ({
       pageType: 'list',
       entityName
     });
-  }, [ selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName, onDataChange ]);
+  }, [ selectedRecords, selectedRowKeys, appliedFilters, searchQuery, entityName ]);
 
   // Get evaluation context for per-row evaluations (expandable, selection)
   const evaluationContext = useNewEvaluationContext();
@@ -757,6 +763,12 @@ export const Table = ({
       })
       .filter(action => action._evaluated.visible !== false);
   }, [ bulkActionsArr, bulkVisResults, bulkEnResults, getBulkActionProps ]);
+  const hasFilterScopedBulkAction = useMemo(
+    () => visibleBulkActions.some(action => action.bulkDeleteConfig?.allowQueryDelete !== false),
+    [ visibleBulkActions ]
+  );
+  const showBulkActionsToolbar = visibleBulkActions.length > 0
+    && (selectedRowKeys.length > 0 || (hasActiveFilters && hasFilterScopedBulkAction));
 
   // Row selection configuration for AntTable - using AntD's native row selection API
   const rowSelection = useMemo(() => {
@@ -1191,8 +1203,8 @@ export const Table = ({
         </div>
       )}
 
-      {/* Bulk Actions Toolbar (shown when rows are selected) */}
-      {selectedRowKeys.length > 0 && visibleBulkActions.length > 0 && (
+      {/* Bulk Actions Toolbar (shown for selection or filter-scoped bulk actions) */}
+      {showBulkActionsToolbar && (
         <div style={{
           padding: '12px 16px',
           background: 'var(--ant-color-primary-bg, #e6f7ff)',
@@ -1203,20 +1215,24 @@ export const Table = ({
           justifyContent: 'space-between'
         }}>
           <div style={{ fontWeight: 500 }}>
-            {selectedRowKeys.length} {selectedRowKeys.length === 1 ? 'item' : 'items'} selected
+            {selectedRowKeys.length > 0
+              ? `${selectedRowKeys.length} ${selectedRowKeys.length === 1 ? 'item' : 'items'} selected`
+              : 'Bulk actions for current filters'}
             {rowSelectionConfig?.persistAcrossPages && selectedRowKeys.length > (listRecords.length) && (
               <span style={{ color: 'var(--ant-color-primary, #1677ff)', marginLeft: 4, fontWeight: 400, fontSize: 12 }}>
                 (across pages)
               </span>
             )}
-            <Button
-              type="link"
-              size="small"
-              onClick={() => setSelectedRowKeys([])}
-              style={{ marginLeft: '8px' }}
-            >
-              Clear selection
-            </Button>
+            {selectedRowKeys.length > 0 && (
+              <Button
+                type="link"
+                size="small"
+                onClick={() => setSelectedRowKeys([])}
+                style={{ marginLeft: '8px' }}
+              >
+                Clear selection
+              </Button>
+            )}
           </div>
           <Space>
             {visibleBulkActions.map((action, index) => {
@@ -1227,9 +1243,21 @@ export const Table = ({
                 isTableRowAction: false,
                 isDisabled: action._evaluated?.enabled === false,
                 disabledMessage: action._evaluated?.disabledMessage || '',
-                routeParams,
+                routeParams: { ...routeParams, filters: appliedFilters, searchQuery },
                 record: undefined,
                 selectedRecords,
+                tableContext: {
+                  apiConfig,
+                  propertiesConfig,
+                  entityName,
+                  defaultFilters: initialFiltersForTable,
+                  segments,
+                  fetchStrategy,
+                  pageSize: initialPageSize,
+                  pagination: paginationConfig,
+                  emptyState,
+                  density: densityConfig,
+                },
                 onSuccessCallback: handleReload,
               });
               return <React.Fragment key={`bulk-action-${index}`}>{node}</React.Fragment>;
