@@ -21,7 +21,9 @@
     "watch": "webpack --watch",
     "release": "npm run build && standard-version && git push --follow-tags && npm publish",
     "release:BE": "npm run build && standard-version --prerelease beta && git push --follow-tags && npm publish --tag bleeding-edge",
-    "release:BE:github": "npm run build && standard-version --prerelease beta && git push --follow-tags"
+    "release:BE:github": "npm run build && standard-version --prerelease beta && git push --follow-tags",
+    "release:BE:version:as": "standard-version",
+    "release:BE:next-free-beta": "node scripts/ci/next-free-beta-version.cjs"
   },
   "keywords": [
     "ui24",
@@ -82,6 +84,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.8.0",
+    "semver": "^7.7.2",
     "standard-version": "^9.5.0",
     "style-loader": "^3.3.4",
     "ts-jest": "^29.4.1",
