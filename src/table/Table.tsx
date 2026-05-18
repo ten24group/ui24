@@ -16,6 +16,7 @@
  * - **Expandable Rows**: Nested tables or detail views within expandable rows
  * - **Filter Segments**: Quick filter tabs for common filter presets
  * - **Column Settings**: Show/hide columns, adjust widths, reorder columns
+ * - **List Export**: CSV and Excel downloads for the current page or all filtered rows (database and search modes)
  * - **Placeholder Resolution**: Automatic resolution of placeholders in filters (`:actor.actorId`, `:startOfMonth`, etc.)
  * - **Relation Rendering**: Automatic rendering of relation fields with links and modals
  * - **Rich Field Types**: Specialized renderers for images, files, colors, JSON, rich text, ratings, and more
@@ -96,7 +97,8 @@ import React, { useEffect, useMemo, useState, useCallback, useRef } from "react"
 import { getStableTableRecordId, UI24_RECENT_SAVE_HIGHLIGHT_ROW_CLASS } from '../core/utils/list-highlight';
 import { Table as AntTable, Spin, Button, Dropdown, Tooltip, Badge, Space } from "antd";
 import { DragSortWrapper, DragHandleCell, SortableRow } from './DragSortTable';
-import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined, ColumnHeightOutlined, UnorderedListOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { ReloadOutlined, NodeExpandOutlined, ClearOutlined, SettingOutlined, SearchOutlined, DatabaseOutlined, ExpandAltOutlined, ShrinkOutlined, ColumnHeightOutlined, UnorderedListOutlined, AppstoreOutlined, ExportOutlined } from '@ant-design/icons';
+import { useListExport } from './hooks/useListExport';
 import { Resizable } from 'react-resizable';
 import { useTable } from "./useTable";
 import { useRecentSaveHighlight } from './hooks/useRecentSaveHighlight';
@@ -261,6 +263,7 @@ export const Table = ({
   summary: summaryConfig,
   rowDrag: rowDragConfig,
   recentSaveHighlight,
+  exportConfig,
 }: ITableConfig) => {
   const coreNavigate = useCoreNavigator();
   // Build placeholder context for segments and filters
@@ -368,6 +371,25 @@ export const Table = ({
     // Otherwise, it's already a simple ITableApiConfig
     return apiConfig as ITableApiConfig;
   }, [ apiConfig, isSearchMode ]);
+
+  const visibleColumnKeys = useMemo(
+    () => columnSettings.filter(column => column.visible).map(column => column.key),
+    [ columnSettings ]
+  );
+
+  const { enabled: exportEnabled, exporting, exportMenuItems } = useListExport({
+    entityName,
+    apiConfig: resolvedApiConfigForLayouts ?? (apiConfig as ITableApiConfig),
+    routeParams,
+    appliedFilters,
+    searchQuery,
+    sort: activeSort,
+    isSearchMode,
+    propertiesConfig,
+    visibleColumns: visibleColumnKeys,
+    listRecords: listRecords as Record<string, unknown>[],
+    exportConfig,
+  });
 
   // Deep linking: bidirectional URL sync (#21)
   useDeepLink(deepLinkConfig, {
@@ -1119,6 +1141,17 @@ export const Table = ({
                   type={isSearchMode ? "default" : "primary"}
                 />
               </Tooltip>
+            )}
+            {exportEnabled && exportMenuItems.length > 0 && (
+              <Dropdown
+                menu={{ items: exportMenuItems }}
+                trigger={[ 'click' ]}
+                disabled={exporting}
+              >
+                <Tooltip title="Export">
+                  <Button icon={<ExportOutlined />} loading={exporting} />
+                </Tooltip>
+              </Dropdown>
             )}
             {hasExpandableConfig && (
               <Tooltip title={allExpanded ? "Collapse All Rows" : "Expand All Rows"}>

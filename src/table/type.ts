@@ -186,6 +186,21 @@ export interface IFilterSegmentGroup {
  * Row selection comes from entitySchema.model.listPageConfig.tableConfig.rowSelection
  */
 /**
+ * List export configuration for entity table toolbars.
+ * Consumed by FW24 `tableConfig.exportConfig` on list pages.
+ */
+export interface IExportConfig {
+  /** When false, hides the list export toolbar button. Defaults to true. */
+  enabled?: boolean;
+  /** Supported download formats. Defaults to csv + xlsx. */
+  formats?: Array<'csv' | 'xlsx'>;
+  /** Maximum records for "all filtered" export. Defaults to 10000. */
+  maxRecords?: number;
+  /** Page size per export fetch request. Defaults to 500. */
+  pageSize?: number;
+}
+
+/**
  * Empty state configuration for tables.
  * Supports two variants: noData (zero records) and noResults (filters active, no matches).
  */
@@ -280,6 +295,12 @@ export interface ITableConfig extends IPageConfigBase {
   pageSize?: number;
 
   onDataChange?: (data: ITableDataChangePayload) => void;
+
+  /**
+   * List export configuration (CSV / Excel) for the table toolbar.
+   * Enabled by default when an API URL is configured.
+   */
+  exportConfig?: IExportConfig;
 
   /**
    * Whether to show the table toolbar (search, refresh, column settings, filters).

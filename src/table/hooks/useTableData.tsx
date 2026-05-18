@@ -12,7 +12,8 @@ import { useEntityList } from '../../core/query/useEntityList';
 import { getTracer, SpanStatusCode, type Span } from '../../core/telemetry';
 
 
-const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
+/** Builds API filter payload from table filter state (shared by list fetch and export). */
+export const getFilterPayload = (filters: Record<string, any>, apiMethod: string = "GET") => {
   if (apiMethod === "GET") {
     let transformedFilters: Record<string, any> = {};
 

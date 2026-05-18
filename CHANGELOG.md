@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [Unreleased]
+
+### Features
+
+* **Table:** add list export (CSV / Excel) for current page and all filtered rows in database and search modes
+
 ## [1.1.0-beta.33](https://github.com/ten24group/ui24/compare/v1.1.0-beta.32...v1.1.0-beta.33) (2026-05-12)
 
 ## [1.1.0-beta.32](https://github.com/ten24group/ui24/compare/v1.1.0-beta.31...v1.1.0-beta.32) (2026-04-12)
