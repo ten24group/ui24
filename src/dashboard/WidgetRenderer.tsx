@@ -55,8 +55,9 @@ export const WidgetRenderer: React.FC<{
   widget: IDashboardWidgetConfig;
   timePeriodSelectorProps?: TimePeriodSelectorProps;
   dashboardTimePeriod?: DashboardTimePeriod;
+  dashboardCurrency?: string;
   routeParams?: Readonly<RouteParams>;
-}> = ({ widget, timePeriodSelectorProps, dashboardTimePeriod, routeParams = {} }) => {
+}> = ({ widget, timePeriodSelectorProps, dashboardTimePeriod, dashboardCurrency, routeParams = {} }) => {
 
   const { Component: WidgetTypeOverride, props: widgetOverrideProps } = useWidgetRenderer(
     widget.type || '',
@@ -105,12 +106,12 @@ export const WidgetRenderer: React.FC<{
   const renderWidgetContent = () => {
     switch (widget.type) {
       case 'stat':
-        return <StatWidget {...widget} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} />;
+        return <StatWidget {...widget} dashboardTimePeriod={dashboardTimePeriod} dashboardCurrency={dashboardCurrency} routeParams={routeParams} />;
       case 'chart':
-        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} />;
+        return <ChartWidget {...widget} timePeriodSelectorProps={timePeriodSelectorProps} dashboardTimePeriod={dashboardTimePeriod} dashboardCurrency={dashboardCurrency} routeParams={routeParams} />;
       case 'list': {
         const { propertiesConfig = [], apiConfig = { apiUrl: '', apiMethod: 'GET' }, ...rest } = widget.options || {};
-        return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} dashboardTimePeriod={dashboardTimePeriod} routeParams={routeParams} {...rest} />;
+        return <ListWidget propertiesConfig={propertiesConfig} apiConfig={apiConfig} title={widget.title} dashboardTimePeriod={dashboardTimePeriod} dashboardCurrency={dashboardCurrency} routeParams={routeParams} {...rest} />;
       }
       case 'actions': {
         const { actions = [] } = widget.options || {};

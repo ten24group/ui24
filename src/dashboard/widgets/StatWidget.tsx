@@ -38,6 +38,7 @@ export interface IStatWidgetProps {
     icon?: React.ReactNode | string | IStatWidgetIconConfig;
   };
   dashboardTimePeriod?: { period: string; range: [ any, any ] };
+  dashboardCurrency?: string;
   routeParams?: Record<string, any>;
 }
 
@@ -59,7 +60,7 @@ const TrendArrow: React.FC<ITrendConfig & { value: string | number; color?: stri
   );
 };
 
-export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, options, dashboardTimePeriod, routeParams }) => {
+export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, options, dashboardTimePeriod, dashboardCurrency, routeParams }) => {
   const [ apiData, setApiData ] = useState<any>({ value: '—' });
   const [ loading, setLoading ] = useState(false);
   const [ error, setError ] = useState<string | null>(null);
@@ -70,15 +71,21 @@ export const StatWidget: React.FC<IStatWidgetProps> = ({ title, dataConfig, opti
     let basePayload = dataConfig?.payload || {};
     if (dashboardTimePeriod && dashboardTimePeriod.range) {
       const [ start, end ] = dashboardTimePeriod.range;
-      return {
+      basePayload = {
         ...basePayload,
         startDate: start.format('YYYY-MM-DDTHH:mm:ss'),
         endDate: end.format('YYYY-MM-DDTHH:mm:ss'),
         period: dashboardTimePeriod.period,
       };
     }
+    if (dashboardCurrency) {
+      basePayload = {
+        ...basePayload,
+        currency: dashboardCurrency,
+      };
+    }
     return basePayload;
-  }, [ dataConfig?.payload, dashboardTimePeriod ]);
+  }, [ dataConfig?.payload, dashboardTimePeriod, dashboardCurrency ]);
 
   const dataConfigKey = JSON.stringify(dataConfig);
   const routeParamsKey = JSON.stringify(routeParams);
