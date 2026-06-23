@@ -5,6 +5,7 @@ import { IChartWidgetProps } from '../../dashboard/widgets/ChartWidget';
 import { IListWidgetProps } from '../../dashboard/widgets/ListWidget';
 import { IDescriptionWidgetProps } from '../../dashboard/widgets/DescriptionWidget';
 import { TimePeriodSelector, TimePeriod } from '../../dashboard/widgets/TimePeriodSelector';
+import { CurrencySelector } from '../../dashboard/widgets/CurrencySelector';
 import dayjs from 'dayjs';
 import { useUi24Config } from '../../core/context';
 import type { IDetailsConfig } from '../../core/types/field-config';
@@ -172,6 +173,8 @@ export type IDashboardWidgetConfig = {
 export interface IDashboardPageConfig {
   widgets: IDashboardWidgetConfig[];
   showTimePeriodSelector?: boolean;
+  showCurrencySelector?: boolean;
+  currenciesApiUrl?: string;
   defaultTimePeriod?: DefaultTimePeriod;
   timezone?: string;
 }
@@ -230,6 +233,8 @@ export const DashboardPage: React.FC<{
     const resolvedDashboardTz = dashboardConfig?.timezone || formatConfigTz;
 
     const [ dashboardTimePeriod, setDashboardTimePeriod ] = React.useState(() => getInitialTimePeriod(dashboardConfig?.defaultTimePeriod, resolvedDashboardTz));
+    const [ dashboardCurrency, setDashboardCurrency ] = React.useState<string | undefined>(undefined);
+    const [ currencyReady, setCurrencyReady ] = React.useState(!dashboardConfig?.showCurrencySelector);
     // Per-widget time period state (keyed by widget index)
     const [ widgetTimePeriods, setWidgetTimePeriods ] = React.useState<Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }>>(() => {
       const initial: Record<number, { period: TimePeriod; range: [ dayjs.Dayjs, dayjs.Dayjs ] }> = {};
@@ -256,16 +261,33 @@ export const DashboardPage: React.FC<{
         localData={{
           dashboardFilters: {
             timePeriod: dashboardTimePeriod,
-            widgetTimePeriods
+            widgetTimePeriods,
+            currency: dashboardCurrency,
           }
         }}
         isolated={true}
       >
-        {dashboardConfig?.showTimePeriodSelector && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 24 }}>
-            <TimePeriodSelector value={dashboardTimePeriod} onChange={setDashboardTimePeriod} timezone={resolvedDashboardTz} />
+        {(dashboardConfig?.showCurrencySelector || dashboardConfig?.showTimePeriodSelector) && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            {dashboardConfig?.showCurrencySelector && dashboardConfig?.currenciesApiUrl && (
+              <CurrencySelector
+                apiUrl={dashboardConfig.currenciesApiUrl}
+                routeParams={routeParams}
+                value={dashboardCurrency}
+                onChange={(currency) => {
+                  setDashboardCurrency(currency);
+                  setCurrencyReady(true);
+                }}
+              />
+            )}
+            {dashboardConfig?.showTimePeriodSelector && (
+              <TimePeriodSelector value={dashboardTimePeriod} onChange={setDashboardTimePeriod} timezone={resolvedDashboardTz} />
+            )}
           </div>
         )}
+        {!currencyReady ? (
+          <div style={{ minHeight: 120 }} />
+        ) : (
         <div
           style={{
             display: 'grid',
@@ -318,12 +340,14 @@ export const DashboardPage: React.FC<{
                   widget={widget}
                   timePeriodSelectorProps={timePeriodSelectorProps}
                   dashboardTimePeriod={chartDashboardTimePeriod || dashboardTimePeriod}
+                  dashboardCurrency={dashboardCurrency}
                   routeParams={routeParams}
                 />
               </div>
             );
           })}
         </div>
+        )}
       </PageDataProvider>
     );
   }; 
