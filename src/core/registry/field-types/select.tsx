@@ -8,7 +8,7 @@ import type { FieldTypeRegistration } from '../FieldTypeRegistry';
 // pre-populated value when the form first loads and is NOT kept in sync after mount.
 // Using `initialValue` here would break programmatic updates (form.setFieldValue etc.).
 
-const SelectForm: React.FC<BuiltInFormFieldProps> = ({ value, fieldType, options, addNewOption, addNewOptionConfig, quickCreate, setFormValue, name, placeholder, dependencyFilters }) => (
+const SelectForm: React.FC<BuiltInFormFieldProps> = ({ value, fieldType, options, addNewOption, addNewOptionConfig, quickCreate, setFormValue, name, placeholder, dependencyFilters, disabled, readOnly }) => (
   <OptionSelector
     value={value}
     fieldType={fieldType}
@@ -21,10 +21,11 @@ const SelectForm: React.FC<BuiltInFormFieldProps> = ({ value, fieldType, options
     }}
     placeholder={placeholder}
     dependencyFilters={dependencyFilters}
+    disabled={disabled || readOnly}
   />
 );
 
-const MultiSelectForm: React.FC<BuiltInFormFieldProps> = ({ value, fieldType, options, addNewOption, addNewOptionConfig, quickCreate, setFormValue, name, placeholder, dependencyFilters }) => (
+const MultiSelectForm: React.FC<BuiltInFormFieldProps> = ({ value, fieldType, options, addNewOption, addNewOptionConfig, quickCreate, setFormValue, name, placeholder, dependencyFilters, disabled, readOnly }) => (
   <OptionSelector
     value={value}
     fieldType={fieldType}
@@ -37,6 +38,7 @@ const MultiSelectForm: React.FC<BuiltInFormFieldProps> = ({ value, fieldType, op
     }}
     placeholder={placeholder}
     dependencyFilters={dependencyFilters}
+    disabled={disabled || readOnly}
   />
 );
 

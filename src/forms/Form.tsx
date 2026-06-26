@@ -465,7 +465,11 @@ export function Form({
     // ============================================================================
     if (apiConfig) {
       // Use the clean utility function for URL parameter substitution
-      const formattedApiUrl = substituteUrlParams(apiConfig.apiUrl, routeParams, identifiersToUse);
+      const formattedApiUrl = substituteUrlParams(
+        apiConfig.apiUrl,
+        routeParams,
+        identifiersToUse,
+      );
 
       // ============================================================================
       // Form Data Processing (Dates, JSON, Numbers, Nested Objects)
