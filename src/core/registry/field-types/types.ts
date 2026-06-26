@@ -38,6 +38,8 @@ export interface BuiltInFormFieldProps extends Partial<IFormField> {
   onChange?: (...args: any[]) => void;
   checked?: boolean;
   id?: string;
+  /** Set by FormField when enablement condition evaluates to false */
+  disabled?: boolean;
 
   // --- Rich content / code editor properties ---
   theme?: string;

@@ -6,10 +6,30 @@ import { OpenRouteInModal } from "../../modal/OpenRouteInModal";
 import { OpenRouteInDrawer } from "../../modal/OpenRouteInDrawer";
 import { OpenInDrawer } from "../../modal/Drawer";
 import { IPageAction } from "../../table/type";
-import { substituteUrlParams } from "../utils";
+import { substituteUrlParams, extractUrlParamNames } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
 import { isExternalUrl, resolveAnchorProps } from "../utils/link-utils";
 import { executeCopyToClipboard } from "../utils/copyUtils";
+
+/** Row id is only passed to forms when the modal submit URL has `:param` placeholders to fill. */
+function rowIdentifiersForSubmitUrl(
+  submitApiUrl: string | undefined,
+  primaryIndex?: string,
+  routeParams?: Record<string, string>,
+): string | undefined {
+  if (!submitApiUrl || extractUrlParamNames(submitApiUrl).length === 0) {
+    return undefined;
+  }
+  return primaryIndex || routeParams?.id;
+}
+
+function getSubmitApiUrl(pageConfig: unknown): string | undefined {
+  if (!pageConfig || typeof pageConfig !== 'object' || !('apiConfig' in pageConfig)) {
+    return undefined;
+  }
+  const apiConfig = (pageConfig as { apiConfig?: { apiUrl?: string } }).apiConfig;
+  return typeof apiConfig?.apiUrl === 'string' ? apiConfig.apiUrl : undefined;
+}
 
 export type MenuItem = Required<MenuProps>[ 'items' ][ number ];
 
@@ -91,6 +111,11 @@ export function renderSingleAction({
     // Merge record data with routeParams for template resolution (initialValues)
     // Priority: record data overrides routeParams
     const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
+    const rowIdentifier = rowIdentifiersForSubmitUrl(
+      getSubmitApiUrl(action.modalConfig.modalPageConfig),
+      primaryIndex,
+      routeParams,
+    );
 
     const modalTrigger = (
       <OpenInModal
@@ -99,7 +124,7 @@ export function renderSingleAction({
         modalWidth={action.modalWidth}  // Pass modalWidth from action level
         modalTitle={action.modalTitle}  // Pass modalTitle from action level (if set)
         primaryIndex={primaryIndex || routeParams.id}
-        identifiers={primaryIndex || routeParams.id}  // Pass identifiers for Form component
+        identifiers={rowIdentifier}
         routeParams={finalRouteParams}  // Include record data for template resolution
         onSuccessCallback={onSuccessCallback}
       >
@@ -170,6 +195,11 @@ export function renderSingleAction({
   // Supports inline page config (drawerType + drawerPageConfig)
   if (action.openInDrawer && action.drawerConfig?.drawerType && action.drawerConfig?.drawerPageConfig) {
     const finalRouteParams = record ? { ...routeParams, ...record } : routeParams;
+    const rowIdentifier = rowIdentifiersForSubmitUrl(
+      getSubmitApiUrl(action.drawerConfig.drawerPageConfig),
+      primaryIndex,
+      routeParams,
+    );
 
     const drawerTrigger = (
       <OpenInDrawer
@@ -187,7 +217,7 @@ export function renderSingleAction({
         maskClosable={action.drawerConfig.maskClosable}
         destroyOnClose={action.drawerConfig.destroyOnClose}
         routeParams={finalRouteParams}
-        identifiers={primaryIndex || routeParams.id}
+        identifiers={rowIdentifier}
         onSuccess={onSuccessCallback}
       >
         {wrapWithTooltip(

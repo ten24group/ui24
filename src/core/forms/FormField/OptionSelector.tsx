@@ -6,7 +6,7 @@ import { useEntityConfig, type IEntityConfigReference } from '../../hooks';
 import type { IFormField, IOptions, ITemplateConfig, IQuickCreateConfig } from '../../types/field-config';
 import { interpolateTemplate } from '../../utils/template';
 import { deriveEntityName } from '../../utils';
-import { useInfiniteFieldOptions } from '../../query/useFieldOptions';
+import { useFieldOptions, useInfiniteFieldOptions } from '../../query/useFieldOptions';
 
 /**
  * Configuration for API-loaded options in form field selectors.
@@ -128,6 +128,7 @@ interface IOptionSelector {
     addNewOptionConfig?: IEntityConfigReference, // NEW: Entity config reference
     value?: string,
     placeholder?: string;
+    disabled?: boolean;
     /** Additional filters from parent field dependencies (e.g., country → state cascading) */
     dependencyFilters?: Record<string, unknown>;
     /**
@@ -233,6 +234,7 @@ export const OptionSelector = ({
     onOptionChange, 
     value,
     placeholder,
+    disabled = false,
     dependencyFilters,
 }: IOptionSelector) => {
 
@@ -290,6 +292,38 @@ export const OptionSelector = ({
 
     const isSelectLike = [ 'select', 'multi-select', 'checkbox', 'radio' ].includes(fieldType.toLowerCase());
 
+    const valueFieldName = typeof apiConfig?.optionMapping?.value === 'string'
+        ? apiConfig.optionMapping.value
+        : '';
+
+    const selectedValueKeys = useMemo(() => {
+        if (value === undefined || value === null || value === '') return [] as string[];
+        const raw = Array.isArray(value) ? value : [ value ];
+        return raw
+            .filter((entry) => entry !== undefined && entry !== null && entry !== '')
+            .map((entry) => String(entry));
+    }, [ value ]);
+
+    // Proactive lookup for the current value(s) so chips/labels resolve without opening the dropdown.
+    const selectedRecordsQuery = useFieldOptions({
+        entityName: `${optionsEntityName}-selected`,
+        fieldName: valueFieldName ? `${valueFieldName}-lookup` : 'lookup',
+        apiConfig: {
+            apiMethod: hookApiConfig.apiMethod,
+            apiUrl: hookApiConfig.apiUrl,
+            responseKey: hookApiConfig.responseKey,
+            disableSearch: true,
+            count: Math.max(selectedValueKeys.length, 1),
+            filters: selectedValueKeys.length === 1
+                ? { [ valueFieldName ]: selectedValueKeys[ 0 ] }
+                : { [ `${valueFieldName}.inList` ]: selectedValueKeys.join(',') },
+        },
+        enabled: isApiConfig && isSelectLike && !!valueFieldName && selectedValueKeys.length > 0,
+    });
+
+    // Browse list: eager for editable fields; disabled display-only fields skip bulk fetch.
+    const shouldFetchOptionList = isApiConfig && isSelectLike && !disabled;
+
     const {
         options: apiOptions,
         hasMore,
@@ -303,14 +337,30 @@ export const OptionSelector = ({
         fieldName: typeof apiConfig?.optionMapping?.value === 'string' ? apiConfig.optionMapping.value : '',
         apiConfig: hookApiConfig,
         dependencyFilters,
-        enabled: isApiConfig && isSelectLike,
+        enabled: shouldFetchOptionList,
         mapOption: apiConfig?.optionMapping ? mapOption : undefined,
         searchDebounce: apiConfig?.searchDebounce || 500,
     });
 
-    // Final options: API-loaded (from hook) or static (from props)
     const fieldOptions = isApiConfig ? apiOptions : (Array.isArray(options) ? options : []);
-    const loading = isLoading || isFetching;
+
+    const resolvedFieldOptions = useMemo(() => {
+        if (!isApiConfig || !apiConfig?.optionMapping) return fieldOptions;
+
+        const selectedOptions = (selectedRecordsQuery.data ?? []).map((record) => mapOption(record));
+        if (!selectedOptions.length) return fieldOptions;
+
+        const merged = [ ...selectedOptions ];
+        for (const option of fieldOptions) {
+            if (!merged.some((existing) => String(existing.value) === String(option.value))) {
+                merged.push(option);
+            }
+        }
+        return merged.sort((a, b) => String(a.label ?? '').localeCompare(String(b.label ?? '')));
+    }, [ isApiConfig, fieldOptions, selectedRecordsQuery.data, apiConfig?.optionMapping, mapOption ]);
+
+    const loading = (shouldFetchOptionList && (isLoading || isFetching))
+        || (selectedValueKeys.length > 0 && (selectedRecordsQuery.isLoading || selectedRecordsQuery.isFetching));
 
     // Check if API config has remote search enabled
     const hasRemoteSearch = isApiConfig && apiConfig?.disableSearch !== true;
@@ -501,7 +551,7 @@ export const OptionSelector = ({
         {fieldType === "checkbox" && (
             <Checkbox.Group 
                 value={[ value ]} 
-                options={fieldOptions} 
+                options={resolvedFieldOptions} 
                 onChange={(checkedValues) => onOptionChange?.(checkedValues)}
             />
         )}
@@ -509,7 +559,7 @@ export const OptionSelector = ({
         {fieldType === "radio" && (
             <Radio.Group 
                 value={value} 
-                options={fieldOptions} 
+                options={resolvedFieldOptions} 
                 onChange={(e) => onOptionChange?.(e.target.value)}
             />
         )}
@@ -517,6 +567,8 @@ export const OptionSelector = ({
         {fieldType === "select" && (
             <AntSelect 
                 value={value} 
+                disabled={disabled}
+                allowClear={!disabled}
                 loading={loading}
                 showSearch
                 filterOption={filterOption}
@@ -526,7 +578,7 @@ export const OptionSelector = ({
                     if (!visible) setSearchTerm('');
                 }} 
                 open={open} 
-                options={fieldOptions}
+                options={resolvedFieldOptions}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
                 notFoundContent={notFoundContent}
@@ -539,6 +591,8 @@ export const OptionSelector = ({
         {fieldType === "multi-select" && (
             <AntSelect 
                 value={value}
+                disabled={disabled}
+                allowClear={!disabled}
                 loading={loading}
                 showSearch
                 filterOption={filterOption}
@@ -548,7 +602,7 @@ export const OptionSelector = ({
                     if (!visible) setSearchTerm('');
                 }} 
                 open={open} 
-                options={fieldOptions}
+                options={resolvedFieldOptions}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
                 mode='multiple'
