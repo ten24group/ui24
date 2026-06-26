@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.35](https://github.com/ten24group/ui24/compare/v1.1.0-beta.34...v1.1.0-beta.35) (2026-06-26)
+
+
+### Bug Fixes
+
+* **forms:** resolve select labels and row-action modal submit URLs ([346fc9c](https://github.com/ten24group/ui24/commit/346fc9ce0956a7939e990609dcd10faa6493a1fb))
+
 ## [1.1.0-beta.34](https://github.com/ten24group/ui24/compare/v1.1.0-beta.33...v1.1.0-beta.34) (2026-05-18)
 
 
