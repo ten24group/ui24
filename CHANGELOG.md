@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.35](https://github.com/ten24group/ui24/compare/v1.1.0-beta.34...v1.1.0-beta.35) (2026-07-07)
+
+
+### Features
+
+* **dashboard:** add currency selector for analytics dashboards ([8f5be4d](https://github.com/ten24group/ui24/commit/8f5be4d4503260283956ce51cbd91a78d7d4a738))
+
 ## [1.1.0-beta.34](https://github.com/ten24group/ui24/compare/v1.1.0-beta.33...v1.1.0-beta.34) (2026-05-18)
 
 
