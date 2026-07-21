@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.37](https://github.com/ten24group/ui24/compare/v1.1.0-beta.36...v1.1.0-beta.37) (2026-07-21)
+
+
+### Features
+
+* **dashboard:** lock currency selector to team default at team-level analytics ([39547b2](https://github.com/ten24group/ui24/commit/39547b21c13f8e1498e4453826d4bb42acc89b72))
+
 ## [1.1.0-beta.36](https://github.com/ten24group/ui24/compare/v1.1.0-beta.35...v1.1.0-beta.36) (2026-07-10)
 
 ## [1.1.0-beta.35](https://github.com/ten24group/ui24/compare/v1.1.0-beta.34...v1.1.0-beta.35) (2026-07-07)
