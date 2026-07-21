@@ -9,6 +9,12 @@ export interface CurrencySelectorProps {
   value?: string;
   onChange: (currency: string) => void;
   style?: React.CSSProperties;
+  /**
+   * When true, the selector is locked to the loaded default currency and cannot
+   * be toggled (used at team-level analytics, where the team's defaultCurrency
+   * is fixed). Currencies are still fetched so the default is applied to widgets.
+   */
+  disabled?: boolean;
 }
 
 interface CurrenciesApiResponse {
@@ -22,6 +28,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
   value,
   onChange,
   style,
+  disabled = false,
 }) => {
   const { callApiMethod } = useApi();
   const [ currencies, setCurrencies ] = useState<string[]>([]);
@@ -84,7 +91,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
       <Select
         value={value}
         loading={loading}
-        disabled={loading || !!error}
+        disabled={disabled || loading || !!error}
         style={{ minWidth: 120 }}
         options={currencies.map(code => ({ label: code, value: code }))}
         onChange={onChange}

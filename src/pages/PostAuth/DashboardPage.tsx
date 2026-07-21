@@ -274,6 +274,9 @@ export const DashboardPage: React.FC<{
                 apiUrl={dashboardConfig.currenciesApiUrl}
                 routeParams={routeParams}
                 value={dashboardCurrency}
+                // Team-level analytics (route carries a teamId) is locked to the
+                // team's defaultCurrency: still loads/applies it, but cannot be toggled.
+                disabled={routeParams?.teamId != null}
                 onChange={(currency) => {
                   setDashboardCurrency(currency);
                   setCurrencyReady(true);
