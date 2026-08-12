@@ -225,6 +225,33 @@ interface IOptionSelector {
  *   }}
  * />
  */
+/** Fixed thumbnail box, so rows stay aligned whether or not an image loads. */
+const THUMB_SIZE = 22;
+
+/**
+ * Renders an option's thumbnail next to its label.
+ *
+ * The image is decoration: `label` remains the option's text identity, so search,
+ * keyboard selection and screen readers are unaffected. A broken or missing image
+ * collapses to an empty box of the same size rather than shifting the row.
+ */
+const OptionRow: React.FC<{ option: IOptions }> = ({ option }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        {option.image
+            ? <img
+                src={option.image}
+                alt=""
+                aria-hidden="true"
+                width={THUMB_SIZE}
+                height={THUMB_SIZE}
+                loading="lazy"
+                style={{ width: THUMB_SIZE, height: THUMB_SIZE, objectFit: 'contain', flexShrink: 0 }}
+            />
+            : <span aria-hidden="true" style={{ width: THUMB_SIZE, height: THUMB_SIZE, flexShrink: 0 }} />}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{option.label}</span>
+    </span>
+);
+
 export const OptionSelector = ({ 
     options = [], 
     fieldType, 
@@ -361,6 +388,45 @@ export const OptionSelector = ({
 
     const loading = (shouldFetchOptionList && (isLoading || isFetching))
         || (selectedValueKeys.length > 0 && (selectedRecordsQuery.isLoading || selectedRecordsQuery.isFetching));
+
+    // Only opt into custom rendering when there is actually an image to show, so
+    // fields without images keep antd's default rendering untouched.
+    const hasOptionImages = useMemo(
+        () => resolvedFieldOptions.some((option) => !!option.image),
+        [ resolvedFieldOptions ]
+    );
+
+    /** Dropdown row renderer — receives the original option, image included. */
+    const optionRender = useCallback(
+        (option: { data: IOptions }) => <OptionRow option={option.data} />,
+        []
+    );
+
+    /**
+     * Renderer for the chosen value(s). antd hands back only label/value, so the
+     * image is looked up from the option list by value.
+     */
+    const labelRender = useCallback(
+        ({ label, value: selectedValue }: { label?: React.ReactNode; value?: string | number }) => {
+            const match = resolvedFieldOptions.find(
+                (option) => String(option.value) === String(selectedValue)
+            );
+            if (!match) return label ?? selectedValue;
+            return <OptionRow option={match} />;
+        },
+        [ resolvedFieldOptions ]
+    );
+
+    /** Radio has no optionRender, so its labels are built as nodes up front. */
+    const radioOptions = useMemo(
+        () => (hasOptionImages
+            ? resolvedFieldOptions.map((option) => ({
+                value: option.value,
+                label: <OptionRow option={option} />,
+            }))
+            : resolvedFieldOptions),
+        [ hasOptionImages, resolvedFieldOptions ]
+    );
 
     // Check if API config has remote search enabled
     const hasRemoteSearch = isApiConfig && apiConfig?.disableSearch !== true;
@@ -559,7 +625,7 @@ export const OptionSelector = ({
         {fieldType === "radio" && (
             <Radio.Group 
                 value={value} 
-                options={resolvedFieldOptions} 
+                options={radioOptions as any} 
                 onChange={(e) => onOptionChange?.(e.target.value)}
             />
         )}
@@ -579,6 +645,7 @@ export const OptionSelector = ({
                 }} 
                 open={open} 
                 options={resolvedFieldOptions}
+                {...(hasOptionImages ? { optionRender, labelRender } : {})}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
                 notFoundContent={notFoundContent}
@@ -603,6 +670,7 @@ export const OptionSelector = ({
                 }} 
                 open={open} 
                 options={resolvedFieldOptions}
+                {...(hasOptionImages ? { optionRender, labelRender } : {})}
                 popupRender={canLoadMore || hasAddNewOption ? customDropdownRender : undefined}
                 onChange={(value) => { setSearchTerm(''); onOptionChange?.(value); }}
                 mode='multiple'

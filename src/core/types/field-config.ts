@@ -53,6 +53,16 @@ export type Template = string | ITemplateConfig;
 export interface IOptions {
   label: string;
   value: string | number;
+  /**
+   * Thumbnail shown beside the label in select, multi-select and radio fields.
+   *
+   * For choices identified visually — a team by its crest, a product by its photo —
+   * the image is what the user actually recognises, and a URL printed in the label
+   * text is no substitute. `label` stays the option's plain-text identity: it is
+   * what search filters against and what assistive technology announces, so it must
+   * remain meaningful on its own.
+   */
+  image?: string;
 }
 
 /**
