@@ -11,6 +11,7 @@ import { fieldTypeRegistry } from '../../registry/FieldTypeRegistry';
 import { useRenderPipeline } from '../../rendering';
 import '../../registry/field-types'; // ensure built-in registrations run
 import type { BuiltInFormFieldProps } from '../../registry/field-types/types';
+import { useDependencyFilters } from './useDependencyFilters';
 
 /**
  * Internal form field props type where ConditionalValue fields have been resolved to strings.
@@ -55,32 +56,10 @@ const MakeFormItem = ({
     const formValues = form?.getFieldsValue(true) || {};
     const fieldConfig = { fieldType, name, label, placeholder, helpText, ...restFormItemProps };
     const pipelineResult = processField(fieldConfig, initialValue, formValues);
-    const dependencyFilters = React.useMemo(() => {
-        if (!dependsOn || !form) return undefined;
-        const deps = Array.isArray(dependsOn) ? dependsOn : [ dependsOn ];
-        const filters: Record<string, unknown> = {};
-        let hasValue = false;
-        for (const dep of deps) {
-            const val = form.getFieldValue(dep);
-            if (val !== undefined && val !== null && val !== '') {
-                filters[ dep ] = val;
-                hasValue = true;
-            }
-        }
-        return hasValue ? filters : undefined;
-    }, [ dependsOn, form ]);
 
-    // Force re-render when dependency fields change by watching all form values
-    // (antd's Form.useWatch with no specific field watches all values)
-    const watchedDeps = Form.useWatch(
-        dependsOn
-            ? (values: Record<string, unknown>) => {
-                const deps = Array.isArray(dependsOn) ? dependsOn : [ dependsOn ];
-                return deps.map(d => values?.[ d ]);
-            }
-            : () => null,
-        form
-    );
+    // Cascading selects (#3): the parent values this field's options depend on.
+    // See useDependencyFilters for why this cannot be a plain mount-time memo.
+    const { dependencyFilters, watchedDeps } = useDependencyFilters(dependsOn, form);
 
     // Clear this field's value when parent dependency value changes (#3)
     const prevDepsRef = React.useRef<unknown[] | null>(null);
