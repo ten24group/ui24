@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.38](https://github.com/ten24group/ui24/compare/v1.1.0-beta.34...v1.1.0-beta.38) (2026-08-12)
+
+
+### Features
+
+* **forms:** optional thumbnail on select, multi-select and radio options ([4286e3c](https://github.com/ten24group/ui24/commit/4286e3c57c1d36a6618e4ac9b9bbaabf5c947641))
+
+
+### Bug Fixes
+
+* **forms:** re-derive dependencyFilters when a parent value changes ([7164895](https://github.com/ten24group/ui24/commit/7164895d14e70e30c94973fdcfd6cf7bb96d65cf))
+* **forms:** resolve select labels and row-action modal submit URLs ([346fc9c](https://github.com/ten24group/ui24/commit/346fc9ce0956a7939e990609dcd10faa6493a1fb))
+
 ## [1.1.0-beta.35](https://github.com/ten24group/ui24/compare/v1.1.0-beta.34...v1.1.0-beta.35) (2026-06-26)
 
 
