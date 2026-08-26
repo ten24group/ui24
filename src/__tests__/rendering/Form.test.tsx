@@ -197,6 +197,79 @@ describe('Form - field rendering from config', () => {
 });
 
 // ============================================================================
+// STICKY FORM ACTIONS (#41)
+// ============================================================================
+
+describe('Form - sticky actions', () => {
+  it('sticks the action buttons to the bottom by default', async () => {
+    render(
+      <TestWrapper>
+        <Form
+          onSubmit={noop}
+          propertiesConfig={[
+            { name: 'name', label: 'Name', fieldType: 'text' },
+          ] as any}
+          formButtons={[
+            { text: 'Save', action: 'submit' },
+          ] as any}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      const button = screen.getByText('Save').closest('.form-actions-sticky');
+      expect(button).toBeInTheDocument();
+      expect(button).not.toHaveClass('form-actions-sticky--top');
+    });
+  });
+
+  it('omits the sticky class when stickyActions is false', async () => {
+    render(
+      <TestWrapper>
+        <Form
+          onSubmit={noop}
+          stickyActions={false}
+          propertiesConfig={[
+            { name: 'name', label: 'Name', fieldType: 'text' },
+          ] as any}
+          formButtons={[
+            { text: 'Save', action: 'submit' },
+          ] as any}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Save')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Save').closest('.form-actions-sticky')).toBeNull();
+  });
+
+  it('sticks the action buttons to the top when position is "top"', async () => {
+    render(
+      <TestWrapper>
+        <Form
+          onSubmit={noop}
+          stickyActions={{ position: 'top' }}
+          propertiesConfig={[
+            { name: 'name', label: 'Name', fieldType: 'text' },
+          ] as any}
+          formButtons={[
+            { text: 'Save', action: 'submit' },
+          ] as any}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      const button = screen.getByText('Save').closest('.form-actions-sticky');
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveClass('form-actions-sticky--top');
+    });
+  });
+});
+
+// ============================================================================
 // VISIBILITY CONDITIONS
 // ============================================================================
 

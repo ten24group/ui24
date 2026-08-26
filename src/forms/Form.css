@@ -60,3 +60,10 @@
   display: flex;
   gap: 8px;
 }
+
+/* Sticky form actions pinned to the top instead of the bottom (position: 'top') */
+.form-actions-sticky--top {
+  top: 0;
+  bottom: auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}

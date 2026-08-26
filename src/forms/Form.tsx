@@ -159,7 +159,7 @@ const EMPTY_DEFAULT_VALUES: Record<string, any> = {};
 interface IFormWithColumnsConfig extends IForm {
   columnsConfig?: IColumnsConfig;
   onDataChange?: (data: IFormDataChangePayload) => void;
-  stickyActions?: boolean;
+  stickyActions?: boolean | { position?: 'bottom' | 'top' };
 }
 
 /**
@@ -777,6 +777,14 @@ export function Form({
     await validateAndSubmit();
   }, [ validateAndSubmit ]);
 
+  // Sticky form action buttons (#41): boolean enables the default bottom-sticky
+  // behavior; an object form lets the config opt into a top-sticky bar instead.
+  const stickyActionsClassName = useMemo(() => {
+    if (!stickyActions) return undefined;
+    const position = (typeof stickyActions === 'object' ? stickyActions.position : undefined) || 'bottom';
+    return position === 'top' ? 'form-actions-sticky form-actions-sticky--top' : 'form-actions-sticky';
+  }, [ stickyActions ]);
+
   const effectiveFormButtons = useMemo(() => {
     const isSubmit = (btn: any): boolean => {
       if (typeof btn === 'string') return btn === 'submit';
@@ -1248,7 +1256,7 @@ export function Form({
               />
             )}
             {effectiveFormButtons.length > 0 && (
-              <div className={stickyActions ? 'form-actions-sticky' : undefined}>
+              <div className={stickyActionsClassName}>
                 <CreateButtons
                   formButtons={effectiveFormButtons}
                   loader={btnLoader}
