@@ -676,10 +676,42 @@ export interface ITablePropertiesConfig extends IFieldTypeProperties {
 }
 
 /**
- * Page action type
- * Supports buttons, dropdowns with modals/navigation
- * Note: items cannot have nested items (max 1 level of nesting)
+ * Configuration for a bulk-delete action (`IPageAction.bulkDeleteConfig`), rendered by
+ * `BulkDeleteAction` (src/core/bulk-delete/BulkDeleteAction.tsx).
+ *
+ * Wired to fw24's `getDeleteImpact` / `executeDeletePlan` mechanism. Those backend routes are
+ * OPT-IN — an entity's controller only exposes `/delete-impact` and `/execute-delete-plan` when
+ * the app explicitly enables them (directly, or via `deriveDeleteImpactOperations(Schema)`).
+ * Configuring `bulkDeleteConfig` on an action is the signal, in ui24, that those routes exist for
+ * this entity; the component still handles a 404 from either route gracefully in case that drifts.
  */
+export interface IBulkDeleteActionConfig {
+  entityName?: string;
+  entityLabel?: string;
+  entityNamePlural?: string;
+  /** Base URL the impact/execute endpoints are derived from, e.g. `/admin/post` -> `/admin/post/delete-impact`. */
+  apiBaseUrl?: string;
+  /** Explicit dry-run URL; overrides `apiBaseUrl` derivation. */
+  impactApiUrl?: string;
+  /** Explicit execute URL; overrides `apiBaseUrl` derivation. */
+  executeApiUrl?: string;
+  /** Attribute name(s) that make up this entity's identifier; defaults to `['id']`. */
+  identifierFields?: ReadonlyArray<string> | Array<string>;
+  /** Allow deleting the currently selected table rows. Default true. */
+  allowSelectionDelete?: boolean;
+  /** Allow deleting every record matching the table's current filters (delete-by-query). Default true. */
+  allowQueryDelete?: boolean;
+  /** Cap on the number of direct target records resolved by the backend (default 1000 server-side). */
+  maxItems?: number;
+  /** Page size used while the backend cursor-paginates direct targets and related records. */
+  batchSize?: number;
+  concurrent?: number;
+  /** Re-run the dry-run immediately before executing, and abort with a warning if the impact changed. Default true. */
+  revalidateBeforeExecute?: boolean;
+  /** Additional entity names to invalidate from the query cache on a successful delete. */
+  invalidateRelated?: ReadonlyArray<string> | Array<string>;
+}
+
 /**
  * Page action type
  * Supports buttons, dropdowns, modals, and navigation
@@ -859,6 +891,16 @@ export type IPageAction = {
     /** Template for text format (supports {field} placeholders) */
     template?: Template;
   };
+
+  /**
+   * Bulk delete action configuration. When set, this action renders as `BulkDeleteAction`
+   * instead of a plain button/navigation/modal action — a dry-run-then-confirm flow against
+   * fw24's opt-in `getDeleteImpact` / `executeDeletePlan` routes. See `IBulkDeleteActionConfig`.
+   *
+   * @example
+   * { label: 'Delete Posts', icon: 'DeleteOutlined', bulkDeleteConfig: { apiBaseUrl: '/admin/post', identifierFields: ['postId'] } }
+   */
+  bulkDeleteConfig?: IBulkDeleteActionConfig;
 
   /**
    * Clone / duplicate action configuration (#43).
