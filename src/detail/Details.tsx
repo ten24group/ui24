@@ -133,7 +133,7 @@ import { getFieldRenderer, buildDetailFieldProps, type DetailFieldConfig } from 
 import { useEntityDetail } from '../core/query/useEntityDetail';
 import { fieldTypeRegistry } from '../core/registry/FieldTypeRegistry';
 import { useRenderPipeline } from '../core/rendering';
-import { DisplayOverrideEditModal, resolveWithDisplayOverrides } from '../core/display-overrides';
+import { ADMIN_DISPLAY_OVERRIDE_CHANNEL, DisplayOverrideEditModal, resolveDisplayOverrideForField } from '../core/display-overrides';
 import type { DisplayOverrideEntry, DisplayOverrideStorage } from '../core/types/display-override';
 import { DataQualityIndicator, type IDataQualityConfig } from '../core/common/DataQualityIndicator';
 import '../core/registry/field-types'; // ensure built-in registrations run
@@ -527,27 +527,34 @@ const Details: React.FC<IDetailsComponentProps> = ({
       let valueForFormat = resolveInlineOptionLabel(item, nestedValue);
       let displayOverrideActive = false;
       let displayOverrideValue: unknown = undefined;
+      let displayOverrideHidden = false;
       const overrideSpec = item.displayOverride;
+      const formattedBeforeOverride = valueFormatter(item, valueForFormat);
+      let formattedValue: unknown = formattedBeforeOverride;
+
       if (
         displayOverrides &&
         overrideSpec &&
         pathStr.length > 0 &&
         pathStr === overrideSpec.path
       ) {
-        const { valueFromOverride, entry } = resolveWithDisplayOverrides({
+        // ui24's admin Details view always resolves with the fixed 'admin' channel — see
+        // ADMIN_DISPLAY_OVERRIDE_CHANNEL doc for why this is not `overrideSpec.channels[0]`.
+        const resolved = resolveDisplayOverrideForField({
           storedValue: nestedValue,
+          formattedValue: formattedBeforeOverride,
           overrideMap: rawOverrideMap as DisplayOverrideStorage | undefined,
           fieldPath: overrideSpec.path,
-          channel: overrideSpec.channels?.[ 0 ],
+          templateContext: resolvedData as Record<string, unknown>,
+          channel: ADMIN_DISPLAY_OVERRIDE_CHANNEL,
         });
-        if (valueFromOverride) {
-          displayOverrideActive = true;
-          displayOverrideValue = entry?.value;
-        }
+        formattedValue = resolved.value;
+        displayOverrideActive = resolved.active;
+        displayOverrideValue = resolved.overrideValue;
+        displayOverrideHidden = resolved.hidden;
       }
 
-      const formattedValue = valueFormatter(item, valueForFormat);
-      return { ...item, initialValue: formattedValue, displayOverrideActive, displayOverrideValue };
+      return { ...item, initialValue: formattedValue, displayOverrideActive, displayOverrideValue, displayOverrideHidden };
     });
   }, [ resolvedData, propertiesConfig, valueFormatter, displayOverrides ]);
 
@@ -636,8 +643,10 @@ const Details: React.FC<IDetailsComponentProps> = ({
   // ── Condition evaluation for detail fields ──
   const { visibilityResults: detailVisibilities } = useEvaluatedItems(recordInfo);
 
-  // Determine columns to render — filter by condition + static hidden
+  // Determine columns to render — filter by display-override visibility + condition + static hidden
   const items = recordInfo.filter((item, idx) => {
+    // A `kind: 'visibility'` display-override entry resolving to `visible: false` always hides the field.
+    if (item.displayOverrideHidden) return false;
     // If there's a visibility condition, use its result
     if (item.visibility !== undefined) return detailVisibilities[ idx ];
     // Otherwise, use legacy static hidden check
