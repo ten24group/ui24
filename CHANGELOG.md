@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.39](https://github.com/ten24group/ui24/compare/v1.1.0-beta.38...v1.1.0-beta.39) (2026-08-27)
+
+
+### Features
+
+* **bulk-delete:** rebuild BulkDeleteAction against fw24's real delete-impact/delete-plan API ([c93fe04](https://github.com/ten24group/ui24/commit/c93fe04c3814d93d2bd883026f731a70bc9c1ef3))
+* **form:** support top-position sticky form actions ([53d7dd0](https://github.com/ten24group/ui24/commit/53d7dd0be9125ce3871b09cc6a43ebc1727f566b)), closes [#41](https://github.com/ten24group/ui24/issues/41)
+
+
+### Bug Fixes
+
+* **release:** guard local release scripts against running off develop ([b51c177](https://github.com/ten24group/ui24/commit/b51c17786ad77fc47fc32242e194448dd0d6c7d2))
+* **table:** polish recent-save row highlight for fixed action columns ([61c8a8d](https://github.com/ten24group/ui24/commit/61c8a8daee12fbfd11bcf1a7282806ff84caa8cd))
+* **ui24:** consume display-override kind:'visibility'/'format' and [@channel](https://github.com/channel) scoping ([1262cab](https://github.com/ten24group/ui24/commit/1262cabe35787a7a04f85b5586c27daf2bc47e8f))
+
 ## [1.1.0-beta.38](https://github.com/ten24group/ui24/compare/v1.1.0-beta.34...v1.1.0-beta.38) (2026-08-12)
 
 
