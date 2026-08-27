@@ -1105,7 +1105,7 @@ export const Table = ({
     const rid = getStableTableRecordId(record as Record<string, unknown>, recordIdentifierKey);
     const hint = recentSaveRowHint(rid);
     if (hint) {
-      props.title = hint;
+      // aria-label only — native `title` tooltips on the whole row clash with action icons
       props[ 'aria-label' ] = hint;
     }
     return props;
