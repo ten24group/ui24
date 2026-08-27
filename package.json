@@ -19,10 +19,11 @@
     "typecheck": "tsc --noEmit",
     "start": "webpack serve --mode development --open",
     "watch": "webpack --watch",
-    "release": "npm run build && standard-version && git push --follow-tags && npm publish",
-    "release:BE": "npm run build && standard-version --prerelease beta && git push --follow-tags && npm publish --tag bleeding-edge",
-    "release:BE:github": "npm run build && standard-version --prerelease beta && git push --follow-tags",
-    "release:BE:version:as": "standard-version",
+    "check-release-branch": "node scripts/ci/check-release-branch.cjs",
+    "release": "npm run check-release-branch && npm run build && standard-version && git push --follow-tags && npm publish",
+    "release:BE": "npm run check-release-branch && npm run build && standard-version --prerelease beta && git push --follow-tags && npm publish --tag bleeding-edge",
+    "release:BE:github": "npm run check-release-branch && npm run build && standard-version --prerelease beta && git push --follow-tags",
+    "release:BE:version:as": "npm run check-release-branch && standard-version",
     "release:BE:next-free-beta": "node scripts/ci/next-free-beta-version.cjs"
   },
   "keywords": [

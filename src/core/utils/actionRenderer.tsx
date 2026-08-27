@@ -10,6 +10,7 @@ import { substituteUrlParams, extractUrlParamNames } from "../utils";
 import { evaluateTemplateValue } from "../utils/template";
 import { isExternalUrl, resolveAnchorProps } from "../utils/link-utils";
 import { executeCopyToClipboard } from "../utils/copyUtils";
+import { BulkDeleteAction, type BulkDeleteTableContext } from "../bulk-delete/BulkDeleteAction";
 
 /** Row id is only passed to forms when the modal submit URL has `:param` placeholders to fill. */
 function rowIdentifiersForSubmitUrl(
@@ -41,11 +42,13 @@ interface RenderActionOptions {
   isInModal?: boolean;  // NEW: Pass modal context from parent component
   isDisabled?: boolean;
   disabledMessage?: string;
-  routeParams?: Record<string, string>;
+  routeParams?: Record<string, any>;
   primaryIndex?: string;
   record?: Record<string, any>;
   /** Selected records for bulk actions (copy, etc.) */
   selectedRecords?: ReadonlyArray<Record<string, any>>;
+  /** Table context (apiConfig, propertiesConfig, ...) forwarded to bulk-delete's delete-by-query mode. */
+  tableContext?: BulkDeleteTableContext;
   onSuccessCallback?: (response?: any) => void;
   onNavigate?: (urlOrDelta: string | number) => void;
 }
@@ -73,6 +76,7 @@ export function renderSingleAction({
   primaryIndex,
   record,
   selectedRecords,
+  tableContext,
   onSuccessCallback,
   onNavigate
 }: RenderActionOptions): React.ReactNode | MenuItem | null {
@@ -99,6 +103,32 @@ export function renderSingleAction({
     if (!evaluatedTooltip) return content;
     return <Tooltip title={evaluatedTooltip}><span style={{ display: 'inline-block' }}>{content}</span></Tooltip>;
   };
+
+  if (action.bulkDeleteConfig) {
+    const trigger = (
+      <BulkDeleteAction
+        key={key}
+        config={action.bulkDeleteConfig}
+        label={evaluatedLabel}
+        icon={action.icon ? <Icon iconName={action.icon} /> : undefined}
+        selectedRecords={selectedRecords}
+        routeParams={routeParams}
+        tableContext={tableContext}
+        disabled={isDisabled}
+        onSuccess={onSuccessCallback}
+      />
+    );
+
+    if (isDropdownItem) {
+      return {
+        key,
+        label: trigger,
+        icon: action.icon ? <Icon iconName={action.icon} /> : undefined
+      } as MenuItem;
+    }
+
+    return wrapWithTooltip(trigger);
+  }
 
   const renderPageHeaderButton = (onClick?: () => void) => (
     <Button type="primary" disabled={isDisabled} onClick={onClick}>

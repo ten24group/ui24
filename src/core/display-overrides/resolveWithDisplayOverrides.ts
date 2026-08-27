@@ -1,5 +1,21 @@
 import type { DisplayOverrideEntry, DisplayOverrideStorage } from '../types/display-override';
 
+/**
+ * The channel identifier ui24's admin surfaces (Details, etc.) pass when resolving display
+ * overrides. `channel` is a caller-supplied, arbitrary string (see fw24
+ * `BaseService.resolveFieldWithDisplayOverrides({ channel })`) — it is NOT derived from a
+ * field's own `displayOverride.channels` allowlist, which only constrains which channel values
+ * an entity author may legally key entries under (schema validation), not which channel a given
+ * UI surface resolves with.
+ *
+ * ui24 currently has exactly one consumer surface (the admin Details view), so it always
+ * resolves with this fixed channel: an entry stored under `fieldPath@admin` applies here, an
+ * entry stored under `fieldPath@<other-channel>` (e.g. `fieldPath@public`) does not, and an
+ * entry stored under the plain `fieldPath` key (no `@channel` suffix) applies regardless of
+ * channel, per `resolveWithDisplayOverrides`'s fallback lookup.
+ */
+export const ADMIN_DISPLAY_OVERRIDE_CHANNEL = 'admin';
+
 function normalizeEntry(raw: unknown): DisplayOverrideEntry | null {
   if (raw === undefined || raw === null) return null;
   if (typeof raw === 'object' && !Array.isArray(raw) && raw !== null) {

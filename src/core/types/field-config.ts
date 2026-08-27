@@ -646,6 +646,8 @@ export interface IDetailFieldConfig extends IBaseFieldConfig {
   displayOverrideActive?: boolean;
   /** Set at runtime to allow chrome/tooltip to show the effective override value (Details). */
   displayOverrideValue?: unknown;
+  /** Set at runtime when a `kind: 'visibility'` override entry resolves to `visible: false` (Details). */
+  displayOverrideHidden?: boolean;
 
   // Nested structures
   properties?: Array<IDetailFieldConfig>;

@@ -286,6 +286,181 @@ describe('Details - visibility conditions', () => {
 // PRE-LOADED DATA (dataSource)
 // ============================================================================
 
+describe('Details - display overrides (kind: visibility / format / @channel)', () => {
+  it('hides a field when the override entry resolves kind: "visibility" with visible: false', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            { name: 'name', label: 'Name', column: 'name', fieldType: 'text' },
+            {
+              name: 'secret',
+              label: 'Secret',
+              column: 'secret',
+              fieldType: 'text',
+              displayOverride: { path: 'secret' },
+            },
+          ] as any}
+          dataSource={{
+            name: 'Visible',
+            secret: 'Should be hidden',
+            overrides: { secret: { kind: 'visibility', visible: false } },
+          }}
+          displayOverrides={{ storageAttribute: 'overrides' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Visible')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Should be hidden')).not.toBeInTheDocument();
+    expect(screen.queryByText('Secret')).not.toBeInTheDocument();
+  });
+
+  it('keeps showing a field when kind: "visibility" resolves visible: true', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            {
+              name: 'nickname',
+              label: 'Nickname',
+              column: 'nickname',
+              fieldType: 'text',
+              displayOverride: { path: 'nickname' },
+            },
+          ] as any}
+          dataSource={{
+            nickname: 'Ace',
+            overrides: { nickname: { kind: 'visibility', visible: true } },
+          }}
+          displayOverrides={{ storageAttribute: 'overrides' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Ace')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Nickname')).toBeInTheDocument();
+  });
+
+  it('applies kind: "format" as a {value} template, changing the rendered text', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            {
+              name: 'price',
+              label: 'Price',
+              column: 'price',
+              fieldType: 'text',
+              displayOverride: { path: 'price' },
+            },
+          ] as any}
+          dataSource={{
+            price: '42',
+            overrides: { price: { kind: 'format', value: '{value} USD' } },
+          }}
+          displayOverrides={{ storageAttribute: 'overrides' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('42 USD')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('42')).not.toBeInTheDocument();
+  });
+
+  it('applies a format entry keyed for the admin channel (fieldPath@admin)', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            {
+              name: 'price',
+              label: 'Price',
+              column: 'price',
+              fieldType: 'text',
+              displayOverride: { path: 'price' },
+            },
+          ] as any}
+          dataSource={{
+            price: '42',
+            overrides: { 'price@admin': { kind: 'format', value: '{value} USD' } },
+          }}
+          displayOverrides={{ storageAttribute: 'overrides' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('42 USD')).toBeInTheDocument();
+    });
+  });
+
+  it('does not apply an entry scoped to a different channel (fieldPath@public)', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            {
+              name: 'price',
+              label: 'Price',
+              column: 'price',
+              fieldType: 'text',
+              displayOverride: { path: 'price' },
+            },
+          ] as any}
+          dataSource={{
+            price: '42',
+            overrides: { 'price@public': { kind: 'format', value: '{value} USD' } },
+          }}
+          displayOverrides={{ storageAttribute: 'overrides' }}
+        />
+      </TestWrapper>
+    );
+
+    // ui24's admin Details view resolves the 'admin' channel — an entry keyed for a
+    // different channel (@public) must not apply here; the raw stored value renders instead.
+    await waitFor(() => {
+      expect(screen.getByText('42')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('42 USD')).not.toBeInTheDocument();
+  });
+
+  it('a kind: "value" override still applies (regression guard for the existing behavior)', async () => {
+    render(
+      <TestWrapper>
+        <Details
+          propertiesConfig={[
+            {
+              name: 'logo',
+              label: 'Logo',
+              column: 'logo',
+              fieldType: 'text',
+              displayOverride: { path: 'logo' },
+            },
+          ] as any}
+          dataSource={{
+            logo: 'synced-name',
+            overrides: { logo: { kind: 'value', value: 'admin-set-name' } },
+          }}
+          displayOverrides={{ storageAttribute: 'overrides' }}
+        />
+      </TestWrapper>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('admin-set-name')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('synced-name')).not.toBeInTheDocument();
+  });
+});
+
 describe('Details - dataSource handling', () => {
   it('uses dataSource and does not call API', async () => {
     const mockCallApi = jest.fn();

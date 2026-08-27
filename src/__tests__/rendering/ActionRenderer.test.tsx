@@ -75,6 +75,18 @@ jest.mock('../../core/common', () => ({
 jest.mock('../../core/common/Icons/Icons', () => ({
   Icon: ({ iconName }: any) => <span data-testid={`icon-${iconName}`}>{iconName}</span>,
 }));
+jest.mock('../../core/bulk-delete/BulkDeleteAction', () => ({
+  BulkDeleteAction: ({ label, selectedRecords, routeParams, tableContext }: any) => (
+    <button
+      data-testid="bulk-delete-action"
+      data-selected-count={selectedRecords?.length ?? 0}
+      data-has-filters={routeParams?.filters ? 'yes' : 'no'}
+      data-has-table-context={tableContext ? 'yes' : 'no'}
+    >
+      {label}
+    </button>
+  ),
+}));
 
 import { renderSingleAction } from '../../core/utils/actionRenderer';
 
@@ -136,6 +148,58 @@ describe('actionRenderer - URL substitution', () => {
     expect(button).toBeTruthy();
     // The button should be clickable (not disabled)
     expect(button!.disabled).toBe(false);
+  });
+});
+
+// ============================================================================
+// BULK DELETE — verify bulkDeleteConfig routes to BulkDeleteAction with the
+// selected records, filters, and table context it needs for delete-by-query.
+// ============================================================================
+
+describe('actionRenderer - bulk delete action', () => {
+  it('renders configured bulk delete action with selected records and filters', () => {
+    const result = renderSingleAction({
+      action: {
+        label: 'Delete Posts',
+        icon: 'DeleteOutlined',
+        bulkDeleteConfig: {
+          entityName: 'post',
+          apiBaseUrl: '/admin/post',
+          identifierFields: [ 'postId' ],
+        },
+      } as any,
+      key: 'bulk-delete',
+      selectedRecords: [ { postId: 'post-1' }, { postId: 'post-2' } ],
+      routeParams: { filters: { status: { eq: 'draft' } } },
+    });
+
+    renderAction(result)!;
+
+    const trigger = screen.getByTestId('bulk-delete-action');
+    expect(trigger).toHaveTextContent('Delete Posts');
+    expect(trigger).toHaveAttribute('data-selected-count', '2');
+    expect(trigger).toHaveAttribute('data-has-filters', 'yes');
+  });
+
+  it('forwards tableContext for delete-by-query mode', () => {
+    const result = renderSingleAction({
+      action: {
+        label: 'Delete Posts',
+        bulkDeleteConfig: { entityName: 'post', apiBaseUrl: '/admin/post' },
+      } as any,
+      key: 'bulk-delete',
+      selectedRecords: [],
+      routeParams: {},
+      tableContext: {
+        apiConfig: { apiMethod: 'GET', apiUrl: '/api/posts' },
+        propertiesConfig: [],
+        entityName: 'post',
+      } as any,
+    });
+
+    renderAction(result)!;
+
+    expect(screen.getByTestId('bulk-delete-action')).toHaveAttribute('data-has-table-context', 'yes');
   });
 });
 
