@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [1.1.0-beta.40](https://github.com/ten24group/ui24/compare/v1.1.0-beta.39...v1.1.0-beta.40) (2026-10-22)
+
+
+### Bug Fixes
+
+* keep the typed wall clock when saving date/time fields ([3ffb786](https://github.com/ten24group/ui24/commit/3ffb7860977c4cd45eed62b6ce1552d2ec8f2944))
+
 ## [1.1.0-beta.39](https://github.com/ten24group/ui24/compare/v1.1.0-beta.38...v1.1.0-beta.39) (2026-08-27)
 
 
